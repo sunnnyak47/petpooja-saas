@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.png
+*.webp
+*.jpg
+dist/
+logs/
+uploads/
