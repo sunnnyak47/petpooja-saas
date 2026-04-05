@@ -10,24 +10,29 @@ import {
 
 export default function ChainManagement() {
   const queryClient = useQueryClient();
-  const { data: chains, isLoading } = useQuery({
+  const { data: chains, isLoading, isError } = useQuery({
     queryKey: ['sa-chains'],
-    queryFn: () => api.get('/chains')
+    queryFn: () => api.get('/chains'),
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   const impersonateMutation = useMutation({
     mutationFn: (id) => api.post('/impersonate', { head_office_id: id }),
     onSuccess: (res) => {
-      const { token } = res.data;
-      // In production, we'd open a new tab with the token in the URL or local storage of that domain
-      localStorage.setItem('impersonation_token', token);
-      toast.success('Impersonation token generated! Launching client POS...');
-      // Logic to open client portal
-      window.open(`http://localhost:3001/pos?impersonate=${token}`, '_blank');
+      const token = res?.data?.token;
+      if (token) {
+        localStorage.setItem('impersonation_token', token);
+        toast.success('Impersonation token generated!');
+      }
     }
   });
 
-  if (isLoading) return <div className="animate-pulse">Fetching Clients...</div>;
+  if (isLoading) return <div className="h-[40vh] flex items-center justify-center font-black text-slate-500 text-lg tracking-widest uppercase">Fetching Clients...</div>;
+
+  // Safely extract the chains array
+  const chainList = chains?.data || chains || [];
+  const hasChains = Array.isArray(chainList) && chainList.length > 0;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -65,7 +70,7 @@ export default function ChainManagement() {
                </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50 font-bold">
-               {chains?.data?.map((chain) => (
+               {hasChains ? chainList.map((chain) => (
                  <tr key={chain.id} className="hover:bg-indigo-500/5 transition-colors group">
                     <td className="px-8 py-6">
                        <div className="flex items-center gap-4">
@@ -74,7 +79,7 @@ export default function ChainManagement() {
                           </div>
                           <div>
                             <p className="text-white text-sm font-black">{chain.name}</p>
-                            <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">ID: {chain.id.slice(0, 8)} • {chain._count?.outlets} Outlets</p>
+                            <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">ID: {String(chain.id).slice(0, 8)} • {chain._count?.outlets || 0} Outlets</p>
                           </div>
                        </div>
                     </td>
@@ -108,7 +113,7 @@ export default function ChainManagement() {
                           <button 
                             onClick={() => impersonateMutation.mutate(chain.id)}
                             disabled={impersonateMutation.isPending}
-                            className="p-3 bg-slate-800 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all active:scale-95 tooltip" title="Login as client"
+                            className="p-3 bg-slate-800 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all active:scale-95" title="Login as client"
                           >
                              <ExternalLink size={18} />
                           </button>
@@ -118,7 +123,17 @@ export default function ChainManagement() {
                        </div>
                     </td>
                  </tr>
-               ))}
+               )) : (
+                 <tr>
+                   <td colSpan={5} className="px-8 py-16 text-center">
+                     <div className="space-y-4">
+                       <Building2 className="mx-auto text-slate-600" size={48} />
+                       <p className="text-lg font-black text-slate-400">No Restaurants Onboarded Yet</p>
+                       <p className="text-xs text-slate-600 uppercase tracking-widest">Use the "Onboard New Restaurant" button above to add your first client.</p>
+                     </div>
+                   </td>
+                 </tr>
+               )}
             </tbody>
          </table>
       </div>
