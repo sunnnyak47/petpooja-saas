@@ -21,7 +21,7 @@ const superadminController = {
 
       // Generate a REAL high-security JWT for the SuperAdmin
       const token = jwt.sign(
-        { role: 'super_admin', email: 'admin@petpooja.com' },
+        { id: 'sa_root_2026', role: 'super_admin', email: 'admin@petpooja.com' },
         appConfig.jwt.secret,
         { expiresIn: '24h' }
       );
