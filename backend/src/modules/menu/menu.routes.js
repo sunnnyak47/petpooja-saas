@@ -1,0 +1,52 @@
+/**
+ * @fileoverview Menu routes — maps endpoints to controllers with auth + validation middleware.
+ * @module modules/menu/menu.routes
+ */
+
+const express = require('express');
+const router = express.Router();
+const menuController = require('./menu.controller');
+const { authenticate } = require('../../middleware/auth.middleware');
+const { hasRole, hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  createCategorySchema, updateCategorySchema,
+  createMenuItemSchema, updateMenuItemSchema,
+  createVariantSchema, createAddonGroupSchema, createAddonSchema,
+  bulkPriceUpdateSchema, bulkAvailabilitySchema,
+} = require('./menu.validation');
+
+/* -- Categories -- */
+router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), menuController.createCategory);
+router.get('/categories', authenticate, enforceOutletScope, menuController.listCategories);
+router.patch('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(updateCategorySchema), menuController.updateCategory);
+router.delete('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), menuController.deleteCategory);
+router.post('/categories/reorder', authenticate, hasPermission('MANAGE_CATEGORIES'), menuController.reorderCategories);
+
+/* -- Menu Items -- */
+router.post('/items', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuItemSchema), menuController.createMenuItem);
+router.get('/items', authenticate, enforceOutletScope, menuController.listMenuItems);
+router.get('/items/:id', authenticate, enforceOutletScope, menuController.getMenuItem);
+router.patch('/items/:id', authenticate, hasPermission('MANAGE_MENU'), validate(updateMenuItemSchema), menuController.updateMenuItem);
+router.delete('/items/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteMenuItem);
+
+/* -- Variants -- */
+router.post('/items/:id/variants', authenticate, hasPermission('MANAGE_MENU'), validate(createVariantSchema), menuController.createVariant);
+router.patch('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.updateVariant);
+router.delete('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteVariant);
+
+/* -- Addon Groups & Addons -- */
+router.post('/addon-groups', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonGroupSchema), menuController.createAddonGroup);
+router.get('/addon-groups', authenticate, enforceOutletScope, menuController.listAddonGroups);
+router.post('/addons', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonSchema), menuController.createAddon);
+router.patch('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.updateAddon);
+router.delete('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteAddon);
+
+/* -- Bulk Operations -- */
+router.post('/items/bulk-price-update', authenticate, hasPermission('MANAGE_MENU'), validate(bulkPriceUpdateSchema), menuController.bulkPriceUpdate);
+router.post('/items/bulk-availability', authenticate, hasPermission('MANAGE_MENU'), validate(bulkAvailabilitySchema), menuController.bulkAvailability);
+
+/* -- Outlet Overrides -- */
+router.post('/items/:itemId/outlet-override', authenticate, hasPermission('MANAGE_MENU'), menuController.setOutletOverride);
+
+module.exports = router;

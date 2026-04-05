@@ -1,0 +1,7 @@
+{
+  "name": "petpooja-shared",
+  "version": "1.0.0",
+  "description": "Shared types, constants, and utilities for Petpooja ERP",
+  "main": "index.js",
+  "scripts": {}
+}

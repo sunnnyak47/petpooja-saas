@@ -1,0 +1,1297 @@
+// ============================================
+// PETPOOJA ERP — PRISMA SCHEMA
+// Mirrors the PostgreSQL schema exactly
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+model Role {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String           @unique @db.VarChar(50)
+  display_name String           @db.VarChar(100)
+  description  String?
+  is_system    Boolean          @default(false)
+  created_at   DateTime         @default(now()) @db.Timestamptz
+  updated_at   DateTime         @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean          @default(false)
+
+  role_permissions RolePermission[]
+  user_roles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key          String   @unique @db.VarChar(100)
+  display_name String   @db.VarChar(150)
+  module       String   @db.VarChar(50)
+  description  String?
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean  @default(false)
+
+  role_permissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id       String   @db.Uuid
+  permission_id String   @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  role       Role       @relation(fields: [role_id], references: [id])
+  permission Permission @relation(fields: [permission_id], references: [id])
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model HeadOffice {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String   @db.VarChar(200)
+  legal_name    String?  @db.VarChar(200)
+  gstin         String?  @db.VarChar(15)
+  pan           String?  @db.VarChar(10)
+  contact_email String   @unique @db.VarChar(150)
+  contact_phone String   @db.VarChar(15)
+  logo_url      String?  @db.VarChar(500)
+  primary_color String?  @default("#4F46E5") @db.VarChar(10)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted      Boolean  @default(false)
+  setup_completed Boolean  @default(false)
+
+  outlets       Outlet[]
+  subscriptions Subscription[]
+  users         User[]         @relation("head_office_users")
+
+  @@map("head_offices")
+}
+
+model Subscription {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  head_office_id  String    @db.Uuid
+  plan_name       String    @db.VarChar(50)
+  status          String    @default("active") @db.VarChar(20)
+  billing_cycle   String    @default("monthly") @db.VarChar(20)
+  amount          Decimal   @db.Decimal(10, 2)
+  starts_at       DateTime  @default(now()) @db.Timestamptz
+  expires_at      DateTime  @db.Timestamptz
+  last_payment_at DateTime? @db.Timestamptz
+  next_billing_at DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  head_office HeadOffice @relation(fields: [head_office_id], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Outlet {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  head_office_id          String?  @db.Uuid
+  name                    String   @db.VarChar(200)
+  code           String   @unique @db.VarChar(20)
+  type           String   @default("restaurant") @db.VarChar(30)
+  address_line1  String?  @db.VarChar(255)
+  address_line2  String?  @db.VarChar(255)
+  city           String?  @db.VarChar(100)
+  state          String?  @db.VarChar(100)
+  pincode        String?  @db.VarChar(10)
+  country        String   @default("India") @db.VarChar(50)
+  phone          String?  @db.VarChar(15)
+  email          String?  @db.VarChar(150)
+  gstin          String?  @db.VarChar(20)
+  fssai_number   String?  @db.VarChar(20)
+  latitude       Decimal? @db.Decimal(10, 7)
+  longitude      Decimal? @db.Decimal(10, 7)
+  timezone       String   @default("Asia/Kolkata") @db.VarChar(50)
+  currency       String   @default("INR") @db.VarChar(5)
+  is_ac          Boolean  @default(false)
+  logo_url       String?  @db.VarChar(500)
+  primary_color  String?  @db.VarChar(10)
+  is_active      Boolean  @default(true)
+  opening_time   DateTime? @db.Time
+  closing_time   DateTime? @db.Time
+  owner_id       String?  @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  user_roles              UserRole[]
+  outlet_settings         OutletSetting[]
+  audit_logs              AuditLog[]
+  menu_categories         MenuCategory[]
+  menu_items              MenuItem[]
+  addon_groups            AddonGroup[]
+  item_combos             ItemCombo[]
+  table_areas             TableArea[]
+  tables                  Table[]
+  orders                  Order[]
+  kot                     KOT[]
+  table_reservations      TableReservation[]
+  inventory_items         InventoryItem[]
+  inventory_stock         InventoryStock[]
+  stock_transactions      StockTransaction[]
+  wastage_logs            WastageLog[]
+  suppliers               Supplier[]
+  purchase_orders         PurchaseOrder[]
+  goods_received_notes    GoodsReceivedNote[]
+  loyalty_transactions    LoyaltyTransaction[]
+  campaigns               Campaign[]
+  staff_profiles          StaffProfile[]
+  staff_shifts            StaffShift[]
+  attendance_logs         AttendanceLog[]
+  staff_permissions       StaffPermission[]
+  payment_methods_config  PaymentMethod[]
+  payments                Payment[]
+  tax_configs             TaxConfig[]
+  invoice_sequences       InvoiceSequence[]
+  reports_cache           ReportsCache[]
+  daily_summaries         DailySummary[]
+  franchise_config        FranchiseConfig[]
+  outlet_menu_overrides   OutletMenuOverride[]
+  ck_indents_requesting   CentralKitchenIndent[] @relation("requesting_outlet")
+  ck_indents_ck           CentralKitchenIndent[] @relation("ck_outlet")
+  head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
+
+  @@map("outlets")
+}
+
+model User {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  head_office_id        String?   @db.Uuid
+  full_name             String    @db.VarChar(150)
+  email                 String?   @unique @db.VarChar(150)
+  phone                 String    @unique @db.VarChar(15)
+  password_hash         String    @db.VarChar(255)
+  avatar_url            String?   @db.VarChar(500)
+  is_active             Boolean   @default(true)
+  is_email_verified     Boolean   @default(false)
+  is_phone_verified     Boolean   @default(false)
+  last_login_at         DateTime? @db.Timestamptz
+  failed_login_attempts Int       @default(0)
+  locked_until          DateTime? @db.Timestamptz
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  updated_at            DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted            Boolean   @default(false)
+
+  user_roles       UserRole[]
+  audit_logs       AuditLog[]
+  orders_created   Order[]          @relation("staff_orders")
+  orders_cancelled Order[]          @relation("cancelled_orders")
+  orders_voided    Order[]          @relation("voided_orders")
+  staff_profiles   StaffProfile[]
+  attendance_logs  AttendanceLog[]
+  staff_permissions StaffPermission[]
+  payments_processed Payment[]
+  head_office      HeadOffice?      @relation("head_office_users", fields: [head_office_id], references: [id])
+
+  @@map("users")
+}
+
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  role_id    String   @db.Uuid
+  outlet_id  String?  @db.Uuid
+  is_primary Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted Boolean  @default(false)
+
+  user   User    @relation(fields: [user_id], references: [id])
+  role   Role    @relation(fields: [role_id], references: [id])
+  outlet Outlet? @relation(fields: [outlet_id], references: [id])
+
+  @@unique([user_id, role_id, outlet_id])
+  @@map("user_roles")
+}
+
+model OutletSetting {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  setting_key   String   @db.VarChar(100)
+  setting_value String
+  data_type     String   @default("string") @db.VarChar(20)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, setting_key])
+  @@map("outlet_settings")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?  @db.Uuid
+  outlet_id   String?  @db.Uuid
+  action      String   @db.VarChar(100)
+  entity_type String?  @db.VarChar(50)
+  entity_id   String?  @db.Uuid
+  old_values  Json?
+  new_values  Json?
+  ip_address  String?  @db.VarChar(45)
+  user_agent  String?
+  metadata    Json?
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  user   User?   @relation(fields: [user_id], references: [id])
+  outlet Outlet? @relation(fields: [outlet_id], references: [id])
+
+  @@map("audit_log")
+}
+
+// ============================================
+// MENU MODELS
+// ============================================
+
+model MenuCategory {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  name          String   @db.VarChar(100)
+  description   String?
+  icon_url      String?  @db.VarChar(500)
+  display_order Int      @default(0)
+  is_active     Boolean  @default(true)
+  parent_id     String?  @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  outlet     Outlet        @relation(fields: [outlet_id], references: [id])
+  parent     MenuCategory? @relation("category_parent", fields: [parent_id], references: [id])
+  children   MenuCategory[] @relation("category_parent")
+  menu_items MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id          String   @db.Uuid
+  category_id        String   @db.Uuid
+  name               String   @db.VarChar(200)
+  description        String?
+  short_code         String?  @db.VarChar(20)
+  image_url          String?  @db.VarChar(500)
+  base_price         Decimal  @db.Decimal(10, 2)
+  food_type          String   @default("veg") @db.VarChar(15)
+  cuisine            String?  @db.VarChar(50)
+  kitchen_station    String   @default("KITCHEN") @db.VarChar(30)
+  gst_rate           Decimal  @default(5.00) @db.Decimal(5, 2)
+  hsn_code           String   @default("9963") @db.VarChar(10)
+  is_active          Boolean  @default(true)
+  is_available       Boolean  @default(true)
+  is_bestseller      Boolean  @default(false)
+  is_new             Boolean  @default(false)
+  is_spicy           Boolean  @default(false)
+  is_recommended     Boolean  @default(false)
+  allergen_info      String?
+  preparation_time_min Int    @default(15)
+  calories           Int?
+  display_order      Int      @default(0)
+  tags               Json     @default("[]")
+  created_at         DateTime @default(now()) @db.Timestamptz
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted         Boolean  @default(false)
+  external_id        String?  @db.VarChar(100)
+
+  outlet         Outlet             @relation(fields: [outlet_id], references: [id])
+  category       MenuCategory       @relation(fields: [category_id], references: [id])
+  variants       ItemVariant[]
+  addons         ItemAddon[]
+  order_items    OrderItem[]
+  menu_schedules MenuSchedule[]
+  outlet_overrides OutletMenuOverride[]
+  recipe         Recipe?
+  combo_items    ComboItem[]
+
+  @@map("menu_items")
+}
+
+model ItemVariant {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menu_item_id   String   @db.Uuid
+  name           String   @db.VarChar(100)
+  price_addition Decimal  @default(0) @db.Decimal(10, 2)
+  is_default     Boolean  @default(false)
+  is_active      Boolean  @default(true)
+  display_order  Int      @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+  external_id    String?  @db.VarChar(100)
+
+  menu_item   MenuItem    @relation(fields: [menu_item_id], references: [id])
+  order_items OrderItem[]
+
+  @@map("item_variants")
+}
+
+model AddonGroup {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  name          String   @db.VarChar(100)
+  min_selection Int      @default(0)
+  max_selection Int      @default(5)
+  is_required   Boolean  @default(false)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  outlet Outlet      @relation(fields: [outlet_id], references: [id])
+  addons ItemAddon[]
+
+  @@map("addon_groups")
+}
+
+model ItemAddon {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  addon_group_id String   @db.Uuid
+  menu_item_id   String   @db.Uuid
+  name           String   @db.VarChar(100)
+  price          Decimal  @default(0) @db.Decimal(10, 2)
+  is_active      Boolean  @default(true)
+  display_order  Int      @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+  external_id    String?  @db.VarChar(100)
+
+  addon_group      AddonGroup       @relation(fields: [addon_group_id], references: [id])
+  menu_item        MenuItem         @relation(fields: [menu_item_id], references: [id])
+  order_item_addons OrderItemAddon[]
+
+  @@map("item_addons")
+}
+
+model ItemCombo {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  name          String   @db.VarChar(200)
+  description   String?
+  image_url     String?  @db.VarChar(500)
+  combo_price   Decimal  @db.Decimal(10, 2)
+  is_active     Boolean  @default(true)
+  display_order Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  outlet      Outlet      @relation(fields: [outlet_id], references: [id])
+  combo_items ComboItem[]
+
+  @@map("item_combo")
+}
+
+model ComboItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  combo_id     String   @db.Uuid
+  menu_item_id String   @db.Uuid
+  quantity     Int      @default(1)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  combo     ItemCombo @relation(fields: [combo_id], references: [id])
+  menu_item MenuItem  @relation(fields: [menu_item_id], references: [id])
+
+  @@map("combo_items")
+}
+
+model MenuSchedule {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menu_item_id String   @db.Uuid
+  day_of_week  Int?
+  start_time   DateTime @db.Time
+  end_time     DateTime @db.Time
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean  @default(false)
+
+  menu_item MenuItem @relation(fields: [menu_item_id], references: [id])
+
+  @@map("menu_schedules")
+}
+
+model OutletMenuOverride {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String   @db.Uuid
+  menu_item_id   String   @db.Uuid
+  override_price Decimal? @db.Decimal(10, 2)
+  is_available   Boolean  @default(true)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  outlet    Outlet   @relation(fields: [outlet_id], references: [id])
+  menu_item MenuItem @relation(fields: [menu_item_id], references: [id])
+
+  @@unique([outlet_id, menu_item_id])
+  @@map("outlet_menu_overrides")
+}
+
+// ============================================
+// ORDER MODELS
+// ============================================
+
+model TableArea {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  name          String   @db.VarChar(100)
+  display_order Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  outlet Outlet  @relation(fields: [outlet_id], references: [id])
+  tables Table[]
+
+  @@map("table_areas")
+}
+
+model Table {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id        String   @db.Uuid
+  area_id          String?  @db.Uuid
+  table_number     String   @db.VarChar(20)
+  seating_capacity Int      @default(4)
+  status           String   @default("available") @db.VarChar(20)
+  current_order_id String?  @db.Uuid
+  display_order    Int      @default(0)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted       Boolean  @default(false)
+
+  outlet       Outlet             @relation(fields: [outlet_id], references: [id])
+  area         TableArea?         @relation(fields: [area_id], references: [id])
+  orders       Order[]
+  reservations TableReservation[]
+
+  @@unique([outlet_id, table_number])
+  @@map("tables")
+}
+
+model Order {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id          String    @db.Uuid
+  order_number       String    @unique @db.VarChar(30)
+  order_type         String    @default("dine_in") @db.VarChar(20)
+  status             String    @default("created") @db.VarChar(25)
+  table_id           String?   @db.Uuid
+  customer_id        String?   @db.Uuid
+  staff_id           String?   @db.Uuid
+  subtotal           Decimal   @default(0) @db.Decimal(12, 2)
+  discount_type      String?   @db.VarChar(15)
+  discount_value     Decimal   @default(0) @db.Decimal(10, 2)
+  discount_amount    Decimal   @default(0) @db.Decimal(10, 2)
+  discount_reason    String?
+  coupon_code        String?   @db.VarChar(50)
+  loyalty_points_used Int      @default(0)
+  loyalty_discount   Decimal   @default(0) @db.Decimal(10, 2)
+  taxable_amount     Decimal   @default(0) @db.Decimal(12, 2)
+  cgst               Decimal   @default(0) @db.Decimal(10, 2)
+  sgst               Decimal   @default(0) @db.Decimal(10, 2)
+  igst               Decimal   @default(0) @db.Decimal(10, 2)
+  total_tax          Decimal   @default(0) @db.Decimal(10, 2)
+  total_amount       Decimal   @default(0) @db.Decimal(12, 2)
+  round_off          Decimal   @default(0) @db.Decimal(5, 2)
+  grand_total        Decimal   @default(0) @db.Decimal(12, 2)
+  notes              String?
+  source             String    @default("pos") @db.VarChar(20)
+  aggregator         String?   @db.VarChar(20)
+  aggregator_order_id String?  @db.VarChar(100)
+  is_paid            Boolean   @default(false)
+  paid_at            DateTime? @db.Timestamptz
+  cancelled_at       DateTime? @db.Timestamptz
+  cancelled_by       String?   @db.Uuid
+  cancel_reason      String?
+  void_reason        String?
+  voided_by          String?   @db.Uuid
+  customer_name     String?   @db.VarChar(150)
+  customer_phone    String?   @db.VarChar(15)
+  delivery_address  String?
+  invoice_number     String?   @db.VarChar(50)
+  invoice_url        String?   @db.VarChar(500)
+  daily_sequence     Int?
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted         Boolean   @default(false)
+
+  outlet         Outlet             @relation(fields: [outlet_id], references: [id])
+  table          Table?             @relation(fields: [table_id], references: [id])
+  customer       Customer?          @relation(fields: [customer_id], references: [id])
+  staff          User?              @relation("staff_orders", fields: [staff_id], references: [id])
+  cancelled_user User?              @relation("cancelled_orders", fields: [cancelled_by], references: [id])
+  voided_user    User?              @relation("voided_orders", fields: [voided_by], references: [id])
+  order_items    OrderItem[]
+  status_history OrderStatusHistory[]
+  kots           KOT[]
+  payments       Payment[]
+  loyalty_txns   LoyaltyTransaction[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id        String   @db.Uuid
+  menu_item_id    String   @db.Uuid
+  variant_id      String?  @db.Uuid
+  name            String   @db.VarChar(200)
+  variant_name    String?  @db.VarChar(100)
+  quantity        Int      @default(1)
+  unit_price      Decimal  @db.Decimal(10, 2)
+  variant_price   Decimal  @default(0) @db.Decimal(10, 2)
+  addons_total    Decimal  @default(0) @db.Decimal(10, 2)
+  item_total      Decimal  @db.Decimal(10, 2)
+  gst_rate        Decimal  @default(5.00) @db.Decimal(5, 2)
+  item_tax        Decimal  @default(0) @db.Decimal(10, 2)
+  discount_amount Decimal  @default(0) @db.Decimal(10, 2)
+  notes           String?
+  is_kot_sent     Boolean  @default(false)
+  kot_id          String?  @db.Uuid
+  kitchen_station String   @default("KITCHEN") @db.VarChar(30)
+  status          String   @default("pending") @db.VarChar(20)
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted      Boolean  @default(false)
+
+  order     Order            @relation(fields: [order_id], references: [id])
+  menu_item MenuItem         @relation(fields: [menu_item_id], references: [id])
+  variant   ItemVariant?     @relation(fields: [variant_id], references: [id])
+  addons    OrderItemAddon[]
+  kot_items KOTItem[]
+
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_item_id String   @db.Uuid
+  addon_id      String   @db.Uuid
+  name          String   @db.VarChar(100)
+  price         Decimal  @db.Decimal(10, 2)
+  quantity      Int      @default(1)
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  order_item OrderItem @relation(fields: [order_item_id], references: [id])
+  addon      ItemAddon @relation(fields: [addon_id], references: [id])
+
+  @@map("order_item_addons")
+}
+
+model OrderStatusHistory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id    String   @db.Uuid
+  from_status String?  @db.VarChar(25)
+  to_status   String   @db.VarChar(25)
+  changed_by  String?  @db.Uuid
+  reason      String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@map("order_status_history")
+}
+
+model KOT {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String    @db.Uuid
+  order_id     String    @db.Uuid
+  kot_number   String    @db.VarChar(20)
+  station      String    @default("KITCHEN") @db.VarChar(30)
+  status       String    @default("pending") @db.VarChar(20)
+  items_count  Int       @default(0)
+  printed_at   DateTime? @db.Timestamptz
+  completed_at DateTime? @db.Timestamptz
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean   @default(false)
+
+  outlet    Outlet    @relation(fields: [outlet_id], references: [id])
+  order     Order     @relation(fields: [order_id], references: [id])
+  kot_items KOTItem[]
+
+  @@map("kot")
+}
+
+model KOTItem {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kot_id        String    @db.Uuid
+  order_item_id String    @db.Uuid
+  quantity      Int       @default(1)
+  status        String    @default("pending") @db.VarChar(20)
+  ready_at      DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  kot        KOT       @relation(fields: [kot_id], references: [id])
+  order_item OrderItem @relation(fields: [order_item_id], references: [id])
+
+  @@map("kot_items")
+}
+
+model TableReservation {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  table_id          String   @db.Uuid
+  customer_name     String?  @db.VarChar(150)
+  customer_phone    String?  @db.VarChar(15)
+  party_size        Int      @default(2)
+  reservation_date  DateTime @db.Date
+  reservation_time  DateTime @db.Time
+  duration_minutes  Int      @default(90)
+  status            String   @default("confirmed") @db.VarChar(20)
+  notes             String?
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+  table  Table  @relation(fields: [table_id], references: [id])
+
+  @@map("table_reservations")
+}
+
+// ============================================
+// INVENTORY MODELS
+// ============================================
+
+model InventoryItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String   @db.Uuid
+  name           String   @db.VarChar(200)
+  sku            String?  @db.VarChar(50)
+  category       String?  @db.VarChar(50)
+  unit           String   @default("kg") @db.VarChar(20)
+  cost_per_unit  Decimal  @default(0) @db.Decimal(10, 2)
+  min_threshold  Decimal  @default(0) @db.Decimal(10, 2)
+  max_threshold  Decimal  @default(0) @db.Decimal(10, 2)
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  outlet             Outlet              @relation(fields: [outlet_id], references: [id])
+  stock              InventoryStock[]
+  stock_transactions StockTransaction[]
+  wastage_logs       WastageLog[]
+  recipe_ingredients RecipeIngredient[]
+  po_items           POItem[]
+  grn_items          GRNItem[]
+
+  @@map("inventory_items")
+}
+
+model InventoryStock {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  current_stock     Decimal  @default(0) @db.Decimal(12, 3)
+  last_updated_by   String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
+  outlet         Outlet        @relation(fields: [outlet_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@unique([outlet_id, inventory_item_id])
+  @@map("inventory_stock")
+}
+
+model StockTransaction {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  transaction_type  String   @db.VarChar(20)
+  quantity          Decimal  @db.Decimal(12, 3)
+  unit_cost         Decimal? @db.Decimal(10, 2)
+  reference_type    String?  @db.VarChar(30)
+  reference_id      String?  @db.Uuid
+  reason            String?
+  performed_by      String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  outlet         Outlet        @relation(fields: [outlet_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("stock_transactions")
+}
+
+model WastageLog {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  quantity          Decimal  @db.Decimal(12, 3)
+  reason            String
+  logged_by         String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
+  outlet         Outlet        @relation(fields: [outlet_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("wastage_log")
+}
+
+model Supplier {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String   @db.Uuid
+  name           String   @db.VarChar(200)
+  contact_person String?  @db.VarChar(150)
+  phone          String?  @db.VarChar(15)
+  email          String?  @db.VarChar(150)
+  address        String?
+  gstin          String?  @db.VarChar(20)
+  pan            String?  @db.VarChar(12)
+  payment_terms  String?  @db.VarChar(50)
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  outlet          Outlet          @relation(fields: [outlet_id], references: [id])
+  purchase_orders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String    @db.Uuid
+  supplier_id   String    @db.Uuid
+  po_number     String    @unique @db.VarChar(30)
+  status        String    @default("draft") @db.VarChar(20)
+  total_amount  Decimal   @default(0) @db.Decimal(12, 2)
+  notes         String?
+  expected_date DateTime? @db.Date
+  created_by    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean   @default(false)
+
+  outlet   Outlet              @relation(fields: [outlet_id], references: [id])
+  supplier Supplier            @relation(fields: [supplier_id], references: [id])
+  po_items POItem[]
+  grns     GoodsReceivedNote[]
+
+  @@map("purchase_orders")
+}
+
+model POItem {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchase_order_id String  @db.Uuid
+  inventory_item_id String  @db.Uuid
+  ordered_quantity  Decimal @db.Decimal(12, 3)
+  unit_cost         Decimal @db.Decimal(10, 2)
+  received_quantity Decimal @default(0) @db.Decimal(12, 3)
+  total_cost        Decimal? @db.Decimal(12, 2)
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("po_items")
+}
+
+model GoodsReceivedNote {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  purchase_order_id String   @db.Uuid
+  grn_number        String   @unique @db.VarChar(30)
+  received_by       String?  @db.Uuid
+  received_date     DateTime @default(now()) @db.Date
+  notes             String?
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
+  outlet         Outlet        @relation(fields: [outlet_id], references: [id])
+  purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id])
+  grn_items      GRNItem[]
+
+  @@map("goods_received_notes")
+}
+
+model GRNItem {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  grn_id            String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  po_item_id        String?  @db.Uuid
+  received_quantity Decimal  @db.Decimal(12, 3)
+  unit_cost         Decimal? @db.Decimal(10, 2)
+  quality_status    String   @default("accepted") @db.VarChar(20)
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  grn            GoodsReceivedNote @relation(fields: [grn_id], references: [id])
+  inventory_item InventoryItem     @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("grn_items")
+}
+
+model Recipe {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menu_item_id   String   @unique @db.Uuid
+  name           String?  @db.VarChar(200)
+  yield_quantity Decimal  @default(1) @db.Decimal(10, 3)
+  yield_unit     String   @default("pcs") @db.VarChar(20)
+  instructions   String?
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  menu_item   MenuItem           @relation(fields: [menu_item_id], references: [id])
+  ingredients RecipeIngredient[]
+
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipe_id         String   @db.Uuid
+  inventory_item_id String   @db.Uuid
+  quantity          Decimal  @db.Decimal(12, 3)
+  unit              String   @db.VarChar(20)
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  recipe         Recipe        @relation(fields: [recipe_id], references: [id])
+  inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("recipe_ingredients")
+}
+
+// ============================================
+// CUSTOMER MODELS
+// ============================================
+
+model Customer {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone               String    @unique @db.VarChar(15)
+  full_name           String?   @db.VarChar(150)
+  email               String?   @db.VarChar(150)
+  date_of_birth       DateTime? @db.Date
+  anniversary         DateTime? @db.Date
+  gender              String?   @db.VarChar(10)
+  dietary_preference  String?   @db.VarChar(20)
+  allergens           String?
+  total_visits        Int       @default(0)
+  total_spend         Decimal   @default(0) @db.Decimal(12, 2)
+  avg_order_value     Decimal   @default(0) @db.Decimal(10, 2)
+  last_visit_at       DateTime? @db.Timestamptz
+  segment             String    @default("new") @db.VarChar(20)
+  notes               String?
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted          Boolean   @default(false)
+
+  addresses          CustomerAddress[]
+  loyalty_points     LoyaltyPoints?
+  loyalty_transactions LoyaltyTransaction[]
+  orders             Order[]
+
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id   String   @db.Uuid
+  label         String   @default("home") @db.VarChar(50)
+  address_line1 String   @db.VarChar(255)
+  address_line2 String?  @db.VarChar(255)
+  city          String?  @db.VarChar(100)
+  state         String?  @db.VarChar(100)
+  pincode       String?  @db.VarChar(10)
+  latitude      Decimal? @db.Decimal(10, 7)
+  longitude     Decimal? @db.Decimal(10, 7)
+  is_default    Boolean  @default(false)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
+  customer Customer @relation(fields: [customer_id], references: [id])
+
+  @@map("customer_addresses")
+}
+
+model LoyaltyPoints {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id    String   @unique @db.Uuid
+  total_earned   Int      @default(0)
+  total_redeemed Int      @default(0)
+  current_balance Int     @default(0)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  customer Customer @relation(fields: [customer_id], references: [id])
+
+  @@map("loyalty_points")
+}
+
+model LoyaltyTransaction {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id   String    @db.Uuid
+  outlet_id     String    @db.Uuid
+  order_id      String?   @db.Uuid
+  type          String    @db.VarChar(10)
+  points        Int
+  balance_after Int
+  description   String?
+  expires_at    DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  customer Customer @relation(fields: [customer_id], references: [id])
+  outlet   Outlet   @relation(fields: [outlet_id], references: [id])
+  order    Order?   @relation(fields: [order_id], references: [id])
+
+  @@map("loyalty_transactions")
+}
+
+model Campaign {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String?   @db.Uuid
+  name              String    @db.VarChar(200)
+  type              String    @default("sms") @db.VarChar(20)
+  target_segment    String?   @db.VarChar(20)
+  message_template  String
+  scheduled_at      DateTime? @db.Timestamptz
+  sent_at           DateTime? @db.Timestamptz
+  status            String    @default("draft") @db.VarChar(20)
+  total_recipients  Int       @default(0)
+  sent_count        Int       @default(0)
+  delivered_count   Int       @default(0)
+  failed_count      Int       @default(0)
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean   @default(false)
+
+  outlet        Outlet?       @relation(fields: [outlet_id], references: [id])
+  campaign_logs CampaignLog[]
+
+  @@map("campaigns")
+}
+
+model CampaignLog {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaign_id   String    @db.Uuid
+  customer_id   String    @db.Uuid
+  status        String    @default("sent") @db.VarChar(20)
+  sent_at       DateTime  @default(now()) @db.Timestamptz
+  error_message String?
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaign_id], references: [id])
+
+  @@map("campaign_logs")
+}
+
+// ============================================
+// STAFF MODELS
+// ============================================
+
+model StaffProfile {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  outlet_id         String    @db.Uuid
+  employee_code     String?   @db.VarChar(20)
+  department        String?   @db.VarChar(50)
+  designation       String?   @db.VarChar(100)
+  manager_pin       String?   @db.VarChar(10)
+  hourly_rate       Decimal?  @db.Decimal(8, 2)
+  monthly_salary    Decimal?  @db.Decimal(10, 2)
+  photo_url         String?   @db.VarChar(500)
+  emergency_contact String?   @db.VarChar(15)
+  blood_group       String?   @db.VarChar(5)
+  join_date         DateTime? @db.Date
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean   @default(false)
+
+  user   User   @relation(fields: [user_id], references: [id])
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([user_id, outlet_id])
+  @@map("staff_profiles")
+}
+
+model StaffShift {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String   @db.Uuid
+  name       String   @db.VarChar(50)
+  start_time DateTime @db.Time
+  end_time   DateTime @db.Time
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted Boolean  @default(false)
+
+  outlet         Outlet          @relation(fields: [outlet_id], references: [id])
+  attendance_logs AttendanceLog[]
+
+  @@map("staff_shifts")
+}
+
+model AttendanceLog {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  outlet_id      String    @db.Uuid
+  shift_id       String?   @db.Uuid
+  clock_in       DateTime  @db.Timestamptz
+  clock_out      DateTime? @db.Timestamptz
+  clock_in_lat   Decimal?  @db.Decimal(10, 7)
+  clock_in_lng   Decimal?  @db.Decimal(10, 7)
+  clock_out_lat  Decimal?  @db.Decimal(10, 7)
+  clock_out_lng  Decimal?  @db.Decimal(10, 7)
+  hours_worked   Decimal?  @db.Decimal(5, 2)
+  is_overtime    Boolean   @default(false)
+  overtime_hours Decimal   @default(0) @db.Decimal(5, 2)
+  notes          String?
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean   @default(false)
+
+  user   User       @relation(fields: [user_id], references: [id])
+  outlet Outlet     @relation(fields: [outlet_id], references: [id])
+  shift  StaffShift? @relation(fields: [shift_id], references: [id])
+
+  @@map("attendance_log")
+}
+
+model StaffPermission {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  outlet_id      String   @db.Uuid
+  permission_key String   @db.VarChar(100)
+  is_granted     Boolean  @default(true)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
+  user   User   @relation(fields: [user_id], references: [id])
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([user_id, outlet_id, permission_key])
+  @@map("staff_permissions")
+}
+
+// ============================================
+// FINANCE MODELS
+// ============================================
+
+model PaymentMethod {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  method       String   @db.VarChar(30)
+  display_name String   @db.VarChar(50)
+  is_active    Boolean  @default(true)
+  sort_order   Int      @default(0)
+  config       Json     @default("{}")
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean  @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, method])
+  @@map("payment_methods")
+}
+
+model Payment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id        String    @db.Uuid
+  order_id         String    @db.Uuid
+  method           String    @db.VarChar(30)
+  amount           Decimal   @db.Decimal(12, 2)
+  transaction_id   String?   @db.VarChar(100)
+  gateway_response Json?
+  status           String    @default("pending") @db.VarChar(20)
+  refund_amount    Decimal   @default(0) @db.Decimal(12, 2)
+  refund_id        String?   @db.VarChar(100)
+  refund_reason    String?
+  processed_by     String?   @db.Uuid
+  processed_at     DateTime? @db.Timestamptz
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted       Boolean   @default(false)
+
+  outlet         Outlet         @relation(fields: [outlet_id], references: [id])
+  order          Order          @relation(fields: [order_id], references: [id])
+  processed_user User?          @relation(fields: [processed_by], references: [id])
+  splits         PaymentSplit[]
+
+  @@map("payments")
+}
+
+model PaymentSplit {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id     String   @db.Uuid
+  method         String   @db.VarChar(30)
+  amount         Decimal  @db.Decimal(12, 2)
+  transaction_id String?  @db.VarChar(100)
+  status         String   @default("success") @db.VarChar(20)
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  payment Payment @relation(fields: [payment_id], references: [id])
+
+  @@map("payment_splits")
+}
+
+model TaxConfig {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  name         String   @db.VarChar(50)
+  rate         Decimal  @db.Decimal(5, 2)
+  type         String   @default("gst") @db.VarChar(10)
+  is_inclusive  Boolean  @default(false)
+  apply_on     String   @default("all") @db.VarChar(20)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean  @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@map("tax_config")
+}
+
+model InvoiceSequence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id       String   @db.Uuid
+  financial_year  String   @db.VarChar(10)
+  last_sequence   Int      @default(0)
+  prefix          String?  @db.VarChar(20)
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, financial_year])
+  @@map("invoice_sequences")
+}
+
+// ============================================
+// REPORTING MODELS
+// ============================================
+
+model ReportsCache {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  report_name  String   @db.VarChar(100)
+  params_hash  String   @db.VarChar(64)
+  data         Json
+  generated_at DateTime @default(now()) @db.Timestamptz
+  expires_at   DateTime @db.Timestamptz
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, report_name, params_hash])
+  @@map("reports_cache")
+}
+
+model DailySummary {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id        String   @db.Uuid
+  summary_date     DateTime @db.Date
+  total_orders     Int      @default(0)
+  total_revenue    Decimal  @default(0) @db.Decimal(12, 2)
+  total_tax        Decimal  @default(0) @db.Decimal(10, 2)
+  total_discount   Decimal  @default(0) @db.Decimal(10, 2)
+  dine_in_orders   Int      @default(0)
+  takeaway_orders  Int      @default(0)
+  delivery_orders  Int      @default(0)
+  online_orders    Int      @default(0)
+  cash_collected   Decimal  @default(0) @db.Decimal(12, 2)
+  card_collected   Decimal  @default(0) @db.Decimal(12, 2)
+  upi_collected    Decimal  @default(0) @db.Decimal(12, 2)
+  other_collected  Decimal  @default(0) @db.Decimal(12, 2)
+  covers           Int      @default(0)
+  avg_order_value  Decimal  @default(0) @db.Decimal(10, 2)
+  void_count       Int      @default(0)
+  void_amount      Decimal  @default(0) @db.Decimal(10, 2)
+  refund_count     Int      @default(0)
+  refund_amount    Decimal  @default(0) @db.Decimal(10, 2)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, summary_date])
+  @@map("daily_summaries")
+}
+
+// ============================================
+// ENTERPRISE MODELS
+// ============================================
+
+model OutletGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?
+  owner_id    String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted  Boolean  @default(false)
+
+  @@map("outlet_groups")
+}
+
+model FranchiseConfig {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id           String    @db.Uuid
+  franchise_fee_type  String    @default("percentage") @db.VarChar(20)
+  franchise_fee_value Decimal   @default(0) @db.Decimal(10, 2)
+  calculate_on        String    @default("gross") @db.VarChar(10)
+  billing_cycle       String    @default("monthly") @db.VarChar(10)
+  contract_start      DateTime? @db.Date
+  contract_end        DateTime? @db.Date
+  is_active           Boolean   @default(true)
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted          Boolean   @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@map("franchise_config")
+}
+
+model CentralKitchenIndent {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesting_outlet_id  String    @db.Uuid
+  ck_outlet_id          String    @db.Uuid
+  indent_number         String    @unique @db.VarChar(30)
+  status                String    @default("pending") @db.VarChar(20)
+  total_items           Int       @default(0)
+  notes                 String?
+  requested_by          String?   @db.Uuid
+  approved_by           String?   @db.Uuid
+  approved_at           DateTime? @db.Timestamptz
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  updated_at            DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted            Boolean   @default(false)
+
+  requesting_outlet Outlet @relation("requesting_outlet", fields: [requesting_outlet_id], references: [id])
+  ck_outlet         Outlet @relation("ck_outlet", fields: [ck_outlet_id], references: [id])
+
+  @@map("central_kitchen_indents")
+}

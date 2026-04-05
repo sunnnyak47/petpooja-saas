@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.env
+.env.local
+.env.*.local
+*.log
+uploads/*
+!uploads/.gitkeep
+logs/*
+coverage
+.nyc_output
+*.md
+!README.md
+.DS_Store
+.vscode
+.idea

@@ -1,0 +1,28 @@
+steps:
+  # 1. Build the API Docker Image (Unified Backend + Frontends)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/petpooja-api', '.']
+
+  # 2. Push to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/petpooja-api']
+
+  # 3. Deploy to Cloud Run (High-Scale Serverless)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'petpooja-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/petpooja-api'
+      - '--region'
+      - 'asia-south1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '5001'
+
+images:
+  - 'gcr.io/$PROJECT_ID/petpooja-api'
