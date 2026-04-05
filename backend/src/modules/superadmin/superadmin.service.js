@@ -197,7 +197,7 @@ const superadminService = {
     // AUDIT LOG: Impersonation Start
     await prisma.auditLog.create({
       data: {
-        user_id: adminId || 'sa_root',
+        user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
         action: 'SUPERADMIN_IMPERSONATION',
         entity_type: 'restaurant',
         entity_id: head_office_id,
@@ -305,7 +305,7 @@ const superadminService = {
       // 8. Audit Log
       await tx.auditLog.create({
         data: {
-          user_id: adminId || 'sa_root',
+          user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
           action: 'RESTAURANT_ONBOARDED',
           entity_type: 'restaurant',
           entity_id: headOffice.id,
