@@ -294,6 +294,7 @@ async function refreshTokens(refreshToken) {
             role: { include: { role_permissions: { include: { permission: true } } } },
           },
         },
+        head_office: { select: { id: true, name: true, setup_completed: true } }
       },
     });
 
@@ -502,6 +503,7 @@ async function getCurrentUser(userId) {
             outlet: { select: { id: true, name: true, code: true, city: true } },
           },
         },
+        head_office: { select: { id: true, name: true, setup_completed: true, primary_color: true, logo_url: true } }
       },
     });
 
