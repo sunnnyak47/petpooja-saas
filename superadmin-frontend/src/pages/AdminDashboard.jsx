@@ -13,19 +13,22 @@ export default function AdminDashboard() {
     refetchInterval: 30000 // Refresh every 30s for the live feel 🚀
   });
 
-  if (isLoading) return <div className="animate-pulse">Loading SaaS Foundation...</div>;
+  if (isLoading) return <div className="h-[60vh] flex items-center justify-center font-black text-slate-500 animate-pulse uppercase tracking-[0.2em]">Initialising SaaS Foundation...</div>;
 
-  const data = stats?.data || {};
+  const data = stats?.data || stats || {};
+  const restaurants = data.restaurants || { total: 0, active: 0, expired: 0 };
+  const revenue = data.revenue || { mrr: 0, total: 0 };
+  const health = data.health || { api: 'offline', database: 'disconnected', redis: 'off' };
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* SaaS Status Grid */}
       <div className="grid grid-cols-4 gap-8">
-        <StatCard title="Total Restaurants" value={data.restaurants?.total || 0} icon={<Building2 />} color="indigo" subtitle={`+4 this week`} />
-        <StatCard title="Active Licenses" value={data.restaurants?.active || 0} icon={<CheckCircle2 />} color="emerald" subtitle={`98.4% uptime`} />
-        <StatCard title="Expiring Soon" value={data.restaurants?.expired || 0} icon={<AlertCircle />} color="amber" subtitle={`Needs follow up`} />
-        <StatCard title="Current MRR" value={`₹${data.revenue?.mrr?.toLocaleString() || 0}`} icon={<Wallet />} color="indigo" subtitle={`Monthly Revenue`} />
+        <StatCard title="Total Restaurants" value={restaurants.total || 0} icon={<Building2 />} color="indigo" subtitle={`+4 this week`} />
+        <StatCard title="Active Licenses" value={restaurants.active || 0} icon={<CheckCircle2 />} color="emerald" subtitle={`98.4% uptime`} />
+        <StatCard title="Expiring Soon" value={restaurants.expired || 0} icon={<AlertCircle />} color="amber" subtitle={`Needs follow up`} />
+        <StatCard title="Current MRR" value={`₹${(revenue.mrr || 0).toLocaleString()}`} icon={<Wallet />} color="indigo" subtitle={`Monthly Revenue`} />
       </div>
 
       {/* Real-time Business Intelligence */}
@@ -36,10 +39,10 @@ export default function AdminDashboard() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
             <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-8">Platform Health</h3>
             <div className="space-y-6">
-                <HealthItem icon={<Server />} label="API Infrastructure" status="Online" color="emerald" />
-                <HealthItem icon={<Database />} label="Postgres SQL Core" status="Healthy" color="emerald" />
-                <HealthItem icon={<Globe />} label="Socket.io Gateway" status="143 Sync" color="indigo" />
-                <HealthItem icon={<Activity />} label="Redis Cache Layer" status="Connected" color="emerald" />
+                <HealthItem icon={<Server />} label="API Infrastructure" status={health.api} color={health.api === 'online' ? 'emerald' : 'amber'} />
+                <HealthItem icon={<Database />} label="Postgres SQL Core" status={health.database} color={health.database === 'healthy' ? 'emerald' : 'amber'} />
+                <HealthItem icon={<Globe />} label="Socket.io Gateway" status="Active" color="indigo" />
+                <HealthItem icon={<Activity />} label="Redis Cache Layer" status={health.redis} color={health.redis === 'connected' ? 'emerald' : 'indigo'} />
             </div>
             <div className="mt-10 pt-8 border-t border-slate-800 flex items-center justify-between">
                 <span className="text-[10px] font-black text-slate-500 uppercase italic">Last Backup: 2 hrs ago</span>
