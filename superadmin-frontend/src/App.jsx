@@ -94,7 +94,7 @@ function AdminLogin({ onLogin }) {
             </form>
 
             <div className="pt-8 text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center justify-center gap-4 border-t border-white/5">
-                <span>V2.0 — SaaS STABLE</span>
+                <span>V2.1 — CLOUD SYNCED</span>
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 <span>SERVER US-EAST-1</span>
             </div>
