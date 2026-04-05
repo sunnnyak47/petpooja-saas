@@ -14,8 +14,10 @@ const appConfig = {
   /** Node environment */
   env: process.env.NODE_ENV || 'development',
 
-  /** Base URL of the API */
-  apiUrl: process.env.APP_URL || 'http://localhost:5000',
+  /** Redis configuration */
+  redis: {
+    url: process.env.REDIS_URL || null,
+  },
 
   /** Frontend URL for CORS and redirects */
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3001',

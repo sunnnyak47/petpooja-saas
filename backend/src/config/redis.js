@@ -6,6 +6,7 @@
 
 const Redis = require('ioredis');
 const logger = require('./logger');
+const appConfig = require('./app');
 
 /** @type {Redis|null} */
 let redisClient = null;
@@ -17,7 +18,7 @@ let redisClient = null;
  */
 function getRedisClient() {
   if (!redisClient) {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = appConfig.redis.url;
     
     if (!redisUrl) {
       logger.warn('REDIS_URL environment variable not provided. Redis core is disabled.');
