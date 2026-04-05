@@ -17,7 +17,18 @@ let redisClient = null;
  */
 function getRedisClient() {
   if (!redisClient) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const redisUrl = process.env.REDIS_URL;
+    
+    if (!redisUrl) {
+      logger.warn('REDIS_URL environment variable not provided. Redis core is disabled.');
+      return {
+        on: () => {},
+        get: () => Promise.resolve(null),
+        set: () => Promise.resolve(null),
+        del: () => Promise.resolve(null),
+        quit: () => Promise.resolve()
+      };
+    }
 
     redisClient = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
