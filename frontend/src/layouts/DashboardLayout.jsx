@@ -24,6 +24,7 @@ const ownerNav = [
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
   { path: '/inventory', label: 'Stock Master', icon: Package },
   { path: '/reports', label: 'Outlet Reports', icon: BarChart3 },
+  { path: '/integrations/tally', label: 'Accounting Sync', icon: Globe },
 ];
 
 export default function DashboardLayout() {

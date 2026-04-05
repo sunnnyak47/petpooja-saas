@@ -188,6 +188,7 @@ model Outlet {
   outlet_menu_overrides   OutletMenuOverride[]
   ck_indents_requesting   CentralKitchenIndent[] @relation("requesting_outlet")
   ck_indents_ck           CentralKitchenIndent[] @relation("ck_outlet")
+  tally_mappings          TallyMapping[]
   head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
 
   @@map("outlets")
@@ -1314,4 +1315,26 @@ model CentralKitchenIndent {
   ck_outlet         Outlet @relation("ck_outlet", fields: [ck_outlet_id], references: [id])
 
   @@map("central_kitchen_indents")
+}
+model SystemConfig {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key        String   @unique @db.VarChar(100)
+  value      String   @db.Text
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("system_configs")
+}
+model TallyMapping {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String   @db.Uuid
+  pos_method        String   @db.VarChar(50) // cash, card, upi, etc.
+  tally_ledger_name String   @db.VarChar(100)
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, pos_method])
+  @@map("tally_mappings")
 }

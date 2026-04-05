@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { 
   Building2, LayoutDashboard, History, CreditCard, 
@@ -10,20 +10,27 @@ const saNav = [
   { path: '/', label: 'Global Monitor', icon: LayoutDashboard },
   { path: '/chains', label: 'Restaurant Hub', icon: Building2 },
   { path: '/billing', label: 'SaaS Revenue', icon: CreditCard },
-  { path: '/broadcast', label: 'Communications', icon: Send },
-  { path: '/audit', label: 'Security Logs', icon: History },
   { path: '/settings', label: 'System Config', icon: Settings },
 ];
 
 export default function AdminLayout({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [serverTime, setServerTime] = useState(new Date().toISOString().split('T')[1].slice(0, 8));
+
+  // Live Clock Effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setServerTime(new Date().toISOString().split('T')[1].slice(0, 8));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = () => {
     if (onLogout) onLogout();
   };
 
   const displayName = user?.full_name || 'Software Owner';
-  const displayEmail = user?.email || 'admin@admin.com';
+  const activeSessions = 143; // Dynamic placeholder
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -55,7 +62,7 @@ export default function AdminLayout({ user, onLogout }) {
               className={({ isActive }) =>
                 `flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group
                 ${isActive
-                  ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20'
+                   ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`
               }
             >
@@ -112,11 +119,11 @@ export default function AdminLayout({ user, onLogout }) {
            <div className="flex items-center gap-6">
               <div className="text-right">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Server Time (UTC)</p>
-                <p className="text-xs font-mono font-bold text-white mt-0.5">{new Date().toISOString().split('T')[1].slice(0, 8)}</p>
+                <p className="text-xs font-mono font-bold text-white mt-0.5">{serverTime}</p>
               </div>
               <div className="flex items-center gap-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl">
                  <Users size={16} className="text-indigo-400" />
-                 <span className="text-xs font-black text-white">143 Active Sessions</span>
+                 <span className="text-xs font-black text-white">{activeSessions} Active Sessions</span>
               </div>
            </div>
         </header>

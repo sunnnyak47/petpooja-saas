@@ -8,6 +8,7 @@ const router = express.Router();
 const aggregatorService = require('./aggregator.service');
 const paymentService = require('./payment.service');
 const notificationService = require('./notification.service');
+const accountingRoutes = require('./accounting/accounting.routes');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');

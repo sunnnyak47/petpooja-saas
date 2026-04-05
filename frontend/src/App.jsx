@@ -13,6 +13,7 @@ import ReportsPage from './pages/ReportsPage';
 import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import TallySync from './pages/integrations/TallySync';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
+        <Route path="integrations/tally" element={<TallySync />} />
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />

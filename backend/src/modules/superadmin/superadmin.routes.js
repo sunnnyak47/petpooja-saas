@@ -30,7 +30,11 @@ router.post('/impersonate', superadminController.impersonate);
 /** PATCH /api/superadmin/subscription/:id */
 router.patch('/subscription/:id', superadminController.updateSubscription);
 
-/** GET /api/superadmin/audit */
-router.get('/audit', superadminController.getAuditLog);
+/** GET /api/superadmin/revenue */
+router.get('/revenue', superadminController.getRevenue);
+
+/** GET/PUT /api/superadmin/config */
+router.get('/config', superadminController.getConfig);
+router.put('/config', superadminController.updateConfig);
 
 module.exports = router;

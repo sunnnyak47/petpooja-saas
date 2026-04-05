@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import ChainManagement from './pages/ChainManagement';
+import SaaSRevenue from './pages/SaaSRevenue';
+import SystemConfig from './pages/SystemConfig';
 import LoginPage from './pages/LoginPage';
 import api from './lib/api';
 
@@ -99,6 +101,15 @@ export default function App() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="chains" element={<ChainManagement />} />
+          <Route path="billing" element={<div className="text-white">SaaS Revenue Coming Soon</div>} />
+          <Route path="settings" element={<div className="text-white">System Config Coming Soon</div>} />
+          
+          {/* Legacy Redirects */}
+          <Route path="communications" element={<Navigate to="/" replace />} />
+          <Route path="security-logs" element={<Navigate to="/" replace />} />
+          <Route path="broadcast" element={<Navigate to="/" replace />} />
+          <Route path="audit" element={<Navigate to="/" replace />} />
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />

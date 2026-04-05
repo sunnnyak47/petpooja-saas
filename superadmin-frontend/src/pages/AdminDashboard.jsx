@@ -41,19 +41,30 @@ export default function AdminDashboard() {
     raw = MOCK_STATS;
   }
 
-  const restaurants = raw.restaurants || MOCK_STATS.restaurants;
-  const revenue = raw.revenue || MOCK_STATS.revenue;
-  const health = raw.health || MOCK_STATS.health;
+  const restaurants = raw.stats || MOCK_STATS.restaurants;
+  const growth = raw.growth || { this_month_revenue: 0, last_month_revenue: 0 };
+  const health = raw.platform_health || MOCK_STATS.health;
+  const activityStream = raw.activity_stream || [];
+
+  const activityConfig = {
+    RESTAURANT_ONBOARDED: { label: 'NEW SAAS ONBOARDING', color: 'emerald', icon: Rocket },
+    RESTAURANT_ONBOARDED_V2: { label: 'NEW ENTERPRISE ONBOARDED', color: 'emerald', icon: Rocket },
+    SUBSCRIPTION_PAYMENT: { label: 'SUBSCRIPTION PAYMENT', color: 'indigo', icon: CreditCard },
+    LICENSE_EXPIRED: { label: 'LICENSE EXPIRED', color: 'amber', icon: AlertCircle },
+    LICENSE_EXTENDED: { label: 'LICENSE EXTENDED', color: 'emerald', icon: CheckCircle2 },
+    RESTAURANT_SUSPENDED: { label: 'ACCOUNT SUSPENDED', color: 'rose', icon: ShieldClose },
+    RESTAURANT_REACTIVATED: { label: 'ACCOUNT REACTIVATED', color: 'emerald', icon: Rocket },
+  };
 
   return (
     <div className="space-y-12">
       
       {/* SaaS Status Grid */}
       <div className="grid grid-cols-4 gap-8">
-        <StatCard title="Total Restaurants" value={restaurants.total || 0} icon={Building2} color="indigo" subtitle="+4 this week" />
-        <StatCard title="Active Licenses" value={restaurants.active || 0} icon={CheckCircle2} color="emerald" subtitle="98.4% uptime" />
-        <StatCard title="Expiring Soon" value={restaurants.expired || 0} icon={AlertCircle} color="amber" subtitle="Needs follow up" />
-        <StatCard title="Current MRR" value={`₹${(revenue.mrr || 0).toLocaleString('en-IN')}`} icon={Wallet} color="indigo" subtitle="Monthly Revenue" />
+        <StatCard title="Total Restaurants" value={restaurants.total_restaurants || 0} icon={Building2} color="indigo" subtitle={`+${restaurants.new_this_week || 0} this week`} />
+        <StatCard title="Active Licenses" value={restaurants.active_licenses || 0} icon={CheckCircle2} color="emerald" subtitle={`${((restaurants.active_licenses / (restaurants.total_restaurants || 1)) * 100).toFixed(1)}% active`} />
+        <StatCard title="Expiring Soon" value={restaurants.expiring_soon || 0} icon={AlertCircle} color="amber" subtitle="Next 30 days" />
+        <StatCard title="Current MRR" value={`₹${(restaurants.current_mrr || 0).toLocaleString('en-IN')}`} icon={Wallet} color="indigo" subtitle="Monthly Recurring" />
       </div>
 
       {/* Real-time Business Intelligence */}
@@ -66,13 +77,13 @@ export default function AdminDashboard() {
             <div className="space-y-6">
                 <HealthItem Icon={Server} label="API Infrastructure" status={health.api || 'online'} color="emerald" />
                 <HealthItem Icon={Database} label="Postgres SQL Core" status={health.database || 'connected'} color="emerald" />
-                <HealthItem Icon={Globe} label="Socket.io Gateway" status="Active" color="indigo" />
-                <HealthItem Icon={Activity} label="Redis Cache Layer" status={health.redis || 'simulated'} color="indigo" />
+                <HealthItem Icon={Globe} label="Socket.io Gateway" status={health.socket || 'Active'} color="indigo" />
+                <HealthItem Icon={Activity} label="Redis Cache Layer" status={health.redis || 'disconnected'} color={health.redis === 'connected' ? 'emerald' : 'rose'} />
             </div>
             <div className="mt-10 pt-8 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 uppercase italic">Last Backup: 2 hrs ago</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase italic">Last Sync: {new Date(health.last_checked).toLocaleTimeString()}</span>
                 <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 underline cursor-pointer hover:text-emerald-300">
-                   Check AWS S3
+                   System Audit
                 </span>
             </div>
         </div>
@@ -91,12 +102,20 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="space-y-4">
-                <ActivityLine time="2 min ago" event="New SaaS Onboarding" detail="Sharma Foods, Delhi" />
-                <ActivityLine time="15 min ago" event="Subscription Payment" detail="₹9,999 (Annual Plan)" type="payment" />
-                <ActivityLine time="1 hr ago" event="License Expired" detail="Raj Hotel, Ludhiana" type="alert" />
-                <ActivityLine time="3 hr ago" event="New Support Ticket" detail="Printer setup assistance" />
-                <ActivityLine time="Today" event="Aggregated Orders" detail="14 new sales processed across platform" />
+            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                {activityStream.length > 0 ? activityStream.map((item) => (
+                  <ActivityLine 
+                    key={item.id}
+                    time={item.time} 
+                    event={activityConfig[item.type]?.label || item.type} 
+                    detail={`${item.restaurant}${item.details?.city ? ', ' + item.details.city : ''}`}
+                    type={activityConfig[item.type]?.color || 'default'}
+                  />
+                )) : (
+                  <div className="py-20 text-center text-slate-600 font-bold uppercase tracking-widest text-xs">
+                    No recent platform activity
+                  </div>
+                )}
             </div>
         </div>
       </div>
