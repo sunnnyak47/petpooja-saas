@@ -35,7 +35,7 @@ app.use(helmet({
 
 app.use(cors({
   origin: function originCheck(origin, callback) {
-    if (!origin || appConfig.corsWhitelist.includes(origin)) {
+    if (!origin || appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*')) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked origin: ${origin}`);
