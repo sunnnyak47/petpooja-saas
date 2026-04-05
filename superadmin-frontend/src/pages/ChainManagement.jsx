@@ -51,7 +51,8 @@ export default function ChainManagement() {
     </div>
   </div>;
 
-  const chainList = chains?.data || chains || [];
+  // Correct extraction for { success: true, data: { chains: [...], total: N } }
+  const chainList = chains?.chains || chains?.data?.chains || (Array.isArray(chains) ? chains : []);
   const hasChains = Array.isArray(chainList) && chainList.length > 0;
 
   return (
