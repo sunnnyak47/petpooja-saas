@@ -224,6 +224,8 @@ const superadminService = {
       city = 'Delhi', address = 'Main Street'
     } = data;
 
+    console.log(`[ONBOARD] Attempting to onboard: ${name} (${contact_email})`);
+    
     // 1. Validate Email/Phone uniqueness
     const existingUser = await prisma.user.findFirst({
       where: { 
@@ -231,9 +233,14 @@ const superadminService = {
         is_deleted: false 
       }
     });
-    if (existingUser) throw new Error('Owner Email or Phone already registered');
+
+    if (existingUser) {
+      console.warn(`[ONBOARD] Conflict: User already exists with email ${contact_email} or phone ${contact_phone}`);
+      throw new Error('Owner Email or Phone already registered');
+    }
 
     const password_hash = await bcrypt.hash(password, 12);
+    console.log('[ONBOARD] Validation passed, starting transaction...');
 
     return await prisma.$transaction(async (tx) => {
       // 2. Create Head Office
@@ -247,6 +254,7 @@ const superadminService = {
           plan: plan.toUpperCase(),
         }
       });
+      console.log(`[ONBOARD] HeadOffice created: ${headOffice.id}`);
 
       // 3. Create Owner User
       const user = await tx.user.create({
@@ -259,13 +267,15 @@ const superadminService = {
           is_active: true
         }
       });
+      console.log(`[ONBOARD] Owner User created: ${user.id}`);
 
       // 4. Get/Create Owner Role
       let ownerRole = await tx.role.findFirst({ where: { name: 'owner' } });
       if (!ownerRole) {
-        ownerRole = await tx.role.create({
+          ownerRole = await tx.role.create({
           data: { name: 'owner', display_name: 'Restaurant Owner', is_system: true }
         });
+        console.log(`[ONBOARD] System 'owner' role created: ${ownerRole.id}`);
       }
 
       // 5. Create Default Outlet
@@ -280,6 +290,7 @@ const superadminService = {
           is_active: true,
         }
       });
+      console.log(`[ONBOARD] Default Outlet created: ${outlet.id} (${outletCode})`);
 
       // 6. Assign Owner Role to User for this Outlet
       await tx.userRole.create({
@@ -301,6 +312,7 @@ const superadminService = {
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
         }
       });
+      console.log(`[ONBOARD] Subscription initialized.`);
 
       // 8. Audit Log
       await tx.auditLog.create({
@@ -313,6 +325,7 @@ const superadminService = {
         }
       });
 
+      console.log(`[ONBOARD] SUCCESS: Restaurant ${name} is live.`);
       return { headOffice, user, outlet };
     });
   },

@@ -51,9 +51,17 @@ export default function ChainManagement() {
     </div>
   </div>;
 
+  // Debug for user/agent to see in console
+  if (chains) {
+    console.log('[DEBUG] Chains API Response:', chains);
+  }
+
   // Correct extraction for { success: true, data: { chains: [...], total: N } }
-  const chainList = chains?.chains || chains?.data?.chains || (Array.isArray(chains) ? chains : []);
+  const chainList = chains?.chains || chains?.data?.chains || (Array.isArray(chains?.data) ? chains.data : (Array.isArray(chains) ? chains : []));
   const hasChains = Array.isArray(chainList) && chainList.length > 0;
+
+  console.log('[DEBUG] Extracted ChainList:', chainList);
+  console.log('[DEBUG] HasChains:', hasChains);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
