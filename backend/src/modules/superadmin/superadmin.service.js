@@ -355,7 +355,19 @@ const superadminService = {
         }
       });
 
-      // 7. Create Initial Subscription
+      // 7. Initial Settings for 3rd Party Connectors (Wiring to Aggregator/Payment Services)
+      const settingsToCreate = [];
+      if (zomato_id) settingsToCreate.push({ outlet_id: outlet.id, setting_key: 'zomato_store_id', setting_value: zomato_id });
+      if (swiggy_id) settingsToCreate.push({ outlet_id: outlet.id, setting_key: 'swiggy_store_id', setting_value: swiggy_id });
+      if (razorpay_key) settingsToCreate.push({ outlet_id: outlet.id, setting_key: 'razorpay_api_key', setting_value: razorpay_key });
+      if (tally_enabled) settingsToCreate.push({ outlet_id: outlet.id, setting_key: 'tally_sync_enabled', setting_value: 'true' });
+
+      if (settingsToCreate.length > 0) {
+        await tx.outletSetting.createMany({ data: settingsToCreate });
+        console.log(`[ONBOARD] Wired ${settingsToCreate.length} 3rd party connectors to OutletSetting.`);
+      }
+
+      // 8. Create Initial Subscription
       const subExpiry = expires_at ? new Date(expires_at) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       await tx.subscription.create({
         data: {
