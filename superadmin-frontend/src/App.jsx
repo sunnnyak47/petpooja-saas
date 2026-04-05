@@ -101,8 +101,8 @@ export default function App() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="chains" element={<ChainManagement />} />
-          <Route path="billing" element={<div className="text-white">SaaS Revenue Coming Soon</div>} />
-          <Route path="settings" element={<div className="text-white">System Config Coming Soon</div>} />
+          <Route path="billing" element={<SaaSRevenue />} />
+          <Route path="settings" element={<SystemConfig />} />
           
           {/* Legacy Redirects */}
           <Route path="communications" element={<Navigate to="/" replace />} />

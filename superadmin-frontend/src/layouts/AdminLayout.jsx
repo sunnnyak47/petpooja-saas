@@ -20,7 +20,8 @@ export default function AdminLayout({ user, onLogout }) {
   // Live Clock Effect
   useEffect(() => {
     const timer = setInterval(() => {
-      setServerTime(new Date().toISOString().split('T')[1].slice(0, 8));
+      const now = new Date();
+      setServerTime(now.toISOString().split('T')[1].slice(0, 8));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -37,53 +38,48 @@ export default function AdminLayout({ user, onLogout }) {
       {/* SaaS Admin Sidebar */}
       <aside className={`${collapsed ? 'w-20' : 'w-72'} bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 shadow-2xl z-50`}>
         {/* Brand */}
-        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800">
+        <div className="h-24 flex items-center px-8 border-b border-white/5 bg-white/[0.02]">
           {!collapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <span className="font-black text-lg tracking-tight uppercase">Admin Panel</span>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">SaaS Foundation</p>
-              </div>
+            <div className="flex flex-col">
+              <span className="font-black text-xl tracking-tighter text-white uppercase italic leading-none">Admin Panel</span>
+              <span className="text-[10px] text-indigo-500 font-black uppercase tracking-[0.3em] mt-2">SaaS Foundation</span>
             </div>
           )}
-          {collapsed && <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto"><ShieldCheck size={20} /></div>}
+          {collapsed && <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto font-black italic">A</div>}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-8 px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-10 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           {saNav.map(({ path, label, icon: Icon }) => (
             <NavLink
               key={path}
               to={path}
               end={path === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group
+                `flex items-center gap-4 px-5 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all group
                 ${isActive
-                   ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`
+                   ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-500/40 translate-x-1'
+                  : 'text-slate-500 hover:text-white hover:bg-white/5'}`
               }
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+              <Icon className={`w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110`} />
               {!collapsed && <span>{label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        {/* System User */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50 backdrop-blur-xl">
-            <div className={`p-4 bg-slate-800/30 rounded-2xl flex items-center ${collapsed ? 'justify-center' : 'gap-3'} border border-slate-700/30`}>
-               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-black">
+        {/* System User (Final Sidebar Specs) */}
+        <div className="p-6 border-t border-white/5 bg-black/20">
+            <div className={`p-4 bg-slate-800/20 rounded-3xl flex items-center ${collapsed ? 'justify-center' : 'gap-4'} border border-white/5`}>
+               <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-black text-lg border border-indigo-500/20 shadow-inner">
                   {displayName.charAt(0).toUpperCase()}
                </div>
                {!collapsed && (
                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-white truncate">{displayName}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider">Root Access</span>
+                    <p className="text-xs font-black text-white truncate uppercase tracking-tighter">{displayName}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                      <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Root Access</span>
                     </div>
                  </div>
                )}
@@ -91,7 +87,7 @@ export default function AdminLayout({ user, onLogout }) {
 
             <button 
                 onClick={handleLogout}
-                className={`w-full mt-4 flex items-center gap-4 px-5 py-3 rounded-xl text-xs font-black text-rose-400 hover:bg-rose-500/10 transition-colors uppercase tracking-widest ${collapsed ? 'justify-center' : ''}`}
+                className={`w-full mt-6 flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 transition-all uppercase tracking-widest ${collapsed ? 'justify-center' : ''}`}
             >
                 <LogOut size={16} />
                 {!collapsed && <span>System Logout</span>}

@@ -13,7 +13,7 @@ const { UnauthorizedError } = require('../../utils/errors');
 const MOCK_STATS = {
   restaurants: { total: 247, active: 198, trial: 18, expired: 31 },
   revenue: { mrr: 82400, arr: 988800, today: 4200, churned: 3 },
-  health: { api: 'online', database: 'connected', redis: 'simulated', socket: 143 }
+  health: { api: 'online', database: 'connected', redis: 'disconnected', socket: 143 }
 };
 
 const superadminService = {

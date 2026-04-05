@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../lib/api';
 import { 
   TrendingUp, CreditCard, Users, Wallet,
   ArrowUpRight, ArrowDownRight, Calendar
@@ -11,10 +11,7 @@ import {
 } from 'recharts';
 
 const fetchRevenue = async () => {
-    const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/superadmin/revenue`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    return data.data;
+    return await api.get('/revenue');
 };
 
 export default function SaaSRevenue() {

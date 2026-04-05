@@ -12,7 +12,7 @@ import {
 const MOCK_STATS = {
   restaurants: { total: 247, active: 198, trial: 18, expired: 31 },
   revenue: { mrr: 82400, total: 4820000 },
-  health: { api: 'online', database: 'connected', redis: 'simulated' }
+  health: { api: 'online', database: 'connected', redis: 'disconnected' }
 };
 
 export default function AdminDashboard() {
