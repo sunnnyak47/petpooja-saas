@@ -61,22 +61,36 @@ model RolePermission {
 }
 
 model HeadOffice {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String   @db.VarChar(200)
-  legal_name    String?  @db.VarChar(200)
-  gstin         String?  @db.VarChar(15)
-  pan           String?  @db.VarChar(10)
-  contact_email String   @unique @db.VarChar(150)
-  contact_phone String   @db.VarChar(15)
-  logo_url      String?  @db.VarChar(500)
-  primary_color String?  @default("#4F46E5") @db.VarChar(10)
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now()) @db.Timestamptz
-  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
-  is_deleted      Boolean  @default(false)
-  plan            String   @default("TRIAL") @db.VarChar(50)
-  setup_completed Boolean  @default(false)
-
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String   @db.VarChar(200)
+  legal_name         String?  @db.VarChar(200)
+  gstin              String?  @db.VarChar(15)
+  gst_type           String?  @default("REGULAR") @db.VarChar(20)
+  pan                String?  @db.VarChar(10)
+  fssai              String?  @db.VarChar(20)
+  fssai_expiry       DateTime? @db.Date
+  contact_email      String   @unique @db.VarChar(150)
+  contact_phone      String   @db.VarChar(15)
+  whatsapp_number    String?  @db.VarChar(15)
+  logo_url           String?  @db.VarChar(500)
+  primary_color      String?  @default("#4F46E5") @db.VarChar(10)
+  is_active          Boolean  @default(true)
+  is_ac              Boolean  @default(false)
+  serves_alcohol     Boolean  @default(false)
+  service_charge_pct Decimal? @default(0) @db.Decimal(5, 2)
+  gst_inclusive      Boolean  @default(false)
+  default_gst_slab   String?  @default("5") @db.VarChar(10)
+  language           String?  @default("en") @db.VarChar(20)
+  zomato_id          String?  @db.VarChar(100)
+  swiggy_id          String?  @db.VarChar(100)
+  razorpay_key       String?  @db.VarChar(100)
+  tally_enabled      Boolean  @default(false)
+  created_at         DateTime @default(now()) @db.Timestamptz
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted         Boolean  @default(false)
+  plan               String   @default("TRIAL") @db.VarChar(50)
+  setup_completed    Boolean  @default(false)
+  metadata           Json?    @default("{}")
   outlets       Outlet[]
   subscriptions Subscription[]
   users         User[]         @relation("head_office_users")
@@ -130,10 +144,15 @@ model Outlet {
   opening_time   DateTime? @db.Time
   closing_time   DateTime? @db.Time
   owner_id       String?  @db.Uuid
+  tables_count   Int      @default(0)
+  printer_type   String?  @default("THERMAL") @db.VarChar(30)
+  printer_ip     String?  @db.VarChar(50)
+  bill_header    String?  @db.Text
+  bill_footer    String?  @db.Text
   created_at     DateTime @default(now()) @db.Timestamptz
   updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
   is_deleted     Boolean  @default(false)
-
+  metadata       Json?    @default("{}")
   user_roles              UserRole[]
   outlet_settings         OutletSetting[]
   audit_logs              AuditLog[]

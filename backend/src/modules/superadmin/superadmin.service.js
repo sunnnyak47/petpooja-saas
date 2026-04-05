@@ -219,9 +219,24 @@ const superadminService = {
    */
   async onboardRestaurant(data, adminId) {
     const { 
-      name, legal_name, contact_email, contact_phone, 
-      owner_name, password, plan = 'TRIAL',
-      city = 'Delhi', address = 'Main Street'
+      // Identity & Address
+      name, legal_name, type = 'RESTAURANT', cuisine,
+      address, city, state, district, pincode, logo_url,
+      // Legal & Tax
+      gstin, gst_type = 'REGULAR', pan, fssai, fssai_expiry,
+      is_ac = false, serves_alcohol = false, service_charge_pct = 0,
+      gst_inclusive = false, default_gst_slab = '5',
+      // Owner & Login
+      owner_name, contact_email, contact_phone, whatsapp_number,
+      language = 'en', password,
+      // Subscription
+      plan = 'TRIAL', payment_status = 'pending', payment_method, utr_reference,
+      starts_at = new Date(), expires_at,
+      // Setup & Hardware
+      tables_count = 0, printer_type = 'THERMAL', printer_ip, bill_header, bill_footer,
+      floor_names = [], order_types = ['dine_in', 'takeaway', 'delivery'], operating_hours = {},
+      // Integrations
+      zomato_id, swiggy_id, razorpay_key, tally_enabled = false
     } = data;
 
     console.log(`[ONBOARD] Attempting to onboard: ${name} (${contact_email})`);
@@ -248,10 +263,32 @@ const superadminService = {
         data: {
           name,
           legal_name: legal_name || name,
+          gstin,
+          gst_type,
+          pan,
+          fssai,
+          fssai_expiry: fssai_expiry ? new Date(fssai_expiry) : null,
           contact_email,
           contact_phone,
+          whatsapp_number: whatsapp_number || contact_phone,
+          logo_url,
           is_active: true,
+          is_ac,
+          serves_alcohol,
+          service_charge_pct,
+          gst_inclusive,
+          default_gst_slab,
+          language,
+          zomato_id,
+          swiggy_id,
+          razorpay_key,
+          tally_enabled,
           plan: plan.toUpperCase(),
+          metadata: {
+            floor_names,
+            order_types,
+            operating_hours
+          }
         }
       });
       console.log(`[ONBOARD] HeadOffice created: ${headOffice.id}`);
@@ -285,9 +322,25 @@ const superadminService = {
           head_office_id: headOffice.id,
           name: `${name} - ${city}`,
           code: outletCode,
-          city,
+          type: type.toLowerCase(),
           address_line1: address,
+          city,
+          state,
+          pincode,
+          phone: contact_phone,
+          email: contact_email,
+          gstin,
+          is_ac,
+          tables_count: Number(tables_count),
+          printer_type,
+          printer_ip,
+          bill_header,
+          bill_footer,
           is_active: true,
+          metadata: {
+            district,
+            operating_hours
+          }
         }
       });
       console.log(`[ONBOARD] Default Outlet created: ${outlet.id} (${outletCode})`);
@@ -303,13 +356,16 @@ const superadminService = {
       });
 
       // 7. Create Initial Subscription
+      const subExpiry = expires_at ? new Date(expires_at) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       await tx.subscription.create({
         data: {
           head_office_id: headOffice.id,
           plan_name: plan,
-          status: 'active',
-          amount: 0,
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+          status: payment_status === 'paid' ? 'active' : 'trial',
+          amount: 0, // In logic, should set based on plans
+          starts_at: new Date(starts_at),
+          expires_at: subExpiry,
+          billing_cycle: 'annual',
         }
       });
       console.log(`[ONBOARD] Subscription initialized.`);
@@ -318,15 +374,21 @@ const superadminService = {
       await tx.auditLog.create({
         data: {
           user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
-          action: 'RESTAURANT_ONBOARDED',
+          action: 'RESTAURANT_ONBOARDED_V2',
           entity_type: 'restaurant',
           entity_id: headOffice.id,
-          new_values: { name, owner: owner_name, email: contact_email }
+          new_values: { 
+            name, 
+            owner: owner_name, 
+            email: contact_email,
+            version: '2.0',
+            fields_count: Object.keys(data).length
+          }
         }
       });
 
-      console.log(`[ONBOARD] SUCCESS: Restaurant ${name} is live.`);
-      return { headOffice, user, outlet };
+      console.log(`[ONBOARD] SUCCESS: Restaurant ${name} (Enterprise) is live.`);
+      return { headOffice, user, outlet, subscription_expiry: subExpiry };
     });
   },
 
