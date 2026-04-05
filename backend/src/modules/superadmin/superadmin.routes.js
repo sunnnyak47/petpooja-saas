@@ -21,6 +21,9 @@ router.get('/chains', superadminController.getChains);
 /** GET /api/superadmin/chains/:id */
 router.get('/chains/:id', superadminController.getChainDetail);
 
+/** POST /api/superadmin/onboard */
+router.post('/onboard', superadminController.onboard);
+
 /** POST /api/superadmin/impersonate */
 router.post('/impersonate', superadminController.impersonate);
 

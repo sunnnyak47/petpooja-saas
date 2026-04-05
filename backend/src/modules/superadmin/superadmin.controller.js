@@ -85,6 +85,18 @@ const superadminController = {
   },
 
   /**
+   * Onboard New Restaurant Chain
+   */
+  async onboard(req, res, next) {
+    try {
+      const result = await superadminService.onboardRestaurant(req.body, req.user?.id);
+      sendSuccess(res, result, 'Restaurant onboarded successfully. Owner can now login.');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
    * Verify current SuperAdmin token
    */
   async verifyToken(req, res, next) {

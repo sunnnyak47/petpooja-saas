@@ -74,6 +74,7 @@ model HeadOffice {
   created_at    DateTime @default(now()) @db.Timestamptz
   updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
   is_deleted      Boolean  @default(false)
+  plan            String   @default("TRIAL") @db.VarChar(50)
   setup_completed Boolean  @default(false)
 
   outlets       Outlet[]

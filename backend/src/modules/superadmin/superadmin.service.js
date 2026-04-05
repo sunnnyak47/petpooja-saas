@@ -214,6 +214,110 @@ const superadminService = {
   },
 
   /**
+   * Onboard New Restaurant — Full Transactional Setup
+   * Creates HeadOffice, Owner User, Outlet, Role, and Subscription
+   */
+  async onboardRestaurant(data, adminId) {
+    const { 
+      name, legal_name, contact_email, contact_phone, 
+      owner_name, password, plan = 'TRIAL',
+      city = 'Delhi', address = 'Main Street'
+    } = data;
+
+    // 1. Validate Email/Phone uniqueness
+    const existingUser = await prisma.user.findFirst({
+      where: { 
+        OR: [{ email: contact_email }, { phone: contact_phone }],
+        is_deleted: false 
+      }
+    });
+    if (existingUser) throw new Error('Owner Email or Phone already registered');
+
+    const password_hash = await bcrypt.hash(password, 12);
+
+    return await prisma.$transaction(async (tx) => {
+      // 2. Create Head Office
+      const headOffice = await tx.headOffice.create({
+        data: {
+          name,
+          legal_name: legal_name || name,
+          contact_email,
+          contact_phone,
+          is_active: true,
+          plan: plan.toUpperCase(),
+        }
+      });
+
+      // 3. Create Owner User
+      const user = await tx.user.create({
+        data: {
+          full_name: owner_name,
+          email: contact_email,
+          phone: contact_phone,
+          password_hash,
+          head_office_id: headOffice.id,
+          is_active: true
+        }
+      });
+
+      // 4. Get/Create Owner Role
+      let ownerRole = await tx.role.findFirst({ where: { name: 'owner' } });
+      if (!ownerRole) {
+        ownerRole = await tx.role.create({
+          data: { name: 'owner', display_name: 'Restaurant Owner', is_system: true }
+        });
+      }
+
+      // 5. Create Default Outlet
+      const outletCode = `${name.slice(0, 3).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
+      const outlet = await tx.outlet.create({
+        data: {
+          head_office_id: headOffice.id,
+          name: `${name} - ${city}`,
+          code: outletCode,
+          city,
+          address_line1: address,
+          is_active: true,
+        }
+      });
+
+      // 6. Assign Owner Role to User for this Outlet
+      await tx.userRole.create({
+        data: {
+          user_id: user.id,
+          role_id: ownerRole.id,
+          outlet_id: outlet.id,
+          is_primary: true
+        }
+      });
+
+      // 7. Create Initial Subscription
+      await tx.subscription.create({
+        data: {
+          head_office_id: headOffice.id,
+          plan_name: plan,
+          status: 'active',
+          amount: 0,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days trial
+        }
+      });
+
+      // 8. Audit Log
+      await tx.auditLog.create({
+        data: {
+          user_id: adminId || 'sa_root',
+          action: 'RESTAURANT_ONBOARDED',
+          entity_type: 'restaurant',
+          entity_id: headOffice.id,
+          new_values: { name, owner: owner_name, email: contact_email }
+        }
+      });
+
+      return { headOffice, user, outlet };
+    });
+  },
+
+  /**
    * Update License
    */
   async updateLicense(id, data) {
