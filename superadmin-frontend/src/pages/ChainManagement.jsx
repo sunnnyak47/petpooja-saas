@@ -126,7 +126,7 @@ export default function ChainManagement() {
                          <div>
                            <p className="text-white text-sm">{chain.users?.[0]?.full_name || 'N/A'}</p>
                            <p className="text-[10px] text-slate-500 font-bold flex items-center gap-1 uppercase tracking-widest mt-1">
-                              <MapPin size={10} /> Delhi, IN
+                              <MapPin size={10} /> {chain.city || 'Delhi'}, IN
                            </p>
                          </div>
                       </td>
