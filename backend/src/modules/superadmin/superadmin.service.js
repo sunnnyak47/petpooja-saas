@@ -1,6 +1,6 @@
 const prisma = require('../../config/database').getDbClient();
 const jwt = require('jsonwebtoken');
-const { appConfig } = require('../../config/app');
+const appConfig = require('../../config/app');
 
 /**
  * SuperAdmin Service

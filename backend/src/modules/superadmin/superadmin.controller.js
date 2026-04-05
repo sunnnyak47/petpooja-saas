@@ -5,7 +5,7 @@ const { sendSuccess } = require('../../utils/response');
  * SuperAdmin Controller
  */
 const jwt = require('jsonwebtoken');
-const { appConfig } = require('../../config/app');
+const appConfig = require('../../config/app');
 const superadminController = {
   /**
    * Global Admin Login (Master Auth)
