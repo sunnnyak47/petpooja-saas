@@ -11,25 +11,18 @@ import api from './lib/api';
 const queryClient = new QueryClient();
 
 export default function App() {
-  // EMERGENCY BYPASS ENABLED
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster position="top-right" toastOptions={{
         style: { background: '#1e293b', color: '#fff', borderRadius: '16px', border: '1px solid #334155' }
       }} />
-      {!isAuthenticated ? (
-        <AdminLogin onLogin={() => setIsAuthenticated(true)} />
-      ) : (
-        <Routes>
-          <Route path="/" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="chains" element={<ChainManagement />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      )}
+      <Routes>
+        <Route path="/" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="chains" element={<ChainManagement />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
     </QueryClientProvider>
   );
 }

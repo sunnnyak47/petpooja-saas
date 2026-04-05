@@ -24,10 +24,13 @@ api.interceptors.response.use(
   (error) => {
     const message = error.response?.data?.message || 'Server Error: Check your SuperAdmin Firewall';
     toast.error(message);
+    // EMERGENCY: DO NOT REDIRECT TO LOGIN
+    /*
     if (error.response?.status === 401 || error.response?.status === 403) {
       localStorage.removeItem('sa_token');
       window.location.href = '/login';
     }
+    */
     return Promise.reject(error);
   }
 );
