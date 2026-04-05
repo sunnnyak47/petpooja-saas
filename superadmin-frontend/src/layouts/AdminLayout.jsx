@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { 
-  Building2, LayoutDashboard, History, CreditCard, 
-  Settings, LogOut, ChevronLeft, ShieldCheck, 
-  BarChart3, Activity, Users, Send
+  Building2, LayoutDashboard, CreditCard, 
+  Settings, LogOut, ChevronLeft, ShieldCheck,
+  Activity, Users
 } from 'lucide-react';
 
 const saNav = [

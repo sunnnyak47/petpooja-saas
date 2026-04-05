@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { 
-  Settings, Globe, Shield, CreditCard, 
-  Save, RefreshCw, CheckCircle2, AlertCircle,
-  Palette, Smartphone, Database, Server
+  Globe, CreditCard, Save, RefreshCw, CheckCircle2, AlertCircle
 } from 'lucide-react';
 
 const fetchConfig = async () => {
@@ -17,7 +15,7 @@ const updateConfig = async (settings) => {
 
 export default function SystemConfig() {
     const queryClient = useQueryClient();
-    const { data: config, isLoading } = useQuery({
+    const { data: response, isLoading } = useQuery({
         queryKey: ['system-config'],
         queryFn: fetchConfig
     });
@@ -32,8 +30,8 @@ export default function SystemConfig() {
     const [localSettings, setLocalSettings] = useState({});
 
     useEffect(() => {
-        if (config) setLocalSettings(config);
-    }, [config]);
+        if (response?.data) setLocalSettings(response.data);
+    }, [response]);
 
     const handleSave = () => {
         mutation.mutate(localSettings);

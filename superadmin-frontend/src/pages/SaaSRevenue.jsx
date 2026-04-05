@@ -2,8 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { 
-  TrendingUp, CreditCard, Users, Wallet,
-  ArrowUpRight, ArrowDownRight, Calendar
+  TrendingUp, CreditCard, Users, Wallet
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, 
@@ -15,15 +14,16 @@ const fetchRevenue = async () => {
 };
 
 export default function SaaSRevenue() {
-    const { data: raw, isLoading } = useQuery({
+    const { data: response, isLoading } = useQuery({
         queryKey: ['saas-revenue'],
         queryFn: fetchRevenue
     });
 
     if (isLoading) return <div className="p-8 text-slate-500 font-black animate-pulse">ANALYZING FINANCIAL STREAMS...</div>;
 
-    const summary = raw?.summary || { total_paying: 0, recent_payments: [] };
-    const trend = raw?.monthly_trend || [];
+    const raw = response?.data || {};
+    const summary = raw.summary || { total_paying: 0, recent_payments: [] };
+    const trend = raw.monthly_trend || [];
 
     return (
         <div className="space-y-8 pb-20">
