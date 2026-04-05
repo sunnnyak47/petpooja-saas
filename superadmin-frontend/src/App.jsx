@@ -11,7 +11,8 @@ import api from './lib/api';
 const queryClient = new QueryClient();
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sa_token'));
+  // EMERGENCY BYPASS ENABLED
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
 
   return (
     <QueryClientProvider client={queryClient}>

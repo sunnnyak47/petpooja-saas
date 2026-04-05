@@ -6,8 +6,8 @@ const { authenticate, isSuperAdmin } = require('../../middleware/auth.middleware
 /** POST /api/superadmin/login — Global Master Login */
 router.post('/login', superadminController.login);
 
-// All other routes are globally protected by SuperAdmin only access
-router.use(authenticate, isSuperAdmin);
+// TEMPORARY GLOBAL UNLOCK FOR INITIAL LAUNCH
+// router.use(authenticate, isSuperAdmin);
 
 /** GET /api/superadmin/dashboard — Global Statistics */
 router.get('/dashboard', superadminController.getDashboard);
