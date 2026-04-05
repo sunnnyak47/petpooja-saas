@@ -16,7 +16,10 @@ function getRedisClient() {
       once: () => {},
       get: () => Promise.resolve(null),
       set: () => Promise.resolve('OK'),
+      setex: () => Promise.resolve('OK'),
       del: () => Promise.resolve(1),
+      incr: (key) => Promise.resolve(1), // Basic increment simulation
+      expire: () => Promise.resolve(1),
       quit: () => Promise.resolve(),
       status: 'ready'
     };

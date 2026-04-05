@@ -88,17 +88,30 @@ app.get('/public/kitchen/*', (req, res) => {
 /* ------------------------------------------------------------------
    HEALTH CHECK
    ------------------------------------------------------------------ */
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
+const { getDbClient } = require('./config/database');
+
+app.get('/health', async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    const prisma = getDbClient();
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'healthy';
+  } catch (err) {
+    logger.error('Health Check DB Failure:', err.message);
+    dbStatus = 'error';
+  }
+
+  res.status(dbStatus === 'healthy' ? 200 : 500).json({
+    success: dbStatus === 'healthy',
     data: {
       service: appConfig.name,
       version: '1.0.0',
       environment: appConfig.env,
       uptime: Math.floor(process.uptime()),
+      database: dbStatus,
       timestamp: new Date().toISOString(),
     },
-    message: 'Petpooja API running',
+    message: dbStatus === 'healthy' ? 'Petpooja API running' : 'Database connection issues',
   });
 });
 

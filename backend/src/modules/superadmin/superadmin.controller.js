@@ -58,7 +58,7 @@ const superadminController = {
   async impersonate(req, res, next) {
     try {
       const { head_office_id } = req.body;
-      const { token, user } = await superadminService.impersonate(head_office_id);
+      const { token, user } = await superadminService.impersonate(head_office_id, req.user?.id);
       sendSuccess(res, { token, user, impersonating: true }, 'Impersonation token generated');
     } catch (err) { next(err); }
   },

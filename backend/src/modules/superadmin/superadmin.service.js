@@ -97,24 +97,27 @@ const superadminService = {
       ]);
 
       const totalRevenue = await prisma.order.aggregate({
-        _sum: { total_amount: true },
-        where: { status: 'COMPLETED' }
-      }).catch(() => ({ _sum: { total_amount: 0 } }));
+        _sum: { grand_total: true },
+        where: { status: 'paid', is_deleted: false }
+      }).catch(() => ({ _sum: { grand_total: 0 } }));
 
-      if (totalHo === 0) return MOCK_STATS;
+      // Only if DB is completely empty (no restaurants onboarded), return mock for the demo
+      if (totalHo === 0) {
+        return MOCK_STATS;
+      }
 
       return {
         restaurants: { total: totalHo, active: activeHo, trial: trialHo, expired: expiredHo },
-        revenue: {
-          mrr: activeHo * 999,
-          arr: activeHo * 999 * 12,
-          today: Math.floor(Math.random() * 5000) + 1000,
-          churned: 0
+        revenue: { 
+          mrr: activeHo * 999, 
+          arr: activeHo * 999 * 12, 
+          today: 0, // Placeholder until daily summaries are wired
+          total: totalRevenue._sum.grand_total || 0 
         },
-        health: { api: 'online', database: 'healthy', redis: 'simulated', socket: 0 }
+        health: { api: 'online', database: 'connected', redis: 'simulated', socket: 0 }
       };
     } catch (error) {
-      console.error('Stats Error, falling back to mock:', error.message);
+      console.error('Stats DB Error. Falling back to mock for UI stability:', error.message);
       return MOCK_STATS;
     }
   },
@@ -181,15 +184,26 @@ const superadminService = {
   },
 
   /**
-   * Impersonation token
+   * Impersonation token with Audit Logging
    */
-  async impersonate(head_office_id) {
+  async impersonate(head_office_id, adminId) {
     const user = await prisma.user.findFirst({
       where: { head_office_id, is_deleted: false },
       include: { head_office: true }
     });
 
     if (!user) throw new Error('No user found for this chain');
+
+    // AUDIT LOG: Impersonation Start
+    await prisma.auditLog.create({
+      data: {
+        user_id: adminId || 'sa_root',
+        action: 'SUPERADMIN_IMPERSONATION',
+        entity_type: 'restaurant',
+        entity_id: head_office_id,
+        new_values: { impersonated_user: user.email }
+      }
+    }).catch(() => null);
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: 'owner', head_office_id: user.head_office_id, impersonated: true },
