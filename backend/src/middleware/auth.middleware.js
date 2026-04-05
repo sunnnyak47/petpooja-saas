@@ -34,7 +34,12 @@ async function authenticate(req, res, next) {
     }
 
     const redis = getRedisClient();
-    const isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
+    let isBlacklisted = false;
+    try {
+      isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
+    } catch (_) {
+      // Redis unavailable — skip blacklist check
+    }
 
     if (isBlacklisted) {
       throw new UnauthorizedError('Token has been revoked');

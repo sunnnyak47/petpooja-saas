@@ -1,33 +1,24 @@
-const superadminService = require('./superadmin.service');
-const { sendSuccess } = require('../../utils/response');
-
 /**
- * SuperAdmin Controller
+ * @fileoverview SuperAdmin Controller — Email/Password auth + platform management
  */
-const jwt = require('jsonwebtoken');
-const appConfig = require('../../config/app');
+const superadminService = require('./superadmin.service');
+const { sendSuccess, sendError } = require('../../utils/response');
+
 const superadminController = {
   /**
-   * Global Admin Login (Master Auth)
+   * SuperAdmin Login — Email + Password
    */
   async login(req, res, next) {
-    console.log('--- GLOBAL LOGIN ATTEMPT ---', req.body);
     try {
-      const { pin } = req.body;
-      // Phase 1: Verify against Master PIN
-      if (pin !== '1234') {
-        return res.status(401).json({ success: false, message: 'Invalid Master Key' });
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return sendError(res, 400, 'Email and password are required');
       }
-
-      // Generate a REAL high-security JWT for the SuperAdmin
-      const token = jwt.sign(
-        { id: 'sa_root_2026', role: 'super_admin', email: 'admin@petpooja.com' },
-        appConfig.jwt.secret,
-        { expiresIn: '24h' }
-      );
-
-      sendSuccess(res, { token }, 'Global Admin Access Granted');
-    } catch (err) { next(err); }
+      const result = await superadminService.login(email, password);
+      sendSuccess(res, result, 'SuperAdmin access granted');
+    } catch (err) {
+      next(err);
+    }
   },
 
   /**
@@ -45,36 +36,60 @@ const superadminController = {
    */
   async getChains(req, res, next) {
     try {
-      const filters = req.query;
-      const chains = await superadminService.listChains(filters);
+      const chains = await superadminService.listChains(req.query);
       sendSuccess(res, chains, 'All restaurant chains retrieved');
     } catch (err) { next(err); }
   },
 
   /**
-   * Impersonation — Login as a client
-   * This is a critical support feature
+   * Get single chain detail
+   */
+  async getChainDetail(req, res, next) {
+    try {
+      const { id } = req.params;
+      const chain = await superadminService.getChainDetail(id);
+      sendSuccess(res, chain, 'Chain detail retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * Impersonation — Login as a client restaurant
    */
   async impersonate(req, res, next) {
     try {
       const { head_office_id } = req.body;
       const { token, user } = await superadminService.impersonate(head_office_id);
-      
-      // We append a flag to the response for the frontend to recognize impersonation mode
-      sendSuccess(res, { token, user, impersonating: true }, 'Impersonation successful! Launching POS...');
+      sendSuccess(res, { token, user, impersonating: true }, 'Impersonation token generated');
     } catch (err) { next(err); }
   },
 
   /**
-   * Update Client License (Extend/Suspend)
+   * Update Client License
    */
   async updateSubscription(req, res, next) {
     try {
       const { id } = req.params;
-      const { plan, is_active, trial_ends_at } = req.body;
-      
-      const updated = await superadminService.updateLicense(id, { plan, is_active, trial_ends_at });
-      sendSuccess(res, updated, 'Client subscription updated successfully');
+      const updated = await superadminService.updateLicense(id, req.body);
+      sendSuccess(res, updated, 'Subscription updated successfully');
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * Get audit log
+   */
+  async getAuditLog(req, res, next) {
+    try {
+      const logs = await superadminService.getAuditLog(req.query);
+      sendSuccess(res, logs, 'Audit log retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * Verify current SuperAdmin token
+   */
+  async verifyToken(req, res, next) {
+    try {
+      sendSuccess(res, { valid: true, user: req.user }, 'Token valid');
     } catch (err) { next(err); }
   }
 };

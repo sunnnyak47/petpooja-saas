@@ -2,35 +2,37 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const api = axios.create({
-  // Automatic Cloud Scaling Switch
   baseURL: import.meta.env.VITE_API_URL || '/api/superadmin',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
-// Interceptor for SuperAdmin Token (Global Control)
+// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('sa_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Error handling for SuperAdmin (IP blocks/Unauthorized)
+// Handle responses
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.message || 'Server Error: Check your SuperAdmin Firewall';
-    toast.error(message);
-    // EMERGENCY: DO NOT REDIRECT TO LOGIN
-    /*
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    const status = error.response?.status;
+    const message = error.response?.data?.message || 'Network error. Please try again.';
+
+    // Only redirect on 401 if NOT on the login page
+    if (status === 401 && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('sa_token');
+      localStorage.removeItem('sa_user');
       window.location.href = '/login';
+      return Promise.reject(error);
     }
-    */
+
+    if (status !== 401) {
+      toast.error(message);
+    }
+
     return Promise.reject(error);
   }
 );

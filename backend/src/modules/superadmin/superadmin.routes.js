@@ -3,22 +3,31 @@ const router = express.Router();
 const superadminController = require('./superadmin.controller');
 const { authenticate, isSuperAdmin } = require('../../middleware/auth.middleware');
 
-/** POST /api/superadmin/login — Global Master Login */
+/** POST /api/superadmin/login */
 router.post('/login', superadminController.login);
 
-// TEMPORARY GLOBAL UNLOCK FOR INITIAL LAUNCH
-// router.use(authenticate, isSuperAdmin);
+/** GET /api/superadmin/verify — Verify token */
+router.get('/verify', authenticate, isSuperAdmin, superadminController.verifyToken);
 
-/** GET /api/superadmin/dashboard — Global Statistics */
+// All routes below are protected
+router.use(authenticate, isSuperAdmin);
+
+/** GET /api/superadmin/dashboard */
 router.get('/dashboard', superadminController.getDashboard);
 
-/** GET /api/superadmin/chains — List all restaurant chains */
+/** GET /api/superadmin/chains */
 router.get('/chains', superadminController.getChains);
 
-/** POST /api/superadmin/impersonate — Login as a client */
+/** GET /api/superadmin/chains/:id */
+router.get('/chains/:id', superadminController.getChainDetail);
+
+/** POST /api/superadmin/impersonate */
 router.post('/impersonate', superadminController.impersonate);
 
-/** PATCH /api/superadmin/subscription/:id — Update license status */
+/** PATCH /api/superadmin/subscription/:id */
 router.patch('/subscription/:id', superadminController.updateSubscription);
+
+/** GET /api/superadmin/audit */
+router.get('/audit', superadminController.getAuditLog);
 
 module.exports = router;

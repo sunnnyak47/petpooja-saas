@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Outlet, NavLink } from 'react-router-dom';
 import { 
   Building2, LayoutDashboard, History, CreditCard, 
   Settings, LogOut, ChevronLeft, ShieldCheck, 
@@ -15,14 +15,15 @@ const saNav = [
   { path: '/settings', label: 'System Config', icon: Settings },
 ];
 
-export default function AdminLayout() {
+export default function AdminLayout({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
-  const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('sa_token');
-    window.location.href = '/login';
+    if (onLogout) onLogout();
   };
+
+  const displayName = user?.full_name || 'Software Owner';
+  const displayEmail = user?.email || 'admin@admin.com';
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -67,10 +68,12 @@ export default function AdminLayout() {
         {/* System User */}
         <div className="p-4 border-t border-slate-800 bg-slate-900/50 backdrop-blur-xl">
             <div className={`p-4 bg-slate-800/30 rounded-2xl flex items-center ${collapsed ? 'justify-center' : 'gap-3'} border border-slate-700/30`}>
-               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-black">SA</div>
+               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-black">
+                  {displayName.charAt(0).toUpperCase()}
+               </div>
                {!collapsed && (
                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-white truncate truncate">Software Owner</p>
+                    <p className="text-sm font-black text-white truncate">{displayName}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider">Root Access</span>
