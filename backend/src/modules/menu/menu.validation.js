@@ -44,6 +44,23 @@ const createMenuItemSchema = Joi.object({
   preparation_time_min: Joi.number().integer().min(1).max(180).default(15),
   calories: Joi.number().integer().min(0).allow(null),
   tags: Joi.array().items(Joi.string().max(30)).default([]),
+  
+  // Nested Data
+  variants: Joi.array().items(Joi.object({
+    id: Joi.string().uuid().allow(null),
+    name: Joi.string().required(),
+    price_addition: Joi.number().min(0).required(),
+    is_default: Joi.boolean().default(false),
+    is_active: Joi.boolean().default(true),
+  })).default([]),
+  addons: Joi.array().items(Joi.object({
+    addon_group_id: Joi.string().uuid().required(),
+  })).default([]),
+  menu_schedules: Joi.array().items(Joi.object({
+    day_of_week: Joi.number().min(1).max(7),
+    start_time: Joi.string().required(),
+    end_time: Joi.string().required(),
+  })).default([]),
 });
 
 const updateMenuItemSchema = Joi.object({
@@ -66,6 +83,23 @@ const updateMenuItemSchema = Joi.object({
   preparation_time_min: Joi.number().integer().min(1).max(180),
   calories: Joi.number().integer().min(0).allow(null),
   tags: Joi.array().items(Joi.string().max(30)),
+
+  // Nested Data
+  variants: Joi.array().items(Joi.object({
+    id: Joi.string().uuid().allow(null, ""),
+    name: Joi.string(),
+    price_addition: Joi.number().min(0),
+    is_default: Joi.boolean(),
+    is_active: Joi.boolean(),
+  })),
+  addons: Joi.array().items(Joi.object({
+    addon_group_id: Joi.string().uuid().required(),
+  })),
+  menu_schedules: Joi.array().items(Joi.object({
+    day_of_week: Joi.number().min(1).max(7).allow(null),
+    start_time: Joi.string(),
+    end_time: Joi.string(),
+  })),
 }).min(1);
 
 const createVariantSchema = Joi.object({

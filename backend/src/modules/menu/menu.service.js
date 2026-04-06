@@ -154,13 +154,23 @@ async function createMenuItem(data) {
       data: {
         ...itemData,
         variants: variants && variants.length > 0 ? {
-          create: variants.map((v, idx) => ({ ...v, display_order: idx })),
+          create: variants.map((v, idx) => ({
+            name: v.name,
+            price_addition: v.price_addition,
+            is_default: v.is_default,
+            is_active: v.is_active,
+            display_order: idx
+          })),
         } : undefined,
         addons: addons && addons.length > 0 ? {
           create: addons.map((a) => ({ addon_group_id: a.addon_group_id })),
         } : undefined,
         menu_schedules: menu_schedules && menu_schedules.length > 0 ? {
-          create: menu_schedules.map((s) => ({ ...s })),
+          create: menu_schedules.map((s) => ({
+            day_of_week: s.day_of_week,
+            start_time: s.start_time,
+            end_time: s.end_time
+          })),
         } : undefined,
       },
       include: { category: { select: { name: true } }, variants: true, addons: true, menu_schedules: true },
@@ -277,7 +287,13 @@ async function updateMenuItem(itemId, outletId, data) {
         ...itemData,
         variants: variants ? {
           deleteMany: {},
-          create: variants.map((v, idx) => ({ ...v, id: undefined, display_order: idx })),
+          create: variants.map((v, idx) => ({
+            name: v.name,
+            price_addition: v.price_addition,
+            is_default: v.is_default,
+            is_active: v.is_active,
+            display_order: idx
+          })),
         } : undefined,
         addons: addons ? {
           deleteMany: {},
@@ -285,10 +301,14 @@ async function updateMenuItem(itemId, outletId, data) {
         } : undefined,
         menu_schedules: menu_schedules ? {
           deleteMany: {},
-          create: menu_schedules.map((s) => ({ ...s, id: undefined })),
+          create: menu_schedules.map((s) => ({
+            day_of_week: s.day_of_week,
+            start_time: s.start_time,
+            end_time: s.end_time
+          })),
         } : undefined,
       },
-      include: { category: { select: { name: true } }, variants: true, menu_schedules: true },
+      include: { category: { select: { name: true } }, variants: true, addons: true, menu_schedules: true },
     });
     return updated;
   } catch (error) {
