@@ -42,6 +42,7 @@ export default function MenuPage() {
   // Selection
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
+  const [viewMode, setViewMode] = useState('items'); // items, combos
 
   // Modal states
   const [isAddCatOpen, setIsAddCatOpen] = useState(false);
@@ -71,6 +72,12 @@ export default function MenuPage() {
     queryKey: ['addonGroups', outletId],
     queryFn: () => api.get(`/menu/addon-groups?outlet_id=${outletId}`).then(r => r.data),
     enabled: !!outletId,
+  });
+
+  const { data: combosData, isLoading: combosLoading } = useQuery({
+    queryKey: ['menuCombos', outletId],
+    queryFn: () => api.get(`/menu/combos?outlet_id=${outletId}`).then(r => r.data),
+    enabled: !!outletId && viewMode === 'combos',
   });
 
   // Mutations
@@ -247,11 +254,15 @@ export default function MenuPage() {
               <button onClick={() => setIsAddCatOpen(true)} className="text-brand-400 hover:text-brand-300 bg-brand-500/10 p-1.5 rounded-lg"><Plus className="w-4 h-4"/></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-1">
-               <button onClick={() => setCategoryFilter('')} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${!categoryFilter ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
-                 <span>All Items</span>
-                 <span className={`text-xs px-2 py-0.5 rounded-full ${!categoryFilter ? 'bg-white/20' : 'bg-surface-800'}`}>{stats.total}</span>
-               </button>
-               {(categories || []).map(cat => {
+                <button onClick={() => { setCategoryFilter(''); setViewMode('items'); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${!categoryFilter && viewMode === 'items' ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
+                  <span>All Items</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${!categoryFilter && viewMode === 'items' ? 'bg-white/20' : 'bg-surface-800'}`}>{stats.total}</span>
+                </button>
+                <button onClick={() => { setViewMode('combos'); setCategoryFilter(''); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${viewMode === 'combos' ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
+                  <span className="flex items-center gap-2 underline underline-offset-4 decoration-white/20">Combos 🔥</span>
+                </button>
+                <div className="h-4 border-b border-surface-800 mb-2"></div>
+                {(categories || []).map(cat => {
                   const count = dbItems.filter(i => i.category_id === cat.id).length;
                   return (
                     <button key={cat.id} onClick={() => setCategoryFilter(cat.id)} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${categoryFilter === cat.id ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
@@ -303,56 +314,91 @@ export default function MenuPage() {
                </div>
             )}
 
-            {/* Item Grid */}
+            {/* Item / Combo Grid */}
             <div className="flex-1 overflow-y-auto px-1 pb-4">
-              <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {itemsLoading ? [...Array(8)].map((_, i) => <div key={i} className="h-32 bg-surface-800 rounded-2xl animate-pulse"/>)
-                : filteredItems.map(item => (
-                  <div key={item.id} className={`group bg-surface-800/40 border border-surface-700 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all relative ${selectionMode && selectedItems.has(item.id) ? 'ring-2 ring-brand-500 bg-brand-500/5' : ''}`}>
-                     
-                     {selectionMode && (
-                        <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.id); }} className="absolute top-2 right-2 z-20 text-brand-400 drop-shadow-md">
-                           {selectedItems.has(item.id) ? <CheckSquare className="w-5 h-5 fill-surface-900"/> : <Square className="w-5 h-5 fill-surface-900 border-surface-300 text-surface-400"/>}
-                        </button>
-                     )}
-                     
-                     {/* Image Stub */}
-                     <div className="h-24 bg-surface-950 flex items-center justify-center relative overflow-hidden">
-                        {item.image_url ? (
-                           <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                           <Camera className="w-8 h-8 text-surface-700/50" />
-                        )}
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${BORDER_COLORS[item.food_type] || 'bg-surface-600'}`}></div>
-                     </div>
-                     
-                     <div className="p-3 relative">
-                        <div className="flex justify-between items-start mb-1">
-                           <div className="flex items-center gap-1.5">
-                              {SQUARE_ICONS[item.food_type]}
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-surface-400 px-1 bg-surface-900 rounded">{item.category?.name || 'Uncategorized'}</span>
-                           </div>
-                           <button onClick={(e) => { e.stopPropagation(); toggleStatusMutation.mutate(item); }} title="Toggle Availability" className="z-10">
-                              {item.is_available ? <ToggleRight className="w-6 h-6 text-success-500 text-shadow-sm hover:scale-110 transition-transform" /> : <ToggleLeft className="w-6 h-6 text-surface-500 hover:scale-110 transition-transform" />}
-                           </button>
-                        </div>
-                        
-                        <p className="font-bold text-white text-base leading-tight mb-0.5 pr-2 truncate">{item.name}</p>
-                        <div className="flex items-end justify-between mt-2">
-                           <p className="text-lg font-black text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
-                           {item.short_code && <span className="font-mono text-xs text-surface-500 font-bold bg-surface-900 px-1.5 py-0.5 rounded border border-surface-700">{item.short_code}</span>}
-                        </div>
-                     </div>
-                     
-                     {/* Hover Actions Bar */}
-                     <div className="absolute left-0 right-0 bottom-0 -mb-10 group-hover:mb-0 bg-surface-900/95 backdrop-blur border-t border-surface-700 flex transition-all duration-200 opacity-0 group-hover:opacity-100 p-1 z-10 gap-1 rounded-b-2xl">
-                        <button disabled={selectionMode} onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1 py-1.5 hover:bg-surface-800 rounded-lg text-xs font-semibold text-surface-300"><Edit className="w-3.5 h-3.5"/> Edit</button>
-                        <button disabled={selectionMode} onClick={() => {setSelectedItem(item); setIsDeleteOpen(true)}} className="flex-1 flex items-center justify-center gap-1 py-1.5 hover:bg-red-500/20 rounded-lg text-xs font-semibold text-red-400"><Trash2 className="w-3.5 h-3.5"/> Trash</button>
-                     </div>
-                  </div>
-                ))}
-              </div>
-              {filteredItems.length === 0 && !itemsLoading && (
+              {viewMode === 'items' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {itemsLoading ? [...Array(8)].map((_, i) => <div key={i} className="h-32 bg-surface-800 rounded-2xl animate-pulse"/>)
+                  : filteredItems.map(item => (
+                    <div key={item.id} className={`group bg-surface-800/40 border border-surface-700 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all relative ${selectionMode && selectedItems.has(item.id) ? 'ring-2 ring-brand-500 bg-brand-500/5' : ''}`}>
+                       
+                       {selectionMode && (
+                          <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.id); }} className="absolute top-2 right-2 z-20 text-brand-400 drop-shadow-md">
+                             {selectedItems.has(item.id) ? <CheckSquare className="w-5 h-5 fill-surface-900"/> : <Square className="w-5 h-5 fill-surface-900 border-surface-300 text-surface-400"/>}
+                          </button>
+                       )}
+                       
+                       {/* Image Stub */}
+                       <div className="h-24 bg-surface-950 flex items-center justify-center relative overflow-hidden">
+                          {item.image_url ? (
+                             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                             <Camera className="w-8 h-8 text-surface-700/50" />
+                          )}
+                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${BORDER_COLORS[item.food_type] || 'bg-surface-600'}`}></div>
+                       </div>
+                       
+                       <div className="p-3 relative">
+                          <div className="flex justify-between items-start mb-1">
+                             <div className="flex items-center gap-1.5">
+                                {SQUARE_ICONS[item.food_type]}
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-surface-400 px-1 bg-surface-900 rounded">{item.category?.name || 'Uncategorized'}</span>
+                             </div>
+                             <button onClick={(e) => { e.stopPropagation(); toggleStatusMutation.mutate(item); }} title="Toggle Availability" className="z-10">
+                                {item.is_available ? <ToggleRight className="w-6 h-6 text-success-500 text-shadow-sm hover:scale-110 transition-transform" /> : <ToggleLeft className="w-6 h-6 text-surface-500 hover:scale-110 transition-transform" />}
+                             </button>
+                          </div>
+                          
+                          <p className="font-bold text-white text-base leading-tight mb-0.5 pr-2 truncate">{item.name}</p>
+                          <div className="flex items-end justify-between mt-2">
+                             <p className="text-lg font-black text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
+                             {item.short_code && <span className="font-mono text-xs text-surface-500 font-bold bg-surface-900 px-1.5 py-0.5 rounded border border-surface-700">{item.short_code}</span>}
+                          </div>
+                       </div>
+                       
+                       {/* Hover Actions Bar */}
+                       <div className="absolute left-0 right-0 bottom-0 -mb-10 group-hover:mb-0 bg-surface-900/95 backdrop-blur border-t border-surface-700 flex transition-all duration-200 opacity-0 group-hover:opacity-100 p-1 z-10 gap-1 rounded-b-2xl">
+                          <button disabled={selectionMode} onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1 py-1.5 hover:bg-surface-800 rounded-lg text-xs font-semibold text-surface-300"><Edit className="w-3.5 h-3.5"/> Edit</button>
+                          <button disabled={selectionMode} onClick={() => {setSelectedItem(item); setIsDeleteOpen(true)}} className="flex-1 flex items-center justify-center gap-1 py-1.5 hover:bg-red-500/20 rounded-lg text-xs font-semibold text-red-400"><Trash2 className="w-3.5 h-3.5"/> Trash</button>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {combosLoading ? [...Array(4)].map((_, i) => <div key={i} className="h-40 bg-surface-800 rounded-2xl animate-pulse"/>)
+                  : (combosData || []).map(combo => (
+                    <div key={combo.id} className="bg-surface-800/40 border border-surface-700 rounded-2xl p-4 flex gap-4 hover:border-brand-500/50 transition-colors">
+                       <div className="w-24 h-24 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                          <Plus className="w-8 h-8 text-brand-400 opacity-20" />
+                       </div>
+                       <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                             <h4 className="text-lg font-bold text-white">{combo.name}</h4>
+                             <span className="text-xl font-black text-brand-400">₹{combo.combo_price}</span>
+                          </div>
+                          <p className="text-xs text-surface-400 mt-1 line-clamp-2">{combo.description || 'No description provided.'}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                             {combo.combo_items?.map(ci => (
+                                <span key={ci.id} className="text-[10px] font-bold bg-surface-900 text-surface-400 px-2 py-1 rounded border border-surface-700">
+                                   {ci.quantity}x {ci.menu_item?.name}
+                                </span>
+                             ))}
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                  {(combosData || []).length === 0 && !combosLoading && (
+                    <div className="col-span-full py-20 text-center">
+                       <h3 className="text-xl font-bold text-surface-400">No combos configured</h3>
+                       <p className="text-surface-500 mt-2">Create item bundles to offer special pricing.</p>
+                       <button onClick={() => toast('Combo Creator Coming Soon!')} className="btn-primary mt-6">Create First Combo</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {viewMode === 'items' && filteredItems.length === 0 && !itemsLoading && (
                  <div className="py-20 text-center">
                     <Tag className="w-16 h-16 mx-auto mb-4 text-surface-700 opacity-30" />
                     <h3 className="text-xl font-bold text-surface-400">No items found</h3>
