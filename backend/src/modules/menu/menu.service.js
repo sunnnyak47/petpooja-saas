@@ -168,8 +168,8 @@ async function createMenuItem(data) {
         menu_schedules: menu_schedules && menu_schedules.length > 0 ? {
           create: menu_schedules.map((s) => ({
             day_of_week: s.day_of_week,
-            start_time: s.start_time,
-            end_time: s.end_time
+            start_time: formatTimeToISO(s.start_time),
+            end_time: formatTimeToISO(s.end_time)
           })),
         } : undefined,
       },
@@ -303,8 +303,8 @@ async function updateMenuItem(itemId, outletId, data) {
           deleteMany: {},
           create: menu_schedules.map((s) => ({
             day_of_week: s.day_of_week,
-            start_time: s.start_time,
-            end_time: s.end_time
+            start_time: formatTimeToISO(s.start_time),
+            end_time: formatTimeToISO(s.end_time)
           })),
         } : undefined,
       },
@@ -635,6 +635,18 @@ async function listCombos(outletId) {
   } catch (error) {
     throw error;
   }
+}
+
+/**
+ * Formats a HH:mm time string into a dummy ISO-8601 DateTime for Prisma.
+ * @param {string} timeStr - Time in HH:mm format
+ * @returns {string|null} ISO string or null
+ */
+function formatTimeToISO(timeStr) {
+  if (!timeStr) return null;
+  // If already ISO, return it
+  if (timeStr.includes('T')) return timeStr;
+  return `1970-01-01T${timeStr}:00.000Z`;
 }
 
 module.exports = {

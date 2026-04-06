@@ -5,6 +5,7 @@
 
 const menuService = require('./menu.service');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
+const { uploadToS3 } = require('../../config/aws');
 
 /** POST /api/menu/categories */
 async function createCategory(req, res, next) {
@@ -220,6 +221,15 @@ async function listCombos(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/** POST /api/menu/upload-image */
+async function uploadImage(req, res, next) {
+  try {
+    if (!req.file) throw new Error('No file uploaded');
+    const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'menu-items', req.file.mimetype);
+    sendSuccess(res, { url }, 'Image uploaded successfully');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   createCategory, listCategories, updateCategory, deleteCategory, reorderCategories,
   createMenuItem, listMenuItems, getMenuItem, updateMenuItem, deleteMenuItem,
@@ -228,4 +238,5 @@ module.exports = {
   bulkPriceUpdate, bulkAvailability, setOutletOverride,
   createSchedule, deleteSchedule,
   createCombo, listCombos,
+  uploadImage,
 };

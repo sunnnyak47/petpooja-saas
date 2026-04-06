@@ -152,11 +152,26 @@ export default function MenuPage() {
     onError: (e) => toast.error(e.message || 'Bulk update failed')
   });
 
-  // Photo Upload Stub
-  const handleImageUpload = (e) => {
-     toast.success('Image selected. Will upload to S3 upon save.');
+  // Photo Upload
+  const handleImageUpload = async (e) => {
      const file = e.target.files[0];
-     if(file) setItemForm(prev => ({...prev, image_url: URL.createObjectURL(file)}));
+     if(!file) return;
+
+     const formData = new FormData();
+     formData.append('image', file);
+
+     const loadingToast = toast.loading('Uploading image...');
+     try {
+        const { data } = await api.post('/menu/upload-image', formData, {
+           headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setItemForm(prev => ({ ...prev, image_url: data.url }));
+        toast.dismiss(loadingToast);
+        toast.success('Image uploaded!');
+     } catch(err) {
+        toast.dismiss(loadingToast);
+        toast.error('Upload failed: ' + (err.response?.data?.message || err.message));
+     }
   };
 
   const dbItems = menuData?.items || menuData || [];
@@ -465,7 +480,7 @@ export default function MenuPage() {
                   <div className="p-4 border-2 border-dashed border-surface-600 hover:border-brand-500 hover:bg-surface-800 transition-colors rounded-xl text-center cursor-pointer relative overflow-hidden group">
                      {itemForm.image_url ? (
                         <>
-                           <img src={itemForm.image_url} alt="Item" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                           <img src={itemForm.image_url} alt="Item" className="absolute inset-0 w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                               <span className="text-white text-xs font-bold px-3 py-1 bg-black/50 rounded-full">Change</span>
                            </div>

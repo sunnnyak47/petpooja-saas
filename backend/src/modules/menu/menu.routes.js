@@ -5,6 +5,8 @@
 
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 const menuController = require('./menu.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasRole, hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
@@ -30,6 +32,7 @@ router.get('/items', authenticate, enforceOutletScope, menuController.listMenuIt
 router.get('/items/:id', authenticate, enforceOutletScope, menuController.getMenuItem);
 router.patch('/items/:id', authenticate, hasPermission('MANAGE_MENU'), validate(updateMenuItemSchema), menuController.updateMenuItem);
 router.delete('/items/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteMenuItem);
+router.post('/upload-image', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), menuController.uploadImage);
 
 /* -- Variants -- */
 router.post('/items/:id/variants', authenticate, hasPermission('MANAGE_MENU'), validate(createVariantSchema), menuController.createVariant);
