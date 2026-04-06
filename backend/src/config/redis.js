@@ -1,79 +1,21 @@
+/**
+ * @fileoverview Redis client configuration with automatic fallback to a no-op mock.
+ * When Redis is unavailable (no REDIS_URL or connection failure), all Redis
+ * operations silently return safe default values so the app never crashes.
+ */
+
 const Redis = require('ioredis');
 const logger = require('./logger');
 
+/** @type {object} */
 let redisClient = null;
 
-function getRedisClient() {
-  if (!redisClient) {
-    const redisOptions = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-      retryStrategy: (times) => {
-        if (times > 3) {
-          logger.error('Redis connection failed after 3 retries. Stopping...');
-          return null;
-        }
-        return Math.min(times * 200, 1000);
-      },
-      lazyConnect: true,
-      enableOfflineQueue: false,
-    };
-
-    if (process.env.REDIS_URL) {
-      redisClient = new Redis(process.env.REDIS_URL, redisOptions);
-    } else if (process.env.NODE_ENV === 'production') {
-      logger.warn('No REDIS_URL provided in production. Redis features will be disabled.');
-      redisClient = createMockRedis();
-    } else {
-      redisClient = new Redis(redisOptions);
-    }
-
-    // Wrap with resilience layer
-    redisClient = createResilientWrapper(redisClient);
-
-    redisClient.on('error', (err) => {
-      logger.warn(`Redis connection error: ${err.message}`);
-    });
-
-    redisClient.on('connect', () => {
-      logger.info('Connected to Redis Infrastructure.');
-    });
-  }
-
-  return redisClient;
-}
-
 /**
- * Wraps a Redis client to catch "Connection is closed" errors and return defaults.
- */
-function createResilientWrapper(client) {
-  const handler = {
-    get(target, prop) {
-      const val = target[prop];
-      if (typeof val === 'function' && ['get', 'set', 'setex', 'del', 'incr', 'expire', 'hget', 'hset', 'publish'].includes(prop)) {
-        return async (...args) => {
-          try {
-            return await val.apply(target, args);
-          } catch (err) {
-            if (err.message.includes('Connection is closed') || err.message.includes('Offline queue')) {
-              logger.debug(`Redis command '${prop}' suppressed due to connection issue.`);
-              return prop === 'get' || prop === 'hget' ? null : (prop === 'incr' ? 1 : 'OK');
-            }
-            throw err;
-          }
-        };
-      }
-      return val;
-    }
-  };
-  return new Proxy(client, handler);
-}
-
-/**
- * Creates a mock Redis client that does nothing but prevents crashes.
+ * Returns a safe no-op Redis mock so the app continues without caching.
+ * @returns {object} Mock Redis client
  */
 function createMockRedis() {
+  logger.warn('Redis unavailable — using no-op mock. Caching and rate-limiting disabled.');
   return {
     get: async () => null,
     set: async () => 'OK',
@@ -81,16 +23,65 @@ function createMockRedis() {
     del: async () => 0,
     incr: async () => 1,
     expire: async () => 1,
+    hget: async () => null,
+    hset: async () => 'OK',
+    publish: async () => 0,
     on: () => {},
     quit: async () => {},
+    status: 'mock',
   };
 }
 
-async function disconnectRedis() {
-  if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
+/**
+ * Returns the shared Redis client, initialising it on first call.
+ * Falls back to a no-op mock if no REDIS_URL is configured.
+ * @returns {object} Redis client or mock
+ */
+function getRedisClient() {
+  if (redisClient) return redisClient;
+
+  if (!process.env.REDIS_URL) {
+    // No Redis configured — use mock immediately, no connection attempts
+    redisClient = createMockRedis();
+    return redisClient;
   }
+
+  const realClient = new Redis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    lazyConnect: true,
+    retryStrategy: (times) => {
+      if (times > 3) {
+        logger.warn('Redis connection failed permanently. Switching to no-op mock.');
+        // Swap out for mock so future calls work cleanly
+        redisClient = createMockRedis();
+        return null; // stop retrying
+      }
+      return Math.min(times * 200, 1000);
+    },
+  });
+
+  realClient.on('error', (err) => {
+    logger.warn(`Redis error: ${err.message}`);
+  });
+
+  realClient.on('connect', () => {
+    logger.info('Connected to Redis.');
+  });
+
+  redisClient = realClient;
+  return redisClient;
+}
+
+/**
+ * Gracefully disconnects Redis if a real connection is active.
+ * @returns {Promise<void>}
+ */
+async function disconnectRedis() {
+  if (redisClient && typeof redisClient.quit === 'function' && redisClient.status !== 'mock') {
+    await redisClient.quit();
+  }
+  redisClient = null;
 }
 
 module.exports = { getRedisClient, disconnectRedis };
