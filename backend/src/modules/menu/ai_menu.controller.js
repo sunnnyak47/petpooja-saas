@@ -5,7 +5,7 @@
  */
 
 const aiService = require("./ai_menu.service");
-const { sendSuccess, sendError } = require("../../utils/apiResponse");
+const { sendSuccess, sendError } = require("../../utils/response");
 
 /**
  * Scan a menu photo and return structured draft.
@@ -13,7 +13,7 @@ const { sendSuccess, sendError } = require("../../utils/apiResponse");
 async function scanMenu(req, res, next) {
   try {
     if (!req.file) {
-      return sendError(res, "Please upload a menu image", 400);
+      return sendError(res, 400, "Please upload a menu image");
     }
 
     const { buffer, mimetype } = req.file;
@@ -32,7 +32,7 @@ async function confirmSync(req, res, next) {
   try {
     const { outlet_id, menu_data } = req.body;
     if (!outlet_id || !menu_data) {
-      return sendError(res, "Outlet ID and Menu Data are required", 400);
+      return sendError(res, 400, "Outlet ID and Menu Data are required");
     }
 
     const results = await aiService.syncMenu(outlet_id, menu_data);
