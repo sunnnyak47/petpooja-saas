@@ -12,6 +12,24 @@ const { calculateGST, generateOrderNumber, parsePagination, getFinancialYear, ge
 const customerService = require('../customers/customer.service');
 
 /**
+ * Generates the next invoice number for an outlet by incrementing its sequence.
+ * @param {object} tx - Prisma transaction client
+ * @param {string} outletId - Outlet UUID
+ * @returns {Promise<string>} Formatted invoice number
+ */
+async function generateInvoiceNumber(tx, outletId) {
+  const fy = getFinancialYear();
+  const sequence = await tx.invoiceSequence.upsert({
+    where: { outlet_id_financial_year: { outlet_id: outletId, financial_year: fy } },
+    update: { last_sequence: { increment: 1 } },
+    create: { outlet_id: outletId, financial_year: fy, last_sequence: 1 },
+  });
+
+  const outlet = await tx.outlet.findUnique({ where: { id: outletId }, select: { code: true } });
+  return formatInvoiceNumber(fy, outlet.code, sequence.last_sequence);
+}
+
+/**
  * Creates a new order with items, calculates totals and taxes.
  * @param {object} data - Order data including items array
  * @param {string} staffId - Staff user ID creating the order
@@ -692,25 +710,8 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
   }
 }
 
-/**
- * Generates the next invoice number for an outlet by incrementing its sequence.
- * @param {object} tx - Prisma transaction client
- * @param {string} outletId - Outlet UUID
- * @returns {Promise<string>} Formatted invoice number
- */
-async function generateInvoiceNumber(tx, outletId) {
-  const fy = getFinancialYear();
-  const sequence = await tx.invoiceSequence.upsert({
-    where: { outlet_id_financial_year: { outlet_id: outletId, financial_year: fy } },
-    update: { last_sequence: { increment: 1 } },
-    create: { outlet_id: outletId, financial_year: fy, last_sequence: 1 },
-  });
-
-  const outlet = await tx.outlet.findUnique({ where: { id: outletId }, select: { code: true } });
-  return formatInvoiceNumber(fy, outlet.code, sequence.last_sequence);
-}
-
 module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
   generateKOT, processPayment, voidOrder, updateOrderStatus,
+  generateInvoiceNumber,
 };
