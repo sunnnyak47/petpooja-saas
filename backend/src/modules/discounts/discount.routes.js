@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../../middleware/auth.middleware');
+const { authenticate, hasRole } = require('../../middleware/auth.middleware');
 const discountService = require('./discount.service');
 const logger = require('../../config/logger');
 
@@ -30,7 +30,7 @@ router.get('/', authenticate, async (req, res, next) => {
 /**
  * POST /api/discounts — Create a new discount
  */
-router.post('/', authenticate, authorize(['super_admin', 'owner', 'manager']), async (req, res, next) => {
+router.post('/', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const discount = await discountService.createDiscount(req.body, outletId);
@@ -43,7 +43,7 @@ router.post('/', authenticate, authorize(['super_admin', 'owner', 'manager']), a
 /**
  * PUT /api/discounts/:id — Update a discount
  */
-router.put('/:id', authenticate, authorize(['super_admin', 'owner', 'manager']), async (req, res, next) => {
+router.put('/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await discountService.updateDiscount(req.params.id, req.body, outletId);
@@ -56,7 +56,7 @@ router.put('/:id', authenticate, authorize(['super_admin', 'owner', 'manager']),
 /**
  * DELETE /api/discounts/:id — Soft delete a discount
  */
-router.delete('/:id', authenticate, authorize(['super_admin', 'owner', 'manager']), async (req, res, next) => {
+router.delete('/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     await discountService.deleteDiscount(req.params.id, outletId);
