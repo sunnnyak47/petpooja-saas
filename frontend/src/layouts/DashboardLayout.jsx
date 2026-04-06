@@ -4,7 +4,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
-  Grid3X3, Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, UserCog, Package, Globe, ShieldCheck
+  Grid3X3, Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, UserCog, Package, Globe, ShieldCheck,
+  ChefHat, CreditCard, Tag, Puzzle, Shield
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -21,10 +22,16 @@ const ownerNav = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/pos', label: 'POS Terminal', icon: ShoppingCart },
   { path: '/orders', label: 'Order History', icon: ClipboardList },
+  { path: '/kitchen', label: 'Kitchen (KDS)', icon: ChefHat },
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
   { path: '/inventory', label: 'Stock Master', icon: Package },
-  { path: '/reports', label: 'Outlet Reports', icon: BarChart3 },
-  { path: '/integrations/tally', label: 'Accounting Sync', icon: Globe },
+  { path: '/customers', label: 'Customers', icon: Users },
+  { path: '/payments', label: 'Payments', icon: CreditCard },
+  { path: '/discounts', label: 'Promotions', icon: Tag },
+  { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/integrations', label: 'Integrations', icon: Puzzle },
+  { path: '/audit-log', label: 'Audit Trail', icon: Shield },
+  { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function DashboardLayout() {

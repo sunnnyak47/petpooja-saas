@@ -130,6 +130,7 @@ const reportsRoutes = require('./modules/reports/reports.routes');
 const integrationRoutes = require('./modules/integrations/integration.routes');
 const headofficeRoutes = require('./modules/headoffice/headoffice.routes');
 const superadminRoutes = require('./modules/superadmin/superadmin.routes');
+const discountRoutes = require('./modules/discounts/discount.routes');
 
 app.get('/api', (req, res) => {
   res.status(200).json({
@@ -150,6 +151,7 @@ app.get('/api', (req, res) => {
         integrations: '/api/integrations',
         headoffice: '/api/ho',
         superadmin: '/api/superadmin',
+        discounts: '/api/discounts',
       },
     },
     message: 'Petpooja ERP API — Welcome',
@@ -172,6 +174,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/ho', headofficeRoutes);
 app.use('/api/superadmin', superadminRoutes);
+app.use('/api/discounts', discountRoutes);
 
 // Initialize Billing & Subscriptions
 require('./modules/headoffice/billing.service');

@@ -14,6 +14,13 @@ import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
+import KitchenDisplayPage from './pages/KitchenDisplayPage';
+import PaymentsPage from './pages/PaymentsPage';
+import DiscountsPage from './pages/DiscountsPage';
+import SettingsPage from './pages/SettingsPage';
+import IntegrationsPage from './pages/IntegrationsPage';
+import AuditLogPage from './pages/AuditLogPage';
+import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -33,6 +40,8 @@ function HomeRedirect() {
 
 export default function App() {
   return (
+    <>
+    <OfflineBanner />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
@@ -51,7 +60,13 @@ export default function App() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
+        <Route path="kitchen" element={<KitchenDisplayPage />} />
+        <Route path="payments" element={<PaymentsPage />} />
+        <Route path="discounts" element={<DiscountsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="integrations/tally" element={<TallySync />} />
+        <Route path="audit-log" element={<AuditLogPage />} />
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />
@@ -60,5 +75,6 @@ export default function App() {
       {/* Catch All */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
