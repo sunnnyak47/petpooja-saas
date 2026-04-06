@@ -8,8 +8,6 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const logger = require("../../config/logger");
 const { getDbClient } = require("../../config/database");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
 /**
  * Scans a menu image and extracts structured data.
  * @param {Buffer} imageBuffer - The menu photo
@@ -17,7 +15,20 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
  * @returns {Promise<Object>} Structured menu JSON
  */
 async function scanMenuImage(imageBuffer, mimeType) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    logger.error("AI Sync failed: GEMINI_API_KEY is not defined in environment variables");
+    throw new Error("AI Sync failed: API Key missing in environment variables. Please check Render settings.");
+  }
+
+  // Mask the key for logs: first 4 and last 4 chars
+  const maskedKey = apiKey.length > 8 
+    ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`
+    : "****";
+  logger.info(`AI Menu Scan triggered using API key: ${maskedKey} (Length: ${apiKey.length})`);
+
   try {
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
