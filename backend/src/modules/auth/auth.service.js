@@ -122,13 +122,8 @@ async function login(login, password, auditInfo = {}) {
 
   try {
     const lockoutKey = `${appConfig.redisKeys.loginAttempts}${login}`;
-    let attempts = 0;
-    try {
-      const attemptsVal = await redis.get(lockoutKey);
-      attempts = attemptsVal ? parseInt(attemptsVal, 10) : 0;
-    } catch (redisError) {
-      logger.warn('Redis lockout check failed, skipping...', { error: redisError.message });
-    }
+    const attemptsVal = await redis.get(lockoutKey);
+    const attempts = attemptsVal ? parseInt(attemptsVal, 10) : 0;
 
     if (attempts >= appConfig.lockout.maxAttempts) {
       throw new ForbiddenError(
@@ -161,7 +156,7 @@ async function login(login, password, auditInfo = {}) {
     });
 
     if (!user) {
-      try { await incrementLoginAttempts(redis, lockoutKey); } catch (e) { logger.warn('Redis increment failed'); }
+      await incrementLoginAttempts(redis, lockoutKey);
       throw new UnauthorizedError('Invalid credentials');
     }
 
@@ -176,9 +171,11 @@ async function login(login, password, auditInfo = {}) {
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
-      try { await incrementLoginAttempts(redis, lockoutKey); } catch (e) { logger.warn('Redis increment failed'); }
+      await incrementLoginAttempts(redis, lockoutKey);
 
-      const currentAttempts = parseInt(await redis.get(lockoutKey) || '0', 10);
+      const currentAttemptsVal = await redis.get(lockoutKey);
+      const currentAttempts = currentAttemptsVal ? parseInt(currentAttemptsVal, 10) : 0;
+      
       if (currentAttempts >= appConfig.lockout.maxAttempts) {
         await prisma.user.update({
           where: { id: user.id },
@@ -192,7 +189,7 @@ async function login(login, password, auditInfo = {}) {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    try { await redis.del(lockoutKey); } catch (e) { logger.warn('Redis delete failed'); }
+    await redis.del(lockoutKey);
 
     const primaryRole = user.user_roles.find((ur) => ur.is_primary) || user.user_roles[0];
     const roleName = primaryRole?.role?.name || 'cashier';
