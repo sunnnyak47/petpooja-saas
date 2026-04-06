@@ -24,7 +24,7 @@ const EMPTY_ITEM = {
   name: '', short_code: '', description: '', base_price: '', category_id: '',
   food_type: 'veg', kitchen_station: 'KITCHEN', gst_rate: 5,
   is_available: true, image_url: '',
-  variants: [], addons: []
+  variants: [], addons: [], menu_schedules: []
 };
 
 export default function MenuPage() {
@@ -207,7 +207,8 @@ export default function MenuPage() {
       food_type: item.food_type || 'veg', kitchen_station: item.kitchen_station || 'KITCHEN',
       gst_rate: item.gst_rate ?? 5, is_available: item.is_available ?? true,
       image_url: item.image_url || '',
-      variants: item.variants || [], addons: item.addons || []
+      variants: item.variants || [], addons: item.addons || [],
+      menu_schedules: item.menu_schedules || []
     });
     setIsItemModalOpen(true);
   };
