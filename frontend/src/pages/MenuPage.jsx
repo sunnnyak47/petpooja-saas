@@ -7,7 +7,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { 
   Leaf, Drumstick, Egg, Plus, Edit, Trash2, Search, FolderPlus, 
   Loader, ToggleLeft, ToggleRight, CheckSquare, Square, Percent, 
-  ArrowUpRight, ArrowDownRight, Tag, Camera
+  ArrowUpRight, ArrowDownRight, Tag, Camera, Sparkles
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import AIMenuSyncModal from '../components/Menu/AIMenuSyncModal';

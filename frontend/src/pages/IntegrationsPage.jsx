@@ -4,8 +4,8 @@ import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
-  Puzzle, ExternalLink, ToggleLeft, ToggleRight, Settings, CheckCircle2,
-  AlertTriangle, Zap, ArrowRight
+  Puzzle, ToggleLeft, ToggleRight, Settings, CheckCircle2,
+  AlertTriangle, ArrowRight
 } from 'lucide-react';
 
 const INTEGRATIONS = [

@@ -5,9 +5,9 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import {
-  Tag, Plus, Trash2, Edit3, Copy, Zap, Clock, CheckCircle2,
+  Tag, Plus, Trash2, Edit3, Zap,
   Percent, Gift, ShoppingBag, ToggleLeft, ToggleRight, Search,
-  Calendar, Target, Hash
+  Hash
 } from 'lucide-react';
 
 const TYPE_CONFIG = {

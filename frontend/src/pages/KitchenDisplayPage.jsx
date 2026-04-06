@@ -5,9 +5,9 @@ import { io } from 'socket.io-client';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
-  ChefHat, Clock, Flame, CheckCircle2, AlertTriangle, RefreshCw,
-  Volume2, VolumeX, Maximize2, Filter, Timer, Utensils, Coffee, 
-  IceCream, Package, Printer, Eye
+  ChefHat, Flame, CheckCircle2, RefreshCw,
+  Volume2, VolumeX, Maximize2, Timer, Utensils, Coffee, 
+  IceCream, Package, Eye
 } from 'lucide-react';
 
 const STATIONS = [

@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
-  Settings, Printer, Monitor, CreditCard, Palette, Globe, Bell,
-  Shield, Database, Wifi, WifiOff, Save, RotateCcw, ChevronRight,
-  Store, Receipt, Scale, Barcode, DollarSign
+  Settings, Printer, Monitor, CreditCard, Palette, Bell,
+  Save, RotateCcw, ChevronRight,
+  Store, Barcode, DollarSign
 } from 'lucide-react';
 
 const SECTIONS = [

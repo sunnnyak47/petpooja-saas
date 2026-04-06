@@ -5,9 +5,9 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import {
-  CreditCard, Search, Download, Filter, Calendar, ArrowUpDown,
-  DollarSign, Wallet, Banknote, RefreshCw, X, ChevronDown,
-  TrendingUp, Receipt, RotateCcw, Eye
+  CreditCard, Search, Download,
+  DollarSign, Wallet, Banknote,
+  TrendingUp, Receipt, RotateCcw
 } from 'lucide-react';
 
 const METHOD_ICONS = {

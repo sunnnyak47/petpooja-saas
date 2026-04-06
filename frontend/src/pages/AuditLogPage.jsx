@@ -3,9 +3,9 @@ import { useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
-  Shield, Search, Filter, Calendar, User, Activity, Eye,
-  AlertTriangle, Lock, Unlock, Trash2, Edit3, LogIn, LogOut,
-  DollarSign, Settings, ChevronDown
+  Shield, Search, User, Activity,
+  AlertTriangle, Lock, Trash2, Edit3, LogIn, LogOut,
+  DollarSign, Settings
 } from 'lucide-react';
 
 const ACTION_ICONS = {
