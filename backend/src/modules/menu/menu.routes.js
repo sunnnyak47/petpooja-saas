@@ -8,6 +8,7 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const menuController = require('./menu.controller');
+const aiMenuController = require('./ai_menu.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasRole, hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
@@ -18,6 +19,10 @@ const {
   bulkPriceUpdateSchema, bulkAvailabilitySchema,
   createMenuScheduleSchema, createComboSchema,
 } = require('./menu.validation');
+
+/* -- AI Menu Sync -- */
+router.post('/ai/scan-menu', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), aiMenuController.scanMenu);
+router.post('/ai/confirm-sync', authenticate, hasPermission('MANAGE_MENU'), aiMenuController.confirmSync);
 
 /* -- Categories -- */
 router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), menuController.createCategory);

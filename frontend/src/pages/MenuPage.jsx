@@ -10,6 +10,7 @@ import {
   ArrowUpRight, ArrowDownRight, Tag, Camera
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import AIMenuSyncModal from '../components/Menu/AIMenuSyncModal';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const FOOD_COLORS = { veg: 'text-green-500', non_veg: 'text-red-500', egg: 'text-yellow-500' };
@@ -49,6 +50,7 @@ export default function MenuPage() {
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isAISyncOpen, setIsAISyncOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
   const [catForm, setCatForm] = useState({ name: '', description: '', display_order: 1 });
@@ -256,6 +258,9 @@ export default function MenuPage() {
                  <Percent className="w-4 h-4"/> Update Prices ({selectedItems.size})
                </button>
             )}
+            <button onClick={() => setIsAISyncOpen(true)} className="btn-surface flex items-center gap-2 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg shadow-purple-500/5">
+               <Sparkles className="w-4 h-4" /> AI Sync
+            </button>
             <button onClick={() => { setItemForm({...EMPTY_ITEM}); setIsItemModalOpen(true); }} className="btn-primary shadow-lg shadow-brand-500/20">
                <Plus className="w-4 h-4 mr-1"/> Add Item
             </button>
@@ -659,6 +664,12 @@ export default function MenuPage() {
       </Modal>
 
       <ConfirmDialog isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} onConfirm={() => deleteItemMutation.mutate(selectedItem?.id)} title="Delete Menu Item" message={`Delete ${selectedItem?.name}? This will remove it from the menu. (Cannot be undone)`} isLoading={deleteItemMutation.isPending} />
+      
+      <AIMenuSyncModal 
+        isOpen={isAISyncOpen} 
+        onClose={() => setIsAISyncOpen(false)} 
+        outletId={outletId} 
+      />
     </div>
   );
 }
