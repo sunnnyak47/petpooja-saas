@@ -121,6 +121,7 @@ app.get('/health', async (req, res) => {
 const authRoutes = require('./modules/auth/auth.routes');
 const menuRoutes = require('./modules/menu/menu.routes');
 const orderRoutes = require('./modules/orders/order.routes');
+const tableRoutes = require('./modules/orders/table.routes');
 const kotRoutes = require('./modules/orders/kot.routes');
 const inventoryRoutes = require('./modules/inventory/inventory.routes');
 const customerRoutes = require('./modules/customers/customer.routes');
@@ -140,6 +141,7 @@ app.get('/api', (req, res) => {
         auth: '/api/auth',
         menu: '/api/menu',
         orders: '/api/orders',
+        tables: '/api/orders/tables',
         kitchen: '/api/kitchen',
         inventory: '/api/inventory',
         customers: '/api/customers',
@@ -157,6 +159,7 @@ app.get('/api', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/orders/tables', tableRoutes);
 app.use('/api/kitchen', kotRoutes);
 const procurementRoutes = require('./modules/inventory/procurement.routes');
 

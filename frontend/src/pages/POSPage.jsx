@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { io } from 'socket.io-client';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -10,8 +11,10 @@ import {
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
   Leaf, Drumstick, Egg, Star, Flame, X, ClipboardList, Users, Pause, UserPlus, 
-  SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine
+  SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine, 
+  LayoutGrid, Utensils
 } from 'lucide-react';
+import TableGrid from '../components/POS/TableGrid';
 import Modal from '../components/Modal';
 import SplitBillModal from '../components/POS/SplitBillModal';
 import EBillModal from '../components/POS/EBillModal';
@@ -29,6 +32,8 @@ export default function POSPage() {
   const [search, setSearch] = useState('');
   const [shortCodeSearch, setShortCodeSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState(null);
+  const [viewMode, setViewMode] = useState('menu'); // 'menu' or 'tables'
+  const [selectedAreaId, setSelectedAreaId] = useState(null);
   
   // UI states
   const [showNotes, setShowNotes] = useState(false);
@@ -72,15 +77,17 @@ export default function POSPage() {
 
   const { data: tableAreas } = useQuery({
     queryKey: ['tableAreas', outletId],
-    queryFn: () => api.get(`/kitchen/table-areas?outlet_id=${outletId}`).then(r => r.data),
+    queryFn: () => api.get(`/orders/tables/areas?outlet_id=${outletId}`).then(r => r.data),
     enabled: !!outletId,
   });
 
-  const { data: tablesForSelect } = useQuery({
+  const { data: tables } = useQuery({
     queryKey: ['tables', outletId],
-    queryFn: () => api.get(`/kitchen/tables?outlet_id=${outletId}`).then(r => r.data),
-    enabled: tableSelectMode !== null,
+    queryFn: () => api.get(`/orders/tables?outlet_id=${outletId}`).then(r => r.data),
+    enabled: !!outletId,
   });
+
+  const tablesForSelect = tables || [];
 
   const { data: menuData } = useQuery({
     queryKey: ['menuItems', outletId, activeCategory],
@@ -115,6 +122,24 @@ export default function POSPage() {
       total: isCompMode ? 0 : Math.round(subtotal + tax) 
     };
   }, [cart, isCompMode]);
+
+  // Real-time Table Status Sync
+  useEffect(() => {
+    if (!outletId) return;
+    const socket = io(import.meta.env.VITE_API_URL || '', { transports: ['websocket'] });
+    
+    // Join outlet room
+    socket.emit('join_outlet', outletId);
+    
+    // Listen for table status changes
+    socket.on('table_status_change', (data) => {
+      queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [outletId, queryClient]);
 
   const handleAddItem = (item) => {
     if (item.variants?.length > 0 || item.addons?.length > 0) {
@@ -174,6 +199,20 @@ export default function POSPage() {
     if (cart.length < 2) return toast.error('Add another item to apply BOGO');
     toast.success('BOGO Applied: 50% discount on lowest item');
     // Implement BOGO in UI logic or send specially to BE
+  };
+
+  const handleTableClick = (table) => {
+    dispatch(setSelectedTable(table));
+    if (table.status === 'occupied' && table.orders?.[0]) {
+      // Load existing order items into cart
+      const order = table.orders[0];
+      // This part would ideally clear cart and load items. 
+      // For now, let's just select the table.
+      toast.success(`Table ${table.table_number} selected`);
+    } else {
+      toast.success(`Table ${table.table_number} selected`);
+    }
+    setViewMode('menu');
   };
 
   const processManagerAction = async () => {
@@ -267,42 +306,71 @@ export default function POSPage() {
              <option>All Floors</option>
              {tableAreas?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <div className="flex bg-surface-800 rounded-xl p-1 ml-auto">
-            {['dine_in', 'takeaway', 'delivery'].map((t) => (
-               <button key={t} onClick={() => dispatch(setOrderType(t))}
-                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${orderType === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
-                 {t.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
-               </button>
-            ))}
+          <div className="flex bg-surface-800 rounded-xl p-1 ml-auto gap-1">
+             <button
+               onClick={() => setViewMode('menu')}
+               className={`p-2 rounded-lg transition-all ${viewMode === 'menu' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+               title="Menu View"
+             >
+               <Utensils className="w-4 h-4" />
+             </button>
+             <button
+               onClick={() => setViewMode('tables')}
+               className={`p-2 rounded-lg transition-all ${viewMode === 'tables' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+               title="Table View"
+             >
+               <LayoutGrid className="w-4 h-4" />
+             </button>
+             <div className="w-px h-4 bg-surface-700 mx-1 self-center" />
+             {['dine_in', 'takeaway', 'delivery'].map((t) => (
+                <button key={t} onClick={() => dispatch(setOrderType(t))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${orderType === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
+                  {t.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
+                </button>
+             ))}
           </div>
         </div>
 
-        {/* Categories */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
-          <button onClick={() => setActiveCategory(null)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${!activeCategory ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>All</button>
-          {(categories || []).map((cat) => (
-            <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeCategory === cat.id ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>{cat.name}</button>
-          ))}
-        </div>
+        {viewMode === 'menu' ? (
+          <>
+            {/* Categories */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
+              <button onClick={() => setActiveCategory(null)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${!activeCategory ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>All</button>
+              {(categories || []).map((cat) => (
+                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeCategory === cat.id ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>{cat.name}</button>
+              ))}
+            </div>
 
-        {/* Menu Grid */}
-        <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 content-start">
-          {filteredItems.map((item) => (
-            <button key={item.id} onClick={() => handleAddItem(item)} className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'}`}>
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  {SQUARE_ICONS[item.food_type]}
-                  {item.short_code && <span className="text-[10px] bg-surface-800 px-1 rounded text-surface-400 font-mono">{item.short_code}</span>}
-                </div>
-                <div className="flex gap-1">
-                  {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
-                </div>
-              </div>
-              <p className="text-sm font-medium text-white line-clamp-2 mb-1 group-hover:text-brand-400 transition-colors">{item.name}</p>
-              <p className="text-base font-bold text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
-            </button>
-          ))}
-        </div>
+            {/* Menu Grid */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 content-start">
+              {filteredItems.map((item) => (
+                <button key={item.id} onClick={() => handleAddItem(item)} className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'}`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      {SQUARE_ICONS[item.food_type]}
+                      {item.short_code && <span className="text-[10px] bg-surface-800 px-1 rounded text-surface-400 font-mono">{item.short_code}</span>}
+                    </div>
+                    <div className="flex gap-1">
+                      {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-white line-clamp-2 mb-1 group-hover:text-brand-400 transition-colors">{item.name}</p>
+                  <p className="text-base font-bold text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-hidden">
+            <TableGrid 
+              tables={tables || []} 
+              areas={tableAreas || []} 
+              selectedAreaId={selectedAreaId}
+              onAreaChange={setSelectedAreaId}
+              onTableClick={handleTableClick}
+            />
+          </div>
+        )}
       </div>
 
       {/* Right: Cart */}
