@@ -31,28 +31,38 @@ export default function OrdersPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleReorder = (order) => {
-    dispatch(clearCart());
-    const items = order.order_items || order.items || [];
-    items.forEach(item => {
-      dispatch(addToCart({
-        menu_item_id: item.menu_item_id,
-        name: item.name,
-        base_price: Number(item.unit_price || item.price || 0),
-        variant_id: item.variant_id,
-        variant_name: item.variant_name,
-        variant_price: Number(item.variant_price || 0),
-        addons: item.addons?.map(a => ({
-          addon_id: a.addon_id || a.id,
-          name: a.name,
-          price: Number(a.price || 0),
-          quantity: a.quantity
-        })) || [],
-        quantity: item.quantity
-      }));
-    });
-    toast.success('Items added to cart for reorder');
-    navigate('/pos');
+  const handleReorder = async (order) => {
+    try {
+      const { data: fullOrder } = await api.get(`/orders/${order.id}`);
+      dispatch(clearCart());
+      const items = fullOrder.order_items || fullOrder.items || [];
+      if (items.length === 0) {
+        toast.error('No items found in this order to reorder');
+        return;
+      }
+      items.forEach(item => {
+        dispatch(addToCart({
+          menu_item_id: item.menu_item_id,
+          name: item.name,
+          base_price: Number(item.unit_price || item.price || 0),
+          variant_id: item.variant_id,
+          variant_name: item.variant_name,
+          variant_price: Number(item.variant_price || 0),
+          addons: item.addons?.map(a => ({
+            addon_id: a.addon_id || a.id,
+            name: a.name,
+            price: Number(a.price || 0),
+            quantity: a.quantity
+          })) || [],
+          quantity: item.quantity
+        }));
+      });
+      toast.success('Items added to cart for reorder');
+      navigate('/pos');
+    } catch (error) {
+      toast.error('Failed to fetch order details for reorder');
+      console.error(error);
+    }
   };
 
   const { data, isLoading } = useQuery({

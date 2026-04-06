@@ -8,7 +8,8 @@ const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../utils/errors');
-const { calculateGST, generateOrderNumber, parsePagination } = require('../../utils/helpers');
+const { calculateGST, generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
+const customerService = require('../customers/customer.service');
 
 /**
  * Creates a new order with items, calculates totals and taxes.
@@ -569,7 +570,6 @@ async function processPayment(orderId, paymentData, staffId) {
         data: { order_id: orderId, from_status: order.status, to_status: 'paid', changed_by: staffId },
       });
       
-      // ... rest of transaction (tables, summaries) ...
       return { payment, invoiceNumber };
     });
 
@@ -586,7 +586,6 @@ async function processPayment(orderId, paymentData, staffId) {
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
     
     // ASYNC: Trigger inventory deduction based on recipes
-    // We don't await here to keep the POS response fast, but it runs in background
     const inventoryService = require('../inventory/inventory.service');
     inventoryService.deductByRecipe(orderId).catch(err => {
       logger.error('Inventory deduction failed after payment', { orderId, error: err.message });
@@ -691,6 +690,24 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
     if (error instanceof NotFoundError) throw error;
     throw error;
   }
+}
+
+/**
+ * Generates the next invoice number for an outlet by incrementing its sequence.
+ * @param {object} tx - Prisma transaction client
+ * @param {string} outletId - Outlet UUID
+ * @returns {Promise<string>} Formatted invoice number
+ */
+async function generateInvoiceNumber(tx, outletId) {
+  const fy = getFinancialYear();
+  const sequence = await tx.invoiceSequence.upsert({
+    where: { outlet_id_financial_year: { outlet_id: outletId, financial_year: fy } },
+    update: { last_sequence: { increment: 1 } },
+    create: { outlet_id: outletId, financial_year: fy, last_sequence: 1 },
+  });
+
+  const outlet = await tx.outlet.findUnique({ where: { id: outletId }, select: { code: true } });
+  return formatInvoiceNumber(fy, outlet.code, sequence.last_sequence);
 }
 
 module.exports = {
