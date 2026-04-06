@@ -122,9 +122,15 @@ async function login(login, password, auditInfo = {}) {
 
   try {
     const lockoutKey = `${appConfig.redisKeys.loginAttempts}${login}`;
-    const attempts = await redis.get(lockoutKey);
+    let attempts = 0;
+    try {
+      const attemptsVal = await redis.get(lockoutKey);
+      attempts = attemptsVal ? parseInt(attemptsVal, 10) : 0;
+    } catch (redisError) {
+      logger.warn('Redis lockout check failed, skipping...', { error: redisError.message });
+    }
 
-    if (attempts && parseInt(attempts, 10) >= appConfig.lockout.maxAttempts) {
+    if (attempts >= appConfig.lockout.maxAttempts) {
       throw new ForbiddenError(
         `Account locked due to too many failed attempts. Try again in ${appConfig.lockout.durationMinutes} minutes.`
       );
@@ -155,7 +161,7 @@ async function login(login, password, auditInfo = {}) {
     });
 
     if (!user) {
-      await incrementLoginAttempts(redis, lockoutKey);
+      try { await incrementLoginAttempts(redis, lockoutKey); } catch (e) { logger.warn('Redis increment failed'); }
       throw new UnauthorizedError('Invalid credentials');
     }
 
@@ -170,7 +176,7 @@ async function login(login, password, auditInfo = {}) {
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
-      await incrementLoginAttempts(redis, lockoutKey);
+      try { await incrementLoginAttempts(redis, lockoutKey); } catch (e) { logger.warn('Redis increment failed'); }
 
       const currentAttempts = parseInt(await redis.get(lockoutKey) || '0', 10);
       if (currentAttempts >= appConfig.lockout.maxAttempts) {
@@ -186,7 +192,7 @@ async function login(login, password, auditInfo = {}) {
       throw new UnauthorizedError('Invalid credentials');
     }
 
-    await redis.del(lockoutKey);
+    try { await redis.del(lockoutKey); } catch (e) { logger.warn('Redis delete failed'); }
 
     const primaryRole = user.user_roles.find((ur) => ur.is_primary) || user.user_roles[0];
     const roleName = primaryRole?.role?.name || 'cashier';
