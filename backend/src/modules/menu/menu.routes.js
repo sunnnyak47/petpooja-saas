@@ -14,6 +14,7 @@ const {
   createMenuItemSchema, updateMenuItemSchema,
   createVariantSchema, createAddonGroupSchema, createAddonSchema,
   bulkPriceUpdateSchema, bulkAvailabilitySchema,
+  createMenuScheduleSchema, createComboSchema,
 } = require('./menu.validation');
 
 /* -- Categories -- */
@@ -48,5 +49,13 @@ router.post('/items/bulk-availability', authenticate, hasPermission('MANAGE_MENU
 
 /* -- Outlet Overrides -- */
 router.post('/items/:itemId/outlet-override', authenticate, hasPermission('MANAGE_MENU'), menuController.setOutletOverride);
+
+/* -- Menu Scheduling -- */
+router.post('/items/:id/schedules', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuScheduleSchema), menuController.createSchedule);
+router.delete('/schedules/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteSchedule);
+
+/* -- Item Combos -- */
+router.post('/combos', authenticate, hasPermission('MANAGE_MENU'), validate(createComboSchema), menuController.createCombo);
+router.get('/combos', authenticate, enforceOutletScope, menuController.listCombos);
 
 module.exports = router;

@@ -108,6 +108,23 @@ const bulkAvailabilitySchema = Joi.object({
   })).min(1).required(),
 });
 
+const createMenuScheduleSchema = Joi.object({
+  day_of_week: Joi.number().integer().min(1).max(7).required(),
+  start_time: Joi.string().pattern(/^([01]\d|2[0-3]):?([0-5]\d)$/).required(),
+  end_time: Joi.string().pattern(/^([01]\d|2[0-3]):?([0-5]\d)$/).required(),
+});
+
+const createComboSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  name: Joi.string().trim().min(2).max(100).required(),
+  description: Joi.string().trim().max(500).allow('', null),
+  combo_price: Joi.number().precision(2).min(0).required(),
+  items: Joi.array().items(Joi.object({
+    menu_item_id: Joi.string().uuid().required(),
+    quantity: Joi.number().integer().min(1).default(1),
+  })).min(1).required(),
+});
+
 module.exports = {
   createCategorySchema,
   updateCategorySchema,
@@ -118,4 +135,6 @@ module.exports = {
   createAddonSchema,
   bulkPriceUpdateSchema,
   bulkAvailabilitySchema,
+  createMenuScheduleSchema,
+  createComboSchema,
 };

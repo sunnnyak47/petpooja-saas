@@ -67,6 +67,12 @@ export default function MenuPage() {
     enabled: !!outletId,
   });
 
+  const { data: addonGroups } = useQuery({
+    queryKey: ['addonGroups', outletId],
+    queryFn: () => api.get(`/menu/addon-groups?outlet_id=${outletId}`).then(r => r.data),
+    enabled: !!outletId,
+  });
+
   // Mutations
   const addCatMutation = useMutation({
     mutationFn: (d) => api.post('/menu/categories', d),
@@ -434,18 +440,127 @@ export default function MenuPage() {
                </div>
             </div>
 
-            {/* Advanced Sections (Variants / Addons) */}
-            <div className="mt-8 border-t border-surface-800 pt-6">
-               <div className="bg-surface-800/30 rounded-xl p-4 border border-surface-700">
-                  <div className="flex justify-between items-center mb-3">
-                     <h4 className="font-bold text-sm text-surface-300">VARIANTS</h4>
-                     <button type="button" onClick={()=>toast('Variant logic goes here (stubs)')} className="text-xs btn-ghost py-1 px-3 text-brand-400"><Plus className="w-3 h-3 inline"/> Add Variant</button>
+            {/* Advanced Sections (Variants / Addons / Schedules) */}
+            <div className="mt-8 border-t border-surface-800 pt-6 space-y-8">
+               
+               {/* VARIANTS */}
+               <div className="bg-surface-800/30 rounded-2xl p-5 border border-surface-700/50">
+                  <div className="flex justify-between items-center mb-4">
+                     <div>
+                        <h4 className="font-black text-sm text-white tracking-widest uppercase">Variants</h4>
+                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">E.g. S / M / L or Half / Full</p>
+                     </div>
+                     <button type="button" onClick={() => setItemForm({
+                        ...itemForm,
+                        variants: [...itemForm.variants, { name: '', price_addition: 0, is_default: false }]
+                     })} className="btn-surface py-1.5 px-3 text-xs border-brand-500/20 text-brand-400">
+                        <Plus className="w-3.5 h-3.5 mr-1"/> Add Variant
+                     </button>
                   </div>
-                  <p className="text-xs text-surface-500 italic">E.g., Small ₹100, Large ₹140. Set this if the item has sizing options.</p>
+                  
+                  <div className="space-y-3">
+                     {itemForm.variants.map((v, idx) => (
+                        <div key={idx} className="flex gap-3 items-center bg-surface-900/50 p-2 rounded-xl border border-surface-800 animate-slide-in">
+                           <input placeholder="Name (e.g. Large)" className="input flex-1 text-sm py-1.5 bg-surface-950" value={v.name} onChange={e => {
+                              const next = [...itemForm.variants];
+                              next[idx].name = e.target.value;
+                              setItemForm({ ...itemForm, variants: next });
+                           }} />
+                           <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800">
+                              <span className="text-surface-500 text-xs font-bold">+ ₹</span>
+                              <input type="number" placeholder="0" className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
+                                 const next = [...itemForm.variants];
+                                 next[idx].price_addition = Number(e.target.value);
+                                 setItemForm({ ...itemForm, variants: next });
+                              }} />
+                           </div>
+                           <button type="button" onClick={() => {
+                              const next = itemForm.variants.filter((_, i) => i !== idx);
+                              setItemForm({ ...itemForm, variants: next });
+                           }} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="w-4 h-4"/></button>
+                        </div>
+                     ))}
+                     {itemForm.variants.length === 0 && <p className="text-center py-4 text-xs text-surface-600 font-medium bg-surface-900/30 rounded-xl border border-dashed border-surface-800">No variants defined (Base price only)</p>}
+                  </div>
+               </div>
+
+               {/* ADDONS */}
+               <div className="bg-surface-800/30 rounded-2xl p-5 border border-surface-700/50">
+                  <div className="flex justify-between items-center mb-4">
+                     <div>
+                        <h4 className="font-black text-sm text-white tracking-widest uppercase">Add-on Groups</h4>
+                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">Link toppings, sides, or custom instructions</p>
+                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                     {(addonGroups || []).map(group => {
+                        const isLinked = itemForm.addons.some(a => a.addon_group_id === group.id);
+                        return (
+                           <button key={group.id} type="button" onClick={() => {
+                              const next = isLinked 
+                                ? itemForm.addons.filter(a => a.addon_group_id !== group.id)
+                                : [...itemForm.addons, { addon_group_id: group.id, name: group.name, price: 0 }];
+                              setItemForm({ ...itemForm, addons: next });
+                           }} className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${isLinked ? 'bg-brand-500/10 border-brand-500 text-brand-400' : 'bg-surface-900/50 border-surface-800 text-surface-400 hover:border-surface-600'}`}>
+                              {isLinked ? <CheckSquare className="w-4 h-4"/> : <Square className="w-4 h-4"/>}
+                              <span className="text-sm font-bold truncate">{group.name}</span>
+                           </button>
+                        );
+                     })}
+                  </div>
+               </div>
+
+               {/* SCHEDULING */}
+               <div className="bg-surface-800/30 rounded-2xl p-5 border border-surface-700/50">
+                  <div className="flex justify-between items-center mb-4">
+                     <div>
+                        <h4 className="font-black text-sm text-white tracking-widest uppercase">Availability Schedule</h4>
+                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">Restrict item display to specific times</p>
+                     </div>
+                     <button type="button" onClick={() => setItemForm({
+                        ...itemForm,
+                        menu_schedules: [...(itemForm.menu_schedules || []), { day_of_week: 1, start_time: '08:00', end_time: '23:00' }]
+                     })} className="btn-surface py-1.5 px-3 text-xs border-brand-500/20 text-brand-400">
+                        <Plus className="w-3.5 h-3.5 mr-1"/> Add Time Slot
+                     </button>
+                  </div>
+                  <div className="space-y-3">
+                     {(itemForm.menu_schedules || []).map((s, idx) => (
+                        <div key={idx} className="flex gap-3 items-center bg-surface-900/50 p-3 rounded-xl border border-surface-800">
+                           <select className="input flex-1 text-xs py-1.5 bg-surface-950 font-bold" value={s.day_of_week} onChange={e => {
+                              const next = [...itemForm.menu_schedules];
+                              next[idx].day_of_week = Number(e.target.value);
+                              setItemForm({ ...itemForm, menu_schedules: next });
+                           }}>
+                              <option value={1}>Everyday</option>
+                              <option value={2}>Mon - Fri</option>
+                              <option value={3}>Sat - Sun</option>
+                           </select>
+                           <div className="flex items-center gap-2">
+                              <input type="time" className="input text-xs py-1.5 bg-surface-950 font-bold" value={s.start_time} onChange={e => {
+                                 const next = [...itemForm.menu_schedules];
+                                 next[idx].start_time = e.target.value;
+                                 setItemForm({ ...itemForm, menu_schedules: next });
+                              }} />
+                              <span className="text-surface-600 font-black">→</span>
+                              <input type="time" className="input text-xs py-1.5 bg-surface-950 font-bold" value={s.end_time} onChange={e => {
+                                 const next = [...itemForm.menu_schedules];
+                                 next[idx].end_time = e.target.value;
+                                 setItemForm({ ...itemForm, menu_schedules: next });
+                              }} />
+                           </div>
+                           <button type="button" onClick={() => {
+                              const next = itemForm.menu_schedules.filter((_, i) => i !== idx);
+                              setItemForm({ ...itemForm, menu_schedules: next });
+                           }} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="w-4 h-4"/></button>
+                        </div>
+                     ))}
+                     {(itemForm.menu_schedules || []).length === 0 && <p className="text-center py-4 text-xs text-surface-600 font-medium bg-surface-900/30 rounded-xl border border-dashed border-surface-800">Available 24/7 (No restrictions)</p>}
+                  </div>
                </div>
             </div>
 
-            <div className="mt-4 border-t border-surface-800 pt-6 flex gap-3 justify-end">
+            <div className="mt-8 border-t border-surface-800 pt-6 flex gap-3 justify-end">
                <button type="button" onClick={()=>setIsItemModalOpen(false)} className="btn-surface px-6">Cancel</button>
                <button type="submit" disabled={saveItemMutation.isPending} className="btn-success px-8 text-lg font-bold">
                   {saveItemMutation.isPending ? 'Saving...' : 'Save Item ✓'}

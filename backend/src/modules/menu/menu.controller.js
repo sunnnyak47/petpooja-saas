@@ -177,12 +177,46 @@ async function bulkAvailability(req, res, next) {
   } catch (error) { next(error); }
 }
 
-/** POST /api/menu/items/:itemId/outlet-override */
+/** POST /api/menu/items/:id/outlet-override */
 async function setOutletOverride(req, res, next) {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const override = await menuService.setOutletOverride(outletId, req.params.itemId, req.body);
     sendSuccess(res, override, 'Outlet override set');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/menu/items/:id/schedules */
+async function createSchedule(req, res, next) {
+  try {
+    const schedule = await menuService.createSchedule(req.params.id, req.body);
+    sendCreated(res, schedule, 'Menu schedule added');
+  } catch (error) { next(error); }
+}
+
+/** DELETE /api/menu/schedules/:id */
+async function deleteSchedule(req, res, next) {
+  try {
+    await menuService.deleteSchedule(req.params.id);
+    sendSuccess(res, null, 'Menu schedule removed');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/menu/combos */
+async function createCombo(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const combo = await menuService.createCombo({ ...req.body, outlet_id: outletId });
+    sendCreated(res, combo, 'Combo created successfully');
+  } catch (error) { next(error); }
+}
+
+/** GET /api/menu/combos?outlet_id= */
+async function listCombos(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const combos = await menuService.listCombos(outletId);
+    sendSuccess(res, combos, 'Combos retrieved');
   } catch (error) { next(error); }
 }
 
@@ -192,4 +226,6 @@ module.exports = {
   createVariant, updateVariant, deleteVariant,
   createAddonGroup, listAddonGroups, createAddon, updateAddon, deleteAddon,
   bulkPriceUpdate, bulkAvailability, setOutletOverride,
+  createSchedule, deleteSchedule,
+  createCombo, listCombos,
 };
