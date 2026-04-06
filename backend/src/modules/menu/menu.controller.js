@@ -225,8 +225,34 @@ async function listCombos(req, res, next) {
 async function uploadImage(req, res, next) {
   try {
     if (!req.file) throw new Error('No file uploaded');
-    const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'menu-items', req.file.mimetype);
-    sendSuccess(res, { url }, 'Image uploaded successfully');
+
+    // Try S3 first, fall back to local filesystem
+    try {
+      const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'menu-items', req.file.mimetype);
+      return sendSuccess(res, { url }, 'Image uploaded successfully');
+    } catch (s3Error) {
+      // S3 failed (invalid keys, etc.) — save locally
+      const fs = require('fs');
+      const path = require('path');
+      const { v4: uuidv4 } = require('uuid');
+
+      const uploadDir = path.join(__dirname, '../../../uploads/menu-items');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const filename = `${uuidv4()}${ext}`;
+      const filePath = path.join(uploadDir, filename);
+
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const url = `${baseUrl}/uploads/menu-items/${filename}`;
+
+      require('../../config/logger').warn('S3 upload failed, saved image locally', { filename });
+      return sendSuccess(res, { url }, 'Image uploaded successfully (local)');
+    }
   } catch (error) { next(error); }
 }
 

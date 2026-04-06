@@ -53,7 +53,8 @@ function hasPermission(requiredPermission) {
         throw new ForbiddenError('Authentication required');
       }
 
-      if (req.user.role === 'super_admin') {
+      // Super admins and owners bypass all permission checks
+      if (['super_admin', 'owner'].includes(req.user.role)) {
         return next();
       }
 
