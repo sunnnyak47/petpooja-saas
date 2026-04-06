@@ -123,10 +123,13 @@ export default function POSPage() {
     };
   }, [cart, isCompMode]);
 
-  // Real-time Table Status Sync
   useEffect(() => {
     if (!outletId) return;
-    const socket = io(import.meta.env.VITE_API_URL || '', { transports: ['websocket'] });
+    // Connect to /orders namespace
+    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, { 
+      transports: ['websocket'],
+      withCredentials: true
+    });
     
     // Join outlet room
     socket.emit('join_outlet', outletId);

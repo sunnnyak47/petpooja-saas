@@ -46,7 +46,10 @@ export default function TablesPage() {
   
   useEffect(() => {
     if(!outletId) return;
-    const s = io(import.meta.env.VITE_API_URL || '', { transports: ['websocket'] }); // will connect to default host in prod wrapper
+    const s = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, { 
+      transports: ['websocket'],
+      withCredentials: true
+    });
     s.emit('join_outlet', outletId);
     
     s.on('table_status_change', () => {
