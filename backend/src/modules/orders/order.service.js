@@ -580,6 +580,13 @@ async function processPayment(orderId, paymentData, staffId) {
         },
       });
 
+      if (order.table_id) {
+        await tx.table.update({
+          where: { id: order.table_id },
+          data: { status: 'available', current_order_id: null },
+        });
+      }
+
       if (order.customer_id) {
          await customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total));
       }
@@ -650,6 +657,13 @@ async function voidOrder(orderId, managerPin, reason, staffId) {
         where: { id: orderId },
         data: { status: 'voided', void_reason: reason, voided_by: staffId },
       });
+
+      if (order.table_id) {
+        await tx.table.update({
+          where: { id: order.table_id },
+          data: { status: 'available', current_order_id: null },
+        });
+      }
       await tx.orderStatusHistory.create({
         data: { order_id: orderId, from_status: order.status, to_status: 'voided', changed_by: staffId, reason },
       });
