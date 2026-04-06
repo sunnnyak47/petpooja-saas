@@ -584,6 +584,14 @@ async function processPayment(orderId, paymentData, staffId) {
     }
 
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
+    
+    // ASYNC: Trigger inventory deduction based on recipes
+    // We don't await here to keep the POS response fast, but it runs in background
+    const inventoryService = require('../inventory/inventory.service');
+    inventoryService.deductByRecipe(orderId).catch(err => {
+      logger.error('Inventory deduction failed after payment', { orderId, error: err.message });
+    });
+
     return { payment: result, order: await getOrderById(orderId) };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;

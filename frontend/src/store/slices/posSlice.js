@@ -16,12 +16,15 @@ const posSlice = createSlice({
     addToCart(state, action) {
       const item = action.payload;
       const existing = state.cart.find(
-        (c) => c.menu_item_id === item.menu_item_id && c.variant_id === item.variant_id
+        (c) => 
+          c.menu_item_id === item.menu_item_id && 
+          c.variant_id === item.variant_id &&
+          JSON.stringify(c.addons || []) === JSON.stringify(item.addons || [])
       );
       if (existing) {
         existing.quantity += item.quantity || 1;
       } else {
-        state.cart.push({ ...item, quantity: item.quantity || 1 });
+        state.cart.push({ ...item, quantity: item.quantity || 1, addons: item.addons || [] });
       }
     },
     removeFromCart(state, action) {

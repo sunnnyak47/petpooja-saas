@@ -4,8 +4,11 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { Clock, Eye, Ban, Loader, ShoppingBag, IndianRupee, Receipt } from 'lucide-react';
+import { Clock, Eye, Ban, Loader, ShoppingBag, IndianRupee, Receipt, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { addToCart, clearCart } from '../store/slices/posSlice';
 
 const STATUS_STYLES = {
   created: 'badge-info', confirmed: 'badge-info', preparing: 'badge-warning',
@@ -25,6 +28,32 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [managerPin, setManagerPin] = useState('');
   const [voidReason, setVoidReason] = useState('Voided from dashboard');
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const handleReorder = (order) => {
+    dispatch(clearCart());
+    const items = order.order_items || order.items || [];
+    items.forEach(item => {
+      dispatch(addToCart({
+        menu_item_id: item.menu_item_id,
+        name: item.name,
+        base_price: Number(item.unit_price || item.price || 0),
+        variant_id: item.variant_id,
+        variant_name: item.variant_name,
+        variant_price: Number(item.variant_price || 0),
+        addons: item.addons?.map(a => ({
+          addon_id: a.addon_id || a.id,
+          name: a.name,
+          price: Number(a.price || 0),
+          quantity: a.quantity
+        })) || [],
+        quantity: item.quantity
+      }));
+    });
+    toast.success('Items added to cart for reorder');
+    navigate('/pos');
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders', outletId, statusFilter],
@@ -117,6 +146,8 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-xs text-surface-500">{new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); handleReorder(order); }}
+                        className="p-1.5 text-surface-500 hover:text-success-400 bg-surface-900 rounded-lg" title="Reorder"><RefreshCw className="w-4 h-4" /></button>
                       <button onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}
                         className="p-1.5 text-surface-500 hover:text-brand-400 bg-surface-900 rounded-lg" title="View Order"><Eye className="w-4 h-4" /></button>
                       <button onClick={() => { setSelectedOrder(order); setIsVoidOpen(true); }}
@@ -140,7 +171,12 @@ export default function OrdersPage() {
                 <p className="text-sm text-surface-500">Type: <span className="text-white capitalize">{selectedOrder.order_type?.replace('_', ' ')}</span></p>
                 {selectedOrder.table?.table_number && <p className="text-sm text-surface-500 mt-0.5">Table: <span className="text-white">T{selectedOrder.table.table_number}</span></p>}
               </div>
-              <span className={STATUS_STYLES[selectedOrder.status] || 'badge-neutral'}>{selectedOrder.status}</span>
+              <div className="flex gap-2">
+                <button onClick={() => handleReorder(orderDetail || selectedOrder)} className="btn-success py-1.5 px-3 h-auto text-xs flex items-center gap-1.5">
+                  <RefreshCw className="w-3 h-3"/> Reorder Items
+                </button>
+                <span className={STATUS_STYLES[selectedOrder.status] || 'badge-neutral'}>{selectedOrder.status}</span>
+              </div>
             </div>
 
             {/* Items */}

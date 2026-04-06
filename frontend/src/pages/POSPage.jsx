@@ -15,6 +15,7 @@ import {
 import Modal from '../components/Modal';
 import SplitBillModal from '../components/POS/SplitBillModal';
 import EBillModal from '../components/POS/EBillModal';
+import ModifierModal from '../components/POS/ModifierModal';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
@@ -36,6 +37,7 @@ export default function POSPage() {
   const [showPayment, setShowPayment] = useState(false);
   const [showSplitBill, setShowSplitBill] = useState(false);
   const [showEbill, setShowEbill] = useState(false);
+  const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
 
   // Manager Auth for Void/Comp/Discount
   const [showManagerPin, setShowManagerPin] = useState(false);
@@ -101,7 +103,11 @@ export default function POSPage() {
   }, [items, search, shortCodeSearch]);
 
   const cartTotals = useMemo(() => {
-    const subtotal = cart.reduce((sum, c) => sum + (Number(c.base_price) + (c.variant_price || 0)) * c.quantity, 0);
+    const subtotal = cart.reduce((sum, c) => {
+      const itemBase = Number(c.base_price) + (c.variant_price || 0);
+      const addonsTotal = (c.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
+      return sum + (itemBase + addonsTotal) * c.quantity;
+    }, 0);
     const tax = isCompMode ? 0 : subtotal * 0.05;
     return { 
       subtotal: isCompMode ? 0 : subtotal, 
@@ -111,6 +117,10 @@ export default function POSPage() {
   }, [cart, isCompMode]);
 
   const handleAddItem = (item) => {
+    if (item.variants?.length > 0 || item.addons?.length > 0) {
+      setSelectedItemForModifiers(item);
+      return;
+    }
     dispatch(addToCart({
       menu_item_id: item.id,
       name: item.name,
@@ -119,6 +129,7 @@ export default function POSPage() {
       kitchen_station: item.kitchen_station,
       variant_id: null,
       variant_price: 0,
+      addons: []
     }));
     toast.success(`${item.name} added`, { duration: 1000 });
   };
@@ -132,7 +143,11 @@ export default function POSPage() {
       notes: orderNotes || null,
       status: status, 
       items: cart.map((c) => ({
-        menu_item_id: c.menu_item_id, variant_id: c.variant_id, quantity: c.quantity, addons: []
+        menu_item_id: c.menu_item_id, 
+        variant_id: c.variant_id, 
+        quantity: c.quantity, 
+        addons: c.addons || [],
+        notes: c.notes || null
       })),
       covers,
     });
@@ -351,8 +366,16 @@ export default function POSPage() {
           {cart.map((item, i) => (
             <div key={i} className={`relative z-10 flex items-center gap-3 p-2 bg-surface-800/40 border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'} rounded-lg group hover:bg-surface-800`}>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${isCompMode ? 'text-success-400' : 'text-white'}`}>{item.name}</p>
-                <p className="text-xs text-surface-500">₹{item.base_price} × {item.quantity}</p>
+                <p className={`text-sm font-medium truncate ${isCompMode ? 'text-success-400' : 'text-white'}`}>
+                  {item.name}
+                  {item.variant_name && <span className="text-[10px] ml-1 bg-surface-700 px-1 rounded text-surface-400">{item.variant_name}</span>}
+                </p>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                   {item.addons?.map((a, ai) => (
+                     <span key={ai} className="text-[9px] text-brand-400 bg-brand-500/10 px-1 rounded">+{a.name} (x{a.quantity})</span>
+                   ))}
+                </div>
+                <p className="text-xs text-surface-500 mt-0.5">₹{(Number(item.base_price) + (item.variant_price || 0)).toFixed(0)} × {item.quantity}</p>
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => dispatch(updateCartQuantity({ index: i, quantity: item.quantity - 1 }))} className="w-6 h-6 rounded bg-surface-700 text-surface-300 hover:bg-surface-600 flex items-center justify-center"><Minus className="w-3 h-3" /></button>
@@ -506,6 +529,18 @@ export default function POSPage() {
 
       {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={cartTotals.total} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
+      
+      {selectedItemForModifiers && (
+        <ModifierModal 
+          isOpen={!!selectedItemForModifiers} 
+          onClose={() => setSelectedItemForModifiers(null)} 
+          item={selectedItemForModifiers}
+          onAdd={(itemData) => {
+            dispatch(addToCart(itemData));
+            toast.success(`${itemData.name} added`);
+          }}
+        />
+      )}
     </div>
   );
 }

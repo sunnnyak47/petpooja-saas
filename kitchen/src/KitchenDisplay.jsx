@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { Clock, Check, ChefHat, AlertTriangle, Bell, Flame } from 'lucide-react';
 
-const SOCKET_URL = window.location.origin;
+const SOCKET_URL = import.meta.env.VITE_API_URL || window.location.origin;
 const OUTLET_ID = new URLSearchParams(window.location.search).get('outlet') || 'default';
 
 const STATION_COLORS = {
