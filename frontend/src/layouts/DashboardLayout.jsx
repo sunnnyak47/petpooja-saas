@@ -4,8 +4,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
-  Grid3X3, Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, UserCog, Package, Globe, ShieldCheck,
-  ChefHat, CreditCard, Tag, Puzzle, Shield
+  Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
+  ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -21,7 +21,7 @@ const superAdminNav = [
 const ownerNav = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/pos', label: 'POS Terminal', icon: ShoppingCart },
-  { path: '/running-orders', label: 'Running Orders', icon: Clock },
+  { path: '/running-orders', label: 'Running Orders', icon: Clock, isLive: true },
   { path: '/orders', label: 'Order History', icon: ClipboardList },
   { path: '/kitchen', label: 'Kitchen (KDS)', icon: ChefHat },
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
@@ -82,7 +82,7 @@ export default function DashboardLayout() {
 
           {/* Nav */}
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {navItems.map(({ path, label, icon: Icon }) => (
+            {navItems.map(({ path, label, icon: Icon, isLive }) => (
               <NavLink
                 key={path}
                 to={path}
@@ -93,10 +93,15 @@ export default function DashboardLayout() {
                     ? 'bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10'
                     : 'text-surface-400 hover:text-white hover:bg-surface-700/50'}`
                 }
-                id={`nav-${label.toLowerCase()}`}
+                id={`nav-${label.toLowerCase().replace(/\s+/g,'-')}`}
               >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {!collapsed && <span>{label}</span>}
+                <div className="relative flex-shrink-0">
+                  <Icon className="w-5 h-5" />
+                  {isLive && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-surface-900 animate-pulse" />
+                  )}
+                </div>
+                {!collapsed && <span className="flex-1">{label}</span>}
               </NavLink>
             ))}
           </nav>

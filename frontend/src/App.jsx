@@ -20,6 +20,7 @@ import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import RunningOrdersPage from './pages/RunningOrdersPage';
+import AuditLogPage from './pages/AuditLogPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
