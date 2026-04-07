@@ -63,6 +63,22 @@ async function processPayment(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/** POST /api/orders/:id/bill */
+async function generateBill(req, res, next) {
+  try {
+    const order = await orderService.generateBill(req.params.id, req.user.id);
+    sendSuccess(res, order, 'Bill generated successfully');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/orders/:id/cancel */
+async function cancelOrder(req, res, next) {
+  try {
+    const order = await orderService.cancelOrder(req.params.id, req.body.reason, req.user.id);
+    sendSuccess(res, order, 'Order cancelled');
+  } catch (error) { next(error); }
+}
+
 /** POST /api/orders/:id/void */
 async function voidOrder(req, res, next) {
   try {
@@ -71,4 +87,8 @@ async function voidOrder(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { createOrder, listOrders, getOrder, addItems, generateKOT, updateStatus, processPayment, voidOrder };
+module.exports = { 
+  createOrder, listOrders, getOrder, addItems, 
+  generateKOT, generateBill, updateStatus, processPayment, 
+  cancelOrder, voidOrder 
+};

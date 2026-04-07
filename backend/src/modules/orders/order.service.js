@@ -568,15 +568,12 @@ async function processPayment(orderId, paymentData, staffId) {
         }
       }
 
-      const invoiceNumber = await generateInvoiceNumber(tx, order.outlet_id);
-      
       await tx.order.update({
         where: { id: orderId },
         data: { 
           is_paid: true, 
           paid_at: new Date(), 
-          status: 'paid',
-          invoice_number: invoiceNumber 
+          status: 'paid'
         },
       });
 
@@ -595,7 +592,7 @@ async function processPayment(orderId, paymentData, staffId) {
         data: { order_id: orderId, from_status: order.status, to_status: 'paid', changed_by: staffId },
       });
       
-      return { payment, invoiceNumber };
+      return { payment };
     });
 
     const io = getIO();
@@ -616,7 +613,151 @@ async function processPayment(orderId, paymentData, staffId) {
       logger.error('Inventory deduction failed after payment', { orderId, error: err.message });
     });
 
-    return { payment: result, order: await getOrderById(orderId) };
+    return { payment: result.payment, order: await getOrderById(orderId) };
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
+    throw error;
+  }
+}
+
+/**
+ * Generates a bill (invoice) for an order without processing payment.
+ * @param {string} orderId - Order UUID
+ * @param {string} staffId - Staff generating the bill
+ * @returns {Promise<object>} Updated order with invoice number
+ */
+async function generateBill(orderId, staffId) {
+  const prisma = getDbClient();
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, is_deleted: false },
+    });
+    if (!order) throw new NotFoundError('Order not found');
+    if (order.is_paid) throw new BadRequestError('Order is already paid');
+    if (order.status === 'cancelled') throw new BadRequestError('Cannot bill a cancelled order');
+    
+    // Prevent re-billing if already has invoice (optional, usually okay to re-print)
+    if (order.invoice_number && order.status === 'billed') {
+      return await getOrderById(orderId);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const invoiceNumber = await generateInvoiceNumber(tx, order.outlet_id);
+
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'billed',
+          invoice_number: invoiceNumber,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          order_id: orderId,
+          from_status: order.status,
+          to_status: 'billed',
+          changed_by: staffId,
+        },
+      });
+
+      return updatedOrder;
+    });
+
+    const io = getIO();
+    if (io) {
+      io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
+        order_id: orderId, status: 'billed', invoice_number: result.invoice_number
+      });
+    }
+
+    logger.info('Bill generated', { orderId, invoiceNumber: result.invoice_number });
+    return await getOrderById(orderId);
+  } catch (error) {
+    if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
+    throw error;
+  }
+}
+
+/**
+ * Cancels an order, freeing the table and notifying the kitchen.
+ * @param {string} orderId - Order UUID
+ * @param {string} reason - Cancellation reason
+ * @param {string} staffId - Staff performing cancellation
+ * @returns {Promise<object>} Cancelled order
+ */
+async function cancelOrder(orderId, reason, staffId) {
+  const prisma = getDbClient();
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, is_deleted: false },
+      include: { kots: true }
+    });
+    if (!order) throw new NotFoundError('Order not found');
+    if (order.is_paid) throw new BadRequestError('Cannot cancel a paid order. Use refund instead.');
+    if (order.status === 'cancelled') return order;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'cancelled',
+          cancelled_at: new Date(),
+          cancelled_by: staffId,
+          cancel_reason: reason,
+        },
+      });
+
+      if (order.table_id) {
+        await tx.table.update({
+          where: { id: order.table_id },
+          data: { status: 'available', current_order_id: null },
+        });
+      }
+
+      await tx.orderStatusHistory.create({
+        data: {
+          order_id: orderId,
+          from_status: order.status,
+          to_status: 'cancelled',
+          changed_by: staffId,
+          reason,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          user_id: staffId,
+          outlet_id: order.outlet_id,
+          action: 'ORDER_CANCELLED',
+          entity_type: 'order',
+          entity_id: orderId,
+          metadata: { reason },
+        },
+      });
+    });
+
+    const io = getIO();
+    if (io) {
+      // Notify orders namespace
+      io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
+        order_id: orderId, status: 'cancelled',
+      });
+      if (order.table_id) {
+        io.of('/orders').to(`outlet:${order.outlet_id}`).emit('table_status_change', {
+          table_id: order.table_id, status: 'available',
+        });
+      }
+      // Notify kitchen for cancellation
+      io.of('/kitchen').to(`outlet:${order.outlet_id}`).emit('order_cancelled', {
+        order_id: orderId,
+        order_number: order.order_number,
+        reason
+      });
+    }
+
+    logger.warn('Order cancelled', { orderId, reason, staffId });
+    return await getOrderById(orderId);
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     throw error;
@@ -726,6 +867,6 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
 
 module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
-  generateKOT, processPayment, voidOrder, updateOrderStatus,
+  generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
   generateInvoiceNumber,
 };

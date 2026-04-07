@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
   Volume2, VolumeX, Maximize2, Timer, Utensils, Coffee, 
-  IceCream, Package, Eye
+  IceCream, Package, Eye, AlertCircle, X
 } from 'lucide-react';
 
 const STATIONS = [
@@ -180,6 +180,24 @@ export default function KitchenDisplayPage() {
     });
     socket.on('kot_item_ready', refresh);
     socket.on('kot_complete', refresh);
+    
+    socket.on('order_cancelled', (data) => {
+      refresh();
+      toast((t) => (
+        <div className="flex items-center gap-3 bg-red-600 text-white p-4 rounded-xl shadow-2xl border-2 border-white animate-bounce">
+          <AlertCircle className="w-8 h-8" />
+          <div>
+            <p className="font-black text-lg uppercase tracking-tighter">ORDER CANCELLED: #{data.order_number}</p>
+            <p className="text-sm font-bold opacity-90">Reason: {data.reason}</p>
+          </div>
+          <button onClick={() => toast.dismiss(t.id)} className="ml-4 p-1 hover:bg-white/20 rounded-full"><X className="w-5 h-5"/></button>
+        </div>
+      ), { duration: 10000, position: 'top-center' });
+
+      if (soundEnabled) {
+        try { new Audio('/cancel_alert.mp3').play().catch(() => {}); } catch {}
+      }
+    });
 
     return () => socket.disconnect();
   }, [outletId, queryClient, soundEnabled]);

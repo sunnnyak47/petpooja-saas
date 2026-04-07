@@ -68,6 +68,10 @@ const refundOrderSchema = Joi.object({
   refund_amount: Joi.number().precision(2).min(0).required(),
 });
 
+const cancelOrderSchema = Joi.object({
+  reason: Joi.string().min(3).max(500).required(),
+});
+
 module.exports = {
   createOrderSchema,
   addItemsSchema,
@@ -75,4 +79,5 @@ module.exports = {
   processPaymentSchema,
   voidOrderSchema,
   refundOrderSchema,
+  cancelOrderSchema,
 };

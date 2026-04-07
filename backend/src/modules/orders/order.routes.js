@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema } = require('./order.validation');
 
 router.post('/', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), orderController.createOrder);
 router.get('/', authenticate, checkLicense, enforceOutletScope, orderController.listOrders);
@@ -18,6 +18,8 @@ router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDE
 router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.generateKOT);
 router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.updateStatus);
 router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(processPaymentSchema), orderController.processPayment);
+router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.generateBill);
+router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(cancelOrderSchema), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), orderController.voidOrder);
 
 module.exports = router;

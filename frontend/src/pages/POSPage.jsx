@@ -16,9 +16,10 @@ import {
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
 import Modal from '../components/Modal';
-import SplitBillModal from '../components/POS/SplitBillModal';
-import EBillModal from '../components/POS/EBillModal';
 import ModifierModal from '../components/POS/ModifierModal';
+import CancelOrderModal from '../components/POS/CancelOrderModal';
+import BillPreviewModal from '../components/POS/BillPreviewModal';
+import { AlertCircle } from 'lucide-react';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
@@ -42,6 +43,9 @@ export default function POSPage() {
   const [showPayment, setShowPayment] = useState(false);
   const [showSplitBill, setShowSplitBill] = useState(false);
   const [showEbill, setShowEbill] = useState(false);
+  const [showCancelOrder, setShowCancelOrder] = useState(false);
+  const [showBillPreview, setShowBillPreview] = useState(false);
+  const [billedOrder, setBilledOrder] = useState(null);
   const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
 
   // Manager Auth for Void/Comp/Discount
@@ -62,6 +66,8 @@ export default function POSPage() {
   const [customerSearchInput, setCustomerSearchInput] = useState('');
   const [isCompMode, setIsCompMode] = useState(false);
   const [tempOrderId, setTempOrderId] = useState(null);
+  const [currentOrder, setCurrentOrder] = useState(null);
+  const [isBilled, setIsBilled] = useState(false);
 
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
@@ -137,6 +143,22 @@ export default function POSPage() {
     // Listen for table status changes
     socket.on('table_status_change', (data) => {
       queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
+      // If our selected table changed, we might need to refresh
+      if (selectedTable?.id === data.table_id) {
+         // handle selected table update if needed
+      }
+    });
+
+    socket.on('order_status_change', (data) => {
+        if (tempOrderId === data.order_id) {
+           if (data.status === 'billed') setIsBilled(true);
+           if (data.status === 'cancelled') {
+              dispatch(clearCart());
+              setTempOrderId(null);
+              setIsBilled(false);
+              toast.error('This order has been cancelled');
+           }
+        }
     });
 
     return () => {
@@ -187,15 +209,85 @@ export default function POSPage() {
     if (cart.length === 0) return toast.error('Cart is empty');
     try {
       const order = await handleCreateOrderCore(isHold ? 'held' : 'created');
+      setTempOrderId(order.id);
+      setCurrentOrder(order);
+      
       if (isHold) {
         toast.success(`Order held successfully!`);
+        dispatch(clearCart());
+        setTempOrderId(null);
       } else {
         await api.post(`/orders/${order.id}/kot`);
-        toast.success(`Order ${order.order_number || ''} created & sent to Kitchen!`);
+        toast.success(`Items sent to Kitchen!`);
+        // We don't clear cart here if it's a running order
+        // but for this POS logic, let's keep it consistent
+        dispatch(clearCart());
+        setTempOrderId(null); 
       }
-      dispatch(clearCart());
       setIsCompMode(false);
     } catch (error) { toast.error(error.message); }
+  };
+
+  const handlePunchKOT = async () => {
+    if (cart.length === 0) return toast.error('Cart is empty');
+    try {
+      let orderId = tempOrderId;
+      if (!orderId) {
+        const order = await handleCreateOrderCore('created');
+        orderId = order.id;
+        setTempOrderId(orderId);
+      } else {
+         // Add items to existing order first
+         await api.post(`/orders/${orderId}/items`, {
+            items: cart.map(c => ({
+                menu_item_id: c.menu_item_id,
+                variant_id: c.variant_id,
+                quantity: c.quantity,
+                addons: c.addons || [],
+                notes: c.notes || null
+            }))
+         });
+      }
+      
+      await api.post(`/orders/${orderId}/kot`);
+      toast.success(`Punch Successful! Sent to Kitchen.`);
+      dispatch(clearCart());
+      // We keep tempOrderId if it's a table order
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const handleGenerateBill = async () => {
+    let orderId = tempOrderId;
+    // If no tempOrderId but items in cart, create order first
+    if (!orderId && cart.length > 0) {
+       const order = await handleCreateOrderCore('created');
+       orderId = order.id;
+       setTempOrderId(orderId);
+    }
+    
+    if (!orderId) return toast.error('No order to bill');
+
+    try {
+      const res = await api.post(`/orders/${orderId}/bill`);
+      setBilledOrder(res.data);
+      setIsBilled(true);
+      setShowBillPreview(true);
+      toast.success('Bill Generated!');
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const handleCancelOrder = async (reason) => {
+    if (!tempOrderId) return;
+    try {
+      await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+      toast.success('Order Cancelled');
+      dispatch(clearCart());
+      setTempOrderId(null);
+      setIsBilled(false);
+      if (selectedTable) {
+        dispatch(setSelectedTable(null));
+      }
+    } catch (err) { toast.error(err.message); }
   };
 
   const handleBogo = async () => {
@@ -250,7 +342,7 @@ export default function POSPage() {
 
       await api.post(`/orders/${orderId}/payment`, {
         method: paymentMethod,
-        amount: paymentMethod === 'part' ? Number(partPaymentAmount) : cartTotals.total
+        amount: paymentMethod === 'part' ? Number(partPaymentAmount) : (billedOrder?.grand_total || cartTotals.total)
       });
 
       toast.success(paymentMethod === 'part' ? 'Part Payment Recorded' : 'Payment Completed');
@@ -489,16 +581,39 @@ export default function POSPage() {
             </div>
 
             <div className="flex gap-2 mb-2">
-              <button onClick={() => handleCreateOrder(true)} className="btn-surface flex-1 py-3 text-sm bg-surface-900 border border-surface-700 rounded-xl hover:bg-surface-700 active:bg-surface-600">
-                 HOLD
-              </button>
-              <button onClick={() => handleCreateOrder(false)} className="btn-primary flex-1 py-3 text-sm rounded-xl">
-                 KOT & Print
-              </button>
+              {!isBilled ? (
+                <>
+                  <button onClick={() => handleCreateOrder(true)} className="btn-surface flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
+                     <Pause className="w-4 h-4"/> <span>HOLD</span>
+                  </button>
+                  <button onClick={handlePunchKOT} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
+                     <Send className="w-4 h-4"/> <span>PUNCH KOT</span>
+                  </button>
+                </>
+              ) : (
+                <div className="flex-1 bg-brand-500/10 border border-brand-500/20 rounded-xl p-2 flex items-center justify-center gap-2 text-brand-400 font-bold">
+                   <ClipboardCheck className="w-4 h-4" /> BILLED: {billedOrder?.invoice_number}
+                </div>
+              )}
             </div>
             
+            <div className="flex gap-2 mb-2">
+               <button onClick={() => setShowCancelOrder(true)} className="btn-surface px-4 py-3 text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors">
+                  <X className="w-5 h-5" />
+               </button>
+               {!isBilled ? (
+                 <button onClick={handleGenerateBill} className="btn-surface flex-1 py-3 bg-surface-700 text-white font-bold tracking-wide flex items-center justify-center gap-2">
+                    <FileText className="w-4 h-4" /> GENERATE BILL
+                 </button>
+               ) : (
+                 <button onClick={() => setShowBillPreview(true)} className="btn-surface flex-1 py-3 border-brand-500 text-brand-400 font-bold flex items-center justify-center gap-2">
+                    <Printer className="w-4 h-4" /> PRINT BILL
+                 </button>
+               )}
+            </div>
+
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
-              PAY ₹{cartTotals.total}
+              {isBilled ? 'PAY BILL' : `PAY ₹${cartTotals.total}`}
             </button>
           </div>
         )}
@@ -600,6 +715,8 @@ export default function POSPage() {
 
       {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={cartTotals.total} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
+      {showCancelOrder && <CancelOrderModal isOpen={showCancelOrder} onClose={() => setShowCancelOrder(false)} onConfirm={handleCancelOrder} />}
+      {showBillPreview && <BillPreviewModal isOpen={showBillPreview} onClose={() => setShowBillPreview(false)} order={billedOrder} onPrint={() => { toast.success('Printing to Thermal...'); setShowBillPreview(false); }} />}
       
       {selectedItemForModifiers && (
         <ModifierModal 
