@@ -6,7 +6,8 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   addToCart, removeFromCart, updateCartQuantity, clearCart,
-  setOrderType, setSelectedTable, setOrderNotes, setCovers, setSelectedCustomer
+  setOrderType, setSelectedTable, setOrderNotes, setCovers, setSelectedCustomer,
+  setPOSState
 } from '../store/slices/posSlice';
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
@@ -296,15 +297,62 @@ export default function POSPage() {
     // Implement BOGO in UI logic or send specially to BE
   };
 
-  const handleTableClick = (table) => {
+  const handleTableClick = async (table) => {
     dispatch(setSelectedTable(table));
     if (table.status === 'occupied' && table.orders?.[0]) {
-      // Load existing order items into cart
-      const order = table.orders[0];
-      // This part would ideally clear cart and load items. 
-      // For now, let's just select the table.
-      toast.success(`Table ${table.table_number} selected`);
+      try {
+        const res = await api.get(`/orders/${table.orders[0].id}`);
+        const order = res.data;
+        
+        // Map order items to cart format
+        const cartItems = order.order_items.map(item => ({
+          menu_item_id: item.menu_item_id,
+          name: item.name,
+          base_price: Number(item.unit_price),
+          food_type: item.food_type || 'veg', // Fallback if not in item
+          kitchen_station: item.kitchen_station,
+          variant_id: item.variant_id,
+          variant_price: Number(item.variant_price || 0),
+          variant_name: item.variant_name,
+          quantity: item.quantity,
+          notes: item.notes,
+          addons: item.addons.map(a => ({
+            addon_id: a.addon_id,
+            name: a.name,
+            price: Number(a.price),
+            quantity: a.quantity
+          }))
+        }));
+
+        dispatch(setPOSState({
+          cart: cartItems,
+          selectedTable: table,
+          selectedCustomer: order.customer,
+          orderType: order.order_type,
+          orderNotes: order.notes || '',
+          covers: order.covers || 1
+        }));
+
+        setTempOrderId(order.id);
+        if (order.status === 'billed') {
+          setIsBilled(true);
+          setBilledOrder(order);
+        } else {
+          setIsBilled(false);
+          setBilledOrder(null);
+        }
+        
+        toast.success(`Order for Table ${table.table_number} loaded`);
+      } catch (err) {
+        toast.error('Failed to load table order');
+      }
     } else {
+      // Clear for new order
+      dispatch(clearCart());
+      dispatch(setSelectedTable(table));
+      setTempOrderId(null);
+      setIsBilled(false);
+      setBilledOrder(null);
       toast.success(`Table ${table.table_number} selected`);
     }
     setViewMode('menu');

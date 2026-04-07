@@ -46,26 +46,17 @@ const posSlice = createSlice({
       state.orderNotes = '';
       state.covers = 1;
     },
-    setSelectedTable(state, action) {
-      state.selectedTable = action.payload;
+    setCart(state, action) {
+      state.cart = action.payload;
     },
-    setSelectedCustomer(state, action) {
-      state.selectedCustomer = action.payload;
-    },
-    setOrderType(state, action) {
-      state.orderType = action.payload;
-    },
-    setDiscount(state, action) {
-      state.discount = action.payload;
-    },
-    setCurrentOrder(state, action) {
-      state.currentOrder = action.payload;
-    },
-    setOrderNotes(state, action) {
-      state.orderNotes = action.payload;
-    },
-    setCovers(state, action) {
-      state.covers = action.payload;
+    setPOSState(state, action) {
+      const { cart, selectedTable, selectedCustomer, orderType, orderNotes, covers } = action.payload;
+      if (cart !== undefined) state.cart = cart;
+      if (selectedTable !== undefined) state.selectedTable = selectedTable;
+      if (selectedCustomer !== undefined) state.selectedCustomer = selectedCustomer;
+      if (orderType !== undefined) state.orderType = orderType;
+      if (orderNotes !== undefined) state.orderNotes = orderNotes;
+      if (covers !== undefined) state.covers = covers;
     },
   },
 });
@@ -73,6 +64,6 @@ const posSlice = createSlice({
 export const {
   addToCart, removeFromCart, updateCartQuantity, clearCart,
   setSelectedTable, setSelectedCustomer, setOrderType, setDiscount, setCurrentOrder,
-  setOrderNotes, setCovers,
+  setOrderNotes, setCovers, setCart, setPOSState,
 } = posSlice.actions;
 export default posSlice.reducer;
