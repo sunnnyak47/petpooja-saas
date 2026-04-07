@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
@@ -75,6 +76,65 @@ export default function POSPage() {
   const { cart, orderType, selectedTable, orderNotes, covers, selectedCustomer } = useSelector((s) => s.pos);
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+
+  const [searchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('order_id');
+  const autoPayParam = searchParams.get('pay');
+
+  // Load order from URL param
+  useEffect(() => {
+    if (orderIdParam) {
+      const loadOrderFromUrl = async () => {
+        try {
+          const res = await api.get(`/orders/${orderIdParam}`);
+          const order = res.data;
+          
+          // Map to cart
+          const cartItems = order.order_items.map(item => ({
+            menu_item_id: item.menu_item_id,
+            name: item.name,
+            base_price: Number(item.unit_price),
+            food_type: item.food_type || 'veg',
+            kitchen_station: item.kitchen_station,
+            variant_id: item.variant_id,
+            variant_price: Number(item.variant_price || 0),
+            variant_name: item.variant_name,
+            quantity: item.quantity,
+            notes: item.notes,
+            addons: item.addons.map(a => ({
+              addon_id: a.addon_id,
+              name: a.name,
+              price: Number(a.price),
+              quantity: a.quantity
+            }))
+          }));
+
+          dispatch(setPOSState({
+            cart: cartItems,
+            selectedTable: order.table,
+            selectedCustomer: order.customer,
+            orderType: order.order_type,
+            orderNotes: order.notes || '',
+            covers: order.covers || 1
+          }));
+
+          setTempOrderId(order.id);
+          if (order.status === 'billed') {
+            setIsBilled(true);
+            setBilledOrder(order);
+            if (autoPayParam === 'true') setShowPayment(true);
+          } else {
+            setIsBilled(false);
+            setBilledOrder(null);
+          }
+          setViewMode('menu');
+        } catch (err) {
+          toast.error('Failed to load order from link');
+        }
+      };
+      loadOrderFromUrl();
+    }
+  }, [orderIdParam, autoPayParam, dispatch]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories', outletId],

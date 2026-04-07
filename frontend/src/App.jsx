@@ -19,7 +19,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
-import AuditLogPage from './pages/AuditLogPage';
+import RunningOrdersPage from './pages/RunningOrdersPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
@@ -52,6 +52,7 @@ export default function App() {
         
         {/* Owner Dashboard Items (Hidden for Super Admin via Sidebar) */}
         <Route path="pos" element={<POSPage />} />
+        <Route path="running-orders" element={<RunningOrdersPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="menu" element={<MenuPage />} />
         <Route path="tables" element={<TablesPage />} />

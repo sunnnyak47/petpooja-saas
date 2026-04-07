@@ -21,6 +21,7 @@ const superAdminNav = [
 const ownerNav = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/pos', label: 'POS Terminal', icon: ShoppingCart },
+  { path: '/running-orders', label: 'Running Orders', icon: Clock },
   { path: '/orders', label: 'Order History', icon: ClipboardList },
   { path: '/kitchen', label: 'Kitchen (KDS)', icon: ChefHat },
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
