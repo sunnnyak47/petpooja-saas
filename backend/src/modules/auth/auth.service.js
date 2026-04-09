@@ -132,6 +132,7 @@ async function login(login, password, auditInfo = {}) {
     }
 
     const isEmail = login.includes('@');
+    const startDb = Date.now();
     const user = await prisma.user.findFirst({
       where: {
         ...(isEmail ? { email: login } : { phone: login }),
@@ -154,6 +155,7 @@ async function login(login, password, auditInfo = {}) {
         head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true } }
       },
     });
+    logger.debug(`Prisma user lookup took ${Date.now() - startDb}ms`);
 
     if (!user) {
       await incrementLoginAttempts(redis, lockoutKey);

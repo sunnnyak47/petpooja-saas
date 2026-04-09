@@ -81,17 +81,21 @@ function wrapWithFallback(client) {
 function getRedisClient() {
   if (redisClient) return redisClient;
 
-  if (!process.env.REDIS_URL) {
-    logger.warn('No REDIS_URL set — Redis disabled. Rate-limiting and token blacklisting will be skipped.');
+  const isMockUrl = !process.env.REDIS_URL || process.env.REDIS_URL === 'mock' || process.env.REDIS_URL.includes('localhost');
+
+  if (isMockUrl && process.env.NODE_ENV === 'production') {
+    logger.warn('Redis URL is missing or invalid for production — using mock.');
     useMock = true;
     redisClient = createMockRedis();
     return redisClient;
   }
 
   const realClient = new Redis(process.env.REDIS_URL, {
-    maxRetriesPerRequest: 0,      // don't retry per-command — we handle it above
-    enableOfflineQueue: false,    // fail fast instead of queuing
+    maxRetriesPerRequest: 0,      // don't retry per-command
+    enableOfflineQueue: false,    // fail fast
     lazyConnect: true,
+    connectTimeout: 2000,         // fail connection fast (2s)
+    commandTimeout: 2000,         // fail commands fast (2s)
     retryStrategy: (times) => {
       if (times > 3) {
         logger.warn('Redis connection failed permanently — switching to no-op mock.');
@@ -121,8 +125,10 @@ function getRedisClient() {
  * @returns {Promise<void>}
  */
 async function disconnectRedis() {
-  if (redisClient && typeof redisClient.quit === 'function') {
-    await redisClient.quit();
+  if (redisClient) {
+    try {
+      if (typeof redisClient.quit === 'function') await redisClient.quit();
+    } catch (_) {}
   }
   redisClient = null;
   useMock = false;

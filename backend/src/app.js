@@ -186,18 +186,44 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 /* ------------------------------------------------------------------
-   SOCKET.IO INITIALIZATION
+   EAGER INITIALIZATION & STARTUP CHECKS
    ------------------------------------------------------------------ */
-initializeSocket(server);
+async function startApp() {
+  logger.info('Initializing core services...');
+  
+  // Eagerly connect to DB
+  try {
+    const prisma = getDbClient();
+    await prisma.$connect();
+    logger.info('Database connection established.');
+  } catch (err) {
+    logger.error('Failed to establish database connection during startup:', err.message);
+  }
 
-/* ------------------------------------------------------------------
-   SERVER START
-   ------------------------------------------------------------------ */
-server.listen(appConfig.port, () => {
-  logger.info(`🚀 ${appConfig.name} API running on port ${appConfig.port} [${appConfig.env}]`);
-  logger.info(`   Health: http://localhost:${appConfig.port}/health`);
-  logger.info(`   API:    http://localhost:${appConfig.port}/api`);
-});
+  // Eagerly trigger Redis setup
+  try {
+    getRedisClient();
+    logger.info('Redis initialization triggered.');
+  } catch (err) {
+    logger.error('Failed to trigger Redis initialization:', err.message);
+  }
+
+  // Initialize Socket.io
+  try {
+    initializeSocket(server);
+    logger.info('Socket.io initialized.');
+  } catch (err) {
+    logger.error('Failed to initialize Socket.io:', err.message);
+  }
+
+  server.listen(appConfig.port, () => {
+    logger.info(`🚀 ${appConfig.name} API running on port ${appConfig.port} [${appConfig.env}]`);
+    logger.info(`   Health: http://localhost:${appConfig.port}/health`);
+    logger.info(`   API:    http://localhost:${appConfig.port}/api`);
+  });
+}
+
+startApp();
 
 /* ------------------------------------------------------------------
    GRACEFUL SHUTDOWN
