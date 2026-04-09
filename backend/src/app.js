@@ -160,9 +160,12 @@ app.get('/api', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
+app.use('/api/orders/tables', tableRoutes); // Moved up to prevent collision with /api/orders/:id
 app.use('/api/orders', orderRoutes);
-app.use('/api/orders/tables', tableRoutes);
 app.use('/api/kitchen', kotRoutes);
+
+// Legacy KDS support for stale frontend builds
+app.use('/api/kitchen/kots', kotRoutes); 
 const procurementRoutes = require('./modules/inventory/procurement.routes');
 
 app.use('/api/inventory', inventoryRoutes);

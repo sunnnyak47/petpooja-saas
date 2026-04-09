@@ -12,7 +12,7 @@ const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { sendSuccess } = require('../../utils/response');
 
 /* -- KOT Endpoints -- */
-router.get('/kot/pending', authenticate, enforceOutletScope, async (req, res, next) => {
+router.get(['/kot/pending', '/', '/pending'], authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const kots = await kotService.listPendingKOTs(outletId, req.query);
