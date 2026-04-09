@@ -49,14 +49,22 @@ export default function KitchenDisplay() {
 
     // 2. Fetch already pending KOTs
     if (token) {
-      fetch(`/api/kitchen/kot/pending?outlet_id=${resolvedOutletId}`, {
+      const url = `${SOCKET_URL}/api/kitchen/kot/pending?outlet_id=${resolvedOutletId}`;
+      console.log('KDS: Fetching initial KOTs from:', url);
+      fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data) setKots(data.data);
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
       })
-      .catch(err => console.error('Failed to fetch initial KOTs:', err));
+      .then(data => {
+        if (data.success && data.data) {
+          console.log('KDS: Successfully loaded', data.data.length, 'KOTs');
+          setKots(data.data);
+        }
+      })
+      .catch(err => console.error('KDS: Failed to fetch initial KOTs:', err));
     }
 
     // 3. Setup WebSockets
@@ -107,7 +115,7 @@ export default function KitchenDisplay() {
 
   const markReady = async (kotId, itemId) => {
     try {
-      await fetch(`/api/kitchen/kot/${kotId}/item-ready`, {
+      await fetch(`${SOCKET_URL}/api/kitchen/kot/${kotId}/item-ready`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
         body: JSON.stringify({ kot_item_id: itemId }),
@@ -124,7 +132,7 @@ export default function KitchenDisplay() {
 
   const completeKot = async (kotId) => {
     try {
-      await fetch(`/api/kitchen/kot/${kotId}/complete`, {
+      await fetch(`${SOCKET_URL}/api/kitchen/kot/${kotId}/complete`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
       });

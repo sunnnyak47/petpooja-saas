@@ -464,6 +464,7 @@ async function generateKOT(orderId) {
           data: {
             outlet_id: order.outlet_id, order_id: orderId,
             kot_number: kotNumber, station, items_count: items.length,
+            status: 'pending',
             printed_at: new Date(),
           },
         });
