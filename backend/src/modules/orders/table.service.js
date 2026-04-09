@@ -130,4 +130,19 @@ async function deleteTable(tableId) {
   }
 }
 
-module.exports = { listTables, updateTableStatus, listTableAreas, createTable, deleteTable };
+/**
+ * Generates the QR ordering URL for a table.
+ * @param {string} tableId - Table UUID
+ * @returns {Promise<string>} QR URL
+ */
+async function getTableQR(tableId) {
+  const prisma = getDbClient();
+  const table = await prisma.table.findUnique({ where: { id: tableId } });
+  if (!table) throw new NotFoundError('Table not found');
+
+  // Hardcoded base URL for now - in production this would come from env
+  const baseUrl = process.env.CUSTOMER_UI_URL || 'https://petpooja-menu.vercel.app';
+  return `${baseUrl}/?outlet=${table.outlet_id}&table=${table.id}`;
+}
+
+module.exports = { listTables, updateTableStatus, listTableAreas, createTable, deleteTable, getTableQR };

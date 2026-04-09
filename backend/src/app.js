@@ -161,11 +161,14 @@ app.get('/api', (req, res) => {
   });
 });
 
+const onlineOrderRoutes = require('./modules/online-orders/online-order.routes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders/tables', tableRoutes); // Moved up to prevent collision with /api/orders/:id
 app.use('/api/orders', orderRoutes);
 app.use('/api/kitchen', kotRoutes);
+app.use('/api/online-orders', onlineOrderRoutes);
 
 // Legacy KDS support for stale frontend builds
 app.use('/api/kitchen/kots', kotRoutes); 

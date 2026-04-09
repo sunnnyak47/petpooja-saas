@@ -39,7 +39,8 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user } = useSelector((s) => s.auth);
+  const [hasNewOnlineOrder, setHasNewOnlineOrder] = useState(false);
+  const { user, token } = useSelector((s) => s.auth);
 
   const navItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
 
@@ -49,6 +50,30 @@ export default function DashboardLayout() {
       document.documentElement.style.setProperty('--brand-600', user.primary_color + 'dd');
     }
   }, [user]);
+
+  // Online Order Notifications
+  useEffect(() => {
+    if (!user?.outlet_id || !token) return;
+    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, {
+      auth: { token },
+      transports: ['websocket']
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join_outlet', user.outlet_id);
+    });
+
+    socket.on('new_online_order', () => {
+      setHasNewOnlineOrder(true);
+      // Play sound if possible
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3');
+        audio.play().catch(() => {});
+      } catch (e) {}
+    });
+
+    return () => socket.disconnect();
+  }, [user?.outlet_id, token]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -136,11 +161,19 @@ export default function DashboardLayout() {
               </h2>
               <p className="text-xs text-surface-500">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <button className="relative p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-notifications">
-                <Bell className="w-5 h-5 text-surface-400" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-brand-500 rounded-full"></span>
+            <div className={`flex items-center gap-3 ${hasNewOnlineOrder ? 'animate-pulse' : ''}`}>
+              <button onClick={() => { setHasNewOnlineOrder(false); navigate('/running-orders'); }} className="relative p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-notifications">
+                <Bell className={`w-5 h-5 ${hasNewOnlineOrder ? 'text-brand-400' : 'text-surface-400'}`} />
+                {hasNewOnlineOrder && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-500 rounded-full ring-2 ring-surface-800"></span>
+                )}
               </button>
+              {hasNewOnlineOrder && (
+                <div onClick={() => { setHasNewOnlineOrder(false); navigate('/running-orders'); }} className="flex items-center gap-2 px-3 py-1 bg-brand-500/20 rounded-full border border-brand-500/30 cursor-pointer hover:bg-brand-500/30 transition-all">
+                  <div className="w-2 h-2 bg-brand-500 rounded-full animate-ping" />
+                  <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest">New Order</span>
+                </div>
+              )}
               <button className="p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-settings">
                 <Settings className="w-5 h-5 text-surface-400" />
               </button>
