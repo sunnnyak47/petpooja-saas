@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Modal from '../Modal';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, Info } from 'lucide-react';
 
 const PREDEFINED_REASONS = [
   'Customer Left',
@@ -10,7 +10,7 @@ const PREDEFINED_REASONS = [
   'Order Delayed',
 ];
 
-export default function CancelOrderModal({ isOpen, onClose, onConfirm }) {
+export default function CancelOrderModal({ isOpen, onClose, onConfirm, hasKots = false }) {
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,9 +25,17 @@ export default function CancelOrderModal({ isOpen, onClose, onConfirm }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Cancel Order" size="sm">
       <div className="p-1">
-        <div className="flex items-center gap-3 p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
-          <AlertTriangle className="w-5 h-5 shrink-0" />
-          <p className="text-xs font-medium uppercase tracking-wider">Warning: This action cannot be undone. All KOTs will be marked as cancelled.</p>
+        <div className="flex flex-col gap-2 mb-4">
+          {hasKots && (
+            <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <p className="text-xs font-bold uppercase tracking-wider">Warning: KOT already sent to kitchen!</p>
+            </div>
+          )}
+          <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400">
+            <Info className="w-5 h-5 shrink-0" />
+            <p className="text-xs font-medium uppercase tracking-wider">No bill will be generated for this session.</p>
+          </div>
         </div>
 
         <p className="text-sm text-surface-400 mb-2">Select a reason for cancellation:</p>

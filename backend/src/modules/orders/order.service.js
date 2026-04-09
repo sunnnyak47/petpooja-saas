@@ -275,7 +275,13 @@ async function listOrders(outletId, query = {}) {
     const { page, limit, offset, sort, order: sortOrder } = parsePagination(query);
     const where = { outlet_id: outletId, is_deleted: false };
 
-    if (query.status) where.status = query.status;
+    if (query.status) {
+      if (typeof query.status === 'string' && query.status.includes(',')) {
+        where.status = { in: query.status.split(',') };
+      } else {
+        where.status = query.status;
+      }
+    }
     if (query.order_type) where.order_type = query.order_type;
     if (query.source) where.source = query.source;
     if (query.from && query.to) {

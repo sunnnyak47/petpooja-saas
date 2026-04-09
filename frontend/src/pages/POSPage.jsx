@@ -689,33 +689,37 @@ export default function POSPage() {
             </div>
 
             <div className="flex gap-2 mb-2">
-              {!isBilled ? (
-                <>
-                  <button onClick={() => handleCreateOrder(true)} className="btn-surface flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
-                     <Pause className="w-4 h-4"/> <span>HOLD</span>
-                  </button>
-                  <button onClick={handlePunchKOT} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1">
-                     <Send className="w-4 h-4"/> <span>PUNCH KOT</span>
-                  </button>
-                </>
-              ) : (
-                <div className="flex-1 bg-brand-500/10 border border-brand-500/20 rounded-xl p-2 flex items-center justify-center gap-2 text-brand-400 font-bold">
-                   <ClipboardCheck className="w-4 h-4" /> BILLED: {billedOrder?.invoice_number}
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-2 mb-2">
                <button onClick={() => setShowCancelOrder(true)} className="btn-surface px-4 py-3 text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors">
                   <X className="w-5 h-5" />
                </button>
-               {!isBilled ? (
-                 <button onClick={handleGenerateBill} className="btn-surface flex-1 py-3 bg-surface-700 text-white font-bold tracking-wide flex items-center justify-center gap-2">
-                    <FileText className="w-4 h-4" /> GENERATE BILL
-                 </button>
-               ) : (
+               {isBilled ? (
                  <button onClick={() => setShowBillPreview(true)} className="btn-surface flex-1 py-3 border-brand-500 text-brand-400 font-bold flex items-center justify-center gap-2">
                     <Printer className="w-4 h-4" /> PRINT BILL
+                 </button>
+               ) : (
+                 /* 
+                  * Align with Test Workflow: 
+                  * If cart has items, primarily show PUNCH KOT. 
+                  * Hide GENERATE BILL if items are pending.
+                  */
+                 <button onClick={handlePunchKOT} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-500/20">
+                    <Send className="w-4 h-4"/> <span>PUNCH KOT & PRINT</span>
+                 </button>
+               )}
+            </div>
+
+            <div className="flex gap-2 mb-2">
+               {!isBilled && cart.length === 0 && tempOrderId && (
+                 <button onClick={handleGenerateBill} className="btn-surface flex-1 py-3 bg-white text-black font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-brand-400 hover:text-white transition-all">
+                    <FileText className="w-4 h-4" /> GENERATE BILL
+                 </button>
+               )}
+               {/* 
+                * Keep HOLD available if not billed 
+                */}
+               {!isBilled && cart.length > 0 && (
+                 <button onClick={() => handleCreateOrder(true)} className="btn-surface flex-1 py-3 text-sm flex items-center justify-center gap-2">
+                    <Pause className="w-4 h-4"/> <span>HOLD ORDER</span>
                  </button>
                )}
             </div>
@@ -823,7 +827,14 @@ export default function POSPage() {
 
       {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={cartTotals.total} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
-      {showCancelOrder && <CancelOrderModal isOpen={showCancelOrder} onClose={() => setShowCancelOrder(false)} onConfirm={handleCancelOrder} />}
+      {showCancelOrder && (
+        <CancelOrderModal 
+          isOpen={showCancelOrder} 
+          onClose={() => setShowCancelOrder(false)} 
+          onConfirm={handleCancelOrder}
+          hasKots={tempOrderId && cart.length === 0} // Simplification: if cart is empty but order exists, assume KOTs sent
+        />
+      )}
       {showBillPreview && <BillPreviewModal isOpen={showBillPreview} onClose={() => setShowBillPreview(false)} order={billedOrder} onPrint={() => { toast.success('Printing to Thermal...'); setShowBillPreview(false); }} />}
       
       {selectedItemForModifiers && (
