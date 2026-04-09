@@ -22,9 +22,10 @@ import {
 const TYPE_ICONS = { dine_in: Utensils, takeaway: ShoppingBag, delivery: Globe, online: Globe };
 
 const STATUS_MAP = {
-  created:  { label: 'ACTIVE',  bar: 'from-blue-500 to-blue-600',  badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  held:     { label: 'ON HOLD', bar: 'from-orange-500 to-amber-500', badge: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-  billed:   { label: 'BILLED',  bar: 'from-purple-500 to-purple-600', badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  created:    { label: 'PENDING', bar: 'from-blue-500 to-blue-600',   badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  confirmed:  { label: 'CONFIRMED', bar: 'from-orange-500 to-amber-500', badge: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+  held:       { label: 'ON HOLD',  bar: 'from-slate-500 to-slate-600',  badge: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
+  billed:     { label: 'BILLED',   bar: 'from-purple-500 to-purple-600', badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
 };
 
 function ElapsedTimer({ createdAt }) {
@@ -327,7 +328,7 @@ export default function RunningOrdersPage() {
 
   const { data: orders, isLoading, refetch } = useQuery({
     queryKey: ['running-orders', outletId],
-    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,held,billed&limit=200`).then(r => r.data),
+    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`).then(r => r.data),
     enabled: !!outletId,
     refetchInterval: isLive ? 8000 : false,
   });
