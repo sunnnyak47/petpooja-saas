@@ -705,43 +705,72 @@ async function cancelOrder(orderId, reason, staffId) {
     if (order.status === 'cancelled') return order;
 
     await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: 'cancelled',
-          cancelled_at: new Date(),
-          cancelled_by: staffId,
-          cancel_reason: reason,
-        },
-      });
+      if (order.invoice_number) {
+        // CASE A: Bill generated -> Keep record but cancel it
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'cancelled',
+            cancelled_at: new Date(),
+            cancelled_by: staffId,
+            cancel_reason: reason,
+          },
+        });
 
+        await tx.orderStatusHistory.create({
+          data: {
+            order_id: orderId,
+            from_status: order.status,
+            to_status: 'cancelled',
+            changed_by: staffId,
+            reason,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            user_id: staffId,
+            outlet_id: order.outlet_id,
+            action: 'ORDER_CANCELLED',
+            entity_type: 'order',
+            entity_id: orderId,
+            metadata: { reason },
+          },
+        });
+      } else {
+        // CASE B: No bill generated -> REMOVE FULLY as requested
+        // 1. Delete KOT Items
+        const kotIds = order.kots.map(k => k.id);
+        if (kotIds.length > 0) {
+          await tx.kOTItem.deleteMany({ where: { kot_id: { in: kotIds } } });
+        }
+        
+        // 2. Delete KOTs
+        await tx.kOT.deleteMany({ where: { order_id: orderId } });
+
+        // 3. Delete Order Item Addons
+        const orderItemIds = order.order_items.map(oi => oi.id);
+        if (orderItemIds.length > 0) {
+          await tx.orderItemAddon.deleteMany({ where: { order_item_id: { in: orderItemIds } } });
+        }
+
+        // 4. Delete Order Items
+        await tx.orderItem.deleteMany({ where: { order_id: orderId } });
+
+        // 5. Delete Status History
+        await tx.orderStatusHistory.deleteMany({ where: { order_id: orderId } });
+
+        // 6. Delete the Order itself
+        await tx.order.delete({ where: { id: orderId } });
+      }
+
+      // Always free the table
       if (order.table_id) {
         await tx.table.update({
           where: { id: order.table_id },
           data: { status: 'available', current_order_id: null },
         });
       }
-
-      await tx.orderStatusHistory.create({
-        data: {
-          order_id: orderId,
-          from_status: order.status,
-          to_status: 'cancelled',
-          changed_by: staffId,
-          reason,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          user_id: staffId,
-          outlet_id: order.outlet_id,
-          action: 'ORDER_CANCELLED',
-          entity_type: 'order',
-          entity_id: orderId,
-          metadata: { reason },
-        },
-      });
     });
 
     const io = getIO();
@@ -763,8 +792,8 @@ async function cancelOrder(orderId, reason, staffId) {
       });
     }
 
-    logger.warn('Order cancelled', { orderId, reason, staffId });
-    return await getOrderById(orderId);
+    logger.warn('Order cancelled', { orderId, reason, staffId, purged: !order.invoice_number });
+    return order.invoice_number ? await getOrderById(orderId) : { id: orderId, status: 'cancelled', purged: true };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     throw error;
