@@ -698,7 +698,7 @@ async function cancelOrder(orderId, reason, staffId) {
   try {
     const order = await prisma.order.findFirst({
       where: { id: orderId, is_deleted: false },
-      include: { kots: true }
+      include: { kots: true, order_items: true }
     });
     if (!order) throw new NotFoundError('Order not found');
     if (order.is_paid) throw new BadRequestError('Cannot cancel a paid order. Use refund instead.');
