@@ -41,7 +41,7 @@ const appConfig = {
   /** Rate limiting configuration */
   rateLimit: {
     general: parseInt(process.env.RATE_LIMIT_GENERAL, 10) || 100,
-    auth: parseInt(process.env.RATE_LIMIT_AUTH, 10) || 5,
+    auth: parseInt(process.env.RATE_LIMIT_AUTH, 10) || 30,
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60000,
   },
 

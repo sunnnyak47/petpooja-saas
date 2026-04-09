@@ -25,6 +25,9 @@ const { disconnectRedis } = require('./config/redis');
 const app = express();
 const server = http.createServer(app);
 
+// Enable trust proxy for correct IP detection behind Render/Vercel load balancers
+app.set('trust proxy', 1);
+
 /* ------------------------------------------------------------------
    SECURITY MIDDLEWARE
    ------------------------------------------------------------------ */
