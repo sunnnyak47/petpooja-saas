@@ -9,7 +9,8 @@ import {
   CheckCircle2, Clock, UtensilsCrossed, Leaf, Drumstick
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// Using relative paths to work with Vercel rewrites or direct proxy
+const API_PREFIX = '/api';
 
 export default function CustomerOrderPage() {
   const [tableId, setTableId] = useState(null);
@@ -41,7 +42,7 @@ export default function CustomerOrderPage() {
 
   const fetchMenu = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/api/online-orders/menu/${id}`);
+      const res = await fetch(`${API_PREFIX}/online-orders/menu/${id}`);
       const data = await res.json();
       if (data.success) {
         const cats = data.data?.categories || data.data || [];
@@ -97,7 +98,7 @@ export default function CustomerOrderPage() {
           addons: []
         }))
       };
-      const res = await fetch(`${API_BASE}/api/online-orders/place`, {
+      const res = await fetch(`${API_PREFIX}/online-orders/place`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
