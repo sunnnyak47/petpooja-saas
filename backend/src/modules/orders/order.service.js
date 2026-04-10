@@ -211,13 +211,17 @@ async function createOrder(data, staffId) {
 
     const fullOrder = await getOrderById(order.id);
 
-    const io = getIO();
-    if (io) {
-      io.of('/orders').to(`outlet:${data.outlet_id}`).emit('new_order', fullOrder);
-      if (data.table_id) {
-        io.of('/orders').to(`outlet:${data.outlet_id}`).emit('table_status_change', {
-          table_id: data.table_id, status: 'occupied', order_id: order.id,
-        });
+    // Only emit new_order to POS/KDS if the order is actually active and not pending staff acceptance.
+    // Online QR orders start as 'pending' and are announced via 'new_online_order' instead.
+    if (fullOrder.status !== 'pending') {
+      const io = getIO();
+      if (io) {
+        io.of('/orders').to(`outlet:${data.outlet_id}`).emit('new_order', fullOrder);
+        if (data.table_id) {
+          io.of('/orders').to(`outlet:${data.outlet_id}`).emit('table_status_change', {
+            table_id: data.table_id, status: 'occupied', order_id: order.id,
+          });
+        }
       }
     }
 
