@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { io } from 'socket.io-client';
 import { logout } from '../store/slices/authSlice';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
