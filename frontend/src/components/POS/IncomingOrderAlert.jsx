@@ -11,22 +11,41 @@ export default function IncomingOrderAlert({ order, onAccepted, onRejected }) {
   const audioRef = useRef(null);
 
   useEffect(() => {
-    // Persistent Ringing
-    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3'); // POS Alert Chime
-    audioRef.current.loop = true;
-    
-    const playPromise = audioRef.current.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        console.warn('Audio auto-play blocked. User interaction required.');
-      });
-    }
+    // We use Web Audio API for a reliable, synthesized notification chime
+    // that won't fail to load due to adblockers or broken URLs.
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+
+    const ctx = new AudioContext();
+    let intervalId;
+
+    const playBeep = () => {
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+      osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1); // Slide up
+
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05); // Fade in
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5); // Fade out
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    };
+
+    // Play immediately, then loop every 2 seconds
+    playBeep();
+    intervalId = setInterval(playBeep, 2000);
 
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      clearInterval(intervalId);
+      if (ctx.state !== 'closed') ctx.close();
     };
   }, []);
 

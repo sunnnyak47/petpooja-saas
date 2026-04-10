@@ -150,8 +150,8 @@ export default function CustomerOrderPage() {
       <div className="w-24 h-24 rounded-full bg-green-50 flex items-center justify-center mb-6 animate-bounce-slow">
         <CheckCircle2 size={56} className="text-green-500" />
       </div>
-      <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Order Placed! 🎉</h2>
-      <p className="text-gray-500 mb-8 max-w-xs">Your food is being prepared. Sit back and relax!</p>
+      <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Order Sent! ⏳</h2>
+      <p className="text-gray-500 mb-8 max-w-xs">Waiting for the restaurant to confirm your order.</p>
       
       <div className="w-full max-w-xs space-y-4 mb-8">
         {/* Order Receipt Card */}
