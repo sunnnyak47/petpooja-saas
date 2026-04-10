@@ -25,6 +25,7 @@ export default function CustomerOrderPage() {
   const [step, setStep] = useState('menu');
   const [orderInfo, setOrderInfo] = useState({ name: '', phone: '' });
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -105,6 +106,7 @@ export default function CustomerOrderPage() {
       });
       const data = await res.json();
       if (data.success) {
+        setLastOrder(data.data);
         setStep('success');
         setCart([]);
         setIsCartOpen(false);
@@ -150,14 +152,41 @@ export default function CustomerOrderPage() {
       </div>
       <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Order Placed! 🎉</h2>
       <p className="text-gray-500 mb-8 max-w-xs">Your food is being prepared. Sit back and relax!</p>
-      <div className="w-full max-w-xs bg-gray-50 rounded-3xl p-5 mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
-            <Clock size={24} />
+      
+      <div className="w-full max-w-xs space-y-4 mb-8">
+        {/* Order Receipt Card */}
+        <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 text-left">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Order Receipt</span>
+            <span className="bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Paid</span>
           </div>
-          <div className="text-left">
-            <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Estimated Time</p>
-            <p className="font-bold text-gray-800">15–20 Minutes</p>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500 font-medium">Order ID</span>
+              <span className="text-sm text-gray-900 font-black">#{lastOrder?.order_number || '---'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-500 font-medium">Table</span>
+              <span className="text-sm text-gray-900 font-black">T-{lastOrder?.table_number || '--'}</span>
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t border-gray-200/50">
+              <span className="text-base text-gray-900 font-bold">Total Paid</span>
+              <span className="text-lg text-orange-600 font-black">₹{Number(lastOrder?.total_amount || 0).toFixed(0)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Time Estimate Card */}
+        <div className="bg-orange-500/5 border border-orange-500/10 rounded-3xl p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+              <Clock size={24} />
+            </div>
+            <div className="text-left">
+              <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Estimated Time</p>
+              <p className="font-bold text-gray-800">15–20 Minutes</p>
+            </div>
           </div>
         </div>
       </div>
@@ -332,10 +361,10 @@ export default function CustomerOrderPage() {
               <div className="grid grid-cols-2 gap-3">
                 <input type="text" placeholder="Your Name" value={orderInfo.name}
                   onChange={e => setOrderInfo(p => ({ ...p, name: e.target.value }))}
-                  className="rounded-xl bg-gray-100 px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-orange-400" />
+                  className="rounded-xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-brand-500" />
                 <input type="tel" placeholder="Phone (Optional)" value={orderInfo.phone}
                   onChange={e => setOrderInfo(p => ({ ...p, phone: e.target.value }))}
-                  className="rounded-xl bg-gray-100 px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-orange-400" />
+                  className="rounded-xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
               <button onClick={placeOrder} disabled={placingOrder}
                 className="w-full rounded-2xl bg-orange-500 py-4 font-bold text-white shadow-xl shadow-orange-200 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-base">

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
-import IncomingOrderAlert from '../components/pos/IncomingOrderAlert';
+import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
 
 const superAdminNav = [
   { path: '/', label: 'Global Analytics', icon: BarChart3 },
