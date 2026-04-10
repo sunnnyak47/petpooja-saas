@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
+import IncomingOrderAlert from '../components/pos/IncomingOrderAlert';
 
 const superAdminNav = [
   { path: '/', label: 'Global Analytics', icon: BarChart3 },
@@ -41,7 +42,7 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [hasNewOnlineOrder, setHasNewOnlineOrder] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState([]); // Queue forIncomingOrderAlert
   const { user, token } = useSelector((s) => s.auth);
 
   const navItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
@@ -65,13 +66,12 @@ export default function DashboardLayout() {
       socket.emit('join_outlet', user.outlet_id);
     });
 
-    socket.on('new_online_order', () => {
-      setHasNewOnlineOrder(true);
-      // Play sound if possible
-      try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3');
-        audio.play().catch(() => {});
-      } catch (e) {}
+    socket.on('new_online_order', (data) => {
+      setPendingOrders(prev => [...prev, data]);
+    });
+
+    socket.on('new_online_order_cleared', (data) => {
+      setPendingOrders(prev => prev.filter(o => o.order_id !== data.order_id));
     });
 
     return () => socket.disconnect();
@@ -87,6 +87,15 @@ export default function DashboardLayout() {
   return (
     <div className="flex bg-surface-900 text-surface-100 flex-col h-screen overflow-hidden">
       <DunningBanner user={user} />
+      
+      {/* High Priority Incoming Order Alert */}
+      {pendingOrders.length > 0 && (
+        <IncomingOrderAlert 
+          order={pendingOrders[0]} 
+          onAccepted={() => setPendingOrders(prev => prev.slice(1))}
+          onRejected={() => setPendingOrders(prev => prev.slice(1))}
+        />
+      )}
       
       <div className="flex flex-1 overflow-hidden">
         {showWizard && <OwnerWizard headOffice={user.head_office} />}

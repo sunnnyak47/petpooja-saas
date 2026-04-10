@@ -25,11 +25,37 @@ async function getPublicMenu(req, res, next) {
 async function placeOrder(req, res, next) {
   try {
     const order = await onlineOrderService.placeCustomerOrder(req.body);
-    sendSuccess(res, order, 'Order placed successfully! 🎉', 201);
+    sendSuccess(res, order, 'Order submitted! Please wait for staff to accept.', 201);
+  } catch (error) { next(error); }
+}
+
+/**
+ * Accepts a pending online order.
+ */
+async function acceptOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { outlet_id } = req.user;
+    const order = await onlineOrderService.acceptCustomerOrder(id, outlet_id, req.user.id);
+    sendSuccess(res, order, 'Order accepted and sent to kitchen');
+  } catch (error) { next(error); }
+}
+
+/**
+ * Rejects an online order.
+ */
+async function rejectOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { outlet_id } = req.user;
+    await onlineOrderService.rejectCustomerOrder(id, outlet_id);
+    sendSuccess(res, null, 'Order rejected and table released');
   } catch (error) { next(error); }
 }
 
 module.exports = {
   getPublicMenu,
   placeOrder,
+  acceptOrder,
+  rejectOrder,
 };
