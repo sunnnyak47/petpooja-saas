@@ -149,7 +149,7 @@ async function createOrder(data, staffId) {
           outlet_id: data.outlet_id,
           order_number: orderNumber,
           order_type: data.order_type || 'dine_in',
-          status: 'created',
+          status: data.status || 'created',
           table_id: data.table_id || null,
           customer_id: data.customer_id || null,
           staff_id: staffId,
@@ -196,7 +196,7 @@ async function createOrder(data, staffId) {
       }
 
       await tx.orderStatusHistory.create({
-        data: { order_id: newOrder.id, from_status: null, to_status: 'created', changed_by: staffId },
+        data: { order_id: newOrder.id, from_status: null, to_status: data.status || 'created', changed_by: staffId },
       });
 
       if (data.table_id) {

@@ -38,7 +38,7 @@ async function placeCustomerOrder(orderData) {
   };
 
   // 3. Create the order
-  const { order: createdOrder } = await orderService.createOrder(processedData, null);
+  const createdOrder = await orderService.createOrder(processedData, null);
 
   // 4. Mark table as OCCUPIED
   await prisma.table.update({

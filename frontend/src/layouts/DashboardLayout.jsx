@@ -172,15 +172,15 @@ export default function DashboardLayout() {
               </h2>
               <p className="text-xs text-surface-500">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
             </div>
-            <div className={`flex items-center gap-3 ${hasNewOnlineOrder ? 'animate-pulse' : ''}`}>
-              <button onClick={() => { setHasNewOnlineOrder(false); navigate('/running-orders'); }} className="relative p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-notifications">
-                <Bell className={`w-5 h-5 ${hasNewOnlineOrder ? 'text-brand-400' : 'text-surface-400'}`} />
-                {hasNewOnlineOrder && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-500 rounded-full ring-2 ring-surface-800"></span>
+            <div className={`flex items-center gap-3 ${pendingOrders.length > 0 ? 'animate-pulse' : ''}`}>
+              <button onClick={() => { navigate('/running-orders'); }} className="relative p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-notifications">
+                <Bell className={`w-5 h-5 ${pendingOrders.length > 0 ? 'text-brand-400' : 'text-surface-400'}`} />
+                {pendingOrders.length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full border border-surface-900 animate-ping"></span>
                 )}
               </button>
-              {hasNewOnlineOrder && (
-                <div onClick={() => { setHasNewOnlineOrder(false); navigate('/running-orders'); }} className="flex items-center gap-2 px-3 py-1 bg-brand-500/20 rounded-full border border-brand-500/30 cursor-pointer hover:bg-brand-500/30 transition-all">
+              {pendingOrders.length > 0 && (
+                <div onClick={() => { navigate('/running-orders'); }} className="flex items-center gap-2 px-3 py-1 bg-brand-500/20 rounded-full border border-brand-500/30 cursor-pointer hover:bg-brand-500/30 transition-all">
                   <div className="w-2 h-2 bg-brand-500 rounded-full animate-ping" />
                   <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest">New Order</span>
                 </div>
