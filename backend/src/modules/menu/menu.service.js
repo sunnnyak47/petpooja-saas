@@ -660,7 +660,7 @@ async function getOutletMenu(outletId) {
   try {
     const outlet = await prisma.outlet.findUnique({
       where: { id: outletId },
-      select: { id: true, name: true, address: true, phone: true },
+      select: { id: true, name: true, address_line1: true, city: true, phone: true, logo_url: true },
     });
     if (!outlet) throw new NotFoundError('Outlet not found');
 
