@@ -5,7 +5,7 @@ import { logout } from '../store/slices/authSlice';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
-  ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock
+  ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock, QrCode
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -25,6 +25,7 @@ const ownerNav = [
   { path: '/orders', label: 'Order History', icon: ClipboardList },
   { path: '/kitchen', label: 'Kitchen (KDS)', icon: ChefHat },
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
+  { path: '/qr-codes', label: 'QR Codes', icon: QrCode },
   { path: '/inventory', label: 'Stock Master', icon: Package },
   { path: '/customers', label: 'Customers', icon: Users },
   { path: '/payments', label: 'Payments', icon: CreditCard },

@@ -649,6 +649,48 @@ function formatTimeToISO(timeStr) {
   return `1970-01-01T${timeStr}:00.000Z`;
 }
 
+/**
+ * Returns the full public menu for an outlet — categories with items.
+ * Used by the customer-facing QR ordering page.
+ * @param {string} outletId - Outlet UUID
+ * @returns {Promise<object>} { outlet, categories }
+ */
+async function getOutletMenu(outletId) {
+  const prisma = getDbClient();
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId },
+      select: { id: true, name: true, address: true, phone: true },
+    });
+    if (!outlet) throw new NotFoundError('Outlet not found');
+
+    const categories = await prisma.menuCategory.findMany({
+      where: { outlet_id: outletId, is_deleted: false, is_active: true },
+      orderBy: { display_order: 'asc' },
+      include: {
+        menu_items: {
+          where: { is_deleted: false, is_available: true, is_active: true },
+          orderBy: { display_order: 'asc' },
+          select: {
+            id: true, name: true, description: true, base_price: true,
+            food_type: true, image_url: true, is_bestseller: true,
+            kitchen_station: true,
+          },
+        },
+      },
+    });
+
+    // Filter out empty categories
+    const nonEmpty = categories.filter(c => c.menu_items.length > 0);
+
+    return { outlet, categories: nonEmpty };
+  } catch (error) {
+    if (error instanceof NotFoundError) throw error;
+    logger.error('Get outlet menu failed', { error: error.message });
+    throw error;
+  }
+}
+
 module.exports = {
   createCategory, listCategories, updateCategory, deleteCategory, reorderCategories,
   createMenuItem, listMenuItems, getMenuItem, updateMenuItem, deleteMenuItem,
@@ -657,4 +699,5 @@ module.exports = {
   bulkPriceUpdate, bulkAvailability, setOutletOverride,
   createSchedule, deleteSchedule,
   createCombo, listCombos,
+  getOutletMenu,
 };

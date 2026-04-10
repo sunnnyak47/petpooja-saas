@@ -21,6 +21,8 @@ import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import RunningOrdersPage from './pages/RunningOrdersPage';
 import AuditLogPage from './pages/AuditLogPage';
+import CustomerOrderPage from './pages/CustomerOrderPage';
+import QRCodesPage from './pages/QRCodesPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
@@ -47,6 +49,9 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       
+      {/* PUBLIC: Customer ordering page — accessed via QR code scan */}
+      <Route path="/order" element={<CustomerOrderPage />} />
+      
       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         {/* The Home page acts as an intelligent traffic officer */}
         <Route index element={<HomeRedirect />} />
@@ -69,6 +74,7 @@ export default function App() {
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="integrations/tally" element={<TallySync />} />
         <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="qr-codes" element={<QRCodesPage />} />
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />
