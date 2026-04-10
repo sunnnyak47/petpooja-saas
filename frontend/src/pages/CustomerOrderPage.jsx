@@ -168,7 +168,7 @@ export default function CustomerOrderPage() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500 font-medium">Table</span>
-              <span className="text-sm text-gray-900 font-black">T-{lastOrder?.table_number || '--'}</span>
+              <span className="text-sm text-gray-900 font-black">{lastOrder?.table?.table_number ? `T-${lastOrder.table.table_number}` : '---'}</span>
             </div>
             <div className="flex justify-between items-center pt-3 border-t border-gray-200/50">
               <span className="text-base text-gray-900 font-bold">Total Paid</span>
