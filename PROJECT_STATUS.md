@@ -93,11 +93,13 @@ ORM: Prisma
 Tables that EXIST (found in schema.prisma):
 Role, Permission, RolePermission, HeadOffice, Subscription, Outlet, User, UserRole, OutletSetting, AuditLog, MenuCategory, MenuItem, ItemVariant, AddonGroup, ItemAddon, ItemCombo, ComboItem, MenuSchedule, OutletMenuOverride, TableArea, Table, Order, OrderItem, OrderItemAddon, OrderStatusHistory, KOT, KOTItem, TableReservation, InventoryItem, InventoryStock, StockTransaction, WastageLog, Supplier, Customer, LoyaltyTransaction, Recipe, RecipeIngredient, PurchaseOrder, POItem, GoodsReceivedNote, GRNItem, StaffProfile, StaffShift, AttendanceLog, StaffPermission, PaymentMethod, Payment, TaxConfig, InvoiceSequence, ReportsCache, DailySummary, FranchiseConfig, CentralKitchenIndent, TallyMapping, Campaign, CampaignLog, Discount
 
+Note: Schema is also managed via raw SQL in `backend/src/database/schema.sql`.
+
 Tables that NEED ADDING:
 - AnalyticsCache (for faster report generation)
 - OfflineSyncLog (for offline-to-online reconciliation)
 
-Last migration: Check `backend/prisma/migrations` folder.
+Last sync: Latest schema push on 2026-04-13.
 
 ---
 
@@ -211,7 +213,7 @@ What was tried:
 3. Implemented Web Audio API + AudioContext unlocking in Dashboard.
 
 What needs to happen next:
-Verifying the fix on live deployment. Staff must interact with the dashboard once (any click) to "unlock" the audio for the first order alert chime.
+Testing the persistence system (MISSION complete). Verifying the QR order flow fix on live deployment. Staff must interact with the dashboard once (any click) to "unlock" the audio for the first order alert chime.
 
 ---
 
