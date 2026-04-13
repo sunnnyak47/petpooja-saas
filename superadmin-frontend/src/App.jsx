@@ -35,6 +35,16 @@ export default function App() {
   });
   const [verifying, setVerifying] = useState(!!localStorage.getItem('sa_token'));
 
+  // ENFORCE DOMAIN: Secure deployment to specific domain only
+  useEffect(() => {
+    const isProd = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+    const officialDomain = 'petpooja-admin.vercel.app';
+    if (isProd && window.location.hostname !== officialDomain) {
+      console.warn(`Redirecting to official domain: ${officialDomain}`);
+      window.location.replace(`https://${officialDomain}${window.location.pathname}${window.location.search}`);
+    }
+  }, []);
+
   // Verify token on mount
   useEffect(() => {
     const token = localStorage.getItem('sa_token');

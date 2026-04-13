@@ -7,7 +7,10 @@ import {
   ArrowRight, ArrowLeft, Upload, Scissors
 } from 'lucide-react';
 
+import useBranding from '../../hooks/useBranding';
+
 export default function OwnerWizard({ headOffice }) {
+  const { branding } = useBranding();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     logo_url: headOffice?.logo_url || '',
@@ -22,7 +25,7 @@ export default function OwnerWizard({ headOffice }) {
     mutationFn: (data) => api.patch('/ho/setup-complete', data),
     onSuccess: () => {
       queryClient.invalidateQueries(['auth-user']);
-      toast.success('Your Petpooja ERP is ready! Go Live!');
+      toast.success(`Your ${branding.platform_name} is ready! Go Live!`);
       window.location.reload(); // Refresh to clear wizard overlay
     }
   });
@@ -41,7 +44,7 @@ export default function OwnerWizard({ headOffice }) {
                <Rocket size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Welcome to Petpooja!</h1>
+              <h1 className="text-xl font-bold text-slate-900">Welcome to {branding.platform_name}!</h1>
               <p className="text-sm text-slate-500 font-medium">Let's set up your {headOffice.name} workspace</p>
             </div>
           </div>

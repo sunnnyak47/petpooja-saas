@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-import { AlertCircle, CreditCard, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import useBranding from '../../hooks/useBranding';
 
 export default function DunningBanner({ user }) {
+  const { branding } = useBranding();
   const [visible, setVisible] = useState(true);
   
   if (!user?.expires_at || !visible) return null;
@@ -25,7 +24,7 @@ export default function DunningBanner({ user }) {
         <p className="text-sm font-bold">
           {isExpired 
             ? "SUBSCRIPTION EXPIRED! Your POS is locked. Please renew immediately to continue sales." 
-            : `Your trial expires in ${diffDays} days. Upgrade now to keep using Petpooja Premium.`}
+            : `Your trial expires in ${diffDays} days. Upgrade now to keep using ${branding.platform_name} Premium.`}
         </p>
       </div>
 

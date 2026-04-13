@@ -307,6 +307,24 @@ const superadminService = {
     return result;
   },
 
+  async getPublicSystemConfig() {
+    const publicKeys = ['platform_name', 'support_whatsapp', 'support_email', 'restaurant_app_url'];
+    const configs = await prisma.systemConfig.findMany({
+      where: { key: { in: publicKeys } }
+    });
+    
+    // Default values if not set
+    const result = {
+      platform_name: 'Petpooja ERP',
+      support_whatsapp: '+91 9999999999',
+      support_email: 'support@petpooja.com',
+      restaurant_app_url: 'petpooja-saas.vercel.app'
+    };
+
+    configs.forEach(c => { result[c.key] = c.value; });
+    return result;
+  },
+
   async updateSystemConfig(settings) {
     const updates = Object.entries(settings).map(([key, value]) => 
       prisma.systemConfig.upsert({
@@ -623,6 +641,23 @@ const superadminService = {
     } catch {
       return [];
     }
+  },
+
+  /**
+   * Helper to get common branding settings for other services
+   */
+  async getBranding() {
+    const keys = ['platform_name', 'support_email', 'restaurant_app_url'];
+    const configs = await prisma.systemConfig.findMany({
+      where: { key: { in: keys } }
+    });
+    const res = {
+      platform_name: 'Petpooja ERP',
+      support_email: 'support@petpooja.com',
+      restaurant_app_url: 'petpooja-saas.vercel.app'
+    };
+    configs.forEach(c => { res[c.key] = c.value; });
+    return res;
   }
 };
 

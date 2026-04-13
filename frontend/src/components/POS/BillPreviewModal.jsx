@@ -1,8 +1,9 @@
-import React from 'react';
 import Modal from '../Modal';
 import { Printer, Share2, ClipboardCheck, X } from 'lucide-react';
+import useBranding from '../../hooks/useBranding';
 
 export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
+  const { branding } = useBranding();
   if (!order) return null;
 
   const formatDate = (date) => new Date(date).toLocaleString();
@@ -13,7 +14,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
         {/* Receipt Styled Content */}
         <div className="flex-1 bg-white text-gray-900 p-8 rounded-xl shadow-inner overflow-y-auto mb-4 font-mono text-sm leading-tight">
           <div className="text-center mb-6">
-            <h2 className="text-xl font-bold uppercase tracking-widest">{order.outlet?.name || 'Petpooja Restaurant'}</h2>
+            <h2 className="text-xl font-bold uppercase tracking-widest">{order.outlet?.name || `${branding.platform_name} Restaurant`}</h2>
             <p className="text-[10px] mt-1">{order.outlet?.address || '123 Food Street, Main City'}</p>
             <p className="text-[10px]">GSTIN: {order.outlet?.gstin || '24AAAAA0000A1Z5'}</p>
             <div className="border-t border-dashed border-gray-300 my-4"></div>
@@ -79,7 +80,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
           <div className="mt-8 text-center text-[10px] space-y-1">
             <p className="font-bold uppercase tracking-widest italic">Thank You! Visit Again</p>
             <p>Order #{order.order_number}</p>
-            <p>Powered by Petpooja SaaS ERP</p>
+            <p>Powered by {branding.platform_name}</p>
           </div>
         </div>
 

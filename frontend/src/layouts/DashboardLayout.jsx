@@ -39,7 +39,10 @@ const ownerNav = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
+import useBranding from '../hooks/useBranding';
+
 export default function DashboardLayout() {
+  const { branding, getPlatformInitial } = useBranding();
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -145,11 +148,15 @@ export default function DashboardLayout() {
           <div className="h-16 flex items-center justify-between px-4 border-b border-surface-700/50">
             {!collapsed && (
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm">P</div>
-                <span className="font-bold text-lg bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent">Petpooja</span>
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm uppercase">
+                  {getPlatformInitial()}
+                </div>
+                <span className="font-bold text-lg bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent truncate max-w-[140px]">
+                  {branding.platform_name}
+                </span>
               </div>
             )}
-            {collapsed && <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm mx-auto">P</div>}
+            {collapsed && <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm mx-auto uppercase">{getPlatformInitial()}</div>}
             <button onClick={() => setCollapsed(!collapsed)} className="p-1 hover:bg-surface-700 rounded-lg transition-colors" id="toggle-sidebar">
               <ChevronLeft className={`w-4 h-4 text-surface-400 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
             </button>

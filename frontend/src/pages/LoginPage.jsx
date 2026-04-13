@@ -1,12 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { loginSuccess, setLoading } from '../store/slices/authSlice';
-import api from '../lib/api';
-import toast from 'react-hot-toast';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import useBranding from '../hooks/useBranding';
 
 export default function LoginPage() {
+  const { branding, getPlatformInitial } = useBranding();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -43,10 +38,10 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md mx-4 animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-glow">
-            P
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-glow uppercase">
+            {getPlatformInitial()}
           </div>
-          <h1 className="text-3xl font-bold text-white">Petpooja ERP</h1>
+          <h1 className="text-3xl font-bold text-white">{branding.platform_name}</h1>
           <p className="text-surface-400 mt-1">Restaurant Management System</p>
         </div>
 

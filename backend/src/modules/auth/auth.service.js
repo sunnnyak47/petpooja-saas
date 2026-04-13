@@ -559,7 +559,12 @@ async function initiateEmailReset(email) {
     });
 
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-    await mailService.sendPasswordResetEmail(email, resetLink);
+    
+    // Fetch current branding for email
+    const superadminService = require('../superadmin/superadmin.service');
+    const branding = await superadminService.getBranding();
+    
+    await mailService.sendPasswordResetEmail(email, resetLink, branding.platform_name);
 
     return { message: 'If this email is registered, you will receive a reset link shortly' };
   } catch (error) {

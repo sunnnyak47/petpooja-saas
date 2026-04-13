@@ -17,6 +17,7 @@ Working & Deployed:
 ✅ Auth (JWT + Refresh + RBAC + Email Password Reset)
 ✅ Superadmin Recovery (Verified on sunnnyt71@gmail.com)
 ✅ Dashboard (Live sales, orders, and stats)
+✅ Dynamic Platform Branding (Global config live across all panels)
 ✅ Menu Management (Categories, Items, Variants, Addons, S3 Images)
 ✅ POS Terminal (Cart, Billing, Payment processing)
 ✅ Running Orders (Order tracking, Table management)
@@ -127,6 +128,7 @@ QR Order routes:
 SuperAdmin routes:
 - GET /api/superadmin/dashboard
 - POST /api/superadmin/restaurants/onboard
+- GET /api/superadmin/config/public (Public Branding Info)
 
 ---
 
@@ -197,7 +199,7 @@ ORDERS:
 
 ## 🔄 CURRENT ACTIVE PROBLEM
 
-None. Recent issue with "Reject Order" failure resolved by migrating to a strict soft-delete architecture.
+None. Platform Branding issue resolved; the system now dynamically fetches and applies branding (Name, Logo Initial, Support) across all frontends.
 
 ---
 

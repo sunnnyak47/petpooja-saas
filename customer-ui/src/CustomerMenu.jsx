@@ -26,6 +26,7 @@ const CustomerMenu = () => {
   const [outlet, setOutlet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [branding, setBranding] = useState({ platform_name: 'Petpooja ERP' });
   
   // 3. UI State
   const [activeCategory, setActiveCategory] = useState(null);
@@ -45,7 +46,20 @@ const CustomerMenu = () => {
     setTableId(urlTable);
     
     fetchMenu(urlOutlet);
+    fetchBranding();
   }, []);
+
+  const fetchBranding = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/superadmin/config/public`);
+      const data = await res.json();
+      if (data.success) {
+        setBranding(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch branding:', err);
+    }
+  };
 
   const fetchMenu = async (id) => {
     try {
@@ -152,14 +166,14 @@ const CustomerMenu = () => {
       <header className="sticky top-0 z-30 bg-white px-4 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{outlet?.name || 'Petpooja Restaurant'}</h1>
+            <h1 className="text-xl font-bold text-gray-900">{outlet?.name || `${branding.platform_name} Restaurant`}</h1>
             <div className="flex items-center gap-1 text-sm text-gray-500">
               <Navigation size={12} className="text-primary-500" />
               <span>Table {tableId ? 'Occupied' : 'Default'}</span>
             </div>
           </div>
-          <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 font-bold">
-            {outlet?.name?.charAt(0) || 'P'}
+          <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 font-bold uppercase">
+            {outlet?.name?.charAt(0) || branding.platform_name?.charAt(0) || 'P'}
           </div>
         </div>
       </header>

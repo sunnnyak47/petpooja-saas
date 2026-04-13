@@ -13,8 +13,10 @@ import {
   ExternalLink, Copy, ChevronRight, ScanLine, Smartphone
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useBranding from '../hooks/useBranding';
 
 export default function QRCodesPage() {
+  const { branding } = useBranding();
   const { user } = useSelector(s => s.auth);
   const outletId = user?.outlet_id;
   const [selectedTable, setSelectedTable] = useState(null);
@@ -62,7 +64,7 @@ export default function QRCodesPage() {
       ctx.fillStyle = '#111827';
       ctx.font = 'bold 28px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(user?.outlet?.name || 'Petpooja Restaurant', 400, 60);
+      ctx.fillText(user?.outlet?.name || `${branding.platform_name} Restaurant`, 400, 60);
 
       // QR code centered
       ctx.drawImage(img, 150, 100, 500, 500);
@@ -81,7 +83,7 @@ export default function QRCodesPage() {
       // Branding
       ctx.fillStyle = '#d1d5db';
       ctx.font = '16px Inter, system-ui, sans-serif';
-      ctx.fillText('Powered by Petpooja', 400, 960);
+      ctx.fillText(`Powered by ${branding.platform_name}`, 400, 960);
 
       const link = document.createElement('a');
       link.download = `QR-Table-${selectedTable.table_number}.png`;

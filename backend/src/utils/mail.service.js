@@ -10,15 +10,16 @@ const logger = require('../config/logger');
  * Sends a password reset email.
  * @param {string} email - Recipient email
  * @param {string} resetLink - Link with reset token
+ * @param {string} platformName - Current platform branding name
  * @returns {Promise<void>}
  */
-async function sendPasswordResetEmail(email, resetLink) {
+async function sendPasswordResetEmail(email, resetLink, platformName = 'Petpooja ERP') {
   try {
     // In production, this would use a transporter like Nodemailer with SendGrid/SMTP
     logger.info('📧 MOCK EMAIL SENT:', {
       to: email,
-      subject: 'Reset Your Petpooja ERP Password',
-      content: `Use the following link to reset your password: ${resetLink}`,
+      subject: `Reset Your ${platformName} Password`,
+      content: `Use the following link to reset your ${platformName} password: ${resetLink}`,
       timestamp: new Date().toISOString()
     });
 
