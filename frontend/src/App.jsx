@@ -24,6 +24,8 @@ import AuditLogPage from './pages/AuditLogPage';
 import TableQROrdersPage from './pages/TableQROrdersPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import QRCodesPage from './pages/QRCodesPage';
+import CustomerOrderPage from './customer-ui/src/CustomerMenu';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access

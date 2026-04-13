@@ -113,11 +113,11 @@ export default function QRCodesPage() {
         @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head><body>
       <div class="card">
-        <h1>${user?.outlet?.name || 'Petpooja Restaurant'}</h1>
+        <h1>${user?.outlet?.name || `${branding.platform_name} Restaurant`}</h1>
         ${qrRef.current.innerHTML}
         <h2>Table ${selectedTable.table_number}</h2>
         <p>Scan to view menu &amp; order</p>
-        <p class="brand">Powered by Petpooja</p>
+        <p class="brand">Powered by ${branding.platform_name}</p>
       </div>
       <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
       </body></html>

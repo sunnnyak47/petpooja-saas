@@ -10,7 +10,7 @@ export default function useBranding() {
     queryKey: ['public-branding'],
     queryFn: async () => {
       try {
-        const res = await api.get('/superadmin/config/public');
+        const res = await api.get('/auth/branding');
         return res.data;
       } catch (error) {
         console.error('Failed to fetch branding:', error);

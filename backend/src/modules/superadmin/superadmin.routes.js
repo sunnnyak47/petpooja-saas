@@ -6,9 +6,6 @@ const { authenticate, isSuperAdmin } = require('../../middleware/auth.middleware
 /** POST /api/superadmin/login */
 router.post('/login', superadminController.login);
 
-/** GET /api/superadmin/config/public — Public branding info */
-router.get('/config/public', superadminController.getPublicConfig);
-
 /** GET /api/superadmin/verify — Verify token */
 router.get('/verify', authenticate, isSuperAdmin, superadminController.verifyToken);
 

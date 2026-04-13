@@ -21,6 +21,12 @@ const {
 } = require('./auth.validation');
 
 /**
+ * GET /api/auth/branding
+ * Public — Fetch platform branding
+ */
+router.get('/branding', authController.getBranding);
+
+/**
  * POST /api/auth/register
  * Public (first run) or requires super_admin/owner role
  */

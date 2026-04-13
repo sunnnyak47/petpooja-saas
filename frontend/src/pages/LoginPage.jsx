@@ -58,7 +58,7 @@ export default function LoginPage() {
                 id="login-email"
                 type="text"
                 className="input"
-                placeholder="admin@petpooja.com or 9999999999"
+                placeholder={`admin@${branding.platform_name.toLowerCase().replace(/\s+/g, '')}.com or 9999999999`}
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
                 autoFocus
@@ -111,14 +111,14 @@ export default function LoginPage() {
           <div className="mt-6 p-3 bg-surface-700/30 rounded-xl">
             <p className="text-xs text-surface-500 font-medium mb-2">Demo Credentials</p>
             <div className="text-xs text-surface-400 space-y-1 font-mono">
-              <p>Email: admin@petpooja.com</p>
+              <p>Email: admin@demo.com</p>
               <p>Password: Admin@12345</p>
             </div>
           </div>
         </div>
 
         <p className="text-center text-xs text-surface-600 mt-6">
-          © 2026 Petpooja ERP — Powering 100,000+ Restaurants
+          © 2026 {branding.platform_name} — Powering Thousands of Restaurants
         </p>
       </div>
     </div>

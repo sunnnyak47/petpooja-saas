@@ -4,6 +4,7 @@
  */
 
 const authService = require('./auth.service');
+const superadminService = require('../superadmin/superadmin.service');
 const { sendSuccess, sendCreated, sendError } = require('../../utils/response');
 const logger = require('../../config/logger');
 
@@ -18,6 +19,18 @@ async function register(req, res, next) {
     const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent'), performed_by: req.user?.id };
     const user = await authService.register(req.body, auditInfo);
     sendCreated(res, user, 'User registered successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/auth/branding — Fetch public platform branding.
+ */
+async function getBranding(req, res, next) {
+  try {
+    const config = await superadminService.getPublicSystemConfig();
+    sendSuccess(res, config, 'Public platform branding retrieved');
   } catch (error) {
     next(error);
   }
@@ -168,6 +181,7 @@ module.exports = {
   verifyOtp, 
   resetPassword, 
   getMe,
+  getBranding,
   forgotPasswordEmail,
   resetPasswordToken
 };
