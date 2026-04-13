@@ -1,5 +1,5 @@
 # 🚀 PETPOOJA ERP — PROJECT STATUS
-# Last Updated: 2026-04-13 14:15:00 IST
+# Last Updated: 2026-04-13 17:55:00 IST
 # Updated by: Antigravity Agent
 # 
 # READ THIS FIRST before doing anything.
@@ -199,21 +199,25 @@ ORDERS:
 ## 🔄 CURRENT ACTIVE PROBLEM
 
 Problem description:
-QR orders were being "auto-accepted" (appearing in KDS before staff approved them). Also, staff reported missing notification sounds on the POS when orders arrived.
+Previous fixes were applied to `frontend/src/pages/CustomerOrderPage.jsx` but the REAL customer-facing app lives in `customer-ui/src/CustomerMenu.jsx` (a separate Vite app). This meant the success screen still showed "Order Placed! 🎉 Your food is being prepared." Additionally, dashboard stats were counting `pending` QR orders in revenue.
 
 Files involved:
-- `backend/src/modules/online-orders/online-order.service.js`
-- `backend/src/modules/orders/order.service.js`
-- `frontend/src/components/POS/IncomingOrderAlert.jsx` (Sound logic)
-- `frontend/src/layouts/DashboardLayout.jsx` (AudioContext unlock)
+- `customer-ui/src/CustomerMenu.jsx` (THE actual customer QR app)
+- `frontend/src/pages/TableQROrdersPage.jsx` (NEW dedicated management page)
+- `backend/src/modules/reports/reports.service.js` (dashboard stats query)
+- `frontend/src/layouts/DashboardLayout.jsx` (sidebar nav)
+- `frontend/src/App.jsx` (router)
 
 What was tried:
-1. Updated `pending` status enforcement in backend.
-2. Added `generateKOT` block for pending orders.
-3. Implemented Web Audio API + AudioContext unlocking in Dashboard.
+1. Fixed the REAL customer-ui success screen (was targeting wrong file before).
+2. Created dedicated "Table QR Orders" sidebar page with accept/reject + sound alerts.
+3. Excluded `pending` orders from dashboard revenue/order stats.
+4. Changed customer button from "Place Order & Punch KOT" to "Submit Order".
 
 What needs to happen next:
-Testing the persistence system (MISSION complete). Verifying the QR order flow fix on live deployment. Staff must interact with the dashboard once (any click) to "unlock" the audio for the first order alert chime.
+1. Verify customer-ui is redeployed (if it's a separate Vercel project, it needs its own deploy).
+2. Test the new "Table QR Orders" page in the POS sidebar.
+3. If customer-ui has its own Vercel deployment, ensure it auto-deploys from the same repo.
 
 ---
 
