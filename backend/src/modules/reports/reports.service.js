@@ -200,7 +200,7 @@ async function getDashboard(outletId) {
         where: {
           outlet_id: outletId, is_deleted: false,
           created_at: { gte: today, lt: tomorrow },
-          status: { notIn: ['cancelled', 'voided'] },
+          status: { notIn: ['cancelled', 'voided', 'pending'] },
         },
       }),
       prisma.order.findMany({

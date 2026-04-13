@@ -23,6 +23,7 @@ import RunningOrdersPage from './pages/RunningOrdersPage';
 import AuditLogPage from './pages/AuditLogPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
 import QRCodesPage from './pages/QRCodesPage';
+import TableQROrdersPage from './pages/TableQROrdersPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="integrations/tally" element={<TallySync />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="qr-codes" element={<QRCodesPage />} />
+        <Route path="qr-orders" element={<TableQROrdersPage />} />
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />

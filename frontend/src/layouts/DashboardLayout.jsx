@@ -6,7 +6,7 @@ import { logout } from '../store/slices/authSlice';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
-  ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock, QrCode
+  ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock, QrCode, BellRing
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -28,6 +28,7 @@ const ownerNav = [
   { path: '/kitchen', label: 'Kitchen (KDS)', icon: ChefHat },
   { path: '/menu', label: 'Menu List', icon: UtensilsCrossed },
   { path: '/qr-codes', label: 'QR Codes', icon: QrCode },
+  { path: '/qr-orders', label: 'Table QR Orders', icon: BellRing, isLive: true },
   { path: '/inventory', label: 'Stock Master', icon: Package },
   { path: '/customers', label: 'Customers', icon: Users },
   { path: '/payments', label: 'Payments', icon: CreditCard },
@@ -42,10 +43,10 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [pendingOrders, setPendingOrders] = useState([]); 
+  const [pendingOrders, setPendingOrders] = useState([]);
   const [audioLocked, setAudioLocked] = useState(true);
   const { user, token } = useSelector((s) => s.auth);
-  
+
   // Audio Context persistent across layout for alerts
   const audioCtxRef = useRef(null);
 
@@ -123,18 +124,18 @@ export default function DashboardLayout() {
   return (
     <div className="flex bg-surface-900 text-surface-100 flex-col h-screen overflow-hidden">
       <DunningBanner user={user} />
-      
+
       {/* High Priority Incoming Order Alert */}
       {pendingOrders.length > 0 && (
-        <IncomingOrderAlert 
-          order={pendingOrders[0]} 
+        <IncomingOrderAlert
+          order={pendingOrders[0]}
           audioLocked={audioLocked}
           audioCtx={audioCtxRef.current}
           onAccepted={() => setPendingOrders(prev => prev.slice(1))}
           onRejected={() => setPendingOrders(prev => prev.slice(1))}
         />
       )}
-      
+
       <div className="flex flex-1 overflow-hidden">
         {showWizard && <OwnerWizard headOffice={user.head_office} />}
 
@@ -167,7 +168,7 @@ export default function DashboardLayout() {
                     ? 'bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10'
                     : 'text-surface-400 hover:text-white hover:bg-surface-700/50'}`
                 }
-                id={`nav-${label.toLowerCase().replace(/\s+/g,'-')}`}
+                id={`nav-${label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 <div className="relative flex-shrink-0">
                   <Icon className="w-5 h-5" />

@@ -345,7 +345,7 @@ const CustomerMenu = () => {
                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                   ) : (
                     <>
-                      <span>Place Order & Punch KOT</span>
+                      <span>Submit Order</span>
                       <ChevronRight size={20} />
                     </>
                   )}
@@ -370,21 +370,30 @@ const CustomerMenu = () => {
                transition={{ delay: 0.2 }}
             >
               <div className="mb-6 flex justify-center">
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-green-100 text-green-600">
-                  <CheckCircle2 size={56} />
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+                  <Clock size={56} />
                 </div>
               </div>
-              <h2 className="mb-2 text-3xl font-extrabold text-gray-900">Order Placed! 🎉</h2>
-              <p className="mb-8 text-gray-500">Your delicious food is being prepared in the kitchen. Relax and enjoy!</p>
+              <h2 className="mb-2 text-3xl font-extrabold text-gray-900">Order Sent! ⏳</h2>
+              <p className="mb-8 text-gray-500">Waiting for the restaurant to confirm your order. Please stay seated.</p>
               
               <div className="space-y-4 rounded-3xl bg-gray-50 p-6">
                 <div className="flex items-center gap-4 text-left">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm text-primary-500">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm text-orange-500">
                     <Clock size={24} />
                   </div>
                   <div>
-                    <span className="block text-xs font-bold uppercase text-gray-400">Est. Time</span>
-                    <span className="font-bold text-gray-800">15-20 Minutes</span>
+                    <span className="block text-xs font-bold uppercase text-gray-400">Submitted At</span>
+                    <span className="font-bold text-gray-800">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-left">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm text-primary-500">
+                    <Navigation size={24} />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold uppercase text-gray-400">Status</span>
+                    <span className="font-bold text-orange-600">⏳ Waiting for Confirmation</span>
                   </div>
                 </div>
               </div>
