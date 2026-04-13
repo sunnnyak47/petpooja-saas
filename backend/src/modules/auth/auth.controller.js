@@ -137,6 +137,10 @@ async function resetPassword(req, res, next) {
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
  */
+async function getMe(req, res, next) {
+  try {
+    sendSuccess(res, { user: req.user }, 'User profile retrieved');
+  } catch (error) {
     next(error);
   }
 }
