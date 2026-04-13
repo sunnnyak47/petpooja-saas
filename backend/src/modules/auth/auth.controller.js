@@ -124,13 +124,50 @@ async function resetPassword(req, res, next) {
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
  */
-async function getMe(req, res, next) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/forgot-password-email — Initiate password reset via email.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+async function forgotPasswordEmail(req, res, next) {
   try {
-    const user = await authService.getCurrentUser(req.user.id);
-    sendSuccess(res, user, 'User profile retrieved');
+    const result = await authService.initiateEmailReset(req.body.email);
+    sendSuccess(res, result, result.message);
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { register, login, refreshToken, logout, forgotPassword, verifyOtp, resetPassword, getMe };
+/**
+ * POST /api/auth/reset-password-token — Reset password using email token.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+async function resetPasswordToken(req, res, next) {
+  try {
+    const { token, new_password } = req.body;
+    const result = await authService.resetPasswordByToken(token, new_password);
+    sendSuccess(res, result, result.message);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { 
+  register, 
+  login, 
+  refreshToken, 
+  logout, 
+  forgotPassword, 
+  verifyOtp, 
+  resetPassword, 
+  getMe,
+  forgotPasswordEmail,
+  resetPasswordToken
+};

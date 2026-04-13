@@ -21,9 +21,9 @@ import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import RunningOrdersPage from './pages/RunningOrdersPage';
 import AuditLogPage from './pages/AuditLogPage';
-import CustomerOrderPage from './pages/CustomerOrderPage';
-import QRCodesPage from './pages/QRCodesPage';
 import TableQROrdersPage from './pages/TableQROrdersPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 
 // Simple check for access
@@ -49,6 +49,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       
       {/* PUBLIC: Customer ordering page — accessed via QR code scan */}
       <Route path="/order" element={<CustomerOrderPage />} />

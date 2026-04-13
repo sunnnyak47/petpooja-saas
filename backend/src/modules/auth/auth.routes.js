@@ -16,6 +16,8 @@ const {
   forgotPasswordSchema,
   verifyOtpSchema,
   resetPasswordSchema,
+  forgotPasswordEmailSchema,
+  resetPasswordTokenSchema,
 } = require('./auth.validation');
 
 /**
@@ -59,6 +61,18 @@ router.post('/verify-otp', authLimiter, validate(verifyOtpSchema), authControlle
  * Public — resets password with valid OTP
  */
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), authController.resetPassword);
+
+/**
+ * POST /api/auth/forgot-password-email
+ * Public — sends reset link to email
+ */
+router.post('/forgot-password-email', authLimiter, validate(forgotPasswordEmailSchema), authController.forgotPasswordEmail);
+
+/**
+ * POST /api/auth/reset-password-token
+ * Public — resets password with valid email token
+ */
+router.post('/reset-password-token', authLimiter, validate(resetPasswordTokenSchema), authController.resetPasswordToken);
 
 /**
  * GET /api/auth/me

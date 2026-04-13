@@ -745,30 +745,60 @@ async function cancelOrder(orderId, reason, staffId) {
           },
         });
       } else {
-        // CASE B: No bill generated -> REMOVE FULLY as requested
-        // 1. Delete KOT Items
+        // CASE B: No bill generated -> SOFT DELETE FULLY (as per constitution)
+        // 1. Soft Delete KOT Items
         const kotIds = order.kots.map(k => k.id);
         if (kotIds.length > 0) {
-          await tx.kOTItem.deleteMany({ where: { kot_id: { in: kotIds } } });
+          await tx.kOTItem.updateMany({ 
+            where: { kot_id: { in: kotIds } },
+            data: { is_deleted: true }
+          });
         }
         
-        // 2. Delete KOTs
-        await tx.kOT.deleteMany({ where: { order_id: orderId } });
+        // 2. Soft Delete KOTs
+        await tx.kOT.updateMany({ 
+          where: { order_id: orderId },
+          data: { is_deleted: true }
+        });
 
-        // 3. Delete Order Item Addons
+        // 3. Soft Delete Order Item Addons
         const orderItemIds = order.order_items.map(oi => oi.id);
         if (orderItemIds.length > 0) {
-          await tx.orderItemAddon.deleteMany({ where: { order_item_id: { in: orderItemIds } } });
+          await tx.orderItemAddon.updateMany({ 
+            where: { order_item_id: { in: orderItemIds } },
+            data: { is_deleted: true }
+          });
         }
 
-        // 4. Delete Order Items
-        await tx.orderItem.deleteMany({ where: { order_id: orderId } });
+        // 4. Soft Delete Order Items
+        await tx.orderItem.updateMany({ 
+          where: { order_id: orderId },
+          data: { is_deleted: true }
+        });
 
-        // 5. Delete Status History
-        await tx.orderStatusHistory.deleteMany({ where: { order_id: orderId } });
+        // 5. Soft Delete Status History
+        await tx.orderStatusHistory.updateMany({ 
+          where: { order_id: orderId },
+          data: { is_deleted: true }
+        });
 
-        // 6. Delete the Order itself
-        await tx.order.delete({ where: { id: orderId } });
+        // 6. Soft Delete Loyalty Transactions
+        await tx.loyaltyTransaction.updateMany({
+          where: { order_id: orderId },
+          data: { is_deleted: true }
+        });
+
+        // 7. Soft Delete the Order itself
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'cancelled',
+            is_deleted: true,
+            cancelled_at: new Date(),
+            cancelled_by: staffId,
+            cancel_reason: reason,
+          },
+        });
       }
 
       // Always free the table

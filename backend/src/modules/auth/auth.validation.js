@@ -59,9 +59,22 @@ const verifyOtpSchema = Joi.object({
 /**
  * Schema for password reset.
  */
-const resetPasswordSchema = Joi.object({
-  phone: Joi.string().trim().pattern(phoneRegex).required(),
-  otp: Joi.string().length(6).pattern(/^\d+$/).required(),
+  new_password: Joi.string().pattern(passwordRegex).required()
+    .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),
+});
+
+/**
+ * Schema for forgot password (email request).
+ */
+const forgotPasswordEmailSchema = Joi.object({
+  email: Joi.string().trim().lowercase().email().required(),
+});
+
+/**
+ * Schema for password reset (via token).
+ */
+const resetPasswordTokenSchema = Joi.object({
+  token: Joi.string().required(),
   new_password: Joi.string().pattern(passwordRegex).required()
     .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),
 });
@@ -73,4 +86,6 @@ module.exports = {
   forgotPasswordSchema,
   verifyOtpSchema,
   resetPasswordSchema,
+  forgotPasswordEmailSchema,
+  resetPasswordTokenSchema,
 };

@@ -59,7 +59,7 @@ async function rejectOrder(req, res, next) {
     }
     
     const { outlet_id } = req.user;
-    await onlineOrderService.rejectCustomerOrder(id, outlet_id);
+    await onlineOrderService.rejectCustomerOrder(id, outlet_id, req.user.id);
     sendSuccess(res, null, 'Order rejected and table released');
   } catch (error) { next(error); }
 }

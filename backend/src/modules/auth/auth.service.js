@@ -6,8 +6,10 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const { getDbClient } = require('../../config/database');
 const { getRedisClient } = require('../../config/redis');
+const mailService = require('../../utils/mail.service');
 const appConfig = require('../../config/app');
 const logger = require('../../config/logger');
 const {
@@ -132,10 +134,12 @@ async function login(login, password, auditInfo = {}) {
     }
 
     const isEmail = login.includes('@');
+    const loginIdentifier = isEmail ? login.toLowerCase() : login;
+    
     const startDb = Date.now();
     const user = await prisma.user.findFirst({
       where: {
-        ...(isEmail ? { email: login } : { phone: login }),
+        ...(isEmail ? { email: loginIdentifier } : { phone: loginIdentifier }),
         is_deleted: false,
       },
       include: {
@@ -525,6 +529,97 @@ async function getCurrentUser(userId) {
   }
 }
 
+/**
+ * Initiates a password reset flow via email.
+ * @param {string} email - User email
+ * @returns {Promise<{message: string}>}
+ */
+async function initiateEmailReset(email) {
+  const prisma = getDbClient();
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: { email, is_deleted: false },
+    });
+
+    if (!user) {
+      // For security, do not disclose if user exists
+      return { message: 'If this email is registered, you will receive a reset link shortly' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // 1 hour from now
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        reset_password_token: token,
+        reset_password_expires: expires,
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    await mailService.sendPasswordResetEmail(email, resetLink);
+
+    return { message: 'If this email is registered, you will receive a reset link shortly' };
+  } catch (error) {
+    logger.error('Initiate email reset failed', { error: error.message, email });
+    throw error;
+  }
+}
+
+/**
+ * Resets user password using a valid email-based reset token.
+ * @param {string} token - 32-char hex token
+ * @param {string} newPassword - New plain text password
+ * @returns {Promise<{message: string}>}
+ */
+async function resetPasswordByToken(token, newPassword) {
+  const prisma = getDbClient();
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        reset_password_token: token,
+        reset_password_expires: { gt: new Date() },
+        is_deleted: false,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestError('Invalid or expired reset token');
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, appConfig.bcrypt.rounds);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        reset_password_token: null,
+        reset_password_expires: null,
+        failed_login_attempts: 0,
+        locked_until: null,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        user_id: user.id,
+        action: 'PASSWORD_RESET_EMAIL',
+        entity_type: 'user',
+        entity_id: user.id,
+      },
+    });
+
+    return { message: 'Password reset successfully. You can now login with your new password.' };
+  } catch (error) {
+    if (error instanceof BadRequestError) throw error;
+    logger.error('Password reset by token failed', { error: error.message });
+    throw error;
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -534,4 +629,6 @@ module.exports = {
   verifyOTP,
   resetPassword,
   getCurrentUser,
+  initiateEmailReset,
+  resetPasswordByToken,
 };

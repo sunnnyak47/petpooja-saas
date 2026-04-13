@@ -53,6 +53,9 @@ model RolePermission {
   permission_id String   @db.Uuid
   created_at    DateTime @default(now()) @db.Timestamptz
 
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
   role       Role       @relation(fields: [role_id], references: [id])
   permission Permission @relation(fields: [permission_id], references: [id])
 
@@ -212,6 +215,8 @@ model User {
   created_at            DateTime  @default(now()) @db.Timestamptz
   updated_at            DateTime  @default(now()) @updatedAt @db.Timestamptz
   is_deleted            Boolean   @default(false)
+  reset_password_token  String?   @unique @db.VarChar(255)
+  reset_password_expires DateTime? @db.Timestamptz
 
   user_roles       UserRole[]
   audit_logs       AuditLog[]
@@ -274,6 +279,9 @@ model AuditLog {
   user_agent  String?
   metadata    Json?
   created_at  DateTime @default(now()) @db.Timestamptz
+
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted  Boolean  @default(false)
 
   user   User?   @relation(fields: [user_id], references: [id])
   outlet Outlet? @relation(fields: [outlet_id], references: [id])
@@ -431,6 +439,9 @@ model ComboItem {
   menu_item_id String   @db.Uuid
   quantity     Int      @default(1)
   created_at   DateTime @default(now()) @db.Timestamptz
+
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted Boolean  @default(false)
 
   combo     ItemCombo @relation(fields: [combo_id], references: [id])
   menu_item MenuItem  @relation(fields: [menu_item_id], references: [id])
@@ -615,6 +626,9 @@ model OrderItemAddon {
   quantity      Int      @default(1)
   created_at    DateTime @default(now()) @db.Timestamptz
 
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean  @default(false)
+
   order_item OrderItem @relation(fields: [order_item_id], references: [id])
   addon      ItemAddon @relation(fields: [addon_id], references: [id])
 
@@ -629,6 +643,9 @@ model OrderStatusHistory {
   changed_by  String?  @db.Uuid
   reason      String?
   created_at  DateTime @default(now()) @db.Timestamptz
+
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted  Boolean  @default(false)
 
   order Order @relation(fields: [order_id], references: [id])
 
@@ -665,6 +682,7 @@ model KOTItem {
   ready_at      DateTime? @db.Timestamptz
   created_at    DateTime  @default(now()) @db.Timestamptz
   updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean   @default(false)
 
   kot        KOT       @relation(fields: [kot_id], references: [id])
   order_item OrderItem @relation(fields: [order_item_id], references: [id])
@@ -754,6 +772,9 @@ model StockTransaction {
   performed_by      String?  @db.Uuid
   created_at        DateTime @default(now()) @db.Timestamptz
 
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
   outlet         Outlet        @relation(fields: [outlet_id], references: [id])
   inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
 
@@ -831,6 +852,9 @@ model POItem {
   total_cost        Decimal? @db.Decimal(12, 2)
   created_at        DateTime @default(now()) @db.Timestamptz
 
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
   purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id])
   inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
 
@@ -866,6 +890,9 @@ model GRNItem {
   quality_status    String   @default("accepted") @db.VarChar(20)
   created_at        DateTime @default(now()) @db.Timestamptz
 
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
+
   grn            GoodsReceivedNote @relation(fields: [grn_id], references: [id])
   inventory_item InventoryItem     @relation(fields: [inventory_item_id], references: [id])
 
@@ -896,6 +923,9 @@ model RecipeIngredient {
   quantity          Decimal  @db.Decimal(12, 3)
   unit              String   @db.VarChar(20)
   created_at        DateTime @default(now()) @db.Timestamptz
+
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted        Boolean  @default(false)
 
   recipe         Recipe        @relation(fields: [recipe_id], references: [id])
   inventory_item InventoryItem @relation(fields: [inventory_item_id], references: [id])
@@ -982,6 +1012,8 @@ model LoyaltyTransaction {
   description   String?
   expires_at    DateTime? @db.Timestamptz
   created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean   @default(false)
 
   customer Customer @relation(fields: [customer_id], references: [id])
   outlet   Outlet   @relation(fields: [outlet_id], references: [id])
@@ -1023,6 +1055,9 @@ model CampaignLog {
   sent_at       DateTime  @default(now()) @db.Timestamptz
   error_message String?
   created_at    DateTime  @default(now()) @db.Timestamptz
+
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted    Boolean   @default(false)
 
   campaign Campaign @relation(fields: [campaign_id], references: [id])
 
@@ -1174,6 +1209,9 @@ model PaymentSplit {
   status         String   @default("success") @db.VarChar(20)
   created_at     DateTime @default(now()) @db.Timestamptz
 
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted     Boolean  @default(false)
+
   payment Payment @relation(fields: [payment_id], references: [id])
 
   @@map("payment_splits")
@@ -1225,6 +1263,9 @@ model ReportsCache {
   generated_at DateTime @default(now()) @db.Timestamptz
   expires_at   DateTime @db.Timestamptz
 
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted   Boolean  @default(false)
+
   outlet Outlet @relation(fields: [outlet_id], references: [id])
 
   @@unique([outlet_id, report_name, params_hash])
@@ -1255,6 +1296,8 @@ model DailySummary {
   refund_amount    Decimal  @default(0) @db.Decimal(10, 2)
   created_at       DateTime @default(now()) @db.Timestamptz
   updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  is_deleted       Boolean  @default(false)
 
   outlet Outlet @relation(fields: [outlet_id], references: [id])
 
@@ -1321,6 +1364,8 @@ model SystemConfig {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   key        String   @unique @db.VarChar(100)
   value      String   @db.Text
+  is_deleted Boolean @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("system_configs")
@@ -1378,6 +1423,9 @@ model DiscountUsage {
   customer_id String?  @db.Uuid
   amount      Decimal  @default(0) @db.Decimal(10, 2)
   created_at  DateTime @default(now()) @db.Timestamptz
+
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted  Boolean  @default(false)
 
   discount Discount @relation(fields: [discount_id], references: [id])
 

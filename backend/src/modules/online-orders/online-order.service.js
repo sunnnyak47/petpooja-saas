@@ -111,37 +111,28 @@ async function acceptCustomerOrder(orderId, outletId, staffId) {
 
 /**
  * Rejects an online order (e.g. fake order).
- * Deletes the order and releases the table.
+ * Cancels the order using core logic (handles related records) and releases the table.
  * @param {string} orderId - Order UUID
  * @param {string} outletId - Outlet UUID
+ * @param {string} staffId - Staff user rejecting the order
  * @returns {Promise<void>}
  */
-async function rejectCustomerOrder(orderId, outletId) {
+async function rejectCustomerOrder(orderId, outletId, staffId) {
   const prisma = getDbClient();
   
+  // 1. Verify order exists and is pending
   const order = await prisma.order.findFirst({
     where: { id: orderId, outlet_id: outletId, is_deleted: false }
   });
   if (!order) throw new NotFoundError('Order not found');
 
-  // Hard delete if it's pending (reduces DB clutter for fake orders)
-  await prisma.order.delete({ where: { id: orderId } });
+  // 2. Use core cancelOrder logic (handles cascading deletes/updates correctly)
+  await orderService.cancelOrder(orderId, 'Rejected by staff (Online Order)', staffId);
 
-  // Update table back to available
-  if (order.table_id) {
-    await prisma.table.update({
-      where: { id: order.table_id },
-      data: { status: 'available', current_order_id: null }
-    });
-  }
-
+  // 3. Notify sockets (clearing the alert on POS)
   const io = getIO();
   if (io) {
     io.of('/orders').to(`outlet:${outletId}`).emit('new_online_order_cleared', { order_id: orderId });
-    io.of('/orders').to(`outlet:${outletId}`).emit('table_status_change', {
-      table_id: order.table_id,
-      status: 'available'
-    });
   }
 }
 
