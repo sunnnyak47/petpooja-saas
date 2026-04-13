@@ -6,6 +6,7 @@
 const onlineOrderService = require('./online-order.service');
 const menuService = require('../menu/menu.service');
 const { sendSuccess } = require('../../utils/response');
+const { UnauthorizedError } = require('../../utils/errors');
 
 /**
  * Retrieves the full menu for an outlet (publicly accessible via QR).
@@ -35,6 +36,11 @@ async function placeOrder(req, res, next) {
 async function acceptOrder(req, res, next) {
   try {
     const { id } = req.params;
+    
+    if (!req.user || !req.user.outlet_id) {
+      throw new UnauthorizedError('Staff authentication session is incomplete. Please re-login.');
+    }
+    
     const { outlet_id } = req.user;
     const order = await onlineOrderService.acceptCustomerOrder(id, outlet_id, req.user.id);
     sendSuccess(res, order, 'Order accepted and sent to kitchen');
@@ -47,6 +53,11 @@ async function acceptOrder(req, res, next) {
 async function rejectOrder(req, res, next) {
   try {
     const { id } = req.params;
+    
+    if (!req.user || !req.user.outlet_id) {
+       throw new UnauthorizedError('Staff authentication session is incomplete. Please re-login.');
+    }
+    
     const { outlet_id } = req.user;
     await onlineOrderService.rejectCustomerOrder(id, outlet_id);
     sendSuccess(res, null, 'Order rejected and table released');

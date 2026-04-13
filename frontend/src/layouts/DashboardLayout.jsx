@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
@@ -42,8 +42,44 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [pendingOrders, setPendingOrders] = useState([]); // Queue forIncomingOrderAlert
+  const [pendingOrders, setPendingOrders] = useState([]); 
+  const [audioLocked, setAudioLocked] = useState(true);
   const { user, token } = useSelector((s) => s.auth);
+  
+  // Audio Context persistent across layout for alerts
+  const audioCtxRef = useRef(null);
+
+  useEffect(() => {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext();
+    }
+
+    const unlock = () => {
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().then(() => {
+          setAudioLocked(false);
+          window.removeEventListener('click', unlock);
+          window.removeEventListener('keydown', unlock);
+          window.removeEventListener('touchstart', unlock);
+        });
+      } else {
+        setAudioLocked(false);
+      }
+    };
+
+    window.addEventListener('click', unlock);
+    window.addEventListener('keydown', unlock);
+    window.addEventListener('touchstart', unlock);
+
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
 
   const navItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
 
@@ -92,6 +128,8 @@ export default function DashboardLayout() {
       {pendingOrders.length > 0 && (
         <IncomingOrderAlert 
           order={pendingOrders[0]} 
+          audioLocked={audioLocked}
+          audioCtx={audioCtxRef.current}
           onAccepted={() => setPendingOrders(prev => prev.slice(1))}
           onRejected={() => setPendingOrders(prev => prev.slice(1))}
         />

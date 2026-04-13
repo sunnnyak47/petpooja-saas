@@ -445,6 +445,9 @@ async function generateKOT(orderId) {
       },
     });
     if (!order) throw new NotFoundError('Order not found');
+    if (order.status === 'pending') {
+      throw new BadRequestError('Cannot generate KOT for a pending online order. Please accept the order first.');
+    }
 
     const unsentItems = order.order_items;
     if (unsentItems.length === 0) {

@@ -6,48 +6,45 @@ import {
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
-export default function IncomingOrderAlert({ order, onAccepted, onRejected }) {
+export default function IncomingOrderAlert({ order, onAccepted, onRejected, audioLocked, audioCtx }) {
   const [loading, setLoading] = useState(false);
   const audioRef = useRef(null);
 
   useEffect(() => {
-    // We use Web Audio API for a reliable, synthesized notification chime
-    // that won't fail to load due to adblockers or broken URLs.
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-
-    const ctx = new AudioContext();
+    if (!audioCtx) return;
+    
     let intervalId;
 
     const playBeep = () => {
-      if (ctx.state === 'suspended') ctx.resume();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      // If the parent didn't unlock it yet, don't try to play here to avoid errors
+      if (audioCtx.state === 'suspended') return;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
-      osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1); // Slide up
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+      osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); 
 
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05); // Fade in
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5); // Fade out
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05); 
+      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5); 
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(audioCtx.destination);
       
       osc.start();
-      osc.stop(ctx.currentTime + 0.5);
+      osc.stop(audioCtx.currentTime + 0.5);
     };
 
-    // Play immediately, then loop every 2 seconds
-    playBeep();
+    // Only set interval if we aren't locked or if we want to try periodically
     intervalId = setInterval(playBeep, 2000);
+    playBeep(); // Try immediate
 
     return () => {
       clearInterval(intervalId);
-      if (ctx.state !== 'closed') ctx.close();
     };
-  }, []);
+  }, [audioCtx, audioLocked]);
 
   const handleAccept = async () => {
     setLoading(true);
@@ -164,6 +161,16 @@ export default function IncomingOrderAlert({ order, onAccepted, onRejected }) {
             </button>
           </div>
 
+          {/* Audio Unlocking Overlay */}
+          {audioLocked && (
+            <div 
+              onClick={() => audioCtx?.resume()}
+              className="absolute inset-x-0 bottom-0 bg-orange-500 text-white py-3 flex items-center justify-center gap-3 cursor-pointer hover:bg-orange-600 transition-colors animate-pulse"
+            >
+              <BellRing className="w-5 h-5 animate-bounce" />
+              <span className="text-sm font-bold uppercase tracking-widest">Tap anywhere to enable sound alerts</span>
+            </div>
+          )}
         </div>
       </div>
 
