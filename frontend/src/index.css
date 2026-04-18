@@ -2,9 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default theme variables — Midnight. ThemeContext overrides these at runtime. */
 :root {
-  --brand-500: #f04438;
-  --brand-600: #d92d20;
+  --bg-primary:     #0f172a;
+  --bg-secondary:   #1e293b;
+  --bg-card:        #1e293b;
+  --bg-hover:       #334155;
+  --border:         #334155;
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --accent:         #6366f1;
+  --accent-hover:   #4f46e5;
+  --accent-text:    #ffffff;
+  --success:        #22c55e;
+  --warning:        #f59e0b;
+  --danger:         #ef4444;
+  --sidebar-bg:     #0f172a;
+  --sidebar-text:   #94a3b8;
+  --sidebar-active: #6366f1;
+  --button-primary: #6366f1;
+  --kot-bg:         #1e293b;
 }
 
 @layer base {

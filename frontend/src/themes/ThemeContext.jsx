@@ -1,36 +1,43 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { themes, DEFAULT_THEME, getTheme } from './themes';
+import { createContext, useContext, useState, useEffect, useLayoutEffect } from 'react';
+import { DEFAULT_THEME, getTheme, themes } from './themes';
 
 const ThemeContext = createContext();
 
+/**
+ * Applies a theme's CSS variables to the document root immediately.
+ * @param {string} themeId
+ */
+function applyTheme(themeId) {
+  const theme = getTheme(themeId);
+  if (!theme) return;
+  const root = document.documentElement;
+  Object.entries(theme.colors).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+}
+
 export const ThemeProvider = ({ children }) => {
   const [activeThemeId, setActiveThemeId] = useState(() => {
-    // Try to get from localStorage, fallback to DEFAULT_THEME
     const saved = localStorage.getItem('petpooja_theme');
     return saved || DEFAULT_THEME;
   });
 
-  useEffect(() => {
-    // Apply the active theme colors to the document :root
-    const theme = getTheme(activeThemeId);
-    if (!theme) return;
-
-    const root = document.documentElement;
-    
-    // Apply each color variable to the root element
-    Object.entries(theme.colors).forEach(([key, value]) => {
-      root.style.setProperty(key, value);
-    });
-
-    // Save to localStorage
-    localStorage.setItem('petpooja_theme', activeThemeId);
+  // useLayoutEffect fires synchronously before paint — eliminates flicker
+  useLayoutEffect(() => {
+    applyTheme(activeThemeId);
   }, [activeThemeId]);
+
+  const handleSetTheme = (id) => {
+    setActiveThemeId(id);
+    localStorage.setItem('petpooja_theme', id);
+    applyTheme(id); // Apply immediately without waiting for re-render
+  };
 
   const value = {
     activeThemeId,
-    setActiveThemeId,
+    setActiveThemeId: handleSetTheme,
     activeTheme: getTheme(activeThemeId),
-    themes
+    themes,
   };
 
   return (
@@ -40,6 +47,10 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
+/**
+ * Hook to consume the theme context.
+ * @returns {{ activeThemeId: string, setActiveThemeId: Function, activeTheme: object, themes: object[] }}
+ */
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
