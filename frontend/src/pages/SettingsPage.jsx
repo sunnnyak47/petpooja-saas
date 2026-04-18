@@ -8,7 +8,6 @@ import {
   Save, RotateCcw, ChevronRight, CheckCircle2,
   Store, Barcode, DollarSign
 } from 'lucide-react';
-import { useTheme } from '../themes/ThemeContext';
 import ThemeSelector from '../themes/ThemeSelector';
 
 const SECTIONS = [
@@ -30,7 +29,9 @@ export default function SettingsPage() {
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('general');
-  const { themes, activeThemeId, setActiveThemeId } = useTheme();
+  // ThemeSelector component handles theme switching via its own useTheme hook.
+  // No theme state needed directly in this page.
+
 
   const [settings, setSettings] = useState({
     // General
