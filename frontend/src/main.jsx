@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -20,7 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <BrowserRouter>
+          <HashRouter>
             <App />
             <Toaster
             position="top-right"
@@ -31,7 +31,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               error: { iconTheme: { primary: '#f04438', secondary: '#fff' } },
             }}
           />
-          </BrowserRouter>
+          </HashRouter>
         </ThemeProvider>
       </QueryClientProvider>
     </Provider>
