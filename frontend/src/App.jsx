@@ -27,6 +27,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import QRCodesPage from './pages/QRCodesPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
+import OnlineStatusBar from './components/OnlineStatusBar';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -47,6 +48,7 @@ function HomeRedirect() {
 export default function App() {
   return (
     <>
+    <OnlineStatusBar />
     <OfflineBanner />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
