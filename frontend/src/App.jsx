@@ -28,6 +28,7 @@ import QRCodesPage from './pages/QRCodesPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 import OnlineStatusBar from './components/OnlineStatusBar';
+import SyncStatusIndicator from './components/SyncStatusIndicator';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <>
     <OnlineStatusBar />
+    <SyncStatusIndicator />
     <OfflineBanner />
     <Routes>
       <Route path="/login" element={<LoginPage />} />

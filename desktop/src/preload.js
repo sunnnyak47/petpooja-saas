@@ -95,6 +95,19 @@ contextBridge.exposeInMainWorld('electron', {
   onUpdateDownloading: (callback) =>
     onEvent('update-downloading', callback),
 
+  // ─── Sync Engine ───────────────────────────────────────────────
+  /** Trigger a manual sync */
+  syncNow: (outletId) =>
+    ipcRenderer.invoke('sync-now', outletId),
+
+  /** Get the current sync engine status */
+  getSyncStatus: () =>
+    ipcRenderer.invoke('sync-status'),
+
+  /** Subscribe to sync status updates */
+  onSyncStatus: (callback) =>
+    onEvent('sync-status', callback),
+
   // ─── Feature Detection ─────────────────────────────────────────
   /** True when running inside Electron desktop app */
   isElectron: true,

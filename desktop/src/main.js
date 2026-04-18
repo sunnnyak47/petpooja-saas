@@ -17,6 +17,7 @@ const {
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 const Store = require('electron-store')
+const syncEngine = require('./sync/syncEngine')
 
 // ─────────────────────────────────────
 // CONFIGURATION STORE
@@ -197,6 +198,7 @@ function checkConnectivity() {
     socket.destroy()
     if (!isOnline) {
       isOnline = true
+      syncEngine.setOnlineStatus(true)
       notifyRenderer('connectivity-changed', { online: true })
       updateTrayStatus(true)
     }
@@ -206,6 +208,7 @@ function checkConnectivity() {
     socket.destroy()
     if (isOnline) {
       isOnline = false
+      syncEngine.setOnlineStatus(false)
       notifyRenderer('connectivity-changed', { online: false })
       updateTrayStatus(false)
     }
@@ -215,6 +218,7 @@ function checkConnectivity() {
     socket.destroy()
     if (isOnline) {
       isOnline = false
+      syncEngine.setOnlineStatus(false)
       notifyRenderer('connectivity-changed', { online: false })
       updateTrayStatus(false)
     }
@@ -303,6 +307,20 @@ function setupIPC() {
 
   // Return current connectivity state
   ipcMain.handle('get-online-status', () => isOnline)
+  
+  // Sync handlers
+  ipcMain.handle('sync-now', async (_, outletId) => {
+    await syncEngine.syncAll(outletId)
+    return true
+  })
+
+  ipcMain.handle('sync-status', () => {
+    return {
+      lastSync: syncEngine.lastSync,
+      isSyncing: syncEngine.isSyncing,
+      isOnline: syncEngine.isOnline,
+    }
+  })
 
   // Thermal printing handlers
   ipcMain.handle('print-kot', async (_, kotData) => printThermal(kotData, 'kot'))
@@ -796,6 +814,9 @@ app.whenReady().then(() => {
 
   // Run initial connectivity check immediately 
   checkConnectivity()
+  
+  // Start auto sync background task
+  syncEngine.startAutoSync()
 
   // macOS: re-create window when dock icon is clicked
   app.on('activate', () => {
