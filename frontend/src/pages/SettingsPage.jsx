@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -79,10 +79,37 @@ export default function SettingsPage() {
 
   const updateSetting = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
 
+  // Load saved settings from backend on mount
+  const { data: savedSettings } = useQuery({
+    queryKey: ['outlet-settings', outletId],
+    queryFn: async () => {
+      if (!outletId) return null;
+      const res = await api.get(`/ho/settings?outlet_id=${outletId}`);
+      return res.data;
+    },
+    enabled: !!outletId,
+    staleTime: 60000,
+  });
+
+  // Merge saved settings into local state once they load
+  useEffect(() => {
+    if (savedSettings) {
+      setSettings(prev => ({ ...prev, ...savedSettings }));
+    }
+  }, [savedSettings]);
+
+  // Theme preference is saved locally (localStorage) by ThemeContext.
+  // All other settings are persisted via the API.
   const saveMutation = useMutation({
-    mutationFn: () => api.put(`/ho/settings`, { outlet_id: outletId, settings }),
-    onSuccess: () => toast.success('Settings saved'),
-    onError: (e) => toast.error(e.message),
+    mutationFn: () => {
+      const { primary_color, dark_mode, ...apiSettings } = settings;
+      return api.put(`/ho/settings`, { outlet_id: outletId, settings: apiSettings });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['outlet-settings', outletId]);
+      toast.success('Settings saved successfully');
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || 'Failed to save settings'),
   });
 
   const ToggleSwitch = ({ checked, onChange, label }) => (

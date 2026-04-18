@@ -9,6 +9,16 @@ const hoService = require('./headoffice.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasRole, hasPermission } = require('../../middleware/rbac.middleware');
 const { sendSuccess, sendCreated } = require('../../utils/response');
+const Joi = require('joi');
+const { validate } = require('../../middleware/validate.middleware');
+
+/**
+ * Joi schema for saving outlet settings.
+ */
+const saveSettingsSchema = Joi.object({
+  outlet_id: Joi.string().uuid().optional(),
+  settings: Joi.object().pattern(Joi.string(), Joi.any()).required(),
+});
 
 /** GET /api/ho/outlets — List all outlets with today's KPIs */
 router.get('/outlets', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
@@ -103,6 +113,58 @@ router.patch('/setup-complete', authenticate, hasRole('owner'), async (req, res,
     });
 
     sendSuccess(res, ho, 'Setup completed! Welcome to Petpooja ERP.');
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/ho/settings — Get all settings for an outlet.
+ */
+router.get('/settings', authenticate, async (req, res, next) => {
+  try {
+    const prisma = require('../../config/database').getDbClient();
+    const outlet_id = req.query.outlet_id || req.user?.outlet_id || req.user?.outlets?.[0]?.id;
+    if (!outlet_id) return res.status(400).json({ success: false, message: 'outlet_id required' });
+
+    const rows = await prisma.outletSetting.findMany({
+      where: { outlet_id, is_deleted: false },
+    });
+
+    // Convert to a flat key-value object
+    const result = {};
+    rows.forEach(r => {
+      result[r.setting_key] = r.data_type === 'boolean'
+        ? r.setting_value === 'true'
+        : r.data_type === 'number'
+        ? Number(r.setting_value)
+        : r.setting_value;
+    });
+
+    sendSuccess(res, result, 'Settings retrieved');
+  } catch (error) { next(error); }
+});
+
+/**
+ * PUT /api/ho/settings — Upsert outlet settings (key-value pairs).
+ */
+router.put('/settings', authenticate, validate(saveSettingsSchema), async (req, res, next) => {
+  try {
+    const prisma = require('../../config/database').getDbClient();
+    const outlet_id = req.body.outlet_id || req.user?.outlet_id || req.user?.outlets?.[0]?.id;
+    if (!outlet_id) return res.status(400).json({ success: false, message: 'outlet_id required' });
+
+    const { settings } = req.body;
+    const upsertOps = Object.entries(settings).map(([key, value]) => {
+      const strValue = String(value);
+      const dataType = typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : 'string';
+      return prisma.outletSetting.upsert({
+        where: { outlet_id_setting_key: { outlet_id, setting_key: key } },
+        update: { setting_value: strValue, data_type: dataType, is_deleted: false },
+        create: { outlet_id, setting_key: key, setting_value: strValue, data_type: dataType },
+      });
+    });
+
+    await prisma.$transaction(upsertOps);
+    sendSuccess(res, { saved: upsertOps.length }, 'Settings saved successfully');
   } catch (error) { next(error); }
 });
 
