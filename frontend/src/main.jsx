@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from './themes/ThemeContext';
 import App from './App';
 import { store } from './store';
 import './index.css';
@@ -18,9 +19,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-          <Toaster
+        <ThemeProvider>
+          <BrowserRouter>
+            <App />
+            <Toaster
             position="top-right"
             toastOptions={{
               duration: 3000,
@@ -29,7 +31,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               error: { iconTheme: { primary: '#f04438', secondary: '#fff' } },
             }}
           />
-        </BrowserRouter>
+          </BrowserRouter>
+        </ThemeProvider>
       </QueryClientProvider>
     </Provider>
   </React.StrictMode>

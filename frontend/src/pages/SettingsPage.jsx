@@ -5,9 +5,10 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   Settings, Printer, Monitor, CreditCard, Palette, Bell,
-  Save, RotateCcw, ChevronRight,
+  Save, RotateCcw, ChevronRight, CheckCircle2,
   Store, Barcode, DollarSign
 } from 'lucide-react';
+import { useTheme } from '../themes/ThemeContext';
 
 const SECTIONS = [
   { id: 'general', label: 'General', icon: <Store className="w-5 h-5" /> },
@@ -28,6 +29,7 @@ export default function SettingsPage() {
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('general');
+  const { themes, activeThemeId, setActiveThemeId } = useTheme();
 
   const [settings, setSettings] = useState({
     // General
@@ -234,17 +236,50 @@ export default function SettingsPage() {
         );
       case 'appearance':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Appearance & Theme</h3>
+          <div className="space-y-6">
             <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">Brand Color</label>
-              <div className="flex items-center gap-3">
-                <input type="color" value={settings.primary_color} onChange={(e) => updateSetting('primary_color', e.target.value)} className="w-10 h-10 rounded-lg border-0 cursor-pointer" />
-                <span className="text-sm text-surface-300 font-mono">{settings.primary_color}</span>
+              <h3 className="text-lg font-bold text-white mb-2">Application Theme</h3>
+              <p className="text-sm text-surface-400 mb-6">Select a pre-configured theme to instantly change the platform's appearance.</p>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {themes.map((theme) => {
+                  const isActive = activeThemeId === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setActiveThemeId(theme.id)}
+                      className={`relative flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 
+                        ${isActive ? 'border-brand-500 bg-brand-500/10' : 'border-surface-700 bg-surface-800 hover:border-surface-600 hover:bg-surface-700/50'}`}
+                    >
+                      {/* Color Preview Orbs */}
+                      <div className="flex -space-x-2">
+                        <div className="w-8 h-8 rounded-full border-2 border-surface-800 shadow-sm" style={{ backgroundColor: theme.colors['--bg-primary'] }} />
+                        <div className="w-8 h-8 rounded-full border-2 border-surface-800 shadow-sm" style={{ backgroundColor: theme.colors['--bg-card'] }} />
+                        <div className="w-8 h-8 rounded-full border-2 border-surface-800 shadow-sm" style={{ backgroundColor: theme.colors['--accent'] }} />
+                      </div>
+                      
+                      <div className="text-center">
+                        <span className="block font-bold text-sm text-surface-100 flex items-center justify-center gap-1">
+                          {theme.emoji} {theme.name}
+                        </span>
+                        <span className="block text-xs text-surface-400 mt-1">{theme.description}</span>
+                      </div>
+
+                      {isActive && (
+                        <div className="absolute -top-2 -right-2 bg-brand-500 text-white rounded-full p-0.5 shadow-md">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <ToggleSwitch label="Dark Mode" checked={settings.dark_mode} onChange={(v) => updateSetting('dark_mode', v)} />
-            <ToggleSwitch label="Compact Layout" checked={settings.compact_layout} onChange={(v) => updateSetting('compact_layout', v)} />
+            
+            <div className="border-t border-surface-800 pt-6">
+              <h3 className="text-sm font-bold text-white mb-4">Layout Options</h3>
+              <ToggleSwitch label="Compact Layout" checked={settings.compact_layout} onChange={(v) => updateSetting('compact_layout', v)} />
+            </div>
           </div>
         );
       case 'hardware':

@@ -7,17 +7,17 @@ export default {
       colors: {
         brand: {
           50: '#fef3f2', 100: '#fee4e2', 200: '#ffcdc9',
-          300: '#fda29b', 400: '#f97066', 500: 'var(--brand-500)',
-          600: 'var(--brand-600)', 700: '#b42318', 800: '#912018', 900: '#7a271a',
+          300: '#fda29b', 400: 'var(--accent)', 500: 'var(--accent)',
+          600: 'var(--accent-hover)', 700: '#b42318', 800: '#912018', 900: '#7a271a',
         },
         surface: {
-          50: '#fafafa', 100: '#f4f4f5', 200: '#e4e4e7',
-          300: '#d4d4d8', 400: '#a1a1aa', 500: '#71717a',
-          600: '#52525b', 700: '#3f3f46', 800: '#27272a', 900: '#18181b',
+          50: '#fafafa', 100: 'var(--text-primary)', 200: 'var(--text-primary)',
+          300: 'var(--text-secondary)', 400: 'var(--text-secondary)', 500: 'var(--text-secondary)',
+          600: 'var(--border)', 700: 'var(--bg-hover)', 800: 'var(--bg-card)', 900: 'var(--bg-primary)',
         },
-        success: { 400: '#4ade80', 500: '#22c55e', 600: '#16a34a' },
-        warning: { 400: '#facc15', 500: '#eab308', 600: '#ca8a04' },
-        info: { 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb' },
+        success: { 400: '#4ade80', 500: 'var(--success)', 600: 'var(--success)' },
+        warning: { 400: '#facc15', 500: 'var(--warning)', 600: 'var(--warning)' },
+        info: { 400: '#60a5fa', 500: 'var(--accent)', 600: '#2563eb' },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
