@@ -29,7 +29,7 @@
     ],
     "extraResources": [
       {
-        "from": "../frontend/dist",
+        "from": "frontend-dist",
         "to": "frontend",
         "filter": ["**/*"]
       }
@@ -41,7 +41,7 @@
           "arch": ["x64", "ia32"]
         }
       ],
-      "icon": "assets/icon.ico",
+      "icon": "assets/icon.png",
       "publisherName": "Petpooja ERP"
     },
     "nsis": {
@@ -50,8 +50,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Petpooja ERP",
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
+      "installerIcon": "assets/icon.png",
+      "uninstallerIcon": "assets/icon.png",
       "language": "1033"
     },
     "mac": {
@@ -61,7 +61,7 @@
           "arch": ["x64", "arm64"]
         }
       ],
-      "icon": "assets/icon.icns",
+      "icon": "assets/icon.png",
       "category": "public.app-category.business",
       "minimumSystemVersion": "10.13.0",
       "hardenedRuntime": true,
@@ -69,7 +69,7 @@
     },
     "dmg": {
       "title": "Petpooja ERP",
-      "icon": "assets/icon.icns",
+      "icon": "assets/icon.png",
       "contents": [
         { "x": 130, "y": 220 },
         { "x": 410, "y": 220, "type": "link", "path": "/Applications" }

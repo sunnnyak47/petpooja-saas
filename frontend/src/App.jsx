@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -29,6 +30,7 @@ import CustomerOrderPage from './pages/CustomerOrderPage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
+import SetupWizard from './pages/SetupWizard';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -47,6 +49,19 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  const [setupComplete, setSetupComplete] = useState(
+    localStorage.getItem('petpooja_setup_complete') === 'true'
+  );
+
+  if (typeof window !== 'undefined' && window.electron && !setupComplete) {
+    return <SetupWizard onComplete={(config) => {
+      window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
+      window.electron.invoke('set-config', 'printerIp', config.printer_ip);
+      localStorage.setItem('petpooja_setup_complete', 'true');
+      setSetupComplete(true);
+    }} />;
+  }
+
   return (
     <>
     <OnlineStatusBar />
