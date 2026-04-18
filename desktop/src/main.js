@@ -285,6 +285,13 @@ function notifyRenderer(channel, data) {
  * can invoke via window.electron.* APIs defined in preload.js.
  */
 function setupIPC() {
+  // Lazy-load localDB after app is ready (needs app.getPath)
+  const {
+    MenuDB, OrderDB, KotDB,
+    TableDB, SyncDB, SettingsDB,
+    getDBPath,
+  } = require('./database/localDB')
+
   // Return full config store
   ipcMain.handle('get-config', () => store.store)
 
@@ -317,7 +324,172 @@ function setupIPC() {
 
   // Open URLs in the default system browser
   ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
+
+  // ── LOCAL DB: MENU ────────────────────────────────────────────
+  /**
+   * Returns all menu categories and items for an outlet from local SQLite.
+   */
+  ipcMain.handle('db-get-menu', (_, outletId) => {
+    const categories = MenuDB.getCategories(outletId)
+    const items = MenuDB.getItems(outletId)
+    return { categories, items }
+  })
+
+  /**
+   * Returns menu items filtered by category.
+   */
+  ipcMain.handle('db-get-menu-by-category', (_, outletId, categoryId) => {
+    return MenuDB.getItems(outletId, categoryId)
+  })
+
+  /**
+   * Bulk-saves menu data received from a cloud sync.
+   */
+  ipcMain.handle('db-save-menu-sync', (_, categories, items) => {
+    MenuDB.saveMenuFromSync(categories, items)
+    return true
+  })
+
+  // ── LOCAL DB: TABLES ──────────────────────────────────────────
+  /**
+   * Returns all tables for an outlet with their current order info.
+   */
+  ipcMain.handle('db-get-tables', (_, outletId) => {
+    return TableDB.getAll(outletId)
+  })
+
+  /**
+   * Updates the local status of a single table.
+   */
+  ipcMain.handle('db-update-table-status', (_, tableId, status) => {
+    TableDB.updateStatus(tableId, status)
+    return true
+  })
+
+  /**
+   * Bulk-saves tables from a cloud sync payload.
+   */
+  ipcMain.handle('db-save-tables-sync', (_, tables) => {
+    TableDB.saveFromSync(tables)
+    return true
+  })
+
+  // ── LOCAL DB: ORDERS ──────────────────────────────────────────
+  /**
+   * Creates a new order in local SQLite and queues for cloud sync.
+   */
+  ipcMain.handle('db-create-order', (_, data) => {
+    return OrderDB.create(data)
+  })
+
+  /**
+   * Returns a single order with its items by ID.
+   */
+  ipcMain.handle('db-get-order', (_, orderId) => {
+    return OrderDB.getById(orderId)
+  })
+
+  /**
+   * Returns the active order on a table, with items.
+   */
+  ipcMain.handle('db-get-order-by-table', (_, tableId, outletId) => {
+    return OrderDB.getByTable(tableId, outletId)
+  })
+
+  /**
+   * Adds an item to an existing order and recalculates totals.
+   */
+  ipcMain.handle('db-add-order-item', (_, data) => {
+    return OrderDB.addItem(data)
+  })
+
+  /**
+   * Updates order status with optional extra fields (invoice, timestamps).
+   */
+  ipcMain.handle('db-update-order-status', (_, orderId, status, extra) => {
+    OrderDB.updateStatus(orderId, status, extra)
+    return true
+  })
+
+  /**
+   * Returns paginated orders for an outlet with optional filters.
+   */
+  ipcMain.handle('db-get-orders', (_, outletId, filters) => {
+    return OrderDB.getAll(outletId, filters)
+  })
+
+  /**
+   * Returns all unsynced orders waiting for cloud upload.
+   */
+  ipcMain.handle('db-get-unsynced-orders', () => {
+    return OrderDB.getUnsyncedOrders()
+  })
+
+  /**
+   * Marks an order as successfully synced to cloud.
+   */
+  ipcMain.handle('db-mark-order-synced', (_, orderId) => {
+    OrderDB.markSynced(orderId)
+    return true
+  })
+
+  // ── LOCAL DB: KOT ─────────────────────────────────────────────
+  /**
+   * Creates a KOT with its items and marks order items as sent to kitchen.
+   */
+  ipcMain.handle('db-create-kot', (_, data, items) => {
+    const kotId = KotDB.create(data, items)
+    OrderDB.markItemsKOTSent(data.order_id)
+    return kotId
+  })
+
+  /**
+   * Returns all items on an order with kot_status = 'pending'.
+   */
+  ipcMain.handle('db-get-pending-items', (_, orderId) => {
+    return OrderDB.getPendingItems(orderId)
+  })
+
+  /**
+   * Returns all KOTs generated for an order.
+   */
+  ipcMain.handle('db-get-kots-for-order', (_, orderId) => {
+    return KotDB.getForOrder(orderId)
+  })
+
+  // ── LOCAL DB: SYNC QUEUE ──────────────────────────────────────
+  /**
+   * Returns pending sync queue items for cloud upload.
+   */
+  ipcMain.handle('db-get-sync-queue', () => {
+    return SyncDB.getPending()
+  })
+
+  /**
+   * Marks a sync queue entry as successfully uploaded.
+   */
+  ipcMain.handle('db-sync-success', (_, id) => {
+    SyncDB.markSuccess(id)
+    return true
+  })
+
+  /**
+   * Marks a sync queue entry as failed and increments attempts.
+   */
+  ipcMain.handle('db-sync-failed', (_, id, error) => {
+    SyncDB.markFailed(id, error)
+    return true
+  })
+
+  // ── LOCAL DB: DIAGNOSTICS ─────────────────────────────────────
+  /**
+   * Returns the path to the local SQLite database file.
+   */
+  ipcMain.handle('db-get-path', () => {
+    return getDBPath()
+  })
 }
+
 
 // ─────────────────────────────────────
 // AUTO UPDATER
