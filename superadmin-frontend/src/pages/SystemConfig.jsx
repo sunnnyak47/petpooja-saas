@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { 
-  Globe, CreditCard, Save, RefreshCw, CheckCircle2, AlertCircle
+  Globe, CreditCard, Save, RefreshCw, CheckCircle2, AlertCircle, Palette
 } from 'lucide-react';
+import ThemeSelector from '../themes/ThemeSelector';
 
 const fetchConfig = async () => {
     return await api.get('/config');
@@ -117,6 +118,17 @@ export default function SystemConfig() {
                 { key: 'expiry_alert_days', label: 'Expiry Alert Days', type: 'number', placeholder: '30' },
                 { key: 'whatsapp_alerts', label: 'WhatsApp Alerts', type: 'toggle' }
             ]
+        },
+        {
+            id: 'appearance',
+            title: 'Platform Theme',
+            icon: Palette,
+            isSpecial: true,
+            render: () => (
+                <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+                    <ThemeSelector />
+                </div>
+            )
         }
     ];
 

@@ -3,8 +3,10 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { 
   Building2, LayoutDashboard, CreditCard, 
   Settings, LogOut, ChevronLeft, ShieldCheck,
-  Activity, Users
+  Activity, Users, Palette
 } from 'lucide-react';
+import { useTheme } from '../themes/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 
 const saNav = [
   { path: '/', label: 'Global Monitor', icon: LayoutDashboard },
@@ -14,6 +16,8 @@ const saNav = [
 ];
 
 export default function AdminLayout({ user, onLogout }) {
+  const { currentTheme } = useTheme();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [serverTime, setServerTime] = useState(new Date().toISOString().split('T')[1].slice(0, 8));
 
@@ -34,9 +38,12 @@ export default function AdminLayout({ user, onLogout }) {
   const activeSessions = 143; // Dynamic placeholder
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen overflow-hidden font-sans" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* SaaS Admin Sidebar */}
-      <aside className={`${collapsed ? 'w-20' : 'w-72'} bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 shadow-2xl z-50`}>
+      <aside 
+        style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
+        className={`${collapsed ? 'w-20' : 'w-72'} border-r flex flex-col transition-all duration-300 shadow-2xl z-50`}
+      >
         {/* Brand */}
         <div className="h-24 flex items-center px-8 border-b border-white/5 bg-white/[0.02]">
           {!collapsed && (
@@ -98,7 +105,10 @@ export default function AdminLayout({ user, onLogout }) {
       {/* Control Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Superior Header */}
-        <header className="h-20 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-8 flex items-center justify-between">
+        <header 
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+          className="h-20 backdrop-blur-md border-b px-8 flex items-center justify-between"
+        >
            <div className="flex items-center gap-6">
              <button onClick={() => setCollapsed(!collapsed)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors border border-slate-800">
                <ChevronLeft className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
@@ -113,19 +123,36 @@ export default function AdminLayout({ user, onLogout }) {
            </div>
 
            <div className="flex items-center gap-6">
+              {/* Quick Theme Toggle */}
+              <button
+                onClick={() => navigate('/settings')}
+                title="Change Theme"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-colors"
+                style={{
+                  background: 'var(--bg-hover)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>{currentTheme.emoji}</span>
+                <span className="hidden sm:block">
+                  {currentTheme.name}
+                </span>
+              </button>
+
               <div className="text-right">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Server Time (UTC)</p>
                 <p className="text-xs font-mono font-bold text-white mt-0.5">{serverTime}</p>
               </div>
-              <div className="flex items-center gap-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl">
-                 <Users size={16} className="text-indigo-400" />
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+                 <Users size={16} style={{ color: 'var(--accent)' }} />
                  <span className="text-xs font-black text-white">{activeSessions} Active Sessions</span>
               </div>
            </div>
         </header>
 
         {/* Global Body */}
-        <main className="flex-1 overflow-y-auto p-12 bg-slate-950 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-12 custom-scrollbar" style={{ background: 'var(--bg-primary)' }}>
            <Outlet />
         </main>
       </div>

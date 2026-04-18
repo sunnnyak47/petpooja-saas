@@ -479,7 +479,8 @@ export default function POSPage() {
     <div className="flex gap-4 h-[calc(100vh-7rem)] animate-fade-in relative overflow-hidden">
       {/* Table Select Overlay */}
       {tableSelectMode && (
-        <div className="absolute inset-0 bg-surfce-950/80 backdrop-blur-sm z-50 flex flex-col p-8">
+        <div className="absolute inset-0 backdrop-blur-sm z-50 flex flex-col p-8"
+          style={{ background: 'var(--bg-primary)cc' }}>
            <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl text-white font-bold">Select Target Table for {tableSelectMode.toUpperCase()}</h2>
               <button onClick={() => setTableSelectMode(null)} className="btn-ghost text-red-400">Cancel</button>
@@ -495,7 +496,8 @@ export default function POSPage() {
       )}
 
       {/* Left Menu Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-surface-900 border border-surface-800 rounded-2xl p-4">
+      <div className="flex-1 flex flex-col min-w-0 rounded-2xl p-4 border"
+        style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
         {/* Search */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
@@ -577,7 +579,8 @@ export default function POSPage() {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-[380px] flex flex-col bg-surface-900 border border-surface-800 rounded-2xl overflow-hidden relative shadow-xl">
+      <div className="w-[380px] flex flex-col border rounded-2xl overflow-hidden relative shadow-xl"
+        style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
         <div className="px-4 py-3 border-b border-surface-800 bg-surface-800/20">
            <div className="flex items-center justify-between mb-2">
              <div className="flex items-center gap-2">
@@ -663,7 +666,8 @@ export default function POSPage() {
 
         {/* Enhanced Checkout Footer */}
         {cart.length > 0 && (
-          <div className="bg-surface-800 p-3 shadow-[0_-10px_20px_rgba(0,0,0,0.3)] select-none">
+          <div className="p-3 shadow-[0_-10px_20px_rgba(0,0,0,0.3)] select-none"
+            style={{ background: 'var(--bg-card)' }}>
             {/* Quick Action Bar (Agent 2) */}
             <div className="grid grid-cols-4 gap-2 mb-3">
                <button onClick={() => { setManagerAction('complimentary'); setShowManagerPin(true); }} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${isCompMode ? 'bg-success-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>

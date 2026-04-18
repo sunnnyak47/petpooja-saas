@@ -40,9 +40,11 @@ const ownerNav = [
 ];
 
 import useBranding from '../hooks/useBranding';
+import { useTheme } from '../themes/ThemeContext';
 
 export default function DashboardLayout() {
   const { branding, getPlatformInitial } = useBranding();
+  const { currentTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -143,7 +145,13 @@ export default function DashboardLayout() {
         {showWizard && <OwnerWizard headOffice={user.head_office} />}
 
         {/* Sidebar */}
-        <aside className={`${collapsed ? 'w-20' : 'w-64'} bg-surface-800/50 backdrop-blur-xl border-r border-surface-700/50 flex flex-col transition-all duration-300`}>
+        <aside 
+          style={{ 
+            background: 'var(--sidebar-bg)',
+            borderColor: 'var(--border)'
+          }}
+          className={`${collapsed ? 'w-20' : 'w-64'} backdrop-blur-xl border-r flex flex-col transition-all duration-300`}
+        >
           {/* Logo */}
           <div className="h-16 flex items-center justify-between px-4 border-b border-surface-700/50">
             {!collapsed && (
@@ -211,34 +219,59 @@ export default function DashboardLayout() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Topbar */}
-          <header className="h-16 bg-surface-800/30 backdrop-blur-sm border-b border-surface-700/50 flex items-center justify-between px-6">
+          <header 
+            style={{ 
+              background: 'var(--bg-card)',
+              borderColor: 'var(--border)'
+            }}
+            className="h-16 backdrop-blur-sm border-b flex items-center justify-between px-6"
+          >
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {user?.outlet?.name || 'Petpooja ERP'}
               </h2>
               <p className="text-xs text-surface-500">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
             </div>
             <div className={`flex items-center gap-3 ${pendingOrders.length > 0 ? 'animate-pulse' : ''}`}>
+              
+              {/* Quick Theme Toggle */}
+              <button
+                onClick={() => navigate('/settings')}
+                title="Change Theme"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors"
+                style={{
+                  background: 'var(--bg-hover)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>{currentTheme.emoji}</span>
+                <span className="hidden sm:block">
+                  {currentTheme.name}
+                </span>
+              </button>
+
               <button onClick={() => { navigate('/running-orders'); }} className="relative p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-notifications">
-                <Bell className={`w-5 h-5 ${pendingOrders.length > 0 ? 'text-brand-400' : 'text-surface-400'}`} />
+                <Bell className={`w-5 h-5 ${pendingOrders.length > 0 ? 'text-brand-400' : 'text-surface-400'}`} style={{ color: pendingOrders.length > 0 ? 'var(--accent)' : 'var(--text-secondary)' }} />
                 {pendingOrders.length > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full border border-surface-900 animate-ping"></span>
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full border border-surface-900 animate-ping" style={{ background: 'var(--accent)' }}></span>
                 )}
               </button>
               {pendingOrders.length > 0 && (
-                <div onClick={() => { navigate('/running-orders'); }} className="flex items-center gap-2 px-3 py-1 bg-brand-500/20 rounded-full border border-brand-500/30 cursor-pointer hover:bg-brand-500/30 transition-all">
-                  <div className="w-2 h-2 bg-brand-500 rounded-full animate-ping" />
-                  <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest">New Order</span>
+                <div onClick={() => { navigate('/running-orders'); }} className="flex items-center gap-2 px-3 py-1 rounded-full border cursor-pointer transition-all"
+                  style={{ background: 'var(--accent)22', borderColor: 'var(--accent)44' }}>
+                  <div className="w-2 h-2 rounded-full animate-ping" style={{ background: 'var(--accent)' }} />
+                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent)' }}>New Order</span>
                 </div>
               )}
-              <button className="p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-settings">
-                <Settings className="w-5 h-5 text-surface-400" />
+              <button onClick={() => navigate('/settings')} className="p-2 hover:bg-surface-700 rounded-xl transition-colors" id="btn-settings">
+                <Settings className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
               </button>
             </div>
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-6 bg-surface-900/50">
+          <main className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--bg-primary)' }}>
             <Outlet />
           </main>
         </div>
