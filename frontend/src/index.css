@@ -32,7 +32,7 @@
   .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
 
   .card {
-    @apply bg-surface-800/80 backdrop-blur-sm border border-surface-700/50
+    @apply bg-surface-800 backdrop-blur-sm border border-surface-700
            rounded-2xl p-5 shadow-glass transition-all duration-200;
   }
   .card-hover { @apply card hover:border-surface-600 hover:shadow-glass-lg; }
@@ -45,13 +45,13 @@
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border;
   }
-  .badge-success { @apply badge bg-success-600/20 text-success-400; }
-  .badge-warning { @apply badge bg-warning-600/20 text-warning-400; }
-  .badge-danger { @apply badge bg-red-600/20 text-red-400; }
-  .badge-info { @apply badge bg-info-600/20 text-info-400; }
-  .badge-neutral { @apply badge bg-surface-700 text-surface-300; }
+  .badge-success { @apply border-success-500 text-success-500 bg-transparent; }
+  .badge-warning { @apply border-warning-500 text-warning-500 bg-transparent; }
+  .badge-danger { @apply border-red-500 text-red-500 bg-transparent; }
+  .badge-info { @apply border-info-500 text-info-500 bg-transparent; }
+  .badge-neutral { @apply border-surface-500 text-surface-300 bg-surface-700; }
 
   .stat-card {
     @apply card flex flex-col gap-1;
@@ -69,14 +69,14 @@
   }
 
   .table-row {
-    @apply border-b border-surface-700/50 hover:bg-surface-800/50
+    @apply border-b border-surface-700 hover:bg-surface-800
            transition-colors duration-150;
   }
 
   .kot-card {
     @apply border-2 rounded-2xl p-4 bg-surface-800;
   }
-  .kot-pending { @apply kot-card border-warning-500/50 bg-warning-500/5; }
-  .kot-preparing { @apply kot-card border-info-500/50 bg-info-500/5 animate-pulse-slow; }
-  .kot-ready { @apply kot-card border-success-500/50 bg-success-500/5; }
+  .kot-pending { @apply kot-card border-warning-500 text-warning-500; }
+  .kot-preparing { @apply kot-card border-info-500 text-info-500 animate-pulse-slow; }
+  .kot-ready { @apply kot-card border-success-500 text-success-500; }
 }
