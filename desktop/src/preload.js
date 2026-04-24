@@ -66,6 +66,13 @@ contextBridge.exposeInMainWorld('electron', {
   openCashDrawer: () =>
     ipcRenderer.invoke('open-cash-drawer'),
 
+  /**
+   * Scan the local subnet for thermal printers on port 9100.
+   * @returns {Promise<string[]>} Array of discovered printer IPs
+   */
+  discoverPrinters: () =>
+    ipcRenderer.invoke('discover-printers'),
+
   // ─── App / Window ──────────────────────────────────────────────
   /** Get the current app version string */
   getVersion: () =>
@@ -107,6 +114,15 @@ contextBridge.exposeInMainWorld('electron', {
   /** Subscribe to sync status updates */
   onSyncStatus: (callback) =>
     onEvent('sync-status', callback),
+
+  /**
+   * Subscribe to sync conflict notifications.
+   * Fired when offline orders had conflicts with cloud state.
+   * @param {Function} callback - receives { conflicts: Array<{ orderId, resolution }> }
+   * @returns {Function} unsubscribe function
+   */
+  onSyncConflicts: (callback) =>
+    onEvent('sync-conflicts', callback),
 
   // ─── Feature Detection ─────────────────────────────────────────
   /** True when running inside Electron desktop app */
@@ -205,6 +221,10 @@ contextBridge.exposeInMainWorld('electron', {
   /** Mark a sync entry as failed (increment attempts) */
   dbSyncFailed: (id, error) =>
     ipcRenderer.invoke('db-sync-failed', id, error),
+
+  /** Get recent offline/cloud sync conflicts for an outlet */
+  dbGetSyncConflicts: (outletId, limit) =>
+    ipcRenderer.invoke('db-get-sync-conflicts', outletId, limit),
 
   // ─── Diagnostics ──────────────────────────────────────────────
   /** Get the absolute path to the local SQLite DB file */

@@ -30,7 +30,7 @@ const store = new Store({
       height: 800,
     },
     outletId: null,
-    apiUrl: 'https://petpooja-backend.onrender.com',
+    apiUrl: 'https://petpooja-saas.onrender.com',
     theme: 'midnight',
     printerIp: null,
     printerPort: 9100,
@@ -78,7 +78,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: !isDev, // relax only in dev for HMR
+      webSecurity: false, // file:// origin blocks crossorigin module scripts in production
     },
     show: false,
   })
@@ -343,6 +343,16 @@ function setupIPC() {
   // Open URLs in the default system browser
   ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
 
+  // ── THERMAL PRINTER DISCOVERY ──────────────────────────────────
+  /**
+   * Scans the local subnet for ESC/POS thermal printers on port 9100.
+   * Verifies open printer-port candidates through node-thermal-printer.
+   * Returns an array of confirmed printer IP strings.
+   */
+  ipcMain.handle('discover-printers', async () => {
+    return discoverPrinters()
+  })
+
   // ── LOCAL DB: MENU ────────────────────────────────────────────
   /**
    * Returns all menu categories and items for an outlet from local SQLite.
@@ -497,6 +507,13 @@ function setupIPC() {
   ipcMain.handle('db-sync-failed', (_, id, error) => {
     SyncDB.markFailed(id, error)
     return true
+  })
+
+  /**
+   * Returns recent sync conflict audit records for an outlet.
+   */
+  ipcMain.handle('db-get-sync-conflicts', (_, outletId, limit) => {
+    return SyncDB.getConflicts(outletId, limit)
   })
 
   // ── LOCAL DB: DIAGNOSTICS ─────────────────────────────────────
@@ -707,6 +724,105 @@ async function buildBillPrint(printer, bill) {
 }
 
 // ─────────────────────────────────────
+// THERMAL PRINTER DISCOVERY
+// ─────────────────────────────────────
+/**
+ * Returns the primary local IPv4 address of this machine.
+ * Falls back to 192.168.1.1 if none is found (LAN assumption).
+ * @returns {string}
+ */
+function getLocalIP() {
+  const os = require('os')
+  const interfaces = os.networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address
+      }
+    }
+  }
+  return '192.168.1.1'
+}
+
+/**
+ * Probes a single IP:port with a TCP connection attempt.
+ * Resolves with the IP string on success, null on timeout/error.
+ * @param {string} ip
+ * @param {number} port
+ * @param {number} timeoutMs
+ * @returns {Promise<string|null>}
+ */
+function probeTCPHost(ip, port, timeoutMs) {
+  const net = require('net')
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    socket.setTimeout(timeoutMs)
+    socket.on('connect', () => { socket.destroy(); resolve(ip) })
+    socket.on('timeout', () => { socket.destroy(); resolve(null) })
+    socket.on('error', () => { socket.destroy(); resolve(null) })
+    socket.connect(port, ip)
+  })
+}
+
+/**
+ * Confirms that an open TCP endpoint behaves like an ESC/POS thermal printer
+ * through node-thermal-printer's connection check.
+ * @param {string} ip
+ * @param {number} port
+ * @returns {Promise<string|null>}
+ */
+async function verifyThermalPrinter(ip, port) {
+  try {
+    const { printer: ThermalPrinter, types: Types } = require('node-thermal-printer')
+    const printer = new ThermalPrinter({
+      type: Types.EPSON,
+      interface: `tcp://${ip}:${port}`,
+      width: 48,
+      characterSet: 'PC437_USA',
+      removeSpecialCharacters: false,
+      timeout: 1000,
+    })
+
+    const isConnected = await printer.isPrinterConnected()
+    return isConnected ? ip : null
+  } catch (err) {
+    console.warn(`[PrinterDiscovery] Verification failed for ${ip}:${port}:`, err.message)
+    return null
+  }
+}
+
+/**
+ * Scans the local /24 subnet for thermal printers listening on port 9100.
+ * First probes port 9100, then confirms candidates through node-thermal-printer.
+ * @returns {Promise<string[]>} Array of discovered printer IPs
+ */
+async function discoverPrinters() {
+  try {
+    const PRINTER_PORT = store.get('printerPort') || 9100
+    const TIMEOUT_MS = 400
+
+    const localIP = getLocalIP()
+    const subnet = localIP.split('.').slice(0, 3).join('.')
+
+    const probes = []
+    for (let host = 1; host <= 254; host++) {
+      probes.push(probeTCPHost(`${subnet}.${host}`, PRINTER_PORT, TIMEOUT_MS))
+    }
+
+    const openHosts = (await Promise.all(probes)).filter(Boolean)
+    const verified = await Promise.all(
+      openHosts.map((ip) => verifyThermalPrinter(ip, PRINTER_PORT))
+    )
+    const found = verified.filter(Boolean)
+    console.log(`[PrinterDiscovery] Found ${found.length} printer(s) on ${subnet}.0/24:`, found)
+    return found
+  } catch (err) {
+    console.error('[PrinterDiscovery] Discovery failed:', err)
+    return []
+  }
+}
+
+// ─────────────────────────────────────
 // CASH DRAWER
 // ─────────────────────────────────────
 /**
@@ -812,9 +928,16 @@ app.whenReady().then(() => {
   setupIPC()
   setupAutoUpdater()
 
-  // Run initial connectivity check immediately 
+  // Run initial connectivity check immediately
   checkConnectivity()
-  
+
+  // Wake up the Render backend immediately on launch — free tier spins down after
+  // inactivity and takes up to 60s to cold-start. Pinging now means it's warm by
+  // the time the user finishes typing their password.
+  fetch('https://petpooja-saas.onrender.com/api/health')
+    .then(() => console.log('[Backend] Server warm'))
+    .catch(() => console.log('[Backend] Warming up...'))
+
   // Start auto sync background task
   syncEngine.startAutoSync()
 

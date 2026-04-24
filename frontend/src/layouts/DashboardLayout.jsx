@@ -3,6 +3,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
 import { logout } from '../store/slices/authSlice';
+import useBranding from '../hooks/useBranding';
+import { useTheme } from '../themes/ThemeContext';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
@@ -38,9 +40,6 @@ const ownerNav = [
   { path: '/audit-log', label: 'Audit Trail', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
-
-import useBranding from '../hooks/useBranding';
-import { useTheme } from '../themes/ThemeContext';
 
 export default function DashboardLayout() {
   const { branding, getPlatformInitial } = useBranding();

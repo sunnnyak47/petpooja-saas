@@ -228,6 +228,22 @@ function initSchema() {
       created_at  TEXT DEFAULT (datetime('now'))
     );
 
+    -- ── Sync Conflict Audit ─────────────────────────────────────
+    -- Durable record of offline/cloud conflicts resolved by SyncEngine.
+    CREATE TABLE IF NOT EXISTS sync_conflicts (
+      id             TEXT PRIMARY KEY,
+      outlet_id      TEXT NOT NULL,
+      table_name     TEXT NOT NULL,
+      record_id      TEXT NOT NULL,
+      conflict_type  TEXT NOT NULL,
+      cloud_status   TEXT,
+      local_status   TEXT,
+      resolution     TEXT NOT NULL,
+      payload        TEXT,
+      resolved_at    TEXT DEFAULT (datetime('now')),
+      created_at     TEXT DEFAULT (datetime('now'))
+    );
+
     -- ── Staff ──────────────────────────────────────────────────
     -- Cached locally for PIN verification without internet
     CREATE TABLE IF NOT EXISTS staff (
@@ -255,6 +271,8 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_order_items_kot    ON order_items(order_id, kot_status);
     CREATE INDEX IF NOT EXISTS idx_kot_order          ON kot(order_id);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_pending ON sync_queue(attempts);
+    CREATE INDEX IF NOT EXISTS idx_sync_conflicts_outlet ON sync_conflicts(outlet_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_sync_conflicts_record ON sync_conflicts(table_name, record_id);
     CREATE INDEX IF NOT EXISTS idx_menu_items_outlet  ON menu_items(outlet_id, is_available);
     CREATE INDEX IF NOT EXISTS idx_menu_items_cat     ON menu_items(category_id);
   `)
@@ -537,7 +555,50 @@ const OrderDB = {
    * @param {string} orderId
    */
   markSynced(orderId) {
-    getDB().prepare(`UPDATE orders SET synced = 1 WHERE id = ?`).run(orderId)
+    getDB().prepare(`
+      UPDATE orders SET synced = 1, sync_error = NULL WHERE id = ?
+    `).run(orderId)
+  },
+
+  /**
+   * Records the latest sync error on an order without changing business state.
+   * @param {string} orderId
+   * @param {string} error
+   */
+  markSyncError(orderId, error) {
+    getDB().prepare(`
+      UPDATE orders SET sync_error = ? WHERE id = ?
+    `).run(error, orderId)
+  },
+
+  /**
+   * Applies an authoritative cloud conflict resolution without enqueueing
+   * another local UPDATE operation.
+   * @param {string} orderId
+   * @param {string} status
+   * @param {object} extra
+   */
+  applyConflictResolution(orderId, status, extra = {}) {
+    const now = new Date().toISOString()
+    const fields = [
+      'status = @status',
+      'synced = 1',
+      'sync_error = NULL',
+      'updated_at = @updated_at',
+    ]
+    const params = { orderId, status, updated_at: now }
+
+    if (extra.invoice_number) { fields.push('invoice_number = @invoice_number'); params.invoice_number = extra.invoice_number }
+    if (extra.billed_at)      { fields.push('billed_at = @billed_at');           params.billed_at = extra.billed_at }
+    if (extra.paid_at)        { fields.push('paid_at = @paid_at');               params.paid_at = extra.paid_at }
+    if (extra.payment_method) { fields.push('payment_method = @payment_method'); params.payment_method = extra.payment_method }
+    if (extra.cancelled_at)   { fields.push('cancelled_at = @cancelled_at');     params.cancelled_at = extra.cancelled_at }
+    if (extra.cancellation_reason) {
+      fields.push('cancellation_reason = @cancellation_reason')
+      params.cancellation_reason = extra.cancellation_reason
+    }
+
+    getDB().prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
   },
 }
 
@@ -706,6 +767,52 @@ const SyncDB = {
   /** Clears the entire sync queue (use only after full re-sync). */
   clearAll() {
     getDB().prepare(`DELETE FROM sync_queue`).run()
+  },
+
+  /**
+   * Persists an offline/cloud conflict resolution for audit and diagnostics.
+   * @param {object} conflict
+   * @returns {string}
+   */
+  logConflict(conflict) {
+    const id = conflict.id || crypto.randomUUID()
+    getDB().prepare(`
+      INSERT INTO sync_conflicts (
+        id, outlet_id, table_name, record_id, conflict_type, cloud_status,
+        local_status, resolution, payload, resolved_at, created_at
+      ) VALUES (
+        @id, @outlet_id, @table_name, @record_id, @conflict_type, @cloud_status,
+        @local_status, @resolution, @payload, @resolved_at, @created_at
+      )
+    `).run({
+      id,
+      outlet_id: conflict.outlet_id,
+      table_name: conflict.table_name,
+      record_id: conflict.record_id,
+      conflict_type: conflict.conflict_type,
+      cloud_status: conflict.cloud_status || null,
+      local_status: conflict.local_status || null,
+      resolution: conflict.resolution,
+      payload: JSON.stringify(conflict.payload || {}),
+      resolved_at: conflict.resolved_at || new Date().toISOString(),
+      created_at: conflict.created_at || new Date().toISOString(),
+    })
+    return id
+  },
+
+  /**
+   * Returns recent sync conflicts for an outlet.
+   * @param {string} outletId
+   * @param {number} limit
+   * @returns {object[]}
+   */
+  getConflicts(outletId, limit = 50) {
+    return getDB().prepare(`
+      SELECT * FROM sync_conflicts
+      WHERE outlet_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(outletId, limit)
   },
 }
 

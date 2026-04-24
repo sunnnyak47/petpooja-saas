@@ -1,6 +1,6 @@
 # 🚀 Petpooja ERP - Project Status
-# Last Updated: 2026-04-13 18:30:00 IST
-# Updated by: Antigravity Agent
+# Last Updated: 2026-04-24 00:00:00 IST
+# Updated by: Codex
 # 
 # READ THIS FIRST before doing anything.
 # This file tells you exactly where the 
@@ -9,9 +9,9 @@
 ---
 
 ## 📍 CURRENT STATUS
-The project is in Phase 7 (Final Polish). The core ERP foundation is production-ready, and all critical QR Order workflow issues have been resolved.
+The project is in Phase 7 (Final Polish). The core ERP foundation is production-ready, and we have just finalized the **Desktop POS (Electron)** implementation including offline support.
 
-Completion: 100% overall
+Completion: 100% overall (Web + Desktop Shell)
 
 Working & Deployed:
 ✅ Auth (JWT + Refresh + RBAC + Email Password Reset)
@@ -28,11 +28,14 @@ Working & Deployed:
 ✅ Customer CRM (Loyalty points & campaign logs)
 ✅ QR Order Self-Ordering (Workflow fully refined)
 ✅ Audible alerts on POS (AudioContext implementation)
-✅ Integrations (Aggregator sync fine-tuned)
+✅ Online Orders (Aggregator sync fine-tuned)
+✅ Desktop POS (Electron Shell + SQLite Offline Engine)
+✅ First-Launch Setup Wizard (Outlet & Printer config)
+✅ Sync Engine (Background upload/download + conflict audit)
+✅ Thermal Printer Discovery (node-thermal-printer verified LAN discovery)
 
 Not Yet Built:
 ❌ Head Office Enterprise Suite (Central kitchen indents partially done)
-❌ Offline Support (Local caching)
 ❌ Test Suite (Jest/Artillery suite scaffolded but needs coverage)
 
 Known Bugs:
@@ -77,10 +80,16 @@ Repo:      GitHub (already connected)
 │   └── prisma/       → schema.prisma
 ├── frontend/         → Restaurant POS + Dashboard
 ├── superadmin-frontend/ → SuperAdmin Panel
-├── kitchen/          → Kitchen Display (KDS)
+├── kitchen/          → Kitchen Display Screen (KDS)
+├── mobile/           → React Native Owner App (Planned)
+├── desktop/          → Electron Desktop Shell
+│   ├── src/          → main.js, preload.js, syncEngine.js, localDB.js
+│   └── dist/         → Production installers (.dmg, .exe)
 ├── shared/           → Shared types and constants
+├── scripts/          → Build & Deploy automation
 ├── GEMINI.md         → Root Agent rules (The Constitution)
 ├── PROJECT_STATUS.md → This file (The Memory)
+├── ARCHITECTURE.md   → Detailed tech breakdown
 └── docker-compose.yml
 
 ---
@@ -97,7 +106,9 @@ Note: Schema is also managed via raw SQL in `backend/src/database/schema.sql`.
 
 Tables that NEED ADDING:
 - AnalyticsCache (for faster report generation)
-- OfflineSyncLog (for offline-to-online reconciliation)
+
+Desktop local schema note:
+- `sync_conflicts` records offline-to-online conflict reconciliation audit entries in SQLite.
 
 Last sync: Latest schema push on 2026-04-13.
 
@@ -199,7 +210,7 @@ ORDERS:
 
 ## 🔄 CURRENT ACTIVE PROBLEM
 
-None. Platform Branding issue resolved; the system now dynamically fetches and applies branding (Name, Logo Initial, Support) across all frontends.
+Desktop offline sync conflict handling finalized. If an offline order was deleted/cancelled in cloud, the local copy is marked cancelled, synced, and logged in `sync_conflicts`; if both sides changed an active order, the engine either applies terminal cloud status or retries with `merge_items`.
 
 ---
 

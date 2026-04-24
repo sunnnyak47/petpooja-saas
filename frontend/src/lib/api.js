@@ -2,9 +2,17 @@ import axios from 'axios';
 import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
+// Safe Electron detection — must use typeof guard at module scope.
+const isElectron = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+
+// In Electron relative URLs resolve to file:///api — use absolute backend URL instead.
+// On web use VITE_API_URL (set at build time) or fall back to /api (Vite dev proxy).
+const BASE_URL = import.meta.env.VITE_API_URL
+  || (isElectron ? 'https://petpooja-saas.onrender.com/api' : '/api');
+
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 15000,
+  baseURL: BASE_URL,
+  timeout: isElectron ? 90000 : 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -25,19 +33,19 @@ api.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const { data } = await axios.post('/api/auth/refresh-token', { refresh_token: refreshToken });
+          const { data } = await axios.post(`${BASE_URL}/auth/refresh-token`, { refresh_token: refreshToken });
           localStorage.setItem('accessToken', data.data.accessToken);
           localStorage.setItem('refreshToken', data.data.refreshToken);
           originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
           return api(originalRequest);
         } catch (refreshError) {
           store.dispatch(logout());
-          window.location.href = '/login';
+          window.location.hash = '#/login';
           return Promise.reject(refreshError);
         }
       } else {
         store.dispatch(logout());
-        window.location.href = '/login';
+        window.location.hash = '#/login';
       }
     }
 

@@ -5,7 +5,7 @@ const {
 const { app, BrowserWindow } = require('electron')
 
 // We will use the production backend URL for Sync, ideally configurable via setting or env
-const API_URL = 'https://petpooja-backend.onrender.com/api'
+const API_URL = 'https://petpooja-saas.onrender.com/api'
 
 class SyncEngine {
   constructor() {
@@ -103,70 +103,223 @@ class SyncEngine {
   // ─────────────────────────────
   async uploadPendingOrders() {
     if (!this.isOnline || this.isSyncing) return
-    
+
     this.isSyncing = true
-    const unsyncedOrders = OrderDB.getUnsyncedOrders()
-    
-    if (unsyncedOrders.length === 0) {
-      this.isSyncing = false
-      return
-    }
-
-    this.notifyRenderer('sync-status', {
-      status: 'uploading',
-      message: `Syncing ${unsyncedOrders.length} orders...`
-    })
-
+    const conflicts = []
+    let hasWork = false
     let synced = 0
     let failed = 0
 
-    for (const order of unsyncedOrders) {
-      try {
-        // Get order items
-        const items = OrderDB.getById(
-          order.id
-        )?.items || []
-        
-        // Upload to cloud API
-        const res = await fetch(
-          `${API_URL}/orders/sync`,
-          {
+    try {
+      const unsyncedOrders = OrderDB.getUnsyncedOrders()
+
+      if (unsyncedOrders.length === 0) {
+        return
+      }
+      hasWork = true
+
+      this.notifyRenderer('sync-status', {
+        status: 'uploading',
+        message: `Syncing ${unsyncedOrders.length} orders...`
+      })
+
+      for (const order of unsyncedOrders) {
+        try {
+          const items = OrderDB.getById(order.id)?.items || []
+
+          const res = await fetch(`${API_URL}/orders/sync`, {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
-              ...this.getHeaders() 
+              ...this.getHeaders()
             },
             body: JSON.stringify({
-              order: order,
-              items: items,
+              order,
+              items,
               source: 'offline_sync'
             })
-          }
-        )
+          })
 
-        if (res.ok) {
-          OrderDB.markSynced(order.id)
-          synced++
-        } else {
+          if (res.ok) {
+            OrderDB.markSynced(order.id)
+            synced++
+          } else {
+            const resolved = await this.resolveConflict(order, res)
+            if (resolved) {
+              synced++
+              conflicts.push({ orderId: order.id, resolution: resolved })
+            } else {
+              failed++
+              OrderDB.markSyncError(order.id, `sync_failed_http_${res.status}`)
+            }
+          }
+        } catch (err) {
           failed++
+          OrderDB.markSyncError(order.id, err.message)
+          console.error(`Failed to sync order ${order.id}:`, err)
+        }
+      }
+    } catch (err) {
+      failed++
+      console.error('Upload sync failed:', err)
+    } finally {
+      this.isSyncing = false
+      this.lastSync = new Date()
+
+      if (!hasWork) {
+        return
+      }
+
+      this.notifyRenderer('sync-status', {
+        status: 'done',
+        message: `Synced: ${synced}, Failed: ${failed}`,
+        synced,
+        failed,
+      })
+
+      if (conflicts.length > 0) {
+        this.notifyRenderer('sync-conflicts', { conflicts })
+      }
+    }
+  }
+
+  // ─────────────────────────────
+  // CONFLICT RESOLUTION
+  // Handles non-2xx sync responses
+  // ─────────────────────────────
+  /**
+   * Resolves a sync conflict for a single order.
+   *
+   * Rules:
+   *   404 — Order was deleted on cloud (e.g. cancelled by manager online
+   *         while POS was offline). Cloud wins: mark local as cancelled
+   *         and synced so we stop retrying.
+   *
+   *   409 — Order exists on cloud but data conflicts (e.g. same order
+   *         was modified on both sides). Strategy: cloud wins for status
+   *         changes (paid/cancelled), offline wins for new item additions.
+   *         We fetch the cloud copy and merge items before re-uploading.
+   *
+   *   Other — Transient server error. Leave unsynced so the next cycle
+   *           retries it naturally (max 3 attempts via SyncDB queue).
+   *
+   * @param {object} order - Local unsynced order row
+   * @param {Response} res - The failed fetch Response
+   * @returns {string|null} Resolution description, or null if unresolved
+   */
+  async resolveConflict(order, res) {
+    if (res.status === 404) {
+      const cancelledAt = new Date().toISOString()
+      OrderDB.applyConflictResolution(order.id, 'cancelled', {
+        cancelled_at: cancelledAt,
+        cancellation_reason: 'sync_conflict_deleted_on_cloud',
+      })
+      if (order.table_id) {
+        TableDB.updateStatus(order.table_id, 'available')
+      }
+      SyncDB.logConflict({
+        outlet_id: order.outlet_id,
+        table_name: 'orders',
+        record_id: order.id,
+        conflict_type: 'cloud_deleted',
+        cloud_status: 'deleted',
+        local_status: order.status,
+        resolution: 'cloud_deleted_order_cancelled_locally',
+        payload: {
+          order_number: order.order_number,
+          local_updated_at: order.updated_at,
+          resolved_at: cancelledAt,
+        },
+      })
+      console.log(`[SyncEngine] Conflict resolved (404): order ${order.id} cancelled — deleted on cloud.`)
+      return 'cloud_deleted_order_cancelled_locally'
+    }
+
+    if (res.status === 409) {
+      try {
+        // Fetch the authoritative cloud copy
+        const cloudRes = await fetch(`${API_URL}/orders/${order.id}`, {
+          headers: this.getHeaders()
+        })
+
+        if (!cloudRes.ok) return null
+
+        const { data: cloudOrder } = await cloudRes.json()
+
+        // Cloud wins for terminal statuses (paid, cancelled) — do not overwrite
+        if (['paid', 'cancelled', 'completed'].includes(cloudOrder.status)) {
+          OrderDB.applyConflictResolution(order.id, cloudOrder.status, {
+            paid_at: cloudOrder.paid_at,
+            billed_at: cloudOrder.billed_at,
+            payment_method: cloudOrder.payment_method,
+            invoice_number: cloudOrder.invoice_number,
+            cancelled_at: cloudOrder.cancelled_at,
+            cancellation_reason: cloudOrder.cancellation_reason || 'sync_conflict_cloud_terminal_status',
+          })
+          if (order.table_id) {
+            TableDB.updateStatus(order.table_id, 'available')
+          }
+          SyncDB.logConflict({
+            outlet_id: order.outlet_id,
+            table_name: 'orders',
+            record_id: order.id,
+            conflict_type: 'cloud_terminal_status',
+            cloud_status: cloudOrder.status,
+            local_status: order.status,
+            resolution: `cloud_status_applied:${cloudOrder.status}`,
+            payload: {
+              order_number: order.order_number,
+              cloud_updated_at: cloudOrder.updated_at,
+              local_updated_at: order.updated_at,
+            },
+          })
+          console.log(`[SyncEngine] Conflict resolved (409): order ${order.id} — cloud status '${cloudOrder.status}' applied locally.`)
+          return `cloud_status_applied:${cloudOrder.status}`
+        }
+
+        // Cloud order is still active — re-upload with explicit conflict flag
+        // so backend can merge (offline items take priority as they are additive)
+        const items = OrderDB.getById(order.id)?.items || []
+        const mergeRes = await fetch(`${API_URL}/orders/sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.getHeaders()
+          },
+          body: JSON.stringify({
+            order,
+            items,
+            source: 'offline_sync',
+            conflict_resolution: 'merge_items'
+          })
+        })
+
+        if (mergeRes.ok) {
+          OrderDB.markSynced(order.id)
+          SyncDB.logConflict({
+            outlet_id: order.outlet_id,
+            table_name: 'orders',
+            record_id: order.id,
+            conflict_type: 'active_order_merge',
+            cloud_status: cloudOrder.status,
+            local_status: order.status,
+            resolution: 'items_merged',
+            payload: {
+              order_number: order.order_number,
+              item_count: items.length,
+              cloud_updated_at: cloudOrder.updated_at,
+              local_updated_at: order.updated_at,
+            },
+          })
+          console.log(`[SyncEngine] Conflict resolved (409): order ${order.id} — items merged.`)
+          return 'items_merged'
         }
       } catch (err) {
-        failed++
-        console.error(
-          `Failed to sync order ${order.id}:`, err
-        )
+        console.error(`[SyncEngine] Conflict resolution failed for order ${order.id}:`, err)
       }
     }
 
-    this.isSyncing = false
-    this.lastSync = new Date()
-
-    this.notifyRenderer('sync-status', {
-      status: 'done',
-      message: `Synced: ${synced}, Failed: ${failed}`,
-      synced,
-      failed,
-    })
+    return null
   }
 
   // ─────────────────────────────
@@ -174,14 +327,22 @@ class SyncEngine {
   // ─────────────────────────────
   async syncAll(outletId) {
     if (!this.isOnline) return
-    
-    // We get outlet_id dynamically from Settings to allow full background sync without args
-    const currentOutletId = outletId || SettingsDB.get('outlet_id')
 
-    await this.uploadPendingOrders()
-    
-    if (currentOutletId) {
-      await this.downloadFromCloud(currentOutletId)
+    try {
+      // We get outlet_id dynamically from Settings to allow full background sync without args
+      const currentOutletId = outletId || SettingsDB.get('outlet_id')
+
+      await this.uploadPendingOrders()
+
+      if (currentOutletId) {
+        await this.downloadFromCloud(currentOutletId)
+      }
+    } catch (err) {
+      console.error('Full sync failed:', err)
+      this.notifyRenderer('sync-status', {
+        status: 'error',
+        message: 'Sync failed — working offline'
+      })
     }
   }
 

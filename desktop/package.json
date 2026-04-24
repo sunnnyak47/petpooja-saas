@@ -1,6 +1,6 @@
 {
   "name": "petpooja-erp-desktop",
-  "version": "1.0.0",
+  "version": "1.0.8",
   "description": "Petpooja ERP — Restaurant Management Desktop App",
   "main": "src/main.js",
   "homepage": "./",
@@ -8,6 +8,11 @@
     "start": "electron .",
     "dev": "concurrently \"npm run frontend\" \"wait-on http://localhost:3001 && electron .\"",
     "frontend": "cd ../frontend && npm run dev",
+    "postinstall": "electron-builder install-app-deps",
+    "sync-frontend": "node -e \"const fs=require('fs'); fs.rmSync('frontend-dist',{recursive:true,force:true}); fs.cpSync('../frontend/dist','frontend-dist',{recursive:true}); console.log('frontend-dist synced')\"",
+    "prebuild:mac": "npm run sync-frontend",
+    "prebuild:win": "npm run sync-frontend",
+    "prebuild:all": "npm run sync-frontend",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:all": "electron-builder --win --mac",
@@ -27,18 +32,28 @@
       "assets/**/*",
       "node_modules/**/*"
     ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
+    ],
     "extraResources": [
       {
         "from": "frontend-dist",
         "to": "frontend",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "ia32"]
+          "arch": [
+            "x64",
+            "ia32"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -58,7 +73,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -71,8 +89,16 @@
       "title": "Petpooja ERP",
       "icon": "assets/icon.png",
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ],
       "window": {
         "width": 540,
@@ -87,15 +113,15 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.1.0",
+    "better-sqlite3": "^9.4.3",
     "electron-store": "^8.1.0",
-    "node-thermal-printer": "^4.3.2",
-    "better-sqlite3": "^9.4.3"
+    "electron-updater": "^6.1.0",
+    "node-thermal-printer": "^4.3.2"
   },
   "devDependencies": {
+    "concurrently": "^8.0.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0",
-    "concurrently": "^8.0.0",
     "wait-on": "^7.0.0"
   }
 }
