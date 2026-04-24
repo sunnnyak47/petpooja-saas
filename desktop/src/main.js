@@ -70,7 +70,7 @@ function createWindow() {
     height,
     minWidth: 1024,
     minHeight: 768,
-    title: 'Petpooja ERP',
+    title: 'MS-RM System',
     icon: path.join(__dirname, '../assets/icon.png'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#0f172a',

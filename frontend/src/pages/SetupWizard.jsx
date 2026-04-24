@@ -19,7 +19,7 @@ const SetupWizard = ({ onComplete }) => {
         <div className="text-center max-w-lg">
           <div className="text-8xl mb-6">🍽️</div>
           <h1 className="text-4xl font-black mb-4 tracking-tight">
-            Welcome to Petpooja ERP
+            Welcome to MS-RM System
           </h1>
           <p className="text-slate-400 mb-8 text-lg">
             Let's set up this POS terminal for your restaurant.

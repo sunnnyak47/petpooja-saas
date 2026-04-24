@@ -4,11 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
-import useBranding from '../hooks/useBranding';
 import { loginSuccess, setLoading } from '../store/slices/authSlice';
 
 export default function LoginPage() {
-  const { branding, getPlatformInitial } = useBranding();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,14 +17,12 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!login || !password) return toast.error('Please fill in all fields');
-
     setLoadingState(true);
     dispatch(setLoading(true));
-
     try {
       const res = await api.post('/auth/login', { login, password });
       dispatch(loginSuccess(res.data));
-      toast.success(`Welcome back, ${res.data.user.full_name}!`);
+      toast.success(`Welcome back, ${res.data.user.full_name}`);
       navigate('/');
     } catch (error) {
       toast.error(error.message || 'Login failed');
@@ -37,35 +33,32 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-900 relative overflow-hidden">
-      {/* Background gradient orbs */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-brand-500/10 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] bg-brand-700/10 rounded-full blur-[120px]" />
+    <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: '#f8fafc' }}>
 
-      <div className="relative w-full max-w-md mx-4 animate-fade-in">
-        {/* Logo */}
+      <div className="w-full max-w-[400px]">
+        {/* Brand */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-glow uppercase">
-            {getPlatformInitial()}
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 text-white font-bold text-lg" style={{ background: '#2563eb' }}>
+            M
           </div>
-          <h1 className="text-3xl font-bold text-white">{branding.platform_name}</h1>
-          <p className="text-surface-400 mt-1">Restaurant Management System</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">MS-RM System</h1>
+          <p className="text-sm text-slate-500 mt-1">Restaurant Management System</p>
         </div>
 
-        {/* Login card */}
-        <div className="card border border-surface-700/80 shadow-glass-lg">
-          <h2 className="text-xl font-semibold text-white mb-6">Sign in to your account</h2>
+        {/* Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5" htmlFor="login-email">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="login-email">
                 Email or Phone
               </label>
               <input
                 id="login-email"
                 type="text"
-                className="input"
-                placeholder={`admin@${branding.platform_name.toLowerCase().replace(/\s+/g, '')}.com or 9999999999`}
+                className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 outline-none transition-all placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                placeholder="admin@example.com"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
                 autoFocus
@@ -73,14 +66,23 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5" htmlFor="login-password">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium text-slate-700" htmlFor="login-password">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
-                  className="input pr-10"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 outline-none transition-all placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pr-10"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -88,19 +90,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
-                  id="toggle-password"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <div className="flex justify-end mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="text-xs font-medium text-brand-500 hover:text-brand-400 transition-colors"
-                >
-                  Forgot Password?
                 </button>
               </div>
             </div>
@@ -108,25 +100,32 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full btn-lg"
-              id="btn-login"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              style={{ background: '#2563eb' }}
+              onMouseEnter={e => !loading && (e.currentTarget.style.background = '#1d4ed8')}
+              onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sign In'}
             </button>
           </form>
 
-          <div className="mt-6 p-3 bg-surface-700/30 rounded-xl">
-            <p className="text-xs text-surface-500 font-medium mb-2">Demo Credentials</p>
-            <div className="text-xs text-surface-400 space-y-1 font-mono">
+          <div className="mt-5 pt-5 border-t border-slate-100">
+            <p className="text-xs font-medium text-slate-500 mb-2">Demo Credentials</p>
+            <div className="text-xs text-slate-400 font-mono space-y-1">
               <p>Email: admin@demo.com</p>
               <p>Password: Admin@12345</p>
             </div>
           </div>
         </div>
 
-        <p className="text-center text-xs text-surface-600 mt-6">
-          © 2026 {branding.platform_name} — Powering Thousands of Restaurants
-        </p>
+        {/* Footer */}
+        <div className="text-center mt-6 space-y-1">
+          <p className="text-xs text-slate-400">© 2026 MS-RM System. All rights reserved.</p>
+          <p className="text-xs text-slate-400">
+            Created by{' '}
+            <span className="font-medium text-slate-500">Madsun Digital Marketing &amp; Media Agency</span>
+          </p>
+        </div>
       </div>
     </div>
   );
