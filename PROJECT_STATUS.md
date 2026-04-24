@@ -33,6 +33,7 @@ Working & Deployed:
 ✅ First-Launch Setup Wizard (Outlet & Printer config)
 ✅ Sync Engine (Background upload/download + conflict audit)
 ✅ Thermal Printer Discovery (node-thermal-printer verified LAN discovery)
+✅ Mock Third-Party Integrations (Zomato, Swiggy, Razorpay, WhatsApp, Tally)
 
 Not Yet Built:
 ❌ Head Office Enterprise Suite (Central kitchen indents partially done)

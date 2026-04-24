@@ -134,6 +134,8 @@ const integrationRoutes = require('./modules/integrations/integration.routes');
 const headofficeRoutes = require('./modules/headoffice/headoffice.routes');
 const superadminRoutes = require('./modules/superadmin/superadmin.routes');
 const discountRoutes = require('./modules/discounts/discount.routes');
+const mockRoutes = require('./mock-integrations/routes/mock.routes');
+const mockTestRoutes = require('./mock-integrations/routes/test.routes');
 
 app.get('/api', (req, res) => {
   res.status(200).json({
@@ -184,6 +186,8 @@ app.use('/api/integrations', integrationRoutes);
 app.use('/api/ho', headofficeRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/discounts', discountRoutes);
+app.use('/mock', mockRoutes);
+app.use('/test', mockTestRoutes);
 
 // Initialize Billing & Subscriptions
 require('./modules/headoffice/billing.service');
