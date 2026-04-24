@@ -21,8 +21,8 @@
   },
   "build": {
     "appId": "com.petpoojaerp.app",
-    "productName": "Petpooja ERP",
-    "copyright": "Copyright 2026 Petpooja ERP",
+    "productName": "MS-RM System",
+    "copyright": "Copyright 2026 Madsun Digital Marketing & Media Agency",
     "directories": {
       "output": "dist",
       "buildResources": "assets"

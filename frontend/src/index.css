@@ -2,115 +2,170 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme CSS Variables — set by ThemeContext */
+/* ── Theme CSS Variables (default: light) ── */
 :root {
-  --bg-primary:     #0f172a;
-  --bg-secondary:   #1e293b;
-  --bg-card:        #1e293b;
-  --bg-hover:       #334155;
-  --border:         #334155;
-  --text-primary:   #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent:         #6366f1;
-  --accent-hover:   #4f46e5;
+  --bg-primary:     #f8fafc;
+  --bg-secondary:   #ffffff;
+  --bg-card:        #ffffff;
+  --bg-hover:       #f1f5f9;
+  --border:         #e2e8f0;
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --accent:         #2563eb;
+  --accent-hover:   #1d4ed8;
   --accent-text:    #ffffff;
-  --success:        #22c55e;
-  --warning:        #f59e0b;
-  --danger:         #ef4444;
-  --sidebar-bg:     #0f172a;
-  --sidebar-text:   #94a3b8;
-  --sidebar-active: #6366f1;
-  --button-primary: #6366f1;
-  --kot-bg:         #1e293b;
+  --success:        #16a34a;
+  --warning:        #d97706;
+  --danger:         #dc2626;
+  --sidebar-bg:     #ffffff;
+  --sidebar-text:   #475569;
+  --sidebar-active: #2563eb;
+  --button-primary: #2563eb;
+  --kot-bg:         #f8fafc;
 }
 
-/* Apply variables to common elements */
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color 0.3s ease,
-              color 0.3s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Smooth theme transition on all elements */
 *, *::before, *::after {
-  transition: background-color 0.25s ease,
-              border-color 0.25s ease,
-              color 0.25s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
-
-/* Theme overrides are injected dynamically by ThemeContext as a <style id="petpooja-theme"> tag (Legacy, keeping for safety) */
 
 @layer base {
-  * { @apply border-surface-700; }
-  body { @apply bg-surface-900 text-surface-100 font-sans; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { @apply bg-surface-800; }
-  ::-webkit-scrollbar-thumb { @apply bg-surface-600 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-surface-500; }
+  * { @apply border-slate-200; }
+  .dark * { @apply border-slate-700; }
+  body { @apply font-sans antialiased; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+  .dark ::-webkit-scrollbar-thumb { @apply bg-slate-600; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-400; }
 }
 
 @layer components {
+  /* ── Buttons ── */
   .btn {
-    @apply px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200
-           active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed
-           flex items-center justify-center gap-2;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5
+           rounded-lg font-medium text-sm transition-all duration-150
+           active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed
+           select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
   }
-  .btn-primary { @apply btn bg-brand-500 hover:bg-brand-600 text-white shadow-glow; }
-  .btn-secondary { @apply btn bg-surface-700 hover:bg-surface-600 text-surface-100; }
-  .btn-success { @apply btn bg-success-600 hover:bg-success-500 text-white; }
-  .btn-warning { @apply btn bg-warning-600 hover:bg-warning-500 text-white; }
-  .btn-ghost { @apply btn bg-transparent hover:bg-surface-800 text-surface-300; }
-  .btn-danger { @apply btn bg-red-600 hover:bg-red-700 text-white; }
-  .btn-lg { @apply px-6 py-3.5 text-base rounded-2xl; }
-  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
+  .btn-primary {
+    @apply btn text-white shadow-sm hover:shadow-md;
+    background-color: var(--accent);
+    focus-visible:ring-color: var(--accent);
+  }
+  .btn-primary:hover { background-color: var(--accent-hover); }
+  .btn-secondary {
+    @apply btn bg-white border border-slate-200 text-slate-700
+           hover:bg-slate-50 shadow-sm dark:bg-slate-800 dark:border-slate-700
+           dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+  .btn-success { @apply btn bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm; }
+  .btn-warning { @apply btn bg-amber-500 hover:bg-amber-600 text-white shadow-sm; }
+  .btn-danger  { @apply btn bg-red-600 hover:bg-red-700 text-white shadow-sm; }
+  .btn-ghost   { @apply btn bg-transparent hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-800 dark:text-slate-300; }
+  .btn-lg      { @apply px-6 py-3 text-base rounded-xl; }
+  .btn-sm      { @apply px-3 py-1.5 text-xs rounded-md; }
 
+  /* ── Cards ── */
   .card {
-    @apply bg-surface-800 backdrop-blur-sm border border-surface-700
-           rounded-2xl p-5 shadow-glass transition-all duration-200;
+    @apply rounded-xl border p-5 shadow-sm transition-all duration-150;
+    background-color: var(--bg-card);
+    border-color: var(--border);
   }
-  .card-hover { @apply card hover:border-surface-600 hover:shadow-glass-lg; }
+  .card-hover {
+    @apply card hover:shadow-md cursor-pointer;
+  }
+  .card-hover:hover { border-color: var(--accent); }
 
+  /* ── Inputs ── */
   .input {
-    @apply w-full px-4 py-2.5 bg-surface-800 border border-surface-700
-           rounded-xl text-surface-100 placeholder-surface-500 text-sm
-           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
-           transition-all duration-200;
+    @apply w-full px-3.5 py-2.5 text-sm rounded-lg border outline-none
+           transition-all duration-150
+           focus:ring-2 focus:ring-offset-0;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  .input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
+  /* ── Badges ── */
   .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
+           text-xs font-medium border;
   }
-  .badge-success { @apply border-success-500 text-success-500 bg-transparent; }
-  .badge-warning { @apply border-warning-500 text-warning-500 bg-transparent; }
-  .badge-danger { @apply border-red-500 text-red-500 bg-transparent; }
-  .badge-info { @apply border-info-500 text-info-500 bg-transparent; }
-  .badge-neutral { @apply border-surface-500 text-surface-300 bg-surface-700; }
+  .badge-success { @apply badge bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800; }
+  .badge-warning { @apply badge bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800; }
+  .badge-danger  { @apply badge bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800; }
+  .badge-info    { @apply badge bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800; }
+  .badge-neutral { @apply badge bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700; }
 
-  .stat-card {
-    @apply card flex flex-col gap-1;
-  }
-  .stat-value { @apply text-2xl font-bold text-white; }
-  .stat-label { @apply text-xs font-medium text-surface-400 uppercase tracking-wider; }
+  /* ── Stat Cards ── */
+  .stat-card  { @apply card flex flex-col gap-1.5; }
+  .stat-value { @apply text-2xl font-bold tracking-tight; color: var(--text-primary); }
+  .stat-label { @apply text-xs font-semibold uppercase tracking-wider; color: var(--text-secondary); }
 
+  /* ── Sidebar Nav ── */
   .sidebar-link {
-    @apply flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium
-           text-surface-400 hover:text-white hover:bg-surface-800
-           transition-all duration-200;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+           transition-all duration-150;
+    color: var(--sidebar-text);
+  }
+  .sidebar-link:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
   }
   .sidebar-link-active {
-    @apply sidebar-link text-white bg-brand-500 border-l-2 border-brand-500;
+    @apply sidebar-link font-semibold;
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
   }
 
+  /* ── Table Rows ── */
   .table-row {
-    @apply border-b border-surface-700 hover:bg-surface-800
-           transition-colors duration-150;
+    @apply border-b transition-colors duration-100;
+    border-color: var(--border);
+  }
+  .table-row:hover { background-color: var(--bg-hover); }
+
+  /* ── KOT Cards ── */
+  .kot-card     { @apply border-2 rounded-xl p-4; background-color: var(--kot-bg); }
+  .kot-pending  { @apply kot-card border-amber-400; }
+  .kot-preparing{ @apply kot-card border-blue-400; }
+  .kot-ready    { @apply kot-card border-emerald-500; }
+
+  /* ── Page Header ── */
+  .page-header {
+    @apply mb-6;
+  }
+  .page-title {
+    @apply text-2xl font-bold tracking-tight;
+    color: var(--text-primary);
+  }
+  .page-subtitle {
+    @apply text-sm mt-0.5;
+    color: var(--text-secondary);
   }
 
-  .kot-card {
-    @apply border-2 rounded-2xl p-4 bg-surface-800;
+  /* ── Section Label ── */
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-widest px-3 mb-1;
+    color: var(--text-secondary);
+    opacity: 0.6;
   }
-  .kot-pending { @apply kot-card border-warning-500 text-warning-500; }
-  .kot-preparing { @apply kot-card border-info-500 text-info-500 animate-pulse-slow; }
-  .kot-ready { @apply kot-card border-success-500 text-success-500; }
+
+  /* ── Divider ── */
+  .divider {
+    @apply border-t my-4;
+    border-color: var(--border);
+  }
 }
