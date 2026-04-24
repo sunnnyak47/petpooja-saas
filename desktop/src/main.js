@@ -553,6 +553,15 @@ function setupAutoUpdater() {
       })
   })
 
+  autoUpdater.on('download-progress', (progress) => {
+    notifyRenderer('update-progress', {
+      percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond,
+    })
+  })
+
   autoUpdater.on('update-downloaded', () => {
     dialog
       .showMessageBox(mainWindow, {

@@ -102,6 +102,9 @@ contextBridge.exposeInMainWorld('electron', {
   onUpdateDownloading: (callback) =>
     onEvent('update-downloading', callback),
 
+  onUpdateProgress: (callback) =>
+    onEvent('update-progress', callback),
+
   // ─── Sync Engine ───────────────────────────────────────────────
   /** Trigger a manual sync */
   syncNow: (outletId) =>

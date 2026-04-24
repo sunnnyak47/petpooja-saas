@@ -48,6 +48,7 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const [pendingOrders, setPendingOrders] = useState([]);
   const [audioLocked, setAudioLocked] = useState(true);
+  const [updateProgress, setUpdateProgress] = useState(null);
   const { user, token } = useSelector((s) => s.auth);
   const audioCtxRef = useRef(null);
 
@@ -75,6 +76,12 @@ export default function DashboardLayout() {
       window.removeEventListener('keydown', unlock);
       window.removeEventListener('touchstart', unlock);
     };
+  }, []);
+
+  useEffect(() => {
+    if (!window.electron?.onUpdateProgress) return;
+    const unsub = window.electron.onUpdateProgress((data) => setUpdateProgress(data.percent));
+    return unsub;
   }, []);
 
   const navItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
@@ -112,6 +119,21 @@ export default function DashboardLayout() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <DunningBanner user={user} />
+
+      {/* Update download progress bar */}
+      {updateProgress !== null && (
+        <div className="flex items-center gap-3 px-4 py-2 text-xs font-medium text-white" style={{ background: '#2563eb' }}>
+          <div className="flex-1 bg-blue-400/40 rounded-full h-1.5 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-white transition-all duration-300"
+              style={{ width: `${updateProgress}%` }}
+            />
+          </div>
+          <span className="flex-shrink-0">
+            {updateProgress < 100 ? `Downloading update… ${updateProgress}%` : 'Download complete — restart to apply'}
+          </span>
+        </div>
+      )}
 
       {pendingOrders.length > 0 && (
         <IncomingOrderAlert
