@@ -233,4 +233,12 @@ contextBridge.exposeInMainWorld('electron', {
   /** Get the absolute path to the local SQLite DB file */
   dbGetPath: () =>
     ipcRenderer.invoke('db-get-path'),
+
+  /** Get outlet data for offline bill header */
+  dbGetOutlet: (outletId) =>
+    ipcRenderer.invoke('db-get-outlet', outletId),
+
+  /** Print receipt HTML via browser print dialog (fallback for no thermal printer) */
+  printReceiptHTML: (html, title) =>
+    ipcRenderer.invoke('print-receipt-html', { html, title }),
 })

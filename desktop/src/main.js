@@ -292,7 +292,7 @@ function setupIPC() {
   // Lazy-load localDB after app is ready (needs app.getPath)
   const {
     MenuDB, OrderDB, KotDB,
-    TableDB, SyncDB, SettingsDB,
+    TableDB, SyncDB, SettingsDB, OutletDB,
     getDBPath,
   } = require('./database/localDB')
 
@@ -522,6 +522,37 @@ function setupIPC() {
    */
   ipcMain.handle('db-get-path', () => {
     return getDBPath()
+  })
+
+  // ── LOCAL DB: OUTLET ─────────────────────────────────────────
+  ipcMain.handle('db-get-outlet', (_, outletId) => {
+    return OutletDB.get(outletId)
+  })
+
+  // ── BROWSER PRINT FALLBACK ────────────────────────────────────
+  /**
+   * Opens a minimal BrowserWindow with rendered HTML receipt for
+   * PDF/paper printing when no thermal printer is configured.
+   * @param {object} html - { html: string, title: string }
+   */
+  ipcMain.handle('print-receipt-html', async (_, { html, title }) => {
+    try {
+      const printWin = new BrowserWindow({
+        width: 400,
+        height: 700,
+        show: false,
+        webPreferences: { contextIsolation: true },
+        title: title || 'Receipt',
+      })
+      await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      printWin.show()
+      printWin.webContents.print({ silent: false, printBackground: true }, (success) => {
+        if (!printWin.isDestroyed()) printWin.close()
+      })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
   })
 }
 

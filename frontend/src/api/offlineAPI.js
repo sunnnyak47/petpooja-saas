@@ -50,6 +50,102 @@ function generateInvoiceNumber(outlet) {
 }
 
 // ─────────────────────────────────────
+// HTML RECEIPT GENERATOR
+// Used as fallback when thermal printer is not configured
+// ─────────────────────────────────────
+function generateReceiptHTML(bill) {
+  const items = bill.items || bill.order_items || []
+  const outlet = bill.outlet || {}
+  const fmt = (n) => `₹${parseFloat(n || 0).toFixed(2)}`
+  const itemRows = items.map(i => `
+    <tr>
+      <td style="padding:3px 0;font-size:12px">${i.menu_item_name || i.name}</td>
+      <td style="text-align:center;font-size:12px">${i.quantity}</td>
+      <td style="text-align:right;font-size:12px">${fmt((i.unit_price || i.base_price || 0) * i.quantity)}</td>
+    </tr>`).join('')
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Bill ${bill.invoice_number || ''}</title>
+  <style>
+    body { font-family: 'Courier New', monospace; max-width: 300px; margin: 0 auto; padding: 16px; font-size: 13px; }
+    h2 { text-align: center; margin: 0 0 4px; font-size: 16px; }
+    .center { text-align: center; }
+    .line { border-top: 1px dashed #000; margin: 8px 0; }
+    table { width: 100%; border-collapse: collapse; }
+    .total { font-weight: bold; font-size: 14px; }
+    .footer { text-align: center; margin-top: 12px; font-size: 11px; }
+    @media print { body { margin: 0; } }
+  </style>
+  </head><body>
+  <h2>${outlet.name || 'Restaurant'}</h2>
+  ${outlet.address ? `<p class="center" style="margin:2px 0;font-size:11px">${outlet.address}${outlet.city ? ', ' + outlet.city : ''}</p>` : ''}
+  ${outlet.phone ? `<p class="center" style="margin:2px 0;font-size:11px">Ph: ${outlet.phone}</p>` : ''}
+  ${outlet.gstin ? `<p class="center" style="margin:2px 0;font-size:11px">GSTIN: ${outlet.gstin}</p>` : ''}
+  <div class="line"></div>
+  <table><tr>
+    <td style="font-size:11px">Invoice: <b>${bill.invoice_number || 'N/A'}</b></td>
+    <td style="text-align:right;font-size:11px">${new Date().toLocaleDateString('en-IN')}</td>
+  </tr></table>
+  ${bill.table_number ? `<p style="margin:2px 0;font-size:11px">Table: ${bill.table_number}</p>` : ''}
+  <div class="line"></div>
+  <table>
+    <thead><tr>
+      <th style="text-align:left;font-size:11px">Item</th>
+      <th style="text-align:center;font-size:11px">Qty</th>
+      <th style="text-align:right;font-size:11px">Amount</th>
+    </tr></thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+  <div class="line"></div>
+  <table>
+    <tr><td style="font-size:12px">Subtotal</td><td style="text-align:right;font-size:12px">${fmt(bill.subtotal)}</td></tr>
+    ${bill.cgst_amount || bill.cgst ? `<tr><td style="font-size:12px">CGST</td><td style="text-align:right;font-size:12px">${fmt(bill.cgst_amount || bill.cgst)}</td></tr>` : ''}
+    ${bill.sgst_amount || bill.sgst ? `<tr><td style="font-size:12px">SGST</td><td style="text-align:right;font-size:12px">${fmt(bill.sgst_amount || bill.sgst)}</td></tr>` : ''}
+    ${bill.service_charge ? `<tr><td style="font-size:12px">Service Charge</td><td style="text-align:right;font-size:12px">${fmt(bill.service_charge)}</td></tr>` : ''}
+    ${bill.discount_amount ? `<tr><td style="font-size:12px">Discount</td><td style="text-align:right;font-size:12px">-${fmt(bill.discount_amount)}</td></tr>` : ''}
+    <tr class="total"><td>TOTAL</td><td style="text-align:right">${fmt(bill.grand_total || bill.total_amount)}</td></tr>
+  </table>
+  <div class="line"></div>
+  ${outlet.fssai ? `<p class="footer">FSSAI: ${outlet.fssai}</p>` : ''}
+  <p class="footer">Thank you! Visit Again 🙏</p>
+  <script>window.onload=()=>window.print()</script>
+  </body></html>`
+}
+
+/**
+ * Generates a KOT HTML for browser print fallback.
+ */
+function generateKOTHTML(kot) {
+  const items = kot.items || []
+  const itemRows = items.map(i => `
+    <tr>
+      <td style="font-size:14px;padding:4px 0;font-weight:bold">${i.quantity}x  ${i.menu_item_name || i.name}</td>
+    </tr>
+    ${i.variant_name ? `<tr><td style="font-size:12px;padding-left:16px;color:#555">↳ ${i.variant_name}</td></tr>` : ''}
+    ${i.notes ? `<tr><td style="font-size:12px;padding-left:16px;color:#555">Note: ${i.notes}</td></tr>` : ''}`
+  ).join('')
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>KOT ${kot.kot_number}</title>
+  <style>
+    body { font-family: 'Courier New', monospace; max-width: 280px; margin: 0 auto; padding: 16px; }
+    h2 { text-align: center; font-size: 16px; margin: 0 0 4px; }
+    .line { border-top: 2px dashed #000; margin: 8px 0; }
+    table { width: 100%; }
+    @media print { body { margin: 0; } }
+  </style></head><body>
+  <h2>KITCHEN ORDER TICKET</h2>
+  <div class="line"></div>
+  <p style="margin:2px 0">Table : <b>${kot.table_number || 'Takeaway'}</b></p>
+  <p style="margin:2px 0">KOT # : <b>${kot.kot_number}</b></p>
+  <p style="margin:2px 0">Time  : ${new Date().toLocaleTimeString('en-IN')}</p>
+  <div class="line"></div>
+  <table><tbody>${itemRows}</tbody></table>
+  <div class="line"></div>
+  <script>window.onload=()=>window.print()</script>
+  </body></html>`
+}
+
+// ─────────────────────────────────────
 // HYBRID API
 // ─────────────────────────────────────
 export const hybridAPI = {
@@ -184,11 +280,13 @@ export const hybridAPI = {
         addons: i.variant_name || null,
       })))
 
-      // Fire-and-forget print (don't block on printer errors)
-      window.electron.printKOT({
-        ...kotData,
-        items: pendingItems,
-      }).catch(() => {}) // Printer errors are non-fatal
+      // Try thermal printer; fall back to browser print dialog
+      const kotPrintData = { ...kotData, items: pendingItems }
+      const kotPrint = await window.electron.printKOT(kotPrintData).catch(() => ({ success: false }))
+      if (!kotPrint?.success) {
+        const html = generateKOTHTML(kotPrintData)
+        await window.electron.invoke('print-receipt-html', { html, title: `KOT ${kotData.kot_number}` }).catch(() => {})
+      }
 
       return { success: true, kot_id: kotId, items_count: pendingItems.length }
     }
@@ -208,17 +306,25 @@ export const hybridAPI = {
   async generateBill(orderId) {
     if (IS_ELECTRON) {
       const order = await invoke('db-get-order', orderId)
-      const invoiceNumber = generateInvoiceNumber(null)
+      const outlet = await invoke('db-get-outlet', order.outlet_id).catch(() => null)
+      const invoiceNumber = generateInvoiceNumber(outlet)
 
       await invoke('db-update-order-status', orderId, 'billed', {
         invoice_number: invoiceNumber,
         billed_at: new Date().toISOString(),
       })
 
-      // Print bill (non-blocking)
-      window.electron.printBill({ ...order, invoice_number: invoiceNumber }).catch(() => {})
+      const billData = { ...order, invoice_number: invoiceNumber, outlet }
 
-      return { success: true, invoice_number: invoiceNumber }
+      // Try thermal printer first; fall back to browser print
+      const printResult = await window.electron.printBill(billData).catch(() => ({ success: false }))
+      if (!printResult?.success) {
+        // Generate HTML receipt and open browser print dialog
+        const html = generateReceiptHTML(billData)
+        await window.electron.invoke('print-receipt-html', { html, title: `Bill ${invoiceNumber}` }).catch(() => {})
+      }
+
+      return { success: true, invoice_number: invoiceNumber, ...billData }
     }
 
     const res = await api.post(`/orders/${orderId}/bill`)

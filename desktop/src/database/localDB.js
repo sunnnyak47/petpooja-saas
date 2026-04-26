@@ -844,6 +844,34 @@ const SettingsDB = {
   },
 }
 
+// ─────────────────────────────────────
+// OUTLET
+// ─────────────────────────────────────
+const OutletDB = {
+  /**
+   * Save outlet data from cloud sync for offline bill header.
+   */
+  save(outlet) {
+    getDB().prepare(`
+      INSERT OR REPLACE INTO outlets
+        (id, name, address, city, state, gstin, fssai, phone, logo_url, gst_rate, service_charge, synced_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).run(
+      outlet.id, outlet.name, outlet.address || null, outlet.city || null,
+      outlet.state || null, outlet.gstin || null, outlet.fssai || null,
+      outlet.phone || null, outlet.logo_url || null,
+      outlet.gst_rate || 5, outlet.service_charge || 0
+    )
+  },
+
+  /**
+   * Get outlet by id.
+   */
+  get(outletId) {
+    return getDB().prepare(`SELECT * FROM outlets WHERE id = ?`).get(outletId) || null
+  },
+}
+
 /**
  * Returns the absolute path to the SQLite database file.
  * Useful for diagnostic logging.
@@ -861,5 +889,6 @@ module.exports = {
   TableDB,
   SyncDB,
   SettingsDB,
+  OutletDB,
   getDBPath,
 }

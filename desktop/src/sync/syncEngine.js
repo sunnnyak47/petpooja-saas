@@ -1,6 +1,6 @@
-const { 
-  OrderDB, KotDB, TableDB, 
-  MenuDB, SyncDB, SettingsDB 
+const {
+  OrderDB, KotDB, TableDB,
+  MenuDB, SyncDB, SettingsDB, OutletDB
 } = require('../database/localDB')
 const { app, BrowserWindow } = require('electron')
 
@@ -68,6 +68,19 @@ class SyncEngine {
         TableDB.saveFromSync(tables.data || [])
       }
 
+      // Download outlet info (for offline bill header)
+      try {
+        const outletRes = await fetch(
+          `${API_URL}/auth/me`,
+          { headers: this.getHeaders() }
+        )
+        if (outletRes.ok) {
+          const me = await outletRes.json()
+          const outlet = me.data?.outlet || me.data?.outlets?.[0]
+          if (outlet) OutletDB.save(outlet)
+        }
+      } catch (_) {}
+
       // Download staff (for offline PIN verify)
       const staffRes = await fetch(
         `${API_URL}/staff?outlet_id=${outletId}&limit=100`,
@@ -75,13 +88,10 @@ class SyncEngine {
       )
       if (staffRes.ok) {
         const staff = await staffRes.json()
-        // Save to local staff table
         this.saveStaffLocally(staff.data || [])
       }
 
-      SettingsDB.set('last_sync', 
-        new Date().toISOString()
-      )
+      SettingsDB.set('last_sync', new Date().toISOString())
       
       this.notifyRenderer('sync-status', {
         status: 'success',

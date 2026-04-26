@@ -1,46 +1,70 @@
-import { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Wifi, WifiOff, Cloud, RefreshCw } from 'lucide-react';
+import hybridAPI from '../api/offlineAPI';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
 /**
  * M16: Offline Mode — React hook for online/offline state management.
- * Provides network status, queued action count, and sync trigger.
+ * In Electron: delegates to syncEngine via IPC.
+ * In browser: uses localStorage queue + direct fetch.
  */
 export default function useOfflineSync() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingActions, setPendingActions] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
+  // Count pending from localStorage queue
+  const countPending = useCallback(() => {
+    try {
+      const cached = localStorage.getItem('pp_offline_queue');
+      const queue = cached ? JSON.parse(cached) : [];
+      setPendingActions(queue.length);
+    } catch {}
+  }, []);
 
   useEffect(() => {
+    countPending();
+
     const onOnline = () => {
       setIsOnline(true);
+      // Trigger Electron sync engine if available
+      if (IS_ELECTRON) {
+        window.electron.syncNow().catch(() => {});
+      }
       syncPendingActions();
     };
-    const onOffline = () => setIsOnline(false);
+    const onOffline = () => {
+      setIsOnline(false);
+      setSyncMessage('');
+    };
 
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
 
-    // Load pending actions from IndexedDB/localStorage
-    const cached = localStorage.getItem('pp_offline_queue');
-    if (cached) {
-      try {
-        const queue = JSON.parse(cached);
-        setPendingActions(queue.length);
-      } catch {}
+    // Listen to Electron sync-status events
+    let unsub;
+    if (IS_ELECTRON && window.electron.onSyncStatus) {
+      unsub = window.electron.onSyncStatus((data) => {
+        setSyncMessage(data.message || '');
+        setIsSyncing(data.status === 'uploading' || data.status === 'downloading');
+        if (data.status === 'done' || data.status === 'success') {
+          setLastSyncTime(new Date().toISOString());
+          setIsSyncing(false);
+        }
+      });
     }
 
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      if (unsub) unsub();
     };
   }, []);
 
-  /**
-   * Queues an action for offline execution.
-   * @param {object} action - { type, endpoint, method, data }
-   */
-  const queueAction = (action) => {
+  const queueAction = useCallback((action) => {
     try {
       const cached = localStorage.getItem('pp_offline_queue');
       const queue = cached ? JSON.parse(cached) : [];
@@ -50,27 +74,31 @@ export default function useOfflineSync() {
     } catch (e) {
       console.error('Failed to queue offline action:', e);
     }
-  };
+  }, []);
 
-  /**
-   * Syncs all pending actions to the server.
-   */
-  const syncPendingActions = async () => {
+  const syncPendingActions = useCallback(async () => {
     if (isSyncing || !navigator.onLine) return;
     setIsSyncing(true);
+    setSyncMessage('Syncing pending actions…');
 
     try {
-      const cached = localStorage.getItem('pp_offline_queue');
-      if (!cached) { setIsSyncing(false); return; }
+      // Electron: flush SQLite unsynced orders to cloud
+      if (IS_ELECTRON) {
+        await hybridAPI.flushOrdersToCloud().catch(() => {});
+      }
 
+      // Browser queue flush
+      const cached = localStorage.getItem('pp_offline_queue');
+      if (!cached) return;
       const queue = JSON.parse(cached);
-      if (queue.length === 0) { setIsSyncing(false); return; }
+      if (queue.length === 0) return;
 
       const failed = [];
       for (const action of queue) {
         try {
           const token = localStorage.getItem('accessToken');
-          const response = await fetch(`/api${action.endpoint}`, {
+          const BASE = import.meta.env.VITE_API_URL || '';
+          const response = await fetch(`${BASE}/api${action.endpoint}`, {
             method: action.method || 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -78,10 +106,7 @@ export default function useOfflineSync() {
             },
             body: JSON.stringify(action.data),
           });
-
-          if (!response.ok) {
-            failed.push(action);
-          }
+          if (!response.ok) failed.push(action);
         } catch {
           failed.push(action);
         }
@@ -90,26 +115,26 @@ export default function useOfflineSync() {
       localStorage.setItem('pp_offline_queue', JSON.stringify(failed));
       setPendingActions(failed.length);
       setLastSyncTime(new Date().toISOString());
+      setSyncMessage(failed.length === 0 ? 'All synced ✓' : `${failed.length} failed`);
     } catch (e) {
       console.error('Sync failed:', e);
+      setSyncMessage('Sync failed');
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [isSyncing]);
 
-  /**
-   * Clears the offline queue.
-   */
-  const clearQueue = () => {
+  const clearQueue = useCallback(() => {
     localStorage.setItem('pp_offline_queue', '[]');
     setPendingActions(0);
-  };
+  }, []);
 
   return {
     isOnline,
     pendingActions,
     lastSyncTime,
     isSyncing,
+    syncMessage,
     queueAction,
     syncPendingActions,
     clearQueue,
@@ -117,33 +142,39 @@ export default function useOfflineSync() {
 }
 
 /**
- * Offline Status Banner Component
- * Shows when offline with pending action count and sync button.
+ * Offline Status Banner — shown when offline or pending sync items exist.
  */
 export function OfflineBanner() {
-  const { isOnline, pendingActions, isSyncing, syncPendingActions } = useOfflineSync();
+  const { isOnline, pendingActions, isSyncing, syncMessage, syncPendingActions } = useOfflineSync();
 
-  if (isOnline && pendingActions === 0) return null;
+  // Fully online + nothing pending → hide
+  if (isOnline && pendingActions === 0 && !syncMessage) return null;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[100] px-4 py-2 flex items-center justify-center gap-3 text-sm font-bold transition-all ${isOnline ? 'bg-orange-500' : 'bg-red-500'} text-white`}>
-      {isOnline ? (
+    <div className={`fixed top-0 left-0 right-0 z-[100] px-4 py-2 flex items-center justify-center gap-3 text-sm font-bold transition-all
+      ${isOnline ? (pendingActions > 0 ? 'bg-orange-500' : 'bg-emerald-600') : 'bg-red-600'} text-white`}>
+      {!isOnline ? (
+        <>
+          <WifiOff className="w-4 h-4 animate-pulse" />
+          <span>Offline — KOT & billing work normally. Orders sync when back online.</span>
+          {pendingActions > 0 && (
+            <span className="px-2 py-0.5 bg-white/20 rounded text-xs">{pendingActions} queued</span>
+          )}
+        </>
+      ) : pendingActions > 0 ? (
         <>
           <Cloud className="w-4 h-4" />
-          <span>{pendingActions} pending actions to sync</span>
+          <span>{pendingActions} order{pendingActions !== 1 ? 's' : ''} pending sync</span>
           <button onClick={syncPendingActions} disabled={isSyncing}
             className="px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex items-center gap-1 text-xs">
             <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? 'Syncing…' : 'Sync Now'}
           </button>
         </>
       ) : (
         <>
-          <WifiOff className="w-4 h-4 animate-pulse" />
-          <span>You're offline — Orders will sync when connection is restored</span>
-          {pendingActions > 0 && (
-            <span className="px-2 py-0.5 bg-white/20 rounded text-xs">{pendingActions} queued</span>
-          )}
+          <Wifi className="w-4 h-4" />
+          <span>{syncMessage}</span>
         </>
       )}
     </div>
