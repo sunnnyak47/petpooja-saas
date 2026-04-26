@@ -1,154 +1,114 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- Main background gradient: deep navy to rich indigo -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0B1120;stop-opacity:1" />
-      <stop offset="55%" style="stop-color:#101D3A;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#162347;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F1C3F"/>
+      <stop offset="100%" style="stop-color:#1A2D5A"/>
     </linearGradient>
-
-    <!-- Gold accent gradient -->
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#F4C430;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#E8A020;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#C8780A;stop-opacity:1" />
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD166"/>
+      <stop offset="100%" style="stop-color:#E8A020"/>
     </linearGradient>
-
-    <!-- Blue glow gradient for plate ring -->
-    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1D4ED8;stop-opacity:1" />
+    <linearGradient id="blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F8EF7"/>
+      <stop offset="100%" style="stop-color:#2563EB"/>
     </linearGradient>
-
-    <!-- Subtle inner shine -->
-    <radialGradient id="shine" cx="38%" cy="32%" r="55%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.07" />
-      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    <!-- Subtle top shine -->
+    <radialGradient id="shine" cx="50%" cy="0%" r="70%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.08"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0"/>
     </radialGradient>
-
-    <!-- Shadow filter -->
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="18" flood-color="#000000" flood-opacity="0.55"/>
+    <filter id="gs" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#000" flood-opacity="0.5"/>
     </filter>
-
-    <!-- Gold glow -->
-    <filter id="goldGlow" x="-15%" y="-15%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#F4C430" flood-opacity="0.5"/>
+    <filter id="gg" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#FFD166" flood-opacity="0.55"/>
     </filter>
-
-    <!-- Blue glow -->
-    <filter id="blueGlow" x="-15%" y="-15%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#3B82F6" flood-opacity="0.6"/>
+    <filter id="bg2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#2563EB" flood-opacity="0.6"/>
     </filter>
-
-    <clipPath id="roundedSquare">
-      <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224"/>
-    </clipPath>
   </defs>
 
-  <!-- Rounded square background -->
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bgGrad)"/>
+  <!-- ── Background rounded square ── -->
+  <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#shine)"/>
 
-  <!-- Inner shine overlay -->
-  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#shine)"/>
+  <!-- ── PLATE ── large, bold circle -->
+  <circle cx="512" cy="480" r="285" fill="#0A1628" filter="url(#gs)"/>
+  <!-- Plate gold rim -->
+  <circle cx="512" cy="480" r="285" fill="none" stroke="url(#gold)" stroke-width="10"/>
+  <!-- Inner ring subtle -->
+  <circle cx="512" cy="480" r="248" fill="none" stroke="#1E3A6E" stroke-width="3"/>
 
-  <!-- Subtle grid texture lines (ERP feel) -->
-  <g opacity="0.04" stroke="#FFFFFF" stroke-width="1">
-    <line x1="0" y1="256" x2="1024" y2="256"/>
-    <line x1="0" y1="512" x2="1024" y2="512"/>
-    <line x1="0" y1="768" x2="1024" y2="768"/>
-    <line x1="256" y1="0" x2="256" y2="1024"/>
-    <line x1="512" y1="0" x2="512" y2="1024"/>
-    <line x1="768" y1="0" x2="768" y2="1024"/>
-  </g>
-
-  <!-- ── PLATE RING (outer) ── -->
-  <!-- Deep blue outer ring with glow -->
-  <circle cx="512" cy="470" r="258" fill="none" stroke="url(#blueGrad)" stroke-width="14" filter="url(#blueGlow)" opacity="0.9"/>
-
-  <!-- Plate body -->
-  <circle cx="512" cy="470" r="240" fill="#0D1B33" opacity="0.95"/>
-
-  <!-- Plate rim highlight (thin gold) -->
-  <circle cx="512" cy="470" r="240" fill="none" stroke="url(#goldGrad)" stroke-width="3.5" opacity="0.7"/>
-
-  <!-- Inner plate ring -->
-  <circle cx="512" cy="470" r="200" fill="#0F2040" opacity="0.9"/>
-  <circle cx="512" cy="470" r="200" fill="none" stroke="#1E3A5F" stroke-width="2"/>
-
-  <!-- ── FORK (left) ── -->
-  <g filter="url(#goldGlow)">
-    <!-- Fork handle -->
-    <rect x="382" y="390" width="18" height="140" rx="9" fill="url(#goldGrad)"/>
+  <!-- ── FORK (left) — thick & bold ── -->
+  <g filter="url(#gg)">
+    <!-- Fork handle — thick rounded rect -->
+    <rect x="364" y="435" width="28" height="165" rx="14" fill="url(#gold)"/>
     <!-- Fork neck -->
-    <rect x="387" y="320" width="8" height="78" rx="4" fill="url(#goldGrad)"/>
-    <!-- Fork tines (4) -->
-    <rect x="370" y="272" width="5" height="58" rx="2.5" fill="url(#goldGrad)"/>
-    <rect x="380" y="268" width="5" height="62" rx="2.5" fill="url(#goldGrad)"/>
-    <rect x="390" y="268" width="5" height="62" rx="2.5" fill="url(#goldGrad)"/>
-    <rect x="400" y="272" width="5" height="58" rx="2.5" fill="url(#goldGrad)"/>
+    <rect x="373" y="340" width="10" height="104" rx="5" fill="url(#gold)"/>
+    <!-- 4 tines — thick, clearly visible -->
+    <rect x="348" y="258" width="9" height="90" rx="4.5" fill="url(#gold)"/>
+    <rect x="362" y="252" width="9" height="96" rx="4.5" fill="url(#gold)"/>
+    <rect x="376" y="252" width="9" height="96" rx="4.5" fill="url(#gold)"/>
+    <rect x="390" y="258" width="9" height="90" rx="4.5" fill="url(#gold)"/>
+    <!-- Tine base connector -->
+    <rect x="348" y="338" width="51" height="12" rx="6" fill="url(#gold)"/>
   </g>
 
-  <!-- ── KNIFE (right) ── -->
-  <g filter="url(#goldGlow)">
-    <!-- Knife handle -->
-    <rect x="626" y="390" width="18" height="140" rx="9" fill="url(#goldGrad)"/>
-    <!-- Knife blade body -->
-    <rect x="628" y="270" width="14" height="128" rx="4" fill="url(#goldGrad)"/>
-    <!-- Blade edge (sharp taper at top) -->
-    <path d="M628,270 Q628,250 642,248 L642,270 Z" fill="url(#goldGrad)"/>
+  <!-- ── KNIFE (right) — thick & bold ── -->
+  <g filter="url(#gg)">
+    <!-- Handle -->
+    <rect x="632" y="435" width="28" height="165" rx="14" fill="url(#gold)"/>
+    <!-- Handle grip lines -->
+    <rect x="634" y="468" width="24" height="5" rx="2.5" fill="#C8780A" opacity="0.6"/>
+    <rect x="634" y="482" width="24" height="5" rx="2.5" fill="#C8780A" opacity="0.6"/>
+    <rect x="634" y="496" width="24" height="5" rx="2.5" fill="#C8780A" opacity="0.6"/>
+    <!-- Blade — flat left edge, curved right -->
+    <path d="M634,250 L634,440 L660,440 L660,300 Q660,250 634,250 Z" fill="url(#gold)"/>
+    <!-- Blade edge highlight -->
+    <line x1="636" y1="258" x2="636" y2="435" stroke="#FFE599" stroke-width="2.5" opacity="0.5"/>
   </g>
 
-  <!-- ── SPOON (center, smaller) — data/chart symbol ── -->
-  <!-- Replaced with a clean analytics chart to reinforce ERP identity -->
-  <!-- Bar chart inside plate -->
-  <g filter="url(#blueGlow)">
+  <!-- ── Center: Bold analytics bars — ERP identity ── -->
+  <g filter="url(#bg2)">
     <!-- Bar 1 -->
-    <rect x="448" y="430" width="26" height="64" rx="5" fill="#3B82F6" opacity="0.9"/>
-    <!-- Bar 2 (tallest) -->
-    <rect x="486" y="400" width="26" height="94" rx="5" fill="#60A5FA" opacity="0.95"/>
+    <rect x="460" y="430" width="30" height="80" rx="6" fill="url(#blue)" opacity="0.95"/>
+    <!-- Bar 2 tallest -->
+    <rect x="499" y="395" width="30" height="115" rx="6" fill="#60A5FA" opacity="1"/>
     <!-- Bar 3 -->
-    <rect x="524" y="418" width="26" height="76" rx="5" fill="#3B82F6" opacity="0.9"/>
-    <!-- Trend line -->
-    <polyline points="461,430 499,400 537,418" fill="none" stroke="#F4C430" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#goldGlow)"/>
-    <!-- Trend dots -->
-    <circle cx="461" cy="430" r="5.5" fill="#F4C430" filter="url(#goldGlow)"/>
-    <circle cx="499" cy="400" r="5.5" fill="#F4C430" filter="url(#goldGlow)"/>
-    <circle cx="537" cy="418" r="5.5" fill="#F4C430" filter="url(#goldGlow)"/>
+    <rect x="538" y="415" width="30" height="95" rx="6" fill="url(#blue)" opacity="0.95"/>
+    <!-- Trend line gold -->
+    <polyline points="475,430 514,395 553,415"
+      fill="none" stroke="url(#gold)" stroke-width="5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Dots -->
+    <circle cx="475" cy="430" r="7" fill="#FFD166"/>
+    <circle cx="514" cy="395" r="7" fill="#FFD166"/>
+    <circle cx="553" cy="415" r="7" fill="#FFD166"/>
   </g>
 
-  <!-- ── BOTTOM WORDMARK ── -->
-  <!-- "MS-RM" in gold -->
-  <text x="512" y="612"
-        font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
-        font-size="52"
-        font-weight="800"
-        letter-spacing="6"
+  <!-- ── Wordmark — bold, readable ── -->
+  <!-- "MS-RM" large gold -->
+  <text x="512" y="638"
+        font-family="Arial Black, Arial, sans-serif"
+        font-size="68"
+        font-weight="900"
+        letter-spacing="4"
         text-anchor="middle"
-        fill="url(#goldGrad)"
-        filter="url(#goldGlow)">MS-RM</text>
+        fill="url(#gold)"
+        filter="url(#gg)">MS-RM</text>
 
-  <!-- "ERP" subtitle in blue -->
-  <text x="512" y="656"
-        font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
-        font-size="26"
-        font-weight="600"
-        letter-spacing="14"
-        text-anchor="middle"
-        fill="#60A5FA"
-        opacity="0.9">SYSTEM</text>
-
-  <!-- ── TOP BADGE — small ERP chip ── -->
-  <rect x="432" y="152" width="160" height="38" rx="19" fill="#1D4ED8" opacity="0.85" filter="url(#blueGlow)"/>
-  <text x="512" y="177"
-        font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
-        font-size="18"
+  <!-- "ERP SYSTEM" small blue tag -->
+  <rect x="376" y="654" width="272" height="34" rx="17" fill="#1D4ED8" opacity="0.9"/>
+  <text x="512" y="678"
+        font-family="Arial, sans-serif"
+        font-size="19"
         font-weight="700"
-        letter-spacing="5"
+        letter-spacing="7"
         text-anchor="middle"
         fill="#FFFFFF"
-        opacity="0.95">ERP</text>
+        opacity="0.95">ERP SYSTEM</text>
 
-  <!-- Outer border subtle glow line -->
-  <rect x="3" y="3" width="1018" height="1018" rx="222" ry="222" fill="none" stroke="#1E3A6E" stroke-width="6" opacity="0.5"/>
+  <!-- ── Outer border glow ── -->
+  <rect x="5" y="5" width="1014" height="1014" rx="217" ry="217"
+        fill="none" stroke="#2A4A8A" stroke-width="4" opacity="0.6"/>
 </svg>
