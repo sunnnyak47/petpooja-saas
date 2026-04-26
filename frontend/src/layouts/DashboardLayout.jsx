@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
-  QrCode, BellRing, Sun, Moon, Monitor,
+  QrCode, BellRing, Sun, Moon, Monitor, FileText,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -36,6 +36,7 @@ const ownerNav = [
   { path: '/payments', label: 'Payments', icon: CreditCard },
   { path: '/discounts', label: 'Promotions', icon: Tag },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/gst', label: 'GST & Compliance', icon: FileText },
   { path: '/integrations', label: 'Integrations', icon: Puzzle },
   { path: '/audit-log', label: 'Audit Trail', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },

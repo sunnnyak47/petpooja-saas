@@ -27,6 +27,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import QRCodesPage from './pages/QRCodesPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
+import GSTCompliancePage from './pages/GSTCompliancePage';
 import { OfflineBanner } from './hooks/useOfflineSync';
 import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="integrations/tally" element={<TallySync />} />
+        <Route path="gst" element={<GSTCompliancePage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="qr-codes" element={<QRCodesPage />} />
         <Route path="qr-orders" element={<TableQROrdersPage />} />

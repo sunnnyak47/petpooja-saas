@@ -57,7 +57,7 @@ body {
   .btn-primary {
     @apply btn text-white shadow-sm hover:shadow-md;
     background-color: var(--accent);
-    focus-visible:ring-color: var(--accent);
+    --tw-ring-color: var(--accent);
   }
   .btn-primary:hover { background-color: var(--accent-hover); }
   .btn-secondary {
