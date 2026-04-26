@@ -79,15 +79,15 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.icns",
       "category": "public.app-category.business",
       "minimumSystemVersion": "10.13.0",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "Petpooja ERP",
-      "icon": "assets/icon.png",
+      "title": "MS-RM System",
+      "icon": "assets/icon.icns",
       "contents": [
         {
           "x": 130,
