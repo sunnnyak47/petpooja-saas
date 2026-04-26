@@ -99,7 +99,7 @@ export default function IntegrationsPage() {
       <div className="flex gap-2 overflow-x-auto scrollbar-none">
         {CATEGORIES.map((c) => (
           <button key={c} onClick={() => setActiveCategory(c)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeCategory === c ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}>
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeCategory === c ? 'tab-btn-active' : 'tab-btn'}`}>
             {c}
           </button>
         ))}

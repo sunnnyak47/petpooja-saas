@@ -57,7 +57,6 @@ body {
   .btn-primary {
     @apply btn text-white shadow-sm hover:shadow-md;
     background-color: var(--accent);
-    focus-visible:ring-color: var(--accent);
   }
   .btn-primary:hover { background-color: var(--accent-hover); }
   .btn-secondary {
@@ -168,4 +167,97 @@ body {
     @apply border-t my-4;
     border-color: var(--border);
   }
+
+  /* ── Tab button pattern ── */
+  .tab-btn {
+    @apply px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150;
+    color: var(--text-secondary);
+    background-color: var(--bg-hover);
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn-active {
+    @apply px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 text-white;
+    background-color: var(--accent);
+  }
+
+  /* ── label helper ── */
+  .label {
+    @apply block text-xs font-semibold mb-1.5;
+    color: var(--text-secondary);
+  }
+
+  /* ── btn-surface ── */
+  .btn-surface {
+    @apply btn border;
+    background-color: var(--bg-hover);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  .btn-surface:hover { background-color: var(--bg-card); }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   DARK-THEME CLASS COMPATIBILITY BRIDGE  (v2 — attribute selectors)
+   Covers ALL opacity variants (bg-surface-800/40 etc.) without
+   enumerating every combination. Works for light & dark modes.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Surface text ── */
+[class~="text-surface-50"],[class~="text-surface-100"],
+[class~="text-surface-200"],[class~="text-surface-300"] { color: var(--text-primary) !important; }
+[class~="text-surface-400"],[class~="text-surface-500"] { color: var(--text-secondary) !important; }
+[class~="text-surface-600"],[class~="text-surface-700"] { color: var(--text-secondary) !important; opacity: 0.7; }
+
+/* ── text-white on content elements (not buttons/badges) ── */
+h1.text-white,h2.text-white,h3.text-white,h4.text-white,h5.text-white,
+p.text-white,td.text-white,th.text-white,label.text-white,
+span.text-white:not([class*="bg-"]):not(.badge),
+div.text-white:not([class*="bg-brand"]):not([class*="bg-success"]):not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-blue"]):not([class*="bg-amber"]):not([class*="bg-orange"]):not([class*="bg-purple"]):not([class*="bg-gradient"]) {
+  color: var(--text-primary) !important;
+}
+
+/* ── Brand/accent ── */
+[class~="text-brand-300"],[class~="text-brand-400"],[class~="text-brand-500"] { color: var(--accent) !important; }
+[class~="bg-brand-500"],[class~="bg-brand-600"] { background-color: var(--accent) !important; }
+[class*="bg-brand-500\/"] { background-color: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
+[class*="bg-brand-400\/"] { background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
+[class*="border-brand-500\/"] { border-color: color-mix(in srgb, var(--accent) 25%, transparent) !important; }
+
+/* ── Semantic status text ── */
+[class~="text-success-400"],[class~="text-success-500"],[class~="text-success-600"] { color: var(--success) !important; }
+[class~="text-warning-400"],[class~="text-warning-500"],[class~="text-warning-600"] { color: var(--warning) !important; }
+[class~="text-danger-400"],[class~="text-danger-500"] { color: var(--danger) !important; }
+[class~="text-info-400"],[class~="text-info-500"] { color: #0ea5e9 !important; }
+
+/* ── Surface backgrounds — ALL opacity variants via attribute contains ── */
+[class*="bg-surface-7"] { background-color: var(--bg-hover) !important; }
+[class*="bg-surface-8"] { background-color: var(--bg-hover) !important; }
+[class*="bg-surface-9"] { background-color: var(--bg-secondary) !important; }
+
+/* hover variants */
+[class*="hover:bg-surface-7"]:hover,[class*="hover:bg-surface-8"]:hover { background-color: var(--bg-hover) !important; }
+[class*="hover:bg-surface-9"]:hover { background-color: var(--bg-secondary) !important; }
+
+/* ── Surface borders — ALL variants ── */
+[class*="border-surface-7"],[class*="border-surface-8"],[class*="border-surface-6"] { border-color: var(--border) !important; }
+
+/* ── Surface dividers ── */
+[class*="divide-surface-7"]>:not([hidden])~:not([hidden]),
+[class*="divide-surface-8"]>:not([hidden])~:not([hidden]) { border-color: var(--border) !important; }
+
+/* ── Restore proper bg on explicitly coloured buttons/elements ── */
+button[class*="bg-emerald"],button[class*="bg-green"],
+button[class*="bg-orange"],button[class*="bg-red"],
+button[class*="bg-purple"],button[class*="bg-blue"],
+button[class*="bg-gradient"] { /* leave as-is — no override */ }
+button[class*="bg-surface-7"],button[class*="bg-surface-8"] {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-secondary) !important;
+}
+button[class*="bg-surface-7"]:hover,button[class*="bg-surface-8"]:hover {
+  background-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── Animate fade in ── */
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }

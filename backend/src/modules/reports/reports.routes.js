@@ -96,13 +96,48 @@ router.get('/staffPerformance', authenticate, hasPermission('VIEW_REPORTS'), enf
   } catch (error) { next(error); }
 });
 
+/** GET /api/reports/gstDetailed?from=&to= */
+router.get('/gstDetailed', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const data = await reportsService.getGstDetailedReport(outletId, req.query.from, req.query.to);
+    sendSuccess(res, data, 'GST detailed report');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/reports/exportGst?from=&to=&type=gstr1|gstr3b|hsn|rate_wise */
+router.get('/exportGst', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to, type = 'gstr1' } = req.query;
+    const csv = await reportsService.exportGstCsv(outletId, from, to, type);
+    const filename = `GST_${type}_${from}_to_${to}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send('﻿' + csv); // BOM for Excel compatibility
+  } catch (error) { next(error); }
+});
+
 /** GET /api/reports/export */
 router.get('/export', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    // Stub CSV export response
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=report_${req.query.type}.csv`);
-    res.send(`Date,Value\n${new Date().toISOString()},100`);
+    const { type = 'full', outlet_id, from, to } = req.query;
+    const outletId = outlet_id || req.user.outlet_id;
+
+    if (['gstr1', 'gstr3b', 'hsn', 'rate_wise'].includes(type)) {
+      const csv = await reportsService.exportGstCsv(outletId, from, to, type);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="GST_${type}_${from}_to_${to}.csv"`);
+      return res.send('﻿' + csv);
+    }
+
+    // General report CSV
+    const salesData = await reportsService.getDailySales(outletId, from || new Date().toISOString().split('T')[0]);
+    let csv = 'Report Type,Date,Total Revenue,Total Orders,Total Tax,Total Discount\n';
+    csv += `${type},${salesData.date},${salesData.total_revenue},${salesData.total_orders},${salesData.total_tax},${salesData.total_discount}\n`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="report_${type}.csv"`);
+    res.send('﻿' + csv);
   } catch (error) { next(error); }
 });
 

@@ -31,11 +31,12 @@ import { OfflineBanner } from './hooks/useOfflineSync';
 import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import SetupWizard from './pages/SetupWizard';
+import WelcomePage from './pages/WelcomePage';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((s) => s.auth);
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? children : <Navigate to="/welcome" replace />;
 }
 
 // Logic: If I am the software owner, take me to my client list.
@@ -68,6 +69,7 @@ export default function App() {
     <SyncStatusIndicator />
     <OfflineBanner />
     <Routes>
+      <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
