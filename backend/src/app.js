@@ -164,6 +164,7 @@ app.get('/api', (req, res) => {
 });
 
 const onlineOrderRoutes = require('./modules/online-orders/online-order.routes');
+const ckRoutes = require('./modules/central-kitchen/ck.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
@@ -186,6 +187,7 @@ app.use('/api/integrations', integrationRoutes);
 app.use('/api/ho', headofficeRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/discounts', discountRoutes);
+app.use('/api/ck', ckRoutes);
 app.use('/mock', mockRoutes);
 app.use('/test', mockTestRoutes);
 

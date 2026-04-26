@@ -13,6 +13,7 @@ import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
+import CentralKitchenPage from './pages/CentralKitchenPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
@@ -92,6 +93,7 @@ export default function App() {
         <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="central-kitchen" element={<CentralKitchenPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
         <Route path="kitchen" element={<KitchenDisplayPage />} />
         <Route path="payments" element={<PaymentsPage />} />

@@ -738,6 +738,7 @@ model InventoryItem {
   recipe_ingredients RecipeIngredient[]
   po_items           POItem[]
   grn_items          GRNItem[]
+  ck_indent_items    CentralKitchenIndentItem[]
 
   @@map("inventory_items")
 }
@@ -1357,9 +1358,29 @@ model CentralKitchenIndent {
 
   requesting_outlet Outlet @relation("requesting_outlet", fields: [requesting_outlet_id], references: [id])
   ck_outlet         Outlet @relation("ck_outlet", fields: [ck_outlet_id], references: [id])
+  items             CentralKitchenIndentItem[]
 
   @@map("central_kitchen_indents")
 }
+
+model CentralKitchenIndentItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  indent_id           String   @db.Uuid
+  inventory_item_id   String   @db.Uuid
+  requested_quantity  Decimal  @db.Decimal(10, 3)
+  approved_quantity   Decimal? @db.Decimal(10, 3)
+  dispatched_quantity Decimal? @db.Decimal(10, 3)
+  unit                String   @db.VarChar(20)
+  notes               String?
+  created_at          DateTime @default(now()) @db.Timestamptz
+  updated_at          DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  indent         CentralKitchenIndent @relation(fields: [indent_id], references: [id])
+  inventory_item InventoryItem        @relation(fields: [inventory_item_id], references: [id])
+
+  @@map("central_kitchen_indent_items")
+}
+
 model SystemConfig {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   key        String   @unique @db.VarChar(100)
