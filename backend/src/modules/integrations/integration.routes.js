@@ -183,4 +183,49 @@ router.post('/notify/campaign', authenticate, hasPermission('MANAGE_CAMPAIGNS'),
   } catch (error) { next(error); }
 });
 
+/* ============================
+   INTEGRATION CONFIG (save per-outlet settings like GSTIN, API keys)
+   ============================ */
+
+/** GET /api/integrations/config?outlet_id= */
+router.get('/config', authenticate, async (req, res, next) => {
+  try {
+    const { getDbClient } = require('../../config/database');
+    const prisma = getDbClient();
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const settings = await prisma.outletSetting.findMany({
+      where: { outlet_id: outletId, is_deleted: false, setting_key: { startsWith: 'integration_' } },
+    });
+    const config = {};
+    for (const s of settings) config[s.setting_key] = s.setting_value;
+    sendSuccess(res, config, 'Integration config retrieved');
+  } catch (error) { next(error); }
+});
+
+/** PUT /api/integrations/config */
+router.put('/config', authenticate, async (req, res, next) => {
+  try {
+    const { getDbClient } = require('../../config/database');
+    const prisma = getDbClient();
+    const { outlet_id, integration, config } = req.body;
+    const outletId = outlet_id || req.user.outlet_id;
+
+    if (!integration || !config) {
+      return res.status(400).json({ success: false, message: 'integration and config are required' });
+    }
+
+    const upserts = Object.entries(config).map(([key, value]) =>
+      prisma.outletSetting.upsert({
+        where: { outlet_id_setting_key: { outlet_id: outletId, setting_key: `integration_${integration}_${key}` } },
+        update: { setting_value: String(value) },
+        create: { outlet_id: outletId, setting_key: `integration_${integration}_${key}`, setting_value: String(value) },
+      })
+    );
+    await Promise.all(upserts);
+
+    logger.info('Integration config saved', { outletId, integration });
+    sendSuccess(res, { integration, saved: true }, 'Configuration saved');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
