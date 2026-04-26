@@ -275,18 +275,18 @@ export default function MenuPage() {
               <button onClick={() => setIsAddCatOpen(true)} className="text-brand-400 hover:text-brand-300 bg-brand-500/10 p-1.5 rounded-lg"><Plus className="w-4 h-4"/></button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-1">
-                <button onClick={() => { setCategoryFilter(''); setViewMode('items'); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${!categoryFilter && viewMode === 'items' ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
+                <button onClick={() => { setCategoryFilter(''); setViewMode('items'); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${!categoryFilter && viewMode === 'items' ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
                   <span>All Items</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${!categoryFilter && viewMode === 'items' ? 'bg-white/20' : 'bg-surface-800'}`}>{stats.total}</span>
                 </button>
-                <button onClick={() => { setViewMode('combos'); setCategoryFilter(''); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${viewMode === 'combos' ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
+                <button onClick={() => { setViewMode('combos'); setCategoryFilter(''); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${viewMode === 'combos' ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
                   <span className="flex items-center gap-2 underline underline-offset-4 decoration-white/20">Combos 🔥</span>
                 </button>
                 <div className="h-4 border-b border-surface-800 mb-2"></div>
                 {(categories || []).map(cat => {
                   const count = dbItems.filter(i => i.category_id === cat.id).length;
                   return (
-                    <button key={cat.id} onClick={() => setCategoryFilter(cat.id)} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${categoryFilter === cat.id ? 'bg-brand-500 text-white' : 'text-surface-300 hover:bg-surface-800'}`}>
+                    <button key={cat.id} onClick={() => setCategoryFilter(cat.id)} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${categoryFilter === cat.id ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
                       <span className="truncate pr-2">{cat.name}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${categoryFilter === cat.id ? 'bg-white/20' : 'bg-surface-800'}`}>{count}</span>
                     </button>

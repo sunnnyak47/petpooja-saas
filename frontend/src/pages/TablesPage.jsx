@@ -131,7 +131,7 @@ export default function TablesPage() {
   return (
     <div className="space-y-4 animate-fade-in relative z-0">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Table Floor Plan</h1>
+        <h1 className="page-title">Table Floor Plan</h1>
         <button onClick={() => setIsAddOpen(true)} className="btn-primary">
           <Plus className="w-4 h-4" /> Add Table
         </button>

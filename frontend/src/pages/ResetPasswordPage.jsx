@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
             <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-500 mb-4">
               <Lock className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Reset Password</h2>
+            <h2 className="page-title">Reset Password</h2>
             <p className="text-surface-400 mt-2 text-sm">
               Please enter and confirm your new password below.
             </p>

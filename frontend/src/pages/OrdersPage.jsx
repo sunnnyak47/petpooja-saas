@@ -104,11 +104,11 @@ export default function OrdersPage() {
   return (
     <div className="space-y-4 animate-fade-in relative">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Orders</h1>
+        <h1 className="page-title">Orders</h1>
         <div className="flex gap-2">
           {['', 'created', 'confirmed', 'ready', 'paid', 'cancelled'].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === s ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === s ? 'tab-btn-active' : 'tab-btn'}`}>
               {s || 'All'}
             </button>
           ))}
@@ -118,7 +118,7 @@ export default function OrdersPage() {
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
-            <tr className="text-xs text-surface-500 uppercase border-b border-surface-700/50">
+            <tr className="text-xs uppercase border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
               <th className="px-4 py-3 text-left">Order #</th>
               <th className="px-4 py-3 text-left">Type</th>
               <th className="px-4 py-3 text-left">Table</th>
@@ -132,7 +132,7 @@ export default function OrdersPage() {
           <tbody className="divide-y divide-surface-700/50">
             {isLoading ? (
               [...Array(5)].map((_, i) => (
-                <tr key={i} className="animate-pulse"><td colSpan={8} className="px-4 py-4"><div className="h-4 bg-surface-700 rounded w-full" /></td></tr>
+                <tr key={i} className="animate-pulse"><td colSpan={8} className="px-4 py-4"><div className="h-4 rounded w-full" /></td></tr>
               ))
             ) : orders.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-12 text-center text-surface-500">No orders found</td></tr>
@@ -228,7 +228,7 @@ export default function OrdersPage() {
                 {STATUS_FLOW.map(s => (
                   <button key={s} disabled={s === selectedOrder.status || updateStatusMutation.isPending}
                     onClick={() => updateStatusMutation.mutate({ id: selectedOrder.id, status: s })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${s === selectedOrder.status ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${s === selectedOrder.status ? 'tab-btn-active' : 'tab-btn'}`}
                   >{s.charAt(0).toUpperCase() + s.slice(1)}</button>
                 ))}
               </div>

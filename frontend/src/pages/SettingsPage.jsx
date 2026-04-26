@@ -60,6 +60,8 @@ export default function SettingsPage() {
     accept_cash: true,
     accept_card: true,
     accept_upi: true,
+    upi_vpa: '',
+    merchant_name: '',
     razorpay_enabled: false,
     razorpay_key: '',
     // Notifications
@@ -109,6 +111,17 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['outlet-settings', outletId]);
+      // Persist payment settings locally for PaymentModal
+      try {
+        const saved = JSON.parse(localStorage.getItem('msrm_settings') || '{}');
+        localStorage.setItem('msrm_settings', JSON.stringify({
+          ...saved,
+          upi_vpa: settings.upi_vpa,
+          merchant_name: settings.merchant_name,
+          razorpay_key: settings.razorpay_key,
+          razorpay_enabled: settings.razorpay_enabled,
+        }));
+      } catch {}
       toast.success('Settings saved successfully');
     },
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed to save settings'),
@@ -238,11 +251,23 @@ export default function SettingsPage() {
       case 'payment':
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Payment Methods</h3>
+            <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Payment Methods</h3>
             <ToggleSwitch label="Accept Cash" checked={settings.accept_cash} onChange={(v) => updateSetting('accept_cash', v)} />
             <ToggleSwitch label="Accept Card" checked={settings.accept_card} onChange={(v) => updateSetting('accept_card', v)} />
             <ToggleSwitch label="Accept UPI" checked={settings.accept_upi} onChange={(v) => updateSetting('accept_upi', v)} />
-            <div className="border-t border-surface-800 pt-4 mt-4">
+            {settings.accept_upi && (
+              <div className="space-y-3 pl-2 border-l-2 ml-2" style={{ borderColor: 'var(--accent)' }}>
+                <div>
+                  <label className="label">UPI VPA (e.g. business@ybl)</label>
+                  <input type="text" value={settings.upi_vpa} onChange={(e) => updateSetting('upi_vpa', e.target.value)} className="input" placeholder="yourstore@ybl" />
+                </div>
+                <div>
+                  <label className="label">Merchant / Display Name</label>
+                  <input type="text" value={settings.merchant_name} onChange={(e) => updateSetting('merchant_name', e.target.value)} className="input" placeholder="My Restaurant" />
+                </div>
+              </div>
+            )}
+            <div className="border-t pt-4 mt-4" style={{ borderColor: 'var(--border)' }}>
               <ToggleSwitch label="Razorpay Integration" checked={settings.razorpay_enabled} onChange={(v) => updateSetting('razorpay_enabled', v)} />
               {settings.razorpay_enabled && (
                 <div className="mt-2">

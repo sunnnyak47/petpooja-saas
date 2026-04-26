@@ -109,7 +109,7 @@ export default function AuditLogPage() {
         <div className="flex bg-surface-800 rounded-xl p-1">
           {['today', 'week', 'month', 'all'].map((d) => (
             <button key={d} onClick={() => setDateFilter(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${dateFilter === d ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${dateFilter === d ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
               {d}
             </button>
           ))}

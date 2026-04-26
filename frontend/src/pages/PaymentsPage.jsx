@@ -174,7 +174,7 @@ export default function PaymentsPage() {
         <div className="flex bg-surface-800 rounded-xl p-1 gap-1">
           {['today', 'week', 'month', 'all'].map((d) => (
             <button key={d} onClick={() => setDateRange(d)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${dateRange === d ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${dateRange === d ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
               {d}
             </button>
           ))}
@@ -182,7 +182,7 @@ export default function PaymentsPage() {
         <div className="flex bg-surface-800 rounded-xl p-1 gap-1">
           {['all', 'cash', 'card', 'upi', 'split'].map((m) => (
             <button key={m} onClick={() => setMethodFilter(m)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${methodFilter === m ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${methodFilter === m ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
               {m}
             </button>
           ))}

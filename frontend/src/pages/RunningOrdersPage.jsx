@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
 import BillPreviewModal from '../components/POS/BillPreviewModal';
+import PaymentModal from '../components/POS/PaymentModal';
 import {
   Clock, Receipt, Ban, CreditCard, Plus, Utensils, ShoppingBag,
   Globe, Timer, ChefHat, CheckCircle2, AlertTriangle, Send, X,
@@ -53,54 +54,7 @@ function ElapsedTimer({ createdAt }) {
 }
 
 /** Payment modal (inline settle) */
-function PaymentModal({ isOpen, onClose, order, onSuccess }) {
-  const [method, setMethod] = useState('cash');
-  const [loading, setLoading] = useState(false);
-
-  const total = Number(order?.grand_total || 0);
-
-  const handlePay = async () => {
-    setLoading(true);
-    try {
-      await api.post(`/orders/${order.id}/payment`, { method, amount: total });
-      toast.success('Payment completed! ✅');
-      onSuccess();
-      onClose();
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Payment failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settle Payment" size="sm">
-      <div className="space-y-4">
-        <div className="text-center bg-surface-900 rounded-xl p-5 border border-surface-800">
-          <p className="text-xs text-surface-400 uppercase tracking-widest mb-1">Grand Total</p>
-          <p className="text-4xl font-black text-brand-400">₹{total.toLocaleString('en-IN')}</p>
-          {order?.invoice_number && (
-            <p className="text-xs text-surface-500 mt-2">Invoice: {order.invoice_number}</p>
-          )}
-        </div>
-        <div>
-          <p className="text-xs text-surface-500 uppercase font-bold mb-2">Payment Method</p>
-          <div className="grid grid-cols-3 gap-2">
-            {['cash', 'card', 'upi'].map(m => (
-              <button key={m} onClick={() => setMethod(m)}
-                className={`py-2.5 rounded-xl border-2 font-bold text-xs uppercase tracking-wide transition-all ${method === m ? 'border-brand-500 bg-brand-500 text-white' : 'border-surface-700 bg-surface-800 text-surface-400'}`}
-              >{m}</button>
-            ))}
-          </div>
-        </div>
-        <button onClick={handlePay} disabled={loading}
-          className="btn-success w-full py-4 rounded-xl text-lg font-bold tracking-wide disabled:opacity-50">
-          {loading ? 'Processing...' : `Confirm ${method.toUpperCase()} — ₹${total.toLocaleString('en-IN')}`}
-        </button>
-      </div>
-    </Modal>
-  );
-}
+// PaymentModal now imported from components/POS/PaymentModal
 
 /** Order card component */
 function OrderCard({ order, onAction }) {
@@ -110,7 +64,7 @@ function OrderCard({ order, onAction }) {
   const hasKOTs = (order._count?.kots || 0) > 0;
 
   return (
-    <div className={`relative bg-surface-800/40 border border-surface-700/50 rounded-2xl overflow-hidden transition-all duration-300 hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5 ${order.status === 'billed' ? 'ring-1 ring-purple-500/20' : ''}`}>
+    <div className={`relative rounded-2xl border overflow-hidden transition-all duration-300 hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5 ${order.status === 'billed' ? 'ring-1 ring-purple-500/20' : ''}`}>
       {/* Color top bar */}
       <div className={`h-1 w-full bg-gradient-to-r ${StatusConf.bar}`} />
 
@@ -118,7 +72,7 @@ function OrderCard({ order, onAction }) {
         {/* Header row */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-surface-700/60 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "var(--bg-hover)" }}>
               <Icon className="w-5 h-5 text-brand-400" />
             </div>
             <div>
@@ -276,7 +230,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
           <div className="grid grid-cols-2 gap-2">
             {items.map(item => (
               <button key={item.id} onClick={() => addItem(item)}
-                className="text-left p-3 bg-surface-800/60 border border-surface-700 rounded-xl hover:border-brand-500 hover:bg-surface-800 transition-all group"
+                className="text-left p-3 border rounded-xl transition-all group" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}
               >
                 <p className="text-xs font-semibold text-white group-hover:text-brand-400 truncate">{item.name}</p>
                 <p className="text-brand-400 font-bold text-sm mt-1">₹{Number(item.base_price).toFixed(0)}</p>
@@ -286,13 +240,13 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
         </div>
 
         {/* Pending list */}
-        <div className="w-52 flex flex-col border-l border-surface-700 pl-4">
+        <div className="w-52 flex flex-col border-l pl-4" style={{ borderColor: "var(--border)" }}>
           <p className="text-xs text-surface-500 uppercase tracking-widest mb-3 font-bold">To Send</p>
           <div className="flex-1 overflow-y-auto space-y-2">
             {pendingItems.length === 0 ? (
               <p className="text-surface-600 text-xs text-center pt-8">No items added</p>
             ) : pendingItems.map(p => (
-              <div key={p.menu_item_id} className="flex items-center justify-between bg-surface-800 rounded-lg px-2 py-1.5">
+              <div key={p.menu_item_id} className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: "var(--bg-hover)" }}>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-white truncate font-medium">{p.name}</p>
                   <p className="text-[10px] text-brand-400">x{p.quantity} · ₹{(p.price * p.quantity).toFixed(0)}</p>
@@ -421,11 +375,11 @@ export default function RunningOrdersPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => refetch()} className="p-2 rounded-lg bg-surface-800 text-surface-400 hover:text-white transition-all" title="Refresh">
+          <button onClick={() => refetch()} className="p-2 rounded-lg border transition-all" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)", borderColor: "var(--border)" }} title="Refresh">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={() => setIsLive(!isLive)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${isLive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-surface-800 text-surface-400 border border-surface-700'}`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${isLive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'tab-btn border'}`}
           >
             {isLive ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
             {isLive ? 'LIVE' : 'PAUSED'}
@@ -434,14 +388,14 @@ export default function RunningOrdersPage() {
       </div>
 
       {/* ─── Filter tabs ─── */}
-      <div className="flex gap-1 bg-surface-800/50 p-1 rounded-xl border border-surface-700/50 w-fit">
+      <div className="flex gap-1 p-1 rounded-xl border w-fit" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
         {['all', 'dine_in', 'takeaway', 'delivery'].map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${filter === f ? 'bg-brand-500 text-white shadow-lg' : 'text-surface-400 hover:text-white'}`}
+            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${filter === f ? 'tab-btn-active shadow-sm' : 'tab-btn'}`}
           >
             {f.replace('_', ' ').toUpperCase()}
             {counts[f] > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${filter === f ? 'bg-white/20' : 'bg-surface-700'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${filter === f ? 'bg-white/20' : ''}`}>
                 {counts[f]}
               </span>
             )}
@@ -455,7 +409,7 @@ export default function RunningOrdersPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-500" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="h-[50vh] flex flex-col items-center justify-center bg-surface-800/20 rounded-3xl border border-dashed border-surface-700">
+        <div className="h-[50vh] flex flex-col items-center justify-center rounded-3xl border-2 border-dashed" style={{ borderColor: "var(--border)" }}>
           <ChefHat className="w-16 h-16 text-surface-600 mb-4" />
           <h3 className="text-white font-semibold text-lg">No Running Orders</h3>
           <p className="text-surface-500 text-sm mt-1">New orders from POS will appear here in real-time</p>
@@ -484,12 +438,24 @@ export default function RunningOrdersPage() {
             onPrint={() => toast('Print sent to thermal printer')}
           />
 
-          {activeModal === 'pay' && (
+          {activeModal === 'pay' && selectedOrder && (
             <PaymentModal
               isOpen={true}
               onClose={closeModal}
-              order={selectedOrder}
-              onSuccess={() => queryClient.invalidateQueries({ queryKey: ['running-orders'] })}
+              amount={selectedOrder.grand_total || selectedOrder.total || 0}
+              orderId={selectedOrder.id}
+              orderNumber={selectedOrder.order_number}
+              customer={selectedOrder.customer || null}
+              onSuccess={async (method, paidAmount, razorpayId) => {
+                await api.post(`/orders/${selectedOrder.id}/payment`, {
+                  method,
+                  amount: paidAmount,
+                  razorpay_payment_id: razorpayId,
+                });
+                toast.success('Payment recorded ✓');
+                closeModal();
+                queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+              }}
             />
           )}
 

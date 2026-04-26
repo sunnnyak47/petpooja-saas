@@ -25,7 +25,7 @@ export default function ConfirmDialog({
         <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
           <AlertTriangle className="w-7 h-7 text-red-400" />
         </div>
-        <p className="text-sm text-surface-300 leading-relaxed">{message}</p>
+        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{message}</p>
         <div className="flex gap-3 w-full pt-2">
           <button type="button" onClick={onClose} disabled={isLoading} className="btn-ghost flex-1">Cancel</button>
           <button type="button" onClick={onConfirm} disabled={isLoading}

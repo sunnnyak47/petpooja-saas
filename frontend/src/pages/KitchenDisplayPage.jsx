@@ -264,12 +264,12 @@ export default function KitchenDisplayPage() {
 
         <div className="flex items-center gap-2">
           <button onClick={() => setShowCompleted(!showCompleted)}
-            className={`p-2 rounded-lg transition-all ${showCompleted ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+            className={`p-2 rounded-lg transition-all ${showCompleted ? 'tab-btn-active' : 'tab-btn'}`}
             title="Show completed">
             <CheckCircle2 className="w-5 h-5" />
           </button>
           <button onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`p-2 rounded-lg transition-all ${soundEnabled ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+            className={`p-2 rounded-lg transition-all ${soundEnabled ? 'tab-btn-active' : 'tab-btn'}`}
             title="Sound alerts">
             {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </button>
@@ -292,7 +292,7 @@ export default function KitchenDisplayPage() {
           <button
             key={s.id}
             onClick={() => setActiveStation(s.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeStation === s.id ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${activeStation === s.id ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'tab-btn'}`}
           >
             {s.icon}
             {s.label}

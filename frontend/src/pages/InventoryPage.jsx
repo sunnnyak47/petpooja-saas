@@ -299,7 +299,7 @@ export default function InventoryPage() {
                            <td className="p-5 text-surface-300">{rm.min_threshold} {rm.unit}</td>
                            <td className="p-5">
                               <div className="flex justify-end gap-1">
-                                 <button onClick={() => { setEditingItem(rm); setIsItemModalOpen(true); }} className="p-2 text-surface-500 hover:text-white hover:bg-surface-700 rounded-lg transition-all"><Edit2 className="w-4 h-4"/></button>
+                                 <button onClick={() => { setEditingItem(rm); setIsItemModalOpen(true); }} className="p-2 text-surface-500 hover:text-white hover:rounded-lg transition-all"><Edit2 className="w-4 h-4"/></button>
                                  <button onClick={() => { if(confirm('Delete this material?')) deleteItemMutation.mutate(rm.id); }} className="p-2 text-surface-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"><Trash2 className="w-4 h-4"/></button>
                               </div>
                            </td>

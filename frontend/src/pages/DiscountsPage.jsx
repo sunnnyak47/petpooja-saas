@@ -127,7 +127,7 @@ export default function DiscountsPage() {
       <div className="flex items-center gap-4">
         <div className="flex bg-surface-800 rounded-xl p-1">
           {['active', 'expired', 'inactive', 'all'].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${tab === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${tab === t ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>{t}</button>
           ))}
         </div>
         <div className="relative flex-1 max-w-xs">

@@ -65,7 +65,7 @@ export default function CustomersPage() {
   return (
     <div className="space-y-4 animate-fade-in relative">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Customers Management</h1>
+        <h1 className="page-title">Customers Management</h1>
         <div className="flex gap-2">
            <button onClick={() => setIsCampaignOpen(true)} className="btn-surface font-bold gap-2">
              <Gift className="w-4 h-4 text-brand-400" /> Marketing Campaign
@@ -84,7 +84,7 @@ export default function CustomersPage() {
       <div className="card p-0 overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="text-xs text-surface-500 uppercase border-b border-surface-700/50">
+            <tr className="text-xs uppercase border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
               <th className="px-4 py-3 text-left">Customer</th>
               <th className="px-4 py-3 text-left">Phone</th>
               <th className="px-4 py-3 text-left">Segment</th>
@@ -97,7 +97,7 @@ export default function CustomersPage() {
           <tbody className="divide-y divide-surface-700/50">
             {isLoading ? (
               [...Array(5)].map((_, i) => (
-                <tr key={i} className="animate-pulse"><td colSpan={7} className="px-4 py-4"><div className="h-4 bg-surface-700 rounded w-full" /></td></tr>
+                <tr key={i} className="animate-pulse"><td colSpan={7} className="px-4 py-4"><div className="h-4 rounded w-full" /></td></tr>
               ))
             ) : customers.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-12 text-center text-surface-500">No customers found</td></tr>

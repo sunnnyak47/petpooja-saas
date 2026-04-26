@@ -21,6 +21,7 @@ import Modal from '../components/Modal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
 import BillPreviewModal from '../components/POS/BillPreviewModal';
+import PaymentModal from '../components/POS/PaymentModal';
 import { AlertCircle } from 'lucide-react';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
@@ -511,17 +512,17 @@ export default function POSPage() {
              <option>All Floors</option>
              {tableAreas?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <div className="flex bg-surface-800 rounded-xl p-1 ml-auto gap-1">
+          <div className="flex rounded-xl p-1 ml-auto gap-1 border" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
              <button
                onClick={() => setViewMode('menu')}
-               className={`p-2 rounded-lg transition-all ${viewMode === 'menu' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+               className={`p-2 rounded-lg transition-all ${viewMode === 'menu' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}
                title="Menu View"
              >
                <Utensils className="w-4 h-4" />
              </button>
              <button
                onClick={() => setViewMode('tables')}
-               className={`p-2 rounded-lg transition-all ${viewMode === 'tables' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+               className={`p-2 rounded-lg transition-all ${viewMode === 'tables' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}
                title="Table View"
              >
                <LayoutGrid className="w-4 h-4" />
@@ -529,7 +530,7 @@ export default function POSPage() {
              <div className="w-px h-4 bg-surface-700 mx-1 self-center" />
              {['dine_in', 'takeaway', 'delivery'].map((t) => (
                 <button key={t} onClick={() => dispatch(setOrderType(t))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${orderType === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${orderType === t ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
                   {t.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
                 </button>
              ))}
@@ -540,9 +541,9 @@ export default function POSPage() {
           <>
             {/* Categories */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
-              <button onClick={() => setActiveCategory(null)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${!activeCategory ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>All</button>
+              <button onClick={() => setActiveCategory(null)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${!activeCategory ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'}`}>All</button>
               {(categories || []).map((cat) => (
-                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeCategory === cat.id ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400'}`}>{cat.name}</button>
+                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeCategory === cat.id ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'}`}>{cat.name}</button>
               ))}
             </div>
 
@@ -553,7 +554,7 @@ export default function POSPage() {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       {SQUARE_ICONS[item.food_type]}
-                      {item.short_code && <span className="text-[10px] bg-surface-800 px-1 rounded text-surface-400 font-mono">{item.short_code}</span>}
+                      {item.short_code && <span className="text-[10px] px-1 rounded font-mono" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{item.short_code}</span>}
                     </div>
                     <div className="flex gap-1">
                       {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
@@ -581,7 +582,7 @@ export default function POSPage() {
       {/* Right: Cart */}
       <div className="w-[380px] flex flex-col border rounded-2xl overflow-hidden relative shadow-xl"
         style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-        <div className="px-4 py-3 border-b border-surface-800 bg-surface-800/20">
+        <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-hover)" }}>
            <div className="flex items-center justify-between mb-2">
              <div className="flex items-center gap-2">
                <span className={`text-sm font-semibold text-white ${selectedTable ? 'bg-brand-500/20 px-2 py-1 rounded text-brand-400' : ''}`}>
@@ -596,8 +597,8 @@ export default function POSPage() {
                    <button onClick={async() => { const o = await handleCreateOrderCore('created'); setTableSelectMode('merge'); }} className="p-1.5 hover:text-white text-surface-400" title="Merge"><Combine className="w-4 h-4"/></button>
                  </>
                )}
-               <button onClick={() => setShowCovers(!showCovers)} className={`p-1.5 rounded-lg ${showCovers ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}><Users className="w-4 h-4" /></button>
-               <button onClick={() => setShowNotes(!showNotes)} className={`p-1.5 rounded-lg ${showNotes || orderNotes ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}><ClipboardList className="w-4 h-4" /></button>
+               <button onClick={() => setShowCovers(!showCovers)} className={`p-1.5 rounded-lg ${showCovers ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><Users className="w-4 h-4" /></button>
+               <button onClick={() => setShowNotes(!showNotes)} className={`p-1.5 rounded-lg ${showNotes || orderNotes ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><ClipboardList className="w-4 h-4" /></button>
                <button onClick={() => setShowCustomerSearch(!showCustomerSearch)} className={`p-1.5 rounded-lg ${selectedCustomer ? 'bg-success-500 text-white' : 'text-surface-400 hover:text-white'}`}><UserPlus className="w-4 h-4" /></button>
                <button onClick={() => {dispatch(clearCart()); setIsCompMode(false); setTempOrderId(null)}} className="p-1.5 text-surface-400 hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
              </div>
@@ -619,7 +620,7 @@ export default function POSPage() {
 
         {/* Dynamic drop downs for header options */}
         {showCovers && (
-          <div className="bg-surface-800 px-4 py-3 flex justify-between items-center border-b border-surface-700 animate-slide-down">
+          <div className="px-4 py-3 flex justify-between items-center border-b animate-slide-down" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
             <span className="text-sm">Covers (Pax)</span>
             <div className="flex items-center gap-3">
                <button onClick={() => dispatch(setCovers(Math.max(1, covers - 1)))} className="w-8 h-8 rounded bg-surface-700 hover:bg-surface-600 flex items-center justify-center"><Minus className="w-4 h-4"/></button>
@@ -629,7 +630,7 @@ export default function POSPage() {
           </div>
         )}
         {showNotes && (
-          <div className="bg-surface-800 p-3 border-b border-surface-700 animate-slide-down">
+          <div className="p-3 border-b animate-slide-down" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
              <textarea className="input w-full resize-none text-sm h-16 bg-surface-900 border-surface-700" placeholder="Special instructions (Max 200 char)..." maxLength={200} value={orderNotes} onChange={(e) => dispatch(setOrderNotes(e.target.value))} />
           </div>
         )}
@@ -774,60 +775,35 @@ export default function POSPage() {
          </div>
       </Modal>
 
-      {/* Payment Processing Modal */}
-      <Modal isOpen={showPayment} onClose={() => setShowPayment(false)} title="Settle Checkout" size="md">
-        <div className="space-y-6 pt-2 select-none">
-           <div className="text-center bg-surface-900 rounded-xl p-6 border border-surface-800">
-              <p className="text-sm text-surface-400 uppercase font-bold tracking-widest mb-2">Amount Due</p>
-              <p className="text-5xl font-black text-brand-400 font-mono tracking-tight">₹{cartTotals.total}</p>
-           </div>
-           
-           <div>
-             <p className="text-xs text-surface-500 uppercase font-bold mb-3 pl-1">Payment Method</p>
-             <div className="grid grid-cols-5 gap-2">
-                {['cash', 'card', 'upi', 'due', 'part'].map(m => (
-                  <button key={m} onClick={() => setPaymentMethod(m)} className={`py-3 rounded-xl border-2 font-bold text-xs uppercase tracking-wide transition-all ${paymentMethod === m ? 'border-brand-500 bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'border-surface-700 bg-surface-800 text-surface-400 hover:border-surface-600'}`}>
-                    {m}
-                  </button>
-                ))}
-             </div>
-             
-             {paymentMethod === 'part' && (
-                <div className="mt-4 animate-slide-down border-t border-surface-800 pt-4">
-                   <p className="text-sm text-surface-400 mb-2">Enter Partial Amount Paid</p>
-                   <input type="number" className="input w-full text-2xl font-bold py-3 text-white" autoFocus value={partPaymentAmount} onChange={e=>setPartPaymentAmount(e.target.value)} placeholder={`Max: ₹${cartTotals.total}`} />
-                   {partPaymentAmount && <p className="text-xs text-brand-400 mt-2 font-medium bg-brand-500/10 inline-block p-1.5 rounded">Remaining Due: ₹{cartTotals.total - Number(partPaymentAmount)}</p>}
-                </div>
-             )}
-           </div>
-
-           {paymentMethod === 'due' && !selectedCustomer && (
-             <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg text-sm text-red-400 flex items-start gap-2">
-                <Users className="w-5 h-5 shrink-0" />
-                <p><strong>Customer Link Required:</strong> You must attach a customer to track credit/due payments.</p>
-             </div>
-           )}
-
-           <div className="flex items-center gap-3 mt-4 pt-4 border-t border-surface-800 bg-surface-800/30 p-4 rounded-xl">
-              <input type="checkbox" id="send-sms" checked={sendSms} onChange={(e) => setSendSms(e.target.checked)} className="w-5 h-5 rounded bg-surface-900 border-surface-600 text-brand-500 focus:ring-brand-500 focus:ring-offset-surface-800 cursor-pointer"/>
-              <label htmlFor="send-sms" className="text-sm font-medium text-surface-300 cursor-pointer select-none leading-none mt-0.5">Automated Feedback SMS & eBill</label>
-           </div>
-
-           {selectedCustomer && (selectedCustomer.loyalty_points?.current_balance || 0) >= 100 && (
-             <div className="mt-4 p-4 bg-brand-500/10 border border-brand-500/20 rounded-xl flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-brand-400 font-bold">Redeem Points?</p>
-                  <p className="text-[10px] text-surface-500 uppercase tracking-widest font-black">Available: {selectedCustomer.loyalty_points.current_balance} pts</p>
-                </div>
-                <button onClick={() => toast.success('Redemption logic triggered!')} className="btn-brand text-xs font-black px-4 py-2">Apply ₹{(selectedCustomer.loyalty_points.current_balance * 0.1).toFixed(0)}</button>
-             </div>
-           )}
-
-           <button onClick={handlePayment} disabled={(paymentMethod === 'due' && !selectedCustomer) || (paymentMethod === 'part' && !partPaymentAmount)} className="btn-success w-full py-4 text-xl font-bold tracking-wide mt-4 disabled:opacity-50 disabled:grayscale">
-             Confirm {paymentMethod.toUpperCase()} Receipt
-           </button>
-        </div>
-      </Modal>
+      {/* Payment Modal — UPI QR · Cash · Card · Razorpay · Due */}
+      <PaymentModal
+        isOpen={showPayment}
+        onClose={() => setShowPayment(false)}
+        amount={billedOrder?.grand_total || cartTotals.total}
+        orderId={tempOrderId}
+        orderNumber={billedOrder?.order_number}
+        customer={selectedCustomer}
+        onSuccess={async (method, paidAmount, razorpayId) => {
+          if (cart.length === 0 && !tempOrderId) throw new Error('Cart is empty');
+          let orderId = tempOrderId;
+          if (!orderId) {
+            const order = await handleCreateOrderCore('created');
+            orderId = order.id;
+            await api.post(`/orders/${orderId}/kot`).catch(() => {});
+          }
+          await api.post(`/orders/${orderId}/payment`, {
+            method,
+            amount: paidAmount,
+            razorpay_payment_id: razorpayId || undefined,
+          });
+          toast.success(method === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
+          dispatch(clearCart());
+          setTempOrderId(null);
+          setIsBilled(false);
+          setBilledOrder(null);
+          queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+        }}
+      />
 
       {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={cartTotals.total} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
