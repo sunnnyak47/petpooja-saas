@@ -99,4 +99,70 @@ router.get('/performance', authenticate, hasPermission('VIEW_REPORTS'), enforceO
   } catch (error) { next(error); }
 });
 
+/** POST /api/staff/otp/generate — Generate clock-in/out OTP */
+router.post('/otp/generate', authenticate, async (req, res, next) => {
+  try {
+    const { action } = req.body; // clock_in | clock_out
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await staffService.generateClockOTP(req.user.id, outletId, action);
+    sendSuccess(res, result, 'OTP generated');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/staff/otp/verify — Verify OTP and clock in/out */
+router.post('/otp/verify', authenticate, async (req, res, next) => {
+  try {
+    const { otp, action } = req.body;
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const record = await staffService.verifyClockOTP(req.user.id, outletId, otp, action);
+    sendSuccess(res, record, action === 'clock_in' ? 'Clocked in ✓' : 'Clocked out ✓');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/staff/shift-report — Shift/attendance report */
+router.get('/shift-report', authenticate, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await staffService.getShiftReport(outletId, req.query);
+    sendSuccess(res, result, 'Shift report retrieved');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/staff/salary — List salary records */
+router.get('/salary', authenticate, hasPermission('MANAGE_STAFF'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const records = await staffService.listSalaryRecords(outletId, req.query);
+    sendSuccess(res, records, 'Salary records retrieved');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/staff/salary/calculate — Calculate salary for one staff */
+router.post('/salary/calculate', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+  try {
+    const { user_id, month, year } = req.body;
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const record = await staffService.calculateSalary(user_id, outletId, parseInt(month), parseInt(year));
+    sendSuccess(res, record, 'Salary calculated');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/staff/salary/bulk-calculate — Calculate salary for all staff */
+router.post('/salary/bulk-calculate', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+  try {
+    const { month, year } = req.body;
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const records = await staffService.bulkCalculateSalary(outletId, parseInt(month), parseInt(year));
+    sendSuccess(res, records, `Salary calculated for ${records.length} staff`);
+  } catch (error) { next(error); }
+});
+
+/** PATCH /api/staff/salary/:id/pay — Mark salary as paid */
+router.patch('/salary/:id/pay', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+  try {
+    const record = await staffService.markSalaryPaid(req.params.id, req.body.bonus || 0);
+    sendSuccess(res, record, 'Salary marked as paid');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;

@@ -355,8 +355,290 @@ async function getStaffPerformance(outletId, from, to) {
   } catch (error) { throw error; }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// OTP-BASED CLOCK IN/OUT
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a 6-digit OTP for a staff member to clock in or out.
+ * OTP expires in 5 minutes.
+ */
+async function generateClockOTP(userId, outletId, action) {
+  const prisma = getDbClient();
+  if (!['clock_in', 'clock_out'].includes(action)) throw new BadRequestError('Invalid action');
+
+  // Invalidate old OTPs
+  await prisma.attendanceOTP.updateMany({
+    where: { user_id: userId, outlet_id: outletId, action, used: false },
+    data: { used: true },
+  });
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const expires_at = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+  await prisma.attendanceOTP.create({
+    data: { user_id: userId, outlet_id: outletId, otp, action, expires_at },
+  });
+
+  logger.info('Clock OTP generated', { userId, action });
+  return { otp, expires_at, action };
+}
+
+/**
+ * Verifies an OTP and performs clock-in or clock-out.
+ */
+async function verifyClockOTP(userId, outletId, otp, action) {
+  const prisma = getDbClient();
+
+  const record = await prisma.attendanceOTP.findFirst({
+    where: { user_id: userId, outlet_id: outletId, otp, action, used: false },
+  });
+
+  if (!record) throw new BadRequestError('Invalid OTP');
+  if (new Date() > record.expires_at) throw new BadRequestError('OTP expired. Please generate a new one.');
+
+  // Mark OTP used
+  await prisma.attendanceOTP.update({ where: { id: record.id }, data: { used: true } });
+
+  // Perform the action
+  if (action === 'clock_in') return clockIn(userId, outletId, {});
+  return clockOut(userId, outletId, {});
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SHIFT REPORTS
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a shift/attendance report for a date range.
+ * Groups by staff member, calculates totals.
+ */
+async function getShiftReport(outletId, query = {}) {
+  const prisma = getDbClient();
+  const from = query.from ? new Date(query.from) : new Date(new Date().setDate(1)); // Start of month
+  const to = query.to ? new Date(query.to) : new Date();
+  to.setHours(23, 59, 59, 999);
+
+  const logs = await prisma.attendanceLog.findMany({
+    where: {
+      outlet_id: outletId,
+      is_deleted: false,
+      clock_in: { gte: from, lte: to },
+      ...(query.user_id ? { user_id: query.user_id } : {}),
+    },
+    include: {
+      user: { select: { id: true, full_name: true, phone: true } },
+      shift: { select: { name: true, start_time: true, end_time: true } },
+    },
+    orderBy: { clock_in: 'asc' },
+  });
+
+  // Group by user
+  const byUser = {};
+  for (const log of logs) {
+    const uid = log.user_id;
+    if (!byUser[uid]) {
+      byUser[uid] = {
+        user_id: uid,
+        name: log.user?.full_name || 'Unknown',
+        phone: log.user?.phone || '',
+        days_present: 0,
+        total_hours: 0,
+        overtime_hours: 0,
+        late_count: 0,
+        logs: [],
+      };
+    }
+    if (log.clock_out) byUser[uid].days_present += 1;
+    byUser[uid].total_hours += Number(log.hours_worked || 0);
+    byUser[uid].overtime_hours += Number(log.overtime_hours || 0);
+    byUser[uid].logs.push({
+      date: log.clock_in.toISOString().split('T')[0],
+      clock_in: log.clock_in,
+      clock_out: log.clock_out,
+      hours: Number(log.hours_worked || 0),
+      overtime: Number(log.overtime_hours || 0),
+      shift: log.shift?.name || '—',
+      is_overtime: log.is_overtime,
+    });
+  }
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    staff: Object.values(byUser).map((s) => ({
+      ...s,
+      total_hours: Math.round(s.total_hours * 100) / 100,
+      overtime_hours: Math.round(s.overtime_hours * 100) / 100,
+    })),
+    summary: {
+      total_staff: Object.keys(byUser).length,
+      total_logs: logs.length,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SALARY CALCULATION
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Calculates salary for a staff member for a given month/year.
+ * Uses attendance logs + StaffProfile salary settings.
+ * Saves/updates a SalaryRecord.
+ */
+async function calculateSalary(userId, outletId, month, year) {
+  const prisma = getDbClient();
+
+  // Get staff profile
+  const profile = await prisma.staffProfile.findFirst({
+    where: { user_id: userId, outlet_id: outletId, is_deleted: false },
+    include: { user: { select: { full_name: true } } },
+  });
+  if (!profile) throw new NotFoundError('Staff profile not found');
+
+  // Date range for the month
+  const from = new Date(year, month - 1, 1);
+  const to = new Date(year, month, 0, 23, 59, 59); // Last day of month
+
+  // Working days in month (Mon–Sat = 6 days/week, approximate)
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const workingDays = Math.round(daysInMonth * (26 / 31)); // ~26 working days/month
+
+  const logs = await prisma.attendanceLog.findMany({
+    where: {
+      user_id: userId,
+      outlet_id: outletId,
+      is_deleted: false,
+      clock_in: { gte: from, lte: to },
+      clock_out: { not: null },
+    },
+  });
+
+  const presentDays = logs.length;
+  const absentDays = Math.max(0, workingDays - presentDays);
+  const totalHours = logs.reduce((s, l) => s + Number(l.hours_worked || 0), 0);
+  const overtimeHours = logs.reduce((s, l) => s + Number(l.overtime_hours || 0), 0);
+
+  // Salary calculation
+  const monthlySalary = Number(profile.monthly_salary || 0);
+  const hourlyRate = Number(profile.hourly_rate || 0);
+
+  let basicSalary = 0;
+  let overtimePay = 0;
+
+  if (monthlySalary > 0) {
+    // Pro-rate by attendance
+    basicSalary = workingDays > 0 ? (monthlySalary / workingDays) * presentDays : 0;
+    // Overtime: 1.5x hourly rate (derived from monthly / 26 days / 8 hrs)
+    const derivedHourly = monthlySalary / workingDays / 8;
+    overtimePay = overtimeHours * derivedHourly * 1.5;
+  } else if (hourlyRate > 0) {
+    basicSalary = totalHours * hourlyRate;
+    overtimePay = overtimeHours * hourlyRate * 0.5; // Extra 0.5x for OT
+  }
+
+  const netSalary = Math.round((basicSalary + overtimePay) * 100) / 100;
+
+  // Upsert salary record
+  const existing = await prisma.salaryRecord.findFirst({
+    where: { user_id: userId, outlet_id: outletId, month, year, is_deleted: false },
+  });
+
+  const data = {
+    working_days: workingDays,
+    present_days: presentDays,
+    absent_days: absentDays,
+    total_hours: Math.round(totalHours * 100) / 100,
+    overtime_hours: Math.round(overtimeHours * 100) / 100,
+    basic_salary: Math.round(basicSalary * 100) / 100,
+    overtime_pay: Math.round(overtimePay * 100) / 100,
+    deductions: 0,
+    bonus: existing ? Number(existing.bonus) : 0,
+    net_salary: netSalary,
+    status: existing?.status === 'paid' ? 'paid' : 'draft',
+  };
+
+  let record;
+  if (existing) {
+    record = await prisma.salaryRecord.update({ where: { id: existing.id }, data });
+  } else {
+    record = await prisma.salaryRecord.create({
+      data: { user_id: userId, outlet_id: outletId, month, year, ...data },
+    });
+  }
+
+  return { ...record, staff_name: profile.user?.full_name, designation: profile.designation };
+}
+
+/**
+ * Lists salary records for an outlet.
+ */
+async function listSalaryRecords(outletId, query = {}) {
+  const prisma = getDbClient();
+  const where = { outlet_id: outletId, is_deleted: false };
+  if (query.month) where.month = parseInt(query.month);
+  if (query.year) where.year = parseInt(query.year);
+  if (query.status) where.status = query.status;
+  if (query.user_id) where.user_id = query.user_id;
+
+  const records = await prisma.salaryRecord.findMany({
+    where,
+    include: {
+      user: { select: { full_name: true, phone: true } },
+    },
+    orderBy: [{ year: 'desc' }, { month: 'desc' }, { created_at: 'desc' }],
+  });
+
+  return records.map((r) => ({
+    ...r,
+    staff_name: r.user?.full_name,
+    phone: r.user?.phone,
+  }));
+}
+
+/**
+ * Marks a salary record as paid.
+ */
+async function markSalaryPaid(id, bonus = 0) {
+  const prisma = getDbClient();
+  const record = await prisma.salaryRecord.findUnique({ where: { id } });
+  if (!record) throw new NotFoundError('Salary record not found');
+  const netSalary = Number(record.basic_salary) + Number(record.overtime_pay) + Number(bonus) - Number(record.deductions);
+  return prisma.salaryRecord.update({
+    where: { id },
+    data: { status: 'paid', paid_at: new Date(), bonus: Number(bonus), net_salary: netSalary },
+    include: { user: { select: { full_name: true } } },
+  });
+}
+
+/**
+ * Bulk calculate salary for all staff in an outlet for a month/year.
+ */
+async function bulkCalculateSalary(outletId, month, year) {
+  const prisma = getDbClient();
+  const profiles = await prisma.staffProfile.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    select: { user_id: true },
+  });
+
+  const results = [];
+  for (const p of profiles) {
+    try {
+      const rec = await calculateSalary(p.user_id, outletId, month, year);
+      results.push(rec);
+    } catch (e) {
+      logger.warn('Salary calc failed for user', { user_id: p.user_id, error: e.message });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   listStaff, upsertStaffProfile, verifyManagerPIN, createStaffWithUser,
   clockIn, clockOut, getAttendance, getStaffPerformance,
   listShifts, createShift,
+  generateClockOTP, verifyClockOTP,
+  getShiftReport,
+  calculateSalary, listSalaryRecords, markSalaryPaid, bulkCalculateSalary,
 };
