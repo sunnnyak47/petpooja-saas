@@ -15,6 +15,7 @@ import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
 import CentralKitchenPage from './pages/CentralKitchenPage';
 import CRMPage from './pages/CRMPage';
+import ONDCPage from './pages/ONDCPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
@@ -96,6 +97,7 @@ export default function App() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="central-kitchen" element={<CentralKitchenPage />} />
         <Route path="crm" element={<CRMPage />} />
+        <Route path="ondc" element={<ONDCPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
         <Route path="kitchen" element={<KitchenDisplayPage />} />
         <Route path="payments" element={<PaymentsPage />} />

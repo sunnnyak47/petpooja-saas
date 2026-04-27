@@ -195,6 +195,7 @@ model Outlet {
   ck_indents_ck           CentralKitchenIndent[] @relation("ck_outlet")
   tally_mappings          TallyMapping[]
   discounts               Discount[]
+  ondc_seller_profile     OndcSellerProfile?
   head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
 
   @@map("outlets")
@@ -1502,4 +1503,131 @@ model DiscountUsage {
 
   @@index([discount_id])
   @@map("discount_usages")
+}
+
+// ============================================
+// ONDC MODELS
+// ============================================
+
+model OndcSellerProfile {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id           String    @unique @db.Uuid
+  // Registration status
+  status              String    @default("draft") @db.VarChar(30)
+  // draft | docs_submitted | under_review | verified | live | suspended
+  rejection_reason    String?   @db.Text
+
+  // Store details
+  store_name          String?   @db.VarChar(200)
+  store_description   String?   @db.Text
+  store_category      String?   @db.VarChar(100)  // pure_veg | non_veg | both
+  cuisine_types       String?   @db.Text           // JSON array
+  logo_url            String?   @db.VarChar(500)
+
+  // Legal / compliance
+  fssai_number        String?   @db.VarChar(20)
+  fssai_expiry        DateTime? @db.Date
+  gstin               String?   @db.VarChar(15)
+  pan                 String?   @db.VarChar(10)
+
+  // Bank / settlement
+  bank_account_name   String?   @db.VarChar(150)
+  bank_account_number String?   @db.VarChar(30)
+  bank_ifsc           String?   @db.VarChar(15)
+  bank_name           String?   @db.VarChar(100)
+
+  // Service area
+  service_radius_km   Decimal?  @db.Decimal(5, 2)
+  min_order_value     Decimal?  @default(0) @db.Decimal(10, 2)
+  delivery_enabled    Boolean   @default(true)
+  pickup_enabled      Boolean   @default(true)
+
+  // Operating hours (JSON: { mon: { open: "09:00", close: "22:00" }, ... })
+  operating_hours     Json?     @default("{}")
+
+  // ONDC network IDs (assigned after verification)
+  bpp_id              String?   @db.VarChar(200)   // Buyer-side platform provider ID
+  provider_id         String?   @db.VarChar(200)   // Our provider ID on network
+  subscriber_id       String?   @db.VarChar(200)
+
+  // Agreement
+  tnc_accepted        Boolean   @default(false)
+  tnc_accepted_at     DateTime? @db.Timestamptz
+
+  // Auto-accept
+  auto_accept         Boolean   @default(false)
+  prep_time_minutes   Int       @default(30)
+
+  submitted_at        DateTime? @db.Timestamptz
+  verified_at         DateTime? @db.Timestamptz
+  went_live_at        DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted          Boolean   @default(false)
+
+  outlet              Outlet    @relation(fields: [outlet_id], references: [id])
+  ondc_orders         OndcOrder[]
+
+  @@map("ondc_seller_profiles")
+}
+
+model OndcOrder {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seller_profile_id   String    @db.Uuid
+  outlet_id           String    @db.Uuid
+
+  // ONDC network identifiers
+  ondc_order_id       String    @unique @db.VarChar(200)
+  bap_id              String?   @db.VarChar(200)   // Buyer App ID (Paytm, Magicpin, etc.)
+  bap_uri             String?   @db.VarChar(500)
+  transaction_id      String?   @db.VarChar(200)
+  message_id          String?   @db.VarChar(200)
+
+  // Order status
+  status              String    @default("pending") @db.VarChar(30)
+  // pending | accepted | rejected | preparing | ready | picked_up | cancelled
+
+  // Customer
+  customer_name       String?   @db.VarChar(150)
+  customer_phone      String?   @db.VarChar(15)
+  delivery_address    String?   @db.Text
+  delivery_lat        Decimal?  @db.Decimal(10, 7)
+  delivery_lng        Decimal?  @db.Decimal(10, 7)
+
+  // Financials
+  items_total         Decimal   @default(0) @db.Decimal(10, 2)
+  delivery_fee        Decimal   @default(0) @db.Decimal(10, 2)
+  taxes               Decimal   @default(0) @db.Decimal(10, 2)
+  discount            Decimal   @default(0) @db.Decimal(10, 2)
+  grand_total         Decimal   @default(0) @db.Decimal(10, 2)
+  payment_method      String?   @db.VarChar(30)    // prepaid | cod
+  payment_status      String?   @db.VarChar(30)
+
+  // Items snapshot (JSON array)
+  items               Json      @default("[]")
+
+  // Accept / reject
+  accepted_at         DateTime? @db.Timestamptz
+  rejected_at         DateTime? @db.Timestamptz
+  rejection_reason    String?   @db.VarChar(300)
+  prep_time_minutes   Int?
+  ready_at            DateTime? @db.Timestamptz
+  picked_up_at        DateTime? @db.Timestamptz
+  cancelled_at        DateTime? @db.Timestamptz
+
+  // Raw webhook payload for debugging
+  raw_payload         Json?
+
+  // Linked internal order (created after accept)
+  internal_order_id   String?   @db.Uuid
+
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted          Boolean   @default(false)
+
+  seller_profile      OndcSellerProfile @relation(fields: [seller_profile_id], references: [id])
+
+  @@index([outlet_id])
+  @@index([status])
+  @@map("ondc_orders")
 }
