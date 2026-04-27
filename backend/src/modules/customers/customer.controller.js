@@ -1,103 +1,119 @@
 /**
- * @fileoverview Customer controller — HTTP handlers for customer + loyalty endpoints.
+ * @fileoverview Customer controller.
  * @module modules/customers/customer.controller
  */
 
 const customerService = require('./customer.service');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
 
-/** POST /api/customers */
 async function createCustomer(req, res, next) {
-  try {
-    const customer = await customerService.createCustomer(req.body);
-    sendCreated(res, customer, 'Customer created');
-  } catch (error) { next(error); }
+  try { sendCreated(res, await customerService.createCustomer(req.body), 'Customer created'); }
+  catch (e) { next(e); }
 }
 
-/** GET /api/customers */
 async function listCustomers(req, res, next) {
   try {
     const { customers, total, page, limit } = await customerService.listCustomers(req.query);
     sendPaginated(res, customers, total, page, limit, 'Customers retrieved');
-  } catch (error) { next(error); }
+  } catch (e) { next(e); }
 }
 
-/** GET /api/customers/:id */
 async function getCustomer(req, res, next) {
-  try {
-    const customer = await customerService.getCustomer(req.params.id);
-    sendSuccess(res, customer, 'Customer retrieved');
-  } catch (error) { next(error); }
+  try { sendSuccess(res, await customerService.getCustomer(req.params.id), 'Customer retrieved'); }
+  catch (e) { next(e); }
 }
 
-/** GET /api/customers/phone/:phone */
 async function findByPhone(req, res, next) {
   try {
-    const customer = await customerService.findByPhone(req.params.phone);
-    sendSuccess(res, customer, customer ? 'Customer found' : 'Customer not found');
-  } catch (error) { next(error); }
+    const c = await customerService.findByPhone(req.params.phone);
+    sendSuccess(res, c, c ? 'Customer found' : 'Customer not found');
+  } catch (e) { next(e); }
 }
 
-/** PATCH /api/customers/:id */
 async function updateCustomer(req, res, next) {
-  try {
-    const customer = await customerService.updateCustomer(req.params.id, req.body);
-    sendSuccess(res, customer, 'Customer updated');
-  } catch (error) { next(error); }
+  try { sendSuccess(res, await customerService.updateCustomer(req.params.id, req.body), 'Customer updated'); }
+  catch (e) { next(e); }
 }
 
-/** DELETE /api/customers/:id */
 async function deleteCustomer(req, res, next) {
-  try {
-    await customerService.deleteCustomer(req.params.id);
-    sendSuccess(res, null, 'Customer deleted');
-  } catch (error) { next(error); }
+  try { await customerService.deleteCustomer(req.params.id); sendSuccess(res, null, 'Customer deleted'); }
+  catch (e) { next(e); }
 }
 
-/** POST /api/customers/:id/addresses */
 async function addAddress(req, res, next) {
-  try {
-    const address = await customerService.addAddress(req.params.id, req.body);
-    sendCreated(res, address, 'Address added');
-  } catch (error) { next(error); }
+  try { sendCreated(res, await customerService.addAddress(req.params.id, req.body), 'Address added'); }
+  catch (e) { next(e); }
 }
 
-/** POST /api/customers/:id/loyalty/redeem */
 async function redeemPoints(req, res, next) {
   try {
     const result = await customerService.redeemPoints(
       req.params.id, req.body.outlet_id, req.body.order_id, req.body.points
     );
-    sendSuccess(res, result, 'Points redeemed successfully');
-  } catch (error) { next(error); }
+    sendSuccess(res, result, 'Points redeemed');
+  } catch (e) { next(e); }
 }
 
-/** GET /api/customers/:id/loyalty/history */
+async function adjustPoints(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await customerService.adjustPoints(req.params.id, outletId, req.body.points, req.body.reason);
+    sendSuccess(res, result, 'Points adjusted');
+  } catch (e) { next(e); }
+}
+
 async function getLoyaltyHistory(req, res, next) {
   try {
     const result = await customerService.getLoyaltyHistory(req.params.id, req.query);
     sendPaginated(res, result.transactions, result.total, result.page, result.limit, 'Loyalty history retrieved');
-  } catch (error) { next(error); }
+  } catch (e) { next(e); }
 }
 
-/** POST /api/customers/campaigns */
+async function getCRMDashboard(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await customerService.getCRMDashboard(outletId), 'CRM dashboard retrieved');
+  } catch (e) { next(e); }
+}
+
+async function getBirthdayCustomers(req, res, next) {
+  try {
+    const days = parseInt(req.query.days || '7');
+    sendSuccess(res, await customerService.getBirthdayCustomers(days), 'Birthday customers retrieved');
+  } catch (e) { next(e); }
+}
+
 async function createCampaign(req, res, next) {
   try {
-    const campaign = await customerService.createCampaign(req.query.outlet_id, req.body);
-    sendCreated(res, campaign, 'Marketing campaign triggered');
-  } catch (error) { next(error); }
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    sendCreated(res, await customerService.createCampaign(outletId, req.body), 'Campaign created');
+  } catch (e) { next(e); }
 }
 
-/** GET /api/customers/campaigns */
 async function getCampaigns(req, res, next) {
   try {
-    const campaigns = await customerService.getCampaigns(req.query.outlet_id);
-    sendSuccess(res, campaigns, 'Campaigns retrieved');
-  } catch (error) { next(error); }
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await customerService.getCampaigns(outletId, req.query);
+    sendPaginated(res, result.campaigns, result.total, result.page, result.limit, 'Campaigns retrieved');
+  } catch (e) { next(e); }
+}
+
+async function getCampaignDetail(req, res, next) {
+  try { sendSuccess(res, await customerService.getCampaignDetail(req.params.id), 'Campaign retrieved'); }
+  catch (e) { next(e); }
+}
+
+async function sendBirthdayCampaign(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await customerService.sendBirthdayCampaign(outletId, req.body.message_template), 'Birthday campaign sent');
+  } catch (e) { next(e); }
 }
 
 module.exports = {
   createCustomer, listCustomers, getCustomer, findByPhone,
-  updateCustomer, deleteCustomer, addAddress, redeemPoints, getLoyaltyHistory,
-  createCampaign, getCampaigns
+  updateCustomer, deleteCustomer, addAddress,
+  redeemPoints, adjustPoints, getLoyaltyHistory,
+  getCRMDashboard, getBirthdayCustomers,
+  createCampaign, getCampaigns, getCampaignDetail, sendBirthdayCampaign,
 };
