@@ -197,6 +197,7 @@ model Outlet {
   discounts               Discount[]
   ondc_seller_profile     OndcSellerProfile?
   pricing_rules           PricingRule[]
+  festival_modes          FestivalMode[]
   head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
 
   @@map("outlets")
@@ -1705,4 +1706,28 @@ model PricingRuleApplication {
   @@index([rule_id])
   @@index([outlet_id])
   @@map("pricing_rule_applications")
+}
+
+model FestivalMode {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id       String    @db.Uuid
+  festival_key    String    @db.VarChar(50)
+  festival_name   String    @db.VarChar(100)
+  country         String    @default("IN") @db.VarChar(5)
+  region          String?   @db.VarChar(80)
+  start_date      DateTime  @db.Date
+  end_date        DateTime  @db.Date
+  is_active       Boolean   @default(false)
+  special_mode    String?   @db.VarChar(50)
+  theme           Json?
+  menu_suggestions Json?
+  offer_structure  Json?
+  custom_banner   String?   @db.VarChar(300)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+  outlet          Outlet    @relation(fields: [outlet_id], references: [id])
+
+  @@index([outlet_id])
+  @@index([festival_key])
+  @@map("festival_modes")
 }

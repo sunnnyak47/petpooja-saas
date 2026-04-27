@@ -17,6 +17,7 @@ import CentralKitchenPage from './pages/CentralKitchenPage';
 import CRMPage from './pages/CRMPage';
 import ONDCPage from './pages/ONDCPage';
 import DynamicPricingPage from './pages/DynamicPricingPage';
+import FestivalModePage from './pages/FestivalModePage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="crm" element={<CRMPage />} />
         <Route path="ondc" element={<ONDCPage />} />
         <Route path="pricing" element={<DynamicPricingPage />} />
+        <Route path="festival" element={<FestivalModePage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
         <Route path="kitchen" element={<KitchenDisplayPage />} />
         <Route path="payments" element={<PaymentsPage />} />
