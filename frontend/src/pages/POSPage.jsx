@@ -13,11 +13,12 @@ import {
 } from '../store/slices/posSlice';
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
-  Leaf, Drumstick, Egg, Star, Flame, X, ClipboardList, Users, Pause, UserPlus, 
-  SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine, 
-  LayoutGrid, Utensils
+  Leaf, Drumstick, Egg, Star, Flame, X, ClipboardList, Users, Pause, UserPlus,
+  SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine,
+  LayoutGrid, Utensils, Mic,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
+import VoicePOS from '../components/POS/VoicePOS';
 import Modal from '../components/Modal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
@@ -49,6 +50,7 @@ export default function POSPage() {
   const [showEbill, setShowEbill] = useState(false);
   const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [showBillPreview, setShowBillPreview] = useState(false);
+  const [showVoicePOS, setShowVoicePOS] = useState(false);
   const [billedOrder, setBilledOrder] = useState(null);
   const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
 
@@ -517,6 +519,15 @@ export default function POSPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
             <input className="input pl-10" placeholder="Search menu items..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+          {/* Voice POS button */}
+          <button
+            onClick={() => setShowVoicePOS(true)}
+            title="Voice Order (Hindi/Tamil/Punjabi/English…)"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-bold shadow hover:from-red-400 hover:to-orange-400 transition-all shrink-0"
+          >
+            <Mic className="w-4 h-4" />
+            <span className="hidden sm:inline">Voice</span>
+          </button>
           <div className="relative max-w-[150px]">
             <input className="input" placeholder="Short Code (BB)" autoFocus value={shortCodeSearch} onChange={(e) => setShortCodeSearch(e.target.value)} />
           </div>
@@ -830,9 +841,9 @@ export default function POSPage() {
       {showBillPreview && <BillPreviewModal isOpen={showBillPreview} onClose={() => setShowBillPreview(false)} order={billedOrder} onPrint={() => { toast.success('Printing to Thermal...'); setShowBillPreview(false); }} />}
       
       {selectedItemForModifiers && (
-        <ModifierModal 
-          isOpen={!!selectedItemForModifiers} 
-          onClose={() => setSelectedItemForModifiers(null)} 
+        <ModifierModal
+          isOpen={!!selectedItemForModifiers}
+          onClose={() => setSelectedItemForModifiers(null)}
           item={selectedItemForModifiers}
           onAdd={(itemData) => {
             dispatch(addToCart(itemData));
@@ -840,6 +851,9 @@ export default function POSPage() {
           }}
         />
       )}
+
+      {/* Voice POS Modal */}
+      {showVoicePOS && <VoicePOS onClose={() => setShowVoicePOS(false)} />}
     </div>
   );
 }
