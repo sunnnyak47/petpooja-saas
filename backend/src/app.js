@@ -170,6 +170,7 @@ const voicePosRoutes = require('./modules/voice-pos/voice-pos.routes');
 const pricingRoutes  = require('./modules/pricing/pricing.routes');
 const festivalRoutes = require('./modules/festival/festival.routes');
 const fraudRoutes    = require('./modules/fraud/fraud.routes');
+const rosteringRoutes = require('./modules/staff/rostering.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
@@ -198,6 +199,9 @@ app.use('/api/voice-pos', voicePosRoutes);
 app.use('/api/pricing',   pricingRoutes);
 app.use('/api/festival',  festivalRoutes);
 app.use('/api/fraud',     fraudRoutes);
+app.use('/api/rostering', rosteringRoutes);
+const auIntegrationsRoutes = require('./modules/integrations/au-integrations.routes');
+app.use('/api/integrations/au', auIntegrationsRoutes);
 app.use('/mock', mockRoutes);
 app.use('/test', mockTestRoutes);
 

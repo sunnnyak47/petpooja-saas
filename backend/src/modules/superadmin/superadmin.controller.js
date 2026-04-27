@@ -137,6 +137,22 @@ const superadminController = {
     try {
       sendSuccess(res, { valid: true, user: req.user }, 'Token valid');
     } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/region-templates */
+  async getRegionTemplates(req, res, next) {
+    try {
+      const templates = await superadminService.getRegionTemplates();
+      sendSuccess(res, templates, 'Region templates retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/chains/:id/region */
+  async switchRegion(req, res, next) {
+    try {
+      const result = await superadminService.switchHeadOfficeRegion(req.params.id, req.body);
+      sendSuccess(res, result, 'Region switched successfully');
+    } catch (err) { next(err); }
   }
 };
 

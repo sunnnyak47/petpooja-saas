@@ -2,196 +2,413 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { 
-  Building2, Plus, Users, Utensils, CreditCard, 
-  Search, ExternalLink, ShieldCheck, AlertCircle 
+import {
+  Building2, Plus, Users, Utensils, CreditCard, ExternalLink,
+  ShieldCheck, AlertCircle, Globe, MapPin, DollarSign, FileText,
+  ToggleLeft, ToggleRight, RefreshCw, CheckCircle, X, ChevronDown,
 } from 'lucide-react';
+
+const REGIONS = {
+  IN: { label: 'India', flag: '🇮🇳', currency: 'INR', symbol: '₹', color: '#FF6B35', timezone: 'Asia/Kolkata' },
+  AU: { label: 'Australia', flag: '🇦🇺', currency: 'AUD', symbol: 'A$', color: '#0052CC', timezone: 'Australia/Sydney' },
+};
 
 export default function SuperAdminPage() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', password: '', city: 'Mumbai'
-  });
+  const [regionModal, setRegionModal] = useState(null); // { chain, region }
+  const [filterRegion, setFilterRegion] = useState('ALL');
+  const [searchQ, setSearchQ] = useState('');
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', region: 'IN' });
 
-  const { data: chains, isLoading } = useQuery({
+  const { data: chains = [], isLoading } = useQuery({
     queryKey: ['admin-chains'],
-    queryFn: () => api.get('/ho/chains').then(res => res.data)
+    queryFn: () => api.get('/ho/chains').then(r => r.data),
   });
 
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: () => api.get('/ho/dashboard').then(res => res.data)
+    queryFn: () => api.get('/ho/dashboard').then(r => r.data),
   });
 
-  const onboardingMutation = useMutation({
+  const { data: regionTemplates } = useQuery({
+    queryKey: ['region-templates'],
+    queryFn: () => api.get('/superadmin/region-templates').then(r => r.data),
+  });
+
+  const onboardMutation = useMutation({
     mutationFn: (data) => api.post('/ho/register', data),
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-chains']);
-      toast.success('Restaurant Chain Onboarded Successfully!');
+      toast.success('Restaurant chain onboarded!');
       setShowModal(false);
-      setFormData({ name: '', email: '', phone: '', password: '', city: 'Mumbai' });
+      setFormData({ name: '', email: '', phone: '', password: '', region: 'IN' });
     },
-    onError: (err) => {
-      toast.error(err.message || 'Onboarding Failed');
-    }
+    onError: (e) => toast.error(e.message || 'Onboarding failed'),
   });
 
-  const syncMutation = useMutation({
-    mutationFn: (chainId) => api.post('/ho/menu-sync', {
-        source_outlet_id: '37bb34ff-bbc4-46a4-a32b-58d4b8f4d7a5',
-        target_outlet_ids: chains.find(c => c.id === chainId).outlets.map(o => o.id),
-        options: { categories: true, items: true, prices: true }
-    }),
-    onSuccess: (data) => toast.success(`Starter Menu Deployed! ${data.synced} items synced.`),
-    onError: (err) => toast.error(err.message)
-  });
-
-  const updateBranding = useMutation({
-    mutationFn: ({ headOfficeId, color }) => api.patch('/ho/branding', { head_office_id: headOfficeId, primary_color: color }),
-    onSuccess: () => {
-        queryClient.invalidateQueries(['admin-chains']);
-        toast.success('Branding Updated!');
+  const switchRegionMutation = useMutation({
+    mutationFn: ({ chainId, region, abn, acn }) =>
+      api.patch(`/superadmin/chains/${chainId}/region`, { region, abn, acn }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries(['admin-chains']);
+      toast.success(`Switched to ${REGIONS[vars.region].label} profile 🎉`);
+      setRegionModal(null);
     },
-    onError: (err) => toast.error(err.message)
+    onError: (e) => toast.error(e.message || 'Region switch failed'),
   });
 
-  if (isLoading) return <div className="p-8 text-center text-slate-500 font-bold animate-pulse">Loading SaaS Infrastructure...</div>;
+  const seedMenuMutation = useMutation({
+    mutationFn: () => api.post('/menu/templates/seed'),
+    onSuccess: () => toast.success('Australian menu templates seeded!'),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const filteredChains = chains.filter(c => {
+    const r = c.region || 'IN';
+    if (filterRegion !== 'ALL' && r !== filterRegion) return false;
+    if (searchQ && !c.name.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    return true;
+  });
+
+  const auCount = chains.filter(c => (c.region || 'IN') === 'AU').length;
+  const inCount = chains.filter(c => (c.region || 'IN') === 'IN').length;
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Loading platform...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-      {/* SaaS Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-        <StatCard title="Total Clients" value={stats?.outlets?.total || 0} icon={<Building2 className="text-blue-500" />} />
-        <StatCard title="Overall Revenue" value={`₹${(stats?.today?.revenue || 0).toLocaleString()}`} icon={<CreditCard className="text-amber-500" />} subtitle="Total across all outlets" />
-        <StatCard title="Total Customers" value={stats?.total_customers || 0} icon={<Users className="text-indigo-500" />} />
-        <StatCard title="System Wastage" value={`₹${(stats?.total_wastage || 0).toLocaleString()}`} icon={<AlertCircle className="text-red-500" />} subtitle="Loss across all clients" />
-        <StatCard title="Star Outlet" value={stats?.top_outlet?.name || 'N/A'} icon={<ShieldCheck className="text-emerald-500" />} subtitle={stats?.top_outlet ? `₹${stats.top_outlet.revenue.toLocaleString()} today` : 'No sales yet'} />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Platform Management</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            Manage franchise chains across India & Australia
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => seedMenuMutation.mutate()}
+            disabled={seedMenuMutation.isPending}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors"
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+          >
+            <Utensils className="w-4 h-4" /> {seedMenuMutation.isPending ? 'Seeding...' : 'Seed AU Menus'}
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            <Plus className="w-4 h-4" /> Onboard Chain
+          </button>
+        </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
-        <h2 className="text-xl font-bold text-slate-800">Restaurant Chains (Clients)</h2>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition"
-        >
-          <Plus size={18} /> Onboard New Restaurant
-        </button>
+      {/* Region KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard icon={<Building2 className="w-5 h-5" />} label="Total Chains" value={chains.length} color="#6366F1" />
+        <KPICard icon={<span className="text-xl">🇮🇳</span>} label="India Chains" value={inCount} color="#FF6B35" />
+        <KPICard icon={<span className="text-xl">🇦🇺</span>} label="AU Chains" value={auCount} color="#0052CC" />
+        <KPICard icon={<DollarSign className="w-5 h-5" />} label="Active Plans" value={chains.filter(c => c.subscriptions?.[0]?.status === 'active').length} color="#10B981" />
       </div>
 
-      {/* Grid of Clients */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
-        {chains?.map((chain) => (
-          <div key={chain.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition group relative">
-            <div className="p-5 flex gap-4">
-              <div 
-                className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-black text-2xl uppercase shadow-inner"
-                style={{ backgroundColor: chain.primary_color || '#4F46E5' }}
-              >
-                {chain.name.substring(0, 1)}
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900">{chain.name}</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{chain.id.substring(0, 8)}</p>
+      {/* Region Summary Blocks */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {['AU', 'IN'].map(region => {
+          const r = REGIONS[region];
+          const tpl = regionTemplates?.[region];
+          return (
+            <div key={region} className="rounded-2xl p-5 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+              <div className="flex items-start gap-3">
+                <span className="text-3xl">{r.flag}</span>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{r.label} Profile</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold text-white" style={{ background: r.color }}>{r.currency}</span>
                   </div>
-                  <span className={`h-fit px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                    chain.subscriptions?.[0]?.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {chain.subscriptions?.[0]?.status || 'In-trial'}
-                  </span>
-                </div>
-                
-                <div className="flex gap-4 mt-4">
-                  <div className="text-center">
-                    <span className="block text-xl font-black text-slate-800">{chain._count.outlets}</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Outlets</span>
-                  </div>
-                  <div className="text-center border-l pl-4">
-                    <span className="block text-xl font-black text-slate-800">{chain._count.users}</span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Staff</span>
-                  </div>
-                  <div className="text-center border-l pl-4">
-                    <span className="block text-xl font-black text-emerald-500">
-                      {chain.subscriptions?.[0]?.plan_name || 'Free'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Plan</span>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{tpl?.description || `Default ${r.label} configuration`}</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    <span>🕐 {r.timezone}</span>
+                    <span>💲 {r.symbol}</span>
+                    <span>📋 {region === 'AU' ? 'ABN/ACN' : 'GSTIN/FSSAI'}</span>
+                    <span>🏦 {region === 'AU' ? 'GST-inclusive 10%' : 'CGST/SGST'}</span>
                   </div>
                 </div>
               </div>
             </div>
+          );
+        })}
+      </div>
 
-            <div className="bg-slate-50 px-5 py-3 border-t flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                 <button 
-                  onClick={() => syncMutation.mutate(chain.id)}
-                  disabled={syncMutation.isPending}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition flex items-center gap-2 disabled:opacity-50"
-                 >
-                   <Utensils size={14} /> {syncMutation.isPending ? 'Syncing...' : 'Deploy Starter Menu'}
-                 </button>
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-3 items-center p-4 rounded-xl border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+        <div className="flex-1 relative min-w-[200px]">
+          <input
+            type="text"
+            placeholder="Search chains..."
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            className="w-full pl-4 pr-4 py-2 rounded-lg text-sm border outline-none"
+            style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+          />
+        </div>
+        <div className="flex gap-2">
+          {['ALL', 'IN', 'AU'].map(r => (
+            <button
+              key={r}
+              onClick={() => setFilterRegion(r)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+              style={{
+                background: filterRegion === r ? 'var(--accent)' : 'var(--bg-secondary)',
+                color: filterRegion === r ? '#fff' : 'var(--text-secondary)',
+              }}
+            >
+              {r === 'ALL' ? 'All' : `${REGIONS[r].flag} ${r}`}
+            </button>
+          ))}
+        </div>
+      </div>
 
-                 <input 
-                   type="color"
-                   value={chain.primary_color || '#4F46E5'}
-                   onChange={(e) => updateBranding.mutate({ headOfficeId: chain.id, color: e.target.value })}
-                   className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white shadow-sm"
-                 />
+      {/* Chains grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {filteredChains.map(chain => {
+          const region = chain.region || 'IN';
+          const r = REGIONS[region];
+          return (
+            <div
+              key={chain.id}
+              className="rounded-2xl border overflow-hidden transition-shadow hover:shadow-lg"
+              style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+            >
+              {/* Region banner */}
+              <div className="h-1" style={{ background: r.color }} />
+
+              <div className="p-5">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-black text-xl flex-shrink-0"
+                    style={{ background: chain.primary_color || r.color }}
+                  >
+                    {chain.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base truncate" style={{ color: 'var(--text-primary)' }}>{chain.name}</h3>
+                      <span className="text-lg flex-shrink-0">{r.flag}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold text-white flex-shrink-0"
+                        style={{ background: chain.subscriptions?.[0]?.status === 'active' ? '#10B981' : '#EF4444' }}>
+                        {chain.subscriptions?.[0]?.status || 'trial'}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      {chain.contact_email} · {r.label} · {r.currency}
+                    </p>
+                    {region === 'AU' && chain.abn && (
+                      <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--text-secondary)' }}>ABN: {chain.abn}</p>
+                    )}
+                    {region === 'IN' && chain.gstin && (
+                      <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--text-secondary)' }}>GSTIN: {chain.gstin}</p>
+                    )}
+                    <div className="flex gap-5 mt-3">
+                      <div className="text-center">
+                        <span className="block text-lg font-black" style={{ color: 'var(--text-primary)' }}>{chain._count?.outlets || 0}</span>
+                        <span className="text-[10px] uppercase font-bold" style={{ color: 'var(--text-secondary)' }}>Outlets</span>
+                      </div>
+                      <div className="text-center border-l pl-5" style={{ borderColor: 'var(--border)' }}>
+                        <span className="block text-lg font-black" style={{ color: 'var(--text-primary)' }}>{chain._count?.users || 0}</span>
+                        <span className="text-[10px] uppercase font-bold" style={{ color: 'var(--text-secondary)' }}>Staff</span>
+                      </div>
+                      <div className="text-center border-l pl-5" style={{ borderColor: 'var(--border)' }}>
+                        <span className="block text-sm font-black" style={{ color: 'var(--accent)' }}>{chain.subscriptions?.[0]?.plan_name || 'Free'}</span>
+                        <span className="text-[10px] uppercase font-bold" style={{ color: 'var(--text-secondary)' }}>Plan</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <button className="text-indigo-600 font-bold text-xs hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                Manage Chain <ExternalLink size={14} />
-              </button>
+
+              {/* Actions */}
+              <div className="px-5 py-3 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+                <button
+                  onClick={() => setRegionModal({ chain, targetRegion: region === 'AU' ? 'IN' : 'AU', abn: '', acn: '' })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                  style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Switch to {region === 'AU' ? '🇮🇳 IN' : '🇦🇺 AU'}
+                </button>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {r.flag} {r.timezone.split('/').pop().replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Region Switch Modal */}
+      {regionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-2xl w-full max-w-md overflow-hidden" style={{ background: 'var(--bg-card)' }}>
+            <div className="p-5 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                  Switch to {REGIONS[regionModal.targetRegion].flag} {REGIONS[regionModal.targetRegion].label} Profile
+                </h3>
+                <button onClick={() => setRegionModal(null)}>
+                  <X className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+                </button>
+              </div>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+                This will update currency, timezone, and compliance profile for <strong>{regionModal.chain.name}</strong> and all its outlets.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* What will change */}
+              <div className="rounded-xl p-4 space-y-2" style={{ background: 'var(--bg-secondary)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Changes Applied</p>
+                {[
+                  ['Currency', REGIONS[regionModal.targetRegion].currency],
+                  ['Timezone', REGIONS[regionModal.targetRegion].timezone],
+                  ['Country', regionModal.targetRegion === 'AU' ? 'Australia' : 'India'],
+                  ['Compliance', regionModal.targetRegion === 'AU' ? 'ABN/ACN' : 'GSTIN/FSSAI'],
+                  ['Tax Model', regionModal.targetRegion === 'AU' ? 'GST-inclusive 10%' : 'CGST/SGST split'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--text-secondary)' }}>{k}</span>
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {regionModal.targetRegion === 'AU' && (
+                <div className="space-y-3">
+                  <input
+                    placeholder="ABN (Australian Business Number) e.g. 12 345 678 901"
+                    value={regionModal.abn}
+                    onChange={e => setRegionModal(p => ({ ...p, abn: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                  />
+                  <input
+                    placeholder="ACN (optional)"
+                    value={regionModal.acn}
+                    onChange={e => setRegionModal(p => ({ ...p, acn: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRegionModal(null)}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => switchRegionMutation.mutate({
+                    chainId: regionModal.chain.id,
+                    region: regionModal.targetRegion,
+                    abn: regionModal.abn,
+                    acn: regionModal.acn,
+                  })}
+                  disabled={switchRegionMutation.isPending}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+                  style={{ background: REGIONS[regionModal.targetRegion].color }}
+                >
+                  {switchRegionMutation.isPending ? 'Switching...' : `Switch to ${REGIONS[regionModal.targetRegion].label} ✓`}
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Onboarding Modal */}
+      {/* Onboard Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100 bg-indigo-50">
-              <h3 className="text-xl font-bold text-indigo-900">Sign Up New Restaurant</h3>
-              <p className="text-sm text-indigo-600">Create a new chain and flagship outlet.</p>
+          <div className="rounded-2xl w-full max-w-md overflow-hidden" style={{ background: 'var(--bg-card)' }}>
+            <div className="p-5 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>Onboard New Restaurant Chain</h3>
+                <button onClick={() => setShowModal(false)}><X className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} /></button>
+              </div>
             </div>
-            <div className="p-6 space-y-4">
-              <input 
-                type="text" placeholder="Restaurant Chain Name" 
-                className="w-full p-3 bg-white text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+            <div className="p-5 space-y-3">
+              <input
+                placeholder="Restaurant Chain Name"
+                value={formData.name}
+                onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
-              <input 
-                type="email" placeholder="Owner Email (Login User)" 
-                className="w-full p-3 bg-white text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+              <input
+                placeholder="Owner Email"
+                type="email"
+                value={formData.email}
+                onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
-              <input 
-                type="text" placeholder="Phone Number" 
-                className="w-full p-3 bg-white text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
+              <input
+                placeholder="Phone"
+                value={formData.phone}
+                onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
-              <input 
-                type="password" placeholder="Initial Password" 
-                className="w-full p-3 bg-white text-slate-900 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+              <input
+                placeholder="Initial Password"
+                type="password"
+                value={formData.password}
+                onChange={e => setFormData(p => ({ ...p, password: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
-              <div className="grid grid-cols-2 gap-4">
-                 <button 
+              <div className="grid grid-cols-2 gap-3">
+                {['IN', 'AU'].map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setFormData(p => ({ ...p, region: r }))}
+                    className="py-2.5 rounded-lg text-sm font-semibold border transition-colors"
+                    style={{
+                      borderColor: formData.region === r ? REGIONS[r].color : 'var(--border)',
+                      background: formData.region === r ? `${REGIONS[r].color}15` : 'var(--bg-secondary)',
+                      color: formData.region === r ? REGIONS[r].color : 'var(--text-secondary)',
+                    }}
+                  >
+                    {REGIONS[r].flag} {REGIONS[r].label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
                   onClick={() => setShowModal(false)}
-                  className="p-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl"
-                 >
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
                   Cancel
-                 </button>
-                 <button 
-                  onClick={() => onboardingMutation.mutate(formData)}
-                  disabled={onboardingMutation.isPending}
-                  className="p-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition disabled:opacity-50"
-                 >
-                  {onboardingMutation.isPending ? 'Onboarding...' : 'Create Account'}
-                 </button>
+                </button>
+                <button
+                  onClick={() => onboardMutation.mutate(formData)}
+                  disabled={onboardMutation.isPending}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  {onboardMutation.isPending ? 'Creating...' : 'Create Chain'}
+                </button>
               </div>
             </div>
           </div>
@@ -201,17 +418,16 @@ export default function SuperAdminPage() {
   );
 }
 
-function StatCard({ title, value, icon, subtitle }) {
+function KPICard({ icon, label, value, color }) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 flex flex-col justify-between hover:shadow-sm">
-      <div className="flex justify-between items-start">
-        <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-lg">{icon}</div>
+    <div className="rounded-xl p-4 border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}15`, color }}>
+          {icon}
+        </div>
       </div>
-      <div className="mt-4">
-        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{title}</p>
-        <h4 className="text-3xl font-black text-slate-900 mt-1">{value}</h4>
-        {subtitle && <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{subtitle}</p>}
-      </div>
+      <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>{value}</p>
+      <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{label}</p>
     </div>
   );
 }

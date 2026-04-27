@@ -37,4 +37,10 @@ router.get('/revenue', superadminController.getRevenue);
 router.get('/config', superadminController.getConfig);
 router.put('/config', superadminController.updateConfig);
 
+/** GET /api/superadmin/region-templates — AU vs IN defaults */
+router.get('/region-templates', superadminController.getRegionTemplates);
+
+/** PATCH /api/superadmin/chains/:id/region — switch HeadOffice region */
+router.patch('/chains/:id/region', superadminController.switchRegion);
+
 module.exports = router;

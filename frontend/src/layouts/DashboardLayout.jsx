@@ -9,6 +9,7 @@ import {
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
+  CalendarDays, Link2,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -50,6 +51,8 @@ const ownerNav = [
   { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true },
   { path: '/integrations',   label: 'Integrations',    icon: Puzzle },
   { path: '/audit-log',      label: 'Audit Trail',     icon: Shield },
+  { path: '/rostering',       label: 'Rostering',       icon: CalendarDays },
+  { path: '/au-integrations', label: 'AU Integrations', icon: Link2 },
   { path: '/settings',       label: 'Settings',        icon: Settings },
 ];
 

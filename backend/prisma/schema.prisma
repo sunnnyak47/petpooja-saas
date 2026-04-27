@@ -94,6 +94,14 @@ model HeadOffice {
   plan               String   @default("TRIAL") @db.VarChar(50)
   setup_completed    Boolean  @default(false)
   metadata           Json?    @default("{}")
+  // Multi-region Australian franchise support
+  region              String   @default("IN") @db.VarChar(5)
+  currency            String   @default("INR") @db.VarChar(5)
+  timezone            String   @default("Asia/Kolkata") @db.VarChar(50)
+  country_code        String   @default("IN") @db.VarChar(2)
+  regulations_profile String   @default("INDIA") @db.VarChar(20)
+  abn                 String?  @db.VarChar(20)
+  acn                 String?  @db.VarChar(15)
   outlets       Outlet[]
   subscriptions Subscription[]
   users         User[]         @relation("head_office_users")
@@ -199,6 +207,8 @@ model Outlet {
   pricing_rules           PricingRule[]
   festival_modes          FestivalMode[]
   fraud_alerts            FraudAlert[]
+  rosters                 Roster[]
+  staff_certifications    StaffCertification[]
   head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
 
   @@map("outlets")
@@ -233,10 +243,14 @@ model User {
   attendance_logs  AttendanceLog[]
   staff_permissions StaffPermission[]
   salary_records   SalaryRecord[]
-  fraud_alerts     FraudAlert[]     @relation("fraud_alerts")
-  attendance_otps  AttendanceOTP[]
-  payments_processed Payment[]
-  head_office      HeadOffice?      @relation("head_office_users", fields: [head_office_id], references: [id])
+  fraud_alerts          FraudAlert[]        @relation("fraud_alerts")
+  attendance_otps       AttendanceOTP[]
+  payments_processed    Payment[]
+  rosters_created       Roster[]            @relation("roster_creator")
+  roster_assignments    RosterAssignment[]  @relation("roster_assignments")
+  staff_availability    StaffAvailability[] @relation("staff_availability")
+  certifications        StaffCertification[] @relation("staff_certifications")
+  head_office           HeadOffice?         @relation("head_office_users", fields: [head_office_id], references: [id])
 
   @@map("users")
 }
@@ -1759,4 +1773,103 @@ model FraudAlert {
   @@index([outlet_id, created_at])
   @@index([staff_id])
   @@map("fraud_alerts")
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  AUSTRALIAN FRANCHISE — MENU TEMPLATES
+// ──────────────────────────────────────────────────────────────────────
+model MenuTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(200)
+  region      String   @db.VarChar(5)
+  description String?
+  categories  Json
+  items       Json
+  image_url   String?  @db.VarChar(500)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  @@unique([name, region])
+  @@map("menu_templates")
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  AUSTRALIAN FRANCHISE — ROSTERING
+// ──────────────────────────────────────────────────────────────────────
+model Roster {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  name         String   @db.VarChar(200)
+  status       String   @default("draft") @db.VarChar(20)
+  start_date   DateTime @db.Date
+  end_date     DateTime @db.Date
+  notes        String?
+  created_by   String   @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @updatedAt @db.Timestamptz
+
+  outlet      Outlet             @relation(fields: [outlet_id], references: [id])
+  creator     User               @relation("roster_creator", fields: [created_by], references: [id])
+  assignments RosterAssignment[]
+
+  @@index([outlet_id, start_date])
+  @@map("rosters")
+}
+
+model RosterAssignment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roster_id String   @db.Uuid
+  staff_id  String   @db.Uuid
+  shift_id  String?  @db.Uuid
+  date      DateTime @db.Date
+  start_time String  @db.VarChar(5)
+  end_time   String  @db.VarChar(5)
+  role_label String? @db.VarChar(50)
+  status    String   @default("assigned") @db.VarChar(20)
+  notes     String?
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  roster Roster @relation(fields: [roster_id], references: [id], onDelete: Cascade)
+  staff  User   @relation("roster_assignments", fields: [staff_id], references: [id])
+
+  @@index([roster_id, date])
+  @@index([staff_id, date])
+  @@map("roster_assignments")
+}
+
+model StaffAvailability {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staff_id    String   @db.Uuid
+  day_of_week Int
+  available   Boolean  @default(true)
+  start_time  String?  @db.VarChar(5)
+  end_time    String?  @db.VarChar(5)
+  notes       String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  staff User @relation("staff_availability", fields: [staff_id], references: [id])
+
+  @@unique([staff_id, day_of_week])
+  @@map("staff_availability")
+}
+
+model StaffCertification {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staff_id    String   @db.Uuid
+  outlet_id   String   @db.Uuid
+  cert_type   String   @db.VarChar(100)
+  provider    String?  @db.VarChar(200)
+  issue_date  DateTime @db.Date
+  expiry_date DateTime @db.Date
+  cert_number String?  @db.VarChar(100)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  staff  User   @relation("staff_certifications", fields: [staff_id], references: [id])
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@index([staff_id, expiry_date])
+  @@index([outlet_id])
+  @@map("staff_certifications")
 }

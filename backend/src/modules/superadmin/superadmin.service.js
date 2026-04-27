@@ -658,6 +658,83 @@ const superadminService = {
     };
     configs.forEach(c => { res[c.key] = c.value; });
     return res;
+  },
+
+  /** Return AU and IN region templates */
+  async getRegionTemplates() {
+    return {
+      AU: {
+        region: 'AU',
+        currency: 'AUD',
+        timezone: 'Australia/Sydney',
+        country_code: 'AU',
+        regulations_profile: 'AUSTRALIA',
+        gst_enabled: false,
+        default_tax_rate: 0.10,
+        language: 'en-AU',
+        tax_breakdown: 'GST_ONLY',
+        currency_symbol: '$',
+        label: 'Australia',
+        flag: '🇦🇺',
+        compliance_fields: ['abn', 'acn'],
+        description: 'Australian franchise — AUD currency, GST-inclusive pricing, Sydney timezone, ABN/ACN compliance',
+      },
+      IN: {
+        region: 'IN',
+        currency: 'INR',
+        timezone: 'Asia/Kolkata',
+        country_code: 'IN',
+        regulations_profile: 'INDIA',
+        gst_enabled: true,
+        default_tax_rate: 0.05,
+        language: 'en-IN',
+        tax_breakdown: 'CGST_SGST_IGST',
+        currency_symbol: '₹',
+        label: 'India',
+        flag: '🇮🇳',
+        compliance_fields: ['gstin', 'fssai', 'pan'],
+        description: 'Indian operations — INR currency, GST filing, Kolkata timezone, FSSAI/GSTIN compliance',
+      }
+    };
+  },
+
+  /** Switch HeadOffice region and update all outlets defaults */
+  async switchHeadOfficeRegion(headOfficeId, body) {
+    const { region } = body;
+    if (!['AU', 'IN'].includes(region)) throw new Error('Invalid region. Use AU or IN.');
+
+    const templates = await superadminService.getRegionTemplates();
+    const tpl = templates[region];
+
+    const headOffice = await prisma.headOffice.update({
+      where: { id: headOfficeId },
+      data: {
+        region: tpl.region,
+        currency: tpl.currency,
+        timezone: tpl.timezone,
+        country_code: tpl.country_code,
+        regulations_profile: tpl.regulations_profile,
+        abn: body.abn || null,
+        acn: body.acn || null,
+      },
+      include: { outlets: true }
+    });
+
+    // Update all outlets under this HeadOffice
+    await prisma.outlet.updateMany({
+      where: { head_office_id: headOfficeId, is_deleted: false },
+      data: {
+        currency: tpl.currency,
+        timezone: tpl.timezone,
+        country: region === 'AU' ? 'Australia' : 'India',
+      }
+    });
+
+    return {
+      head_office: headOffice,
+      region_applied: tpl,
+      outlets_updated: headOffice.outlets.length,
+    };
   }
 };
 

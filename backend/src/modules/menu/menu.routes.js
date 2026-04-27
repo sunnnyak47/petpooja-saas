@@ -9,7 +9,7 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const menuController = require('./menu.controller');
 const aiMenuController = require('./ai_menu.controller');
-const { authenticate } = require('../../middleware/auth.middleware');
+const { authenticate, isSuperAdmin } = require('../../middleware/auth.middleware');
 const { hasRole, hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const {
@@ -65,5 +65,32 @@ router.delete('/schedules/:id', authenticate, hasPermission('MANAGE_MENU'), menu
 /* -- Item Combos -- */
 router.post('/combos', authenticate, hasPermission('MANAGE_MENU'), validate(createComboSchema), menuController.createCombo);
 router.get('/combos', authenticate, enforceOutletScope, menuController.listCombos);
+
+/* -- AU Menu Templates -- */
+const menuTemplatesSvc = require('./menu-templates.service');
+const { sendSuccess } = require('../../utils/response');
+
+router.get('/templates', authenticate, async (req, res, next) => {
+  try {
+    const list = await menuTemplatesSvc.listTemplates(req.query.region);
+    sendSuccess(res, list, 'Menu templates retrieved');
+  } catch (e) { next(e); }
+});
+
+router.post('/templates/seed', authenticate, isSuperAdmin, async (req, res, next) => {
+  try {
+    const result = await menuTemplatesSvc.seedTemplates();
+    sendSuccess(res, result, 'Templates seeded');
+  } catch (e) { next(e); }
+});
+
+router.post('/apply-template', authenticate, hasPermission('MANAGE_MENU'), async (req, res, next) => {
+  try {
+    const { outlet_id, template_name } = req.body;
+    const outletId = outlet_id || req.user.outlet_id;
+    const result = await menuTemplatesSvc.applyTemplate(outletId, template_name);
+    sendSuccess(res, result, 'Menu template applied successfully');
+  } catch (e) { next(e); }
+});
 
 module.exports = router;
