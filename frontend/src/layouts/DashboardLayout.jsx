@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
-  QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe,
+  QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -38,6 +38,7 @@ const ownerNav = [
   { path: '/customers',      label: 'Customers',       icon: Users },
   { path: '/crm',            label: 'Loyalty & CRM',   icon: Heart },
   { path: '/ondc',           label: 'ONDC',            icon: Globe },
+  { path: '/pricing',         label: 'Dynamic Pricing',  icon: Zap },
   { section: 'Revenue' },
   { path: '/payments',       label: 'Payments',        icon: CreditCard },
   { path: '/discounts',      label: 'Promotions',      icon: Tag },

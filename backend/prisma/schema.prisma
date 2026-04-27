@@ -196,6 +196,7 @@ model Outlet {
   tally_mappings          TallyMapping[]
   discounts               Discount[]
   ondc_seller_profile     OndcSellerProfile?
+  pricing_rules           PricingRule[]
   head_office             HeadOffice?            @relation(fields: [head_office_id], references: [id])
 
   @@map("outlets")
@@ -1630,4 +1631,78 @@ model OndcOrder {
   @@index([outlet_id])
   @@index([status])
   @@map("ondc_orders")
+}
+
+// ============================================
+// DYNAMIC PRICING ENGINE
+// ============================================
+
+model PricingRule {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id       String    @db.Uuid
+  name            String    @db.VarChar(200)
+  description     String?   @db.Text
+  is_active       Boolean   @default(true)
+  priority        Int       @default(10)      // lower = evaluated first
+
+  // Trigger type: time_slot | day_of_week | weather | combo
+  trigger_type    String    @db.VarChar(30)
+
+  // Time condition (nullable = any time)
+  time_start      String?   @db.VarChar(5)   // "12:00"
+  time_end        String?   @db.VarChar(5)   // "15:00"
+
+  // Day condition (JSON array of 0-6, 0=Sun) null = every day
+  days_of_week    Json?     @default("[]")
+
+  // Weather condition: rain | sunny | cold | hot | any
+  weather_trigger String?   @db.VarChar(20)
+
+  // Season: monsoon | summer | winter | spring | any
+  season_trigger  String?   @db.VarChar(20)
+
+  // Item targeting: all | category | specific | tag | slow_movers | bestsellers
+  item_target     String    @default("all") @db.VarChar(20)
+  target_ids      Json?     @default("[]")   // category_ids or item_ids
+  target_tag      String?   @db.VarChar(50)  // e.g. "hot_beverage"
+
+  // Action
+  action_type     String    @db.VarChar(20)  // discount | surcharge | fixed_price
+  action_value    Decimal   @db.Decimal(6,2) // % or fixed amount
+  action_unit     String    @default("percent") @db.VarChar(10) // percent | flat
+
+  // Limits
+  max_discount_amt Decimal? @db.Decimal(10,2)
+  min_order_value  Decimal? @db.Decimal(10,2)
+
+  // Auto-deactivate after date
+  valid_from      DateTime? @db.Timestamptz
+  valid_until     DateTime? @db.Timestamptz
+
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz
+  is_deleted      Boolean   @default(false)
+
+  outlet          Outlet    @relation(fields: [outlet_id], references: [id])
+  applications    PricingRuleApplication[]
+
+  @@index([outlet_id, is_active])
+  @@map("pricing_rules")
+}
+
+model PricingRuleApplication {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rule_id         String    @db.Uuid
+  outlet_id       String    @db.Uuid
+  menu_item_id    String    @db.Uuid
+  original_price  Decimal   @db.Decimal(10,2)
+  applied_price   Decimal   @db.Decimal(10,2)
+  saving          Decimal   @db.Decimal(10,2)
+  applied_at      DateTime  @default(now()) @db.Timestamptz
+
+  rule            PricingRule @relation(fields: [rule_id], references: [id])
+
+  @@index([rule_id])
+  @@index([outlet_id])
+  @@map("pricing_rule_applications")
 }
