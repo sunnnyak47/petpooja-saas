@@ -1,6 +1,6 @@
-# 🍽️ Petpooja ERP - Production Management System
+# 🍽️ MSRM System - Resturent Management System
 
-Welcome to the Petpooja ERP repository. This is a multi-tenant, offline-first Restaurant Management System.
+Welcome to the MS-RM System repository. This is a multi-tenant, offline-first Restaurant Management System.
 
 ---
 
