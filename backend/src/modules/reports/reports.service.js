@@ -627,8 +627,148 @@ async function exportGstCsv(outletId, from, to, type = 'gstr1') {
   return csv;
 }
 
+/**
+ * Franchise KPIs — revenue, covers, avg check, with WoW/MoM growth.
+ * @param {string} outletId
+ * @param {string} from - YYYY-MM-DD
+ * @param {string} to - YYYY-MM-DD
+ */
+async function getFranchiseKPIs(outletId, from, to) {
+  const prisma = getDbClient();
+  const fromDate = new Date(from || new Date().toISOString().split('T')[0]);
+  fromDate.setHours(0, 0, 0, 0);
+  const toDate = new Date(to || from || new Date().toISOString().split('T')[0]);
+  toDate.setHours(23, 59, 59, 999);
+
+  // Current period
+  const orders = await prisma.order.findMany({
+    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
+    include: { items: true },
+  });
+
+  const revenue = orders.reduce((s, o) => s + Number(o.grand_total), 0);
+  const covers = orders.reduce((s, o) => s + (o.covers || 1), 0);
+  const total_orders = orders.length;
+  const avg_check = total_orders > 0 ? revenue / total_orders : 0;
+  const total_items_sold = orders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0);
+
+  // Previous period (same duration)
+  const duration = toDate - fromDate;
+  const prevTo = new Date(fromDate - 1);
+  const prevFrom = new Date(prevTo - duration);
+  const prevOrders = await prisma.order.findMany({
+    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: prevFrom, lte: prevTo } },
+  });
+  const prevRevenue = prevOrders.reduce((s, o) => s + Number(o.grand_total), 0);
+  const prevOrderCount = prevOrders.length;
+
+  const revenueGrowth = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : null;
+  const ordersGrowth = prevOrderCount > 0 ? ((total_orders - prevOrderCount) / prevOrderCount) * 100 : null;
+
+  // Inventory cost data for food cost %
+  let food_cost = 0;
+  let waste_value = 0;
+  try {
+    const wasteLogs = await prisma.stockAdjustment.findMany({
+      where: { outlet_id: outletId, reason: { contains: 'waste', mode: 'insensitive' }, created_at: { gte: fromDate, lte: toDate }, is_deleted: false },
+      include: { inventory_item: { select: { cost_per_unit: true } } },
+    });
+    waste_value = wasteLogs.reduce((s, w) => s + Math.abs(Number(w.quantity)) * Number(w.inventory_item?.cost_per_unit || 0), 0);
+
+    // Simple food cost estimate from recipe-based deductions
+    const recipeDeductions = await prisma.stockAdjustment.findMany({
+      where: { outlet_id: outletId, reason: { contains: 'order', mode: 'insensitive' }, created_at: { gte: fromDate, lte: toDate }, is_deleted: false },
+      include: { inventory_item: { select: { cost_per_unit: true } } },
+    });
+    food_cost = recipeDeductions.reduce((s, d) => s + Math.abs(Number(d.quantity)) * Number(d.inventory_item?.cost_per_unit || 0), 0);
+  } catch (_) { /* inventory may not be linked */ }
+
+  const food_cost_pct = revenue > 0 ? (food_cost / revenue) * 100 : 0;
+  const waste_pct = revenue > 0 ? (waste_value / revenue) * 100 : 0;
+  const gross_margin_pct = revenue > 0 ? ((revenue - food_cost) / revenue) * 100 : 0;
+
+  return {
+    revenue: Math.round(revenue * 100) / 100,
+    total_orders,
+    covers,
+    avg_check: Math.round(avg_check * 100) / 100,
+    total_items_sold,
+    revenue_growth: revenueGrowth !== null ? Math.round(revenueGrowth * 10) / 10 : null,
+    orders_growth: ordersGrowth !== null ? Math.round(ordersGrowth * 10) / 10 : null,
+    food_cost: Math.round(food_cost * 100) / 100,
+    food_cost_pct: Math.round(food_cost_pct * 10) / 10,
+    waste_value: Math.round(waste_value * 100) / 100,
+    waste_pct: Math.round(waste_pct * 10) / 10,
+    gross_margin_pct: Math.round(gross_margin_pct * 10) / 10,
+  };
+}
+
+/**
+ * Inventory valuation — total stock value by category.
+ * @param {string} outletId
+ */
+async function getInventoryValuation(outletId) {
+  const prisma = getDbClient();
+  try {
+    const items = await prisma.inventoryItem.findMany({
+      where: { outlet_id: outletId, is_deleted: false },
+      select: { id: true, name: true, category: true, current_stock: true, cost_per_unit: true, unit: true },
+    });
+
+    const byCategory = {};
+    let totalValue = 0;
+    for (const item of items) {
+      const value = Number(item.current_stock) * Number(item.cost_per_unit);
+      totalValue += value;
+      if (!byCategory[item.category]) byCategory[item.category] = { category: item.category, value: 0, count: 0 };
+      byCategory[item.category].value += value;
+      byCategory[item.category].count++;
+    }
+
+    return {
+      total_value: Math.round(totalValue * 100) / 100,
+      total_items: items.length,
+      by_category: Object.values(byCategory).map(c => ({ ...c, value: Math.round(c.value * 100) / 100 })),
+    };
+  } catch (_) {
+    return { total_value: 0, total_items: 0, by_category: [] };
+  }
+}
+
+/**
+ * Revenue trend — daily revenue for date range.
+ * @param {string} outletId
+ * @param {string} from
+ * @param {string} to
+ */
+async function getRevenueTrendRange(outletId, from, to) {
+  const prisma = getDbClient();
+  const fromDate = new Date(from);
+  fromDate.setHours(0, 0, 0, 0);
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+
+  const orders = await prisma.order.findMany({
+    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
+    select: { grand_total: true, created_at: true, order_type: true },
+  });
+
+  const dailyMap = {};
+  for (const order of orders) {
+    const day = order.created_at.toISOString().split('T')[0];
+    if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, orders: 0 };
+    dailyMap[day].revenue += Number(order.grand_total);
+    dailyMap[day].orders++;
+  }
+
+  return Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
+    ...d, revenue: Math.round(d.revenue * 100) / 100,
+  }));
+}
+
 module.exports = {
   getDailySales, getItemWiseSales, getRevenueTrend,
   getDashboard, getHourlyBreakdown, getCategoryWiseSales, getGstReport, getStaffPerformance,
   getTopSellingItems, getGstDetailedReport, exportGstCsv,
+  getFranchiseKPIs, getInventoryValuation, getRevenueTrendRange,
 };

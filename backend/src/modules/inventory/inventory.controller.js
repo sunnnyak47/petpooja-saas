@@ -110,8 +110,65 @@ async function getConsumptionReport(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { 
+/** POST /api/inventory/auto-order */
+async function triggerAutoOrder(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await inventoryService.checkAndAutoOrder(outletId);
+    sendSuccess(res, result, `Auto-order check: ${result.orders_created} PO(s) created`);
+  } catch (error) { next(error); }
+}
+
+/** POST /api/inventory/restock-order */
+async function restockOrder(req, res, next) {
+  try {
+    const result = await inventoryService.restockFromCancelledOrder(req.body.order_id);
+    sendSuccess(res, result, `Restocked ${result.restocked} ingredient(s)`);
+  } catch (error) { next(error); }
+}
+
+/** GET /api/inventory/suppliers */
+async function listSuppliers(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const suppliers = await inventoryService.listSuppliers(outletId);
+    sendSuccess(res, suppliers, 'Suppliers retrieved');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/inventory/suppliers */
+async function createSupplier(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const supplier = await inventoryService.createSupplier(outletId, req.body);
+    sendCreated(res, supplier, 'Supplier created');
+  } catch (error) { next(error); }
+}
+
+/** GET /api/inventory/recipes */
+async function listRecipes(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const prisma = require('../../config/database').getDbClient();
+    const recipes = await prisma.recipe.findMany({
+      where: { menu_item: { outlet_id: outletId }, is_deleted: false },
+      include: {
+        menu_item: { select: { id: true, name: true, base_price: true } },
+        ingredients: {
+          where: { is_deleted: false },
+          include: { inventory_item: { select: { id: true, name: true, unit: true, cost_per_unit: true } } },
+        },
+      },
+      orderBy: { menu_item: { name: 'asc' } },
+    });
+    sendSuccess(res, recipes, 'Recipes retrieved');
+  } catch (error) { next(error); }
+}
+
+module.exports = {
   getStock, adjustStock, recordWastage, createRecipe, getRecipeCost,
   listItems, createItem, updateItem, deleteItem,
-  getLowStock, getWastageLogs, getConsumptionReport
+  getLowStock, getWastageLogs, getConsumptionReport,
+  triggerAutoOrder, restockOrder,
+  listSuppliers, createSupplier, listRecipes,
 };

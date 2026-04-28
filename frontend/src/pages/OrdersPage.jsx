@@ -10,6 +10,15 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { addToCart, clearCart } from '../store/slices/posSlice';
 
+/**
+ * Format a raw order number into a professional restaurant-style ID.
+ * e.g. 42 → #ORD-00042   |   "1234" → #ORD-01234
+ */
+function formatOrderNo(num) {
+  if (!num && num !== 0) return '—';
+  return `#ORD-${String(num).padStart(5, '0')}`;
+}
+
 const STATUS_STYLES = {
   created: 'badge-info', confirmed: 'badge-info', preparing: 'badge-warning',
   ready: 'badge-success', served: 'badge-success', paid: 'badge-success',
@@ -139,7 +148,7 @@ export default function OrdersPage() {
             ) : (
               orders.map(order => (
                 <tr key={order.id} className="hover:bg-surface-800/50 transition-colors group cursor-pointer" onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}>
-                  <td className="px-4 py-3 font-mono text-sm font-semibold text-brand-400">{order.order_number}</td>
+                  <td className="px-4 py-3 font-mono text-sm font-semibold text-brand-400">{formatOrderNo(order.order_number)}</td>
                   <td className="px-4 py-3 text-sm text-surface-300 capitalize">{order.order_type?.replace('_', ' ')}</td>
                   <td className="px-4 py-3 text-sm text-surface-300">{order.table?.table_number || '—'}</td>
                   <td className="px-4 py-3 text-sm text-surface-300">{order._count?.order_items || 0}</td>
@@ -172,7 +181,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Order Detail Modal */}
-      <Modal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} title={`Order ${selectedOrder?.order_number || ''}`} size="lg">
+      <Modal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} title={`Order ${formatOrderNo(selectedOrder?.order_number)}`} size="lg">
         {selectedOrder && (
           <div className="space-y-5">
             {/* Header */}
@@ -242,7 +251,7 @@ export default function OrdersPage() {
          <div className="space-y-4">
             <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-center">
                <Ban className="w-8 h-8 text-red-500 mx-auto mb-2"/>
-               <p className="text-sm text-surface-200">Are you sure you want to void order <strong>{selectedOrder?.order_number}</strong>?</p>
+               <p className="text-sm text-surface-200">Are you sure you want to void order <strong>{formatOrderNo(selectedOrder?.order_number)}</strong>?</p>
             </div>
             
             <div>

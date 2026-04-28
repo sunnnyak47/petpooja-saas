@@ -746,22 +746,26 @@ model InventoryItem {
   sku            String?  @db.VarChar(50)
   category       String?  @db.VarChar(50)
   unit           String   @default("kg") @db.VarChar(20)
-  cost_per_unit  Decimal  @default(0) @db.Decimal(10, 2)
-  min_threshold  Decimal  @default(0) @db.Decimal(10, 2)
-  max_threshold  Decimal  @default(0) @db.Decimal(10, 2)
-  is_active      Boolean  @default(true)
-  created_at     DateTime @default(now()) @db.Timestamptz
-  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
-  is_deleted     Boolean  @default(false)
+  cost_per_unit         Decimal  @default(0) @db.Decimal(10, 2)
+  min_threshold         Decimal  @default(0) @db.Decimal(10, 2)
+  max_threshold         Decimal  @default(0) @db.Decimal(10, 2)
+  auto_order_enabled    Boolean  @default(false)
+  reorder_qty           Decimal? @db.Decimal(10, 2)
+  preferred_supplier_id String?  @db.Uuid
+  is_active             Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz
+  updated_at            DateTime @default(now()) @updatedAt @db.Timestamptz
+  is_deleted            Boolean  @default(false)
 
-  outlet             Outlet              @relation(fields: [outlet_id], references: [id])
-  stock              InventoryStock[]
-  stock_transactions StockTransaction[]
-  wastage_logs       WastageLog[]
-  recipe_ingredients RecipeIngredient[]
-  po_items           POItem[]
-  grn_items          GRNItem[]
-  ck_indent_items    CentralKitchenIndentItem[]
+  outlet              Outlet              @relation(fields: [outlet_id], references: [id])
+  preferred_supplier  Supplier?           @relation("preferred_supplier", fields: [preferred_supplier_id], references: [id])
+  stock               InventoryStock[]
+  stock_transactions  StockTransaction[]
+  wastage_logs        WastageLog[]
+  recipe_ingredients  RecipeIngredient[]
+  po_items            POItem[]
+  grn_items           GRNItem[]
+  ck_indent_items     CentralKitchenIndentItem[]
 
   @@map("inventory_items")
 }
@@ -838,8 +842,9 @@ model Supplier {
   updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
   is_deleted     Boolean  @default(false)
 
-  outlet          Outlet          @relation(fields: [outlet_id], references: [id])
-  purchase_orders PurchaseOrder[]
+  outlet                 Outlet          @relation(fields: [outlet_id], references: [id])
+  purchase_orders        PurchaseOrder[]
+  preferred_by_items     InventoryItem[] @relation("preferred_supplier")
 
   @@map("suppliers")
 }

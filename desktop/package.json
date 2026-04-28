@@ -83,7 +83,12 @@
       "category": "public.app-category.business",
       "minimumSystemVersion": "10.13.0",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "MS-RM System uses the microphone to capture spoken restaurant orders in Voice POS."
+      }
     },
     "dmg": {
       "title": "MS-RM System",

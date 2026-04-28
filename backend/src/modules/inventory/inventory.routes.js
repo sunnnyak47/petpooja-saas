@@ -24,6 +24,17 @@ router.get('/consumption-report', authenticate, hasPermission('VIEW_INVENTORY'),
 router.post('/adjust', authenticate, hasPermission('MANAGE_INVENTORY'), validate(adjustStockSchema), inventoryController.adjustStock);
 router.post('/wastage', authenticate, hasPermission('MANAGE_INVENTORY'), validate(recordWastageSchema), inventoryController.recordWastage);
 router.post('/recipes/:menuItemId', authenticate, hasPermission('MANAGE_MENU'), validate(createRecipeSchema), inventoryController.createRecipe);
+router.get('/recipes', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listRecipes);
 router.get('/recipes/:menuItemId/cost', authenticate, hasPermission('VIEW_INVENTORY'), inventoryController.getRecipeCost);
+
+// Auto-order trigger
+router.post('/auto-order', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.triggerAutoOrder);
+
+// Restock from cancelled order
+router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.restockOrder);
+
+// Suppliers
+router.get('/suppliers', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listSuppliers);
+router.post('/suppliers', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.createSupplier);
 
 module.exports = router;

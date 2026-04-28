@@ -93,6 +93,10 @@ contextBridge.exposeInMainWorld('electron', {
   openExternal: (url) =>
     ipcRenderer.invoke('open-external', url),
 
+  /** Request native microphone permission for Voice POS */
+  requestMicrophoneAccess: () =>
+    ipcRenderer.invoke('request-microphone-access'),
+
   // ─── Updates ───────────────────────────────────────────────────
   /**
    * Subscribe to update download start events.

@@ -1,5 +1,5 @@
 # 🚀 Petpooja ERP - Project Status
-# Last Updated: 2026-04-24 00:00:00 IST
+# Last Updated: 2026-04-28 IST
 # Updated by: Codex
 # 
 # READ THIS FIRST before doing anything.
@@ -34,10 +34,14 @@ Working & Deployed:
 ✅ Sync Engine (Background upload/download + conflict audit)
 ✅ Thermal Printer Discovery (node-thermal-printer verified LAN discovery)
 ✅ Mock Third-Party Integrations (Zomato, Swiggy, Razorpay, WhatsApp, Tally)
+✅ Dynamic Pricing Engine
+✅ Hyperlocal Festival Mode
+✅ Staff Fraud Detection
+✅ Australian Multi-Region Franchise Phase 1-3 + Rostering + AU Integrations
 
 Not Yet Built:
-❌ Head Office Enterprise Suite (Central kitchen indents partially done)
 ❌ Test Suite (Jest/Artillery suite scaffolded but needs coverage)
+❌ macOS DMG code signing credentials not configured
 
 Known Bugs:
 None.
@@ -211,7 +215,7 @@ ORDERS:
 
 ## 🔄 CURRENT ACTIVE PROBLEM
 
-Desktop offline sync conflict handling finalized. If an offline order was deleted/cancelled in cloud, the local copy is marked cancelled, synced, and logged in `sync_conflicts`; if both sides changed an active order, the engine either applies terminal cloud status or retries with `merge_items`.
+Keep `WORK_SYNC.md` updated as the cross-agent source of truth. Current local staged files are non-code metadata (`.DS_Store`, Claude worktree marker); clean or unstage before any production commit. Next technical blockers: verify Render/Vercel deployments, test DMG 2.0.3 first launch, configure macOS code signing, and add automated coverage for the newer modules.
 
 ---
 
@@ -238,8 +242,9 @@ What the next agent needs to know:
 
 Files the next agent must read first:
 1. GEMINI.md (project constitution)
-2. PROJECT_STATUS.md (this file)  
-3. `backend/src/modules/online-orders/online-order.service.js`
+2. WORK_SYNC.md (live handoff + deployment status)
+3. PROJECT_STATUS.md (this file)  
+4. `backend/src/modules/online-orders/online-order.service.js`
 
 First command for next agent:
 "Verify the QR order flow: Place an order from customer UI, check if POS beeps, check if KDS is empty, click Accept, then check if KDS populates."

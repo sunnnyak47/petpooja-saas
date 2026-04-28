@@ -1,31 +1,71 @@
-# ⚠️ CURRENT PROBLEMS & CHALLENGES
+# Current Problems & Challenges
 
-This document tracks known issues, edge cases, and technical debt that need immediate attention.
+Last Updated: 2026-04-28 IST
 
 ---
 
-## 1. 🔄 Sync Conflict Resolution (High Priority)
-**Problem**: We have a "Last Write Wins" strategy currently.
-- **Scenario**: A cashier edits an order offline. Meanwhile, the restaurant manager deletes that same order from the Cloud Dashboard.
-- **Impact**: When the cashier comes online, the sync engine will try to "Update" a non-existent order or recreate a deleted one.
-- **Required**: Implement a `deleted_at` timestamp check in `syncEngine.js` before pushing local updates.
+## 1. Staged Non-Code Metadata
 
-## 2. 🖨️ Thermal Printer Discovery (Medium Priority)
-**Problem**: The Setup Wizard asks for a Printer IP, but there is no "Test Print" or "Discovery" button.
-- **Impact**: Non-technical cashiers might enter the wrong IP and get no feedback until a real order fails.
-- **Required**: Add a `print-test` IPC handler in `main.js` that `SetupWizard.jsx` can call to verify connectivity.
+Current staged files are only metadata:
+- `.DS_Store`
+- `.claude/worktrees/festive-jepsen-ecffa7`
+- `backend/.DS_Store`
+- `backend/coverage/.DS_Store`
 
-## 3. 🍎 macOS Code Signing (Production Blocker)
-**Problem**: The generated `.dmg` is unsigned.
-- **Impact**: Users will see "App is damaged" or "Unknown Developer" warnings on macOS Sequoia and Sonoma.
-- **Required**: Need a **p12 certificate** from Apple Developer Program to be injected into `electron-builder` (usually via GitHub Secrets).
+Required:
+- Unstage/remove from the next production commit unless the user explicitly asks to keep them.
 
-## 4. ⚡ Database Hydration Lag (UI/UX)
-**Problem**: On first launch, the local SQLite is empty. The first sync can take 3-5 seconds to download a large menu (500+ items).
-- **Impact**: The POS might show "No items found" for a few seconds.
-- **Required**: Add a "First Sync" progress bar to the `SetupWizard` before letting the user enter the POS.
+---
 
-## 5. 🪟 Windows Wine Compatibility
-**Problem**: Building the Windows `.exe` on macOS via Wine is failing due to `FreeType` library issues.
-- **Impact**: Cannot generate Windows installers from a Mac dev environment.
-- **Required**: Set up **GitHub Actions** (windows-latest runner) to handle `.exe` generation.
+## 2. macOS DMG Code Signing
+
+Current local DMG artifacts exist for `MS-RM System 2.0.3`, but signing credentials are not confirmed.
+
+Required:
+- Add Apple Developer certificate secrets for Electron Builder.
+- Verify notarization flow before public distribution.
+
+---
+
+## 3. Deployment Verification Gap
+
+GitHub main is ahead with many new modules, but Vercel/Render live deployment status must be verified after builds finish.
+
+Required:
+- Verify `https://petpooja-saas.onrender.com/health`.
+- Verify frontend on `https://petpooja-saas.vercel.app`.
+- Verify superadmin on `https://petpooja-admin.vercel.app`.
+
+---
+
+## 4. Desktop First-Sync UX
+
+On first launch, SQLite may be empty until cloud sync hydrates menu/table/staff cache.
+
+Required:
+- Add first-sync progress screen before POS entry.
+- Show clear retry state if backend is unreachable.
+
+---
+
+## 5. Windows Installer Pipeline
+
+Windows build from macOS can fail because of Wine/native dependencies.
+
+Required:
+- Add GitHub Actions `windows-latest` build for `.exe`/NSIS installer.
+
+---
+
+## 6. Test Coverage
+
+New modules need coverage:
+- Dynamic pricing
+- Festival mode
+- Fraud detection
+- Mock third-party integrations
+- Australian franchise/rostering/integrations
+- Desktop sync conflict paths
+
+Required:
+- Add focused Jest/Supertest coverage before calling Phase 7 fully complete.

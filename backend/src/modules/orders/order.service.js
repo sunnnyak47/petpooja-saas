@@ -829,6 +829,15 @@ async function cancelOrder(orderId, reason, staffId) {
       });
     }
 
+    // Restock raw materials used by this order (recipe-based reversal)
+    try {
+      const inventoryService = require('../inventory/inventory.service');
+      await inventoryService.restockFromCancelledOrder(orderId);
+      logger.info('Inventory restocked after order cancellation', { orderId });
+    } catch (invErr) {
+      logger.warn('Restock after cancel failed (non-fatal)', { orderId, error: invErr.message });
+    }
+
     logger.warn('Order cancelled', { orderId, reason, staffId, purged: !order.invoice_number });
     return order.invoice_number ? await getOrderById(orderId) : { id: orderId, status: 'cancelled', purged: true };
   } catch (error) {

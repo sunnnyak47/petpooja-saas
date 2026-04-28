@@ -141,4 +141,34 @@ router.get('/export', authenticate, hasPermission('VIEW_REPORTS'), enforceOutlet
   } catch (error) { next(error); }
 });
 
+/** GET /api/reports/franchise-kpis?from=&to= */
+router.get('/franchise-kpis', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { sendSuccess } = require('../../utils/response');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const data = await reportsService.getFranchiseKPIs(outletId, req.query.from, req.query.to);
+    sendSuccess(res, data, 'Franchise KPIs');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/reports/inventory-valuation */
+router.get('/inventory-valuation', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { sendSuccess } = require('../../utils/response');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const data = await reportsService.getInventoryValuation(outletId);
+    sendSuccess(res, data, 'Inventory valuation');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/reports/revenue-trend-range?from=&to= */
+router.get('/revenue-trend-range', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { sendSuccess } = require('../../utils/response');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const data = await reportsService.getRevenueTrendRange(outletId, req.query.from, req.query.to);
+    sendSuccess(res, data, 'Revenue trend');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;

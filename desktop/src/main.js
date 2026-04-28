@@ -13,6 +13,8 @@ const {
   Tray,
   dialog,
   shell,
+  session,
+  systemPreferences,
 } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
@@ -54,6 +56,27 @@ const isDev = !app.isPackaged
 const FRONTEND_URL = isDev
   ? 'http://localhost:3001'
   : `file://${path.join(process.resourcesPath, 'frontend', 'index.html')}`
+
+/**
+ * Allows renderer microphone access for Voice POS and exposes the native
+ * macOS permission prompt through IPC.
+ */
+function setupMediaPermissions() {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    if (permission === 'media') {
+      const mediaTypes = details?.mediaTypes || []
+      callback(mediaTypes.length === 0 || mediaTypes.includes('audio'))
+      return
+    }
+    callback(false)
+  })
+
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    if (permission !== 'media') return false
+    const mediaType = details?.mediaType
+    return !mediaType || mediaType === 'audio'
+  })
+}
 
 // ─────────────────────────────────────
 // WINDOW CREATION
@@ -342,6 +365,31 @@ function setupIPC() {
 
   // Open URLs in the default system browser
   ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
+
+  // ── MICROPHONE PERMISSION ─────────────────────────────────────
+  ipcMain.handle('request-microphone-access', async () => {
+    try {
+      if (process.platform !== 'darwin') {
+        return { granted: true, status: 'granted' }
+      }
+
+      const status = systemPreferences.getMediaAccessStatus('microphone')
+      if (status === 'granted') {
+        return { granted: true, status }
+      }
+      if (status === 'denied' || status === 'restricted') {
+        return { granted: false, status }
+      }
+
+      const granted = await systemPreferences.askForMediaAccess('microphone')
+      return {
+        granted,
+        status: systemPreferences.getMediaAccessStatus('microphone'),
+      }
+    } catch (err) {
+      return { granted: false, status: 'error', error: err.message }
+    }
+  })
 
   // ── THERMAL PRINTER DISCOVERY ──────────────────────────────────
   /**
@@ -953,6 +1001,7 @@ function createAppMenu() {
 // APP LIFECYCLE
 // ─────────────────────────────────────
 app.whenReady().then(() => {
+  setupMediaPermissions()
   createWindow()
   createTray()
   createAppMenu()

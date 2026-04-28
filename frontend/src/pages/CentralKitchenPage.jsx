@@ -97,18 +97,30 @@ function CreateIndentModal({ isOpen, onClose, outlets, onSuccess }) {
     });
   }
 
-  const ckOutlets = outlets.filter(o => o.id !== outletId);
+  // Show all outlets — the CK can be any branch that acts as a central kitchen
+  const allOutlets = outlets;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="New Material Requisition" size="lg">
       <div className="space-y-4">
         {/* Central kitchen selector */}
         <div>
-          <label className="label">Central Kitchen / Source Branch</label>
-          <select className="input" value={ckOutletId} onChange={e => setCkOutletId(e.target.value)}>
-            <option value="">Select outlet…</option>
-            {ckOutlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          <label className="label">Request From (Central Kitchen / Branch)</label>
+          {allOutlets.length === 0 ? (
+            <div className="input text-surface-500 text-sm">Loading outlets… (ensure backend /ck/outlets is returning data)</div>
+          ) : (
+            <select className="input" value={ckOutletId} onChange={e => setCkOutletId(e.target.value)}>
+              <option value="">— Select source outlet —</option>
+              {allOutlets.map(o => (
+                <option key={o.id} value={o.id}>
+                  {o.name}{o.id === outletId ? ' (This Outlet)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          {allOutlets.length > 0 && !ckOutletId && (
+            <p className="text-xs text-amber-400 mt-1">Select which outlet/central kitchen will supply the goods</p>
+          )}
         </div>
 
         {/* Items */}

@@ -49,11 +49,15 @@ async function createInventoryItem(outletId, data) {
       data: {
         outlet_id: outletId,
         name: data.name,
-        short_name: data.short_name,
+        sku: data.sku || null,
         category: data.category,
         unit: data.unit,
-        cost_per_unit: data.cost_per_unit,
-        min_threshold: data.min_threshold,
+        cost_per_unit: Number(data.cost_per_unit) || 0,
+        min_threshold: Number(data.min_threshold) || 0,
+        max_threshold: Number(data.max_threshold) || 0,
+        auto_order_enabled: data.auto_order_enabled ?? false,
+        reorder_qty: data.reorder_qty ? Number(data.reorder_qty) : null,
+        preferred_supplier_id: data.preferred_supplier_id || null,
         is_active: data.is_active ?? true,
       },
     });
@@ -69,18 +73,21 @@ async function createInventoryItem(outletId, data) {
 async function updateInventoryItem(id, data) {
   const prisma = getDbClient();
   try {
-    return await prisma.inventoryItem.update({
-      where: { id },
-      data: {
-        name: data.name,
-        short_name: data.short_name,
-        category: data.category,
-        unit: data.unit,
-        cost_per_unit: data.cost_per_unit,
-        min_threshold: data.min_threshold,
-        is_active: data.is_active,
-      },
-    });
+    const updateData = {
+      name: data.name,
+      category: data.category,
+      unit: data.unit,
+      cost_per_unit: data.cost_per_unit !== undefined ? Number(data.cost_per_unit) : undefined,
+      min_threshold: data.min_threshold !== undefined ? Number(data.min_threshold) : undefined,
+      max_threshold: data.max_threshold !== undefined ? Number(data.max_threshold) : undefined,
+      is_active: data.is_active,
+      auto_order_enabled: data.auto_order_enabled,
+      reorder_qty: data.reorder_qty !== undefined ? Number(data.reorder_qty) : undefined,
+      preferred_supplier_id: data.preferred_supplier_id || null,
+    };
+    // Remove undefined keys
+    Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+    return await prisma.inventoryItem.update({ where: { id }, data: updateData });
   } catch (error) { throw error; }
 }
 
@@ -444,8 +451,163 @@ async function getConsumptionReport(outletId, from, to) {
   } catch (e) { throw e; }
 }
 
-module.exports = { 
+/**
+ * Check all items with auto_order_enabled=true, create POs for those below threshold.
+ * Called: after order completion, and on manual trigger from UI.
+ * @param {string} outletId
+ * @returns {Promise<{checked: number, orders_created: number, pos: object[]}>}
+ */
+async function checkAndAutoOrder(outletId) {
+  const prisma = getDbClient();
+  const items = await prisma.inventoryItem.findMany({
+    where: { outlet_id: outletId, auto_order_enabled: true, is_deleted: false, is_active: true },
+    include: {
+      stock: { where: { outlet_id: outletId } },
+      preferred_supplier: true,
+    },
+  });
+
+  const posCreated = [];
+
+  for (const item of items) {
+    const currentStock = Number(item.stock?.[0]?.current_stock ?? 0);
+    const threshold    = Number(item.min_threshold);
+    const reorderQty   = Number(item.reorder_qty ?? threshold * 2);
+
+    if (currentStock <= threshold && item.preferred_supplier_id) {
+      // Check if a draft PO for this item+supplier already exists today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const existing = await prisma.purchaseOrder.findFirst({
+        where: {
+          outlet_id: outletId,
+          supplier_id: item.preferred_supplier_id,
+          status: 'draft',
+          created_at: { gte: today },
+          po_items: { some: { inventory_item_id: item.id } },
+        },
+      });
+      if (existing) continue; // already ordered today
+
+      // Generate PO number
+      const count = await prisma.purchaseOrder.count({ where: { outlet_id: outletId } });
+      const poNumber = `PO-AUTO-${String(count + 1).padStart(5, '0')}`;
+
+      const po = await prisma.purchaseOrder.create({
+        data: {
+          outlet_id: outletId,
+          supplier_id: item.preferred_supplier_id,
+          po_number: poNumber,
+          status: 'draft',
+          total_amount: reorderQty * Number(item.cost_per_unit),
+          notes: `Auto-generated: ${item.name} stock (${currentStock} ${item.unit}) fell below threshold (${threshold} ${item.unit})`,
+          po_items: {
+            create: [{
+              inventory_item_id: item.id,
+              quantity: reorderQty,
+              unit_cost: Number(item.cost_per_unit),
+              total_cost: reorderQty * Number(item.cost_per_unit),
+            }],
+          },
+        },
+        include: { supplier: true, po_items: true },
+      });
+
+      posCreated.push(po);
+      logger.info(`Auto-order PO created: ${poNumber} for ${item.name}`);
+
+      // Emit real-time alert
+      try {
+        getIO().to(`outlet_${outletId}`).emit('auto_order_created', {
+          item_name: item.name,
+          current_stock: currentStock,
+          threshold,
+          po_number: poNumber,
+          supplier: item.preferred_supplier?.name,
+        });
+      } catch {}
+    }
+  }
+
+  return { checked: items.length, orders_created: posCreated.length, pos: posCreated };
+}
+
+/**
+ * Restock raw materials when an order is cancelled (reverse the recipe deduction).
+ * @param {string} orderId
+ * @returns {Promise<{restocked: number}>}
+ */
+async function restockFromCancelledOrder(orderId) {
+  const prisma = getDbClient();
+
+  // Get all stock transactions caused by this order
+  const transactions = await prisma.stockTransaction.findMany({
+    where: { reference_id: orderId, reference_type: 'ORDER', transaction_type: 'USAGE', is_deleted: false },
+    include: { inventory_item: { include: { stock: true } } },
+  });
+
+  if (!transactions.length) return { restocked: 0 };
+
+  for (const tx of transactions) {
+    const outletId = tx.outlet_id;
+    const qty      = Math.abs(Number(tx.quantity)); // restore this much
+
+    // Add back stock
+    await prisma.inventoryStock.upsert({
+      where: { outlet_id_inventory_item_id: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id } },
+      create: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id, current_stock: qty },
+      update: { current_stock: { increment: qty } },
+    });
+
+    // Log reversal transaction
+    await prisma.stockTransaction.create({
+      data: {
+        outlet_id: outletId,
+        inventory_item_id: tx.inventory_item_id,
+        transaction_type: 'RESTOCK',
+        quantity: qty,
+        reference_type: 'ORDER_CANCEL',
+        reference_id: orderId,
+        reason: `Order cancelled — restocked ${qty} ${tx.inventory_item?.unit}`,
+      },
+    });
+
+    // Mark original transaction as reversed
+    await prisma.stockTransaction.update({
+      where: { id: tx.id },
+      data: { is_deleted: true },
+    });
+  }
+
+  logger.info(`Restocked ${transactions.length} items from cancelled order ${orderId}`);
+  return { restocked: transactions.length };
+}
+
+/**
+ * List all suppliers for an outlet.
+ */
+async function listSuppliers(outletId) {
+  const prisma = getDbClient();
+  return prisma.supplier.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    orderBy: { name: 'asc' },
+  });
+}
+
+/**
+ * Create a supplier.
+ */
+async function createSupplier(outletId, data) {
+  const prisma = getDbClient();
+  return prisma.supplier.create({
+    data: { outlet_id: outletId, ...data },
+  });
+}
+
+module.exports = {
   getStock, adjustStock, deductByRecipe, recordWastage, createRecipe, getRecipeCost,
   listInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem,
-  getLowStock, getWastageLogs, getConsumptionReport
+  getLowStock, getWastageLogs, getConsumptionReport,
+  checkAndAutoOrder, restockFromCancelledOrder,
+  listSuppliers, createSupplier,
 };
