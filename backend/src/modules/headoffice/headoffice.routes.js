@@ -66,7 +66,14 @@ router.post('/register', authenticate, hasRole('super_admin'), async (req, res, 
   try {
     const result = await hoService.registerRestaurant(req.body);
     sendCreated(res, result, 'New restaurant chain onboarded');
-  } catch (error) { next(error); }
+  } catch (error) {
+    // Surface user-facing errors (duplicate, validation) as 400 not 500
+    const { BadRequestError, ConflictError } = require('../../utils/errors');
+    if (error.code === 'P2002' || error.message.includes('already exists') || error.message.includes('required') || error.message.includes('Use a different')) {
+      return next(new ConflictError(error.message));
+    }
+    next(error);
+  }
 });
 
 /** GET /api/ho/chains — List all restaurant chains */

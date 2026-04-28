@@ -292,13 +292,30 @@ async function registerRestaurant(data) {
   const bcrypt = require('bcrypt');
 
   try {
-    const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existingUser) {
-      throw new Error('A user with this email already exists.');
-    }
+    // ── Pre-flight uniqueness checks ──────────────────────────
+    if (!data.name?.trim())  throw new Error('Restaurant name is required.');
+    if (!data.email?.trim()) throw new Error('Owner email is required.');
+    if (!data.phone?.trim()) throw new Error('Phone number is required.');
+    if (!data.password)      throw new Error('Password is required.');
+
+    const [existingEmail, existingPhone, existingHO] = await Promise.all([
+      prisma.user.findUnique({ where: { email: data.email } }),
+      prisma.user.findUnique({ where: { phone: data.phone } }),
+      prisma.headOffice.findUnique({ where: { contact_email: data.email } }),
+    ]);
+    if (existingEmail) throw new Error('A user with this email already exists.');
+    if (existingPhone) throw new Error('A user with this phone number already exists. Use a different phone.');
+    if (existingHO)    throw new Error('A restaurant chain with this email already exists.');
 
     const passwordHash = await bcrypt.hash(data.password, 12);
     const ownerRole = await prisma.role.findFirst({ where: { name: 'owner' } });
+    if (!ownerRole) throw new Error('System configuration error: owner role not found.');
+
+    // Region defaults
+    const region = data.region || 'IN';
+    const regionDefaults = region === 'AU'
+      ? { region: 'AU', currency: 'AUD', timezone: 'Australia/Sydney', country_code: 'AU', regulations_profile: 'AUSTRALIA' }
+      : { region: 'IN', currency: 'INR', timezone: 'Asia/Kolkata',     country_code: 'IN', regulations_profile: 'INDIA' };
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create Head Office
@@ -308,6 +325,11 @@ async function registerRestaurant(data) {
           contact_email: data.email,
           contact_phone: data.phone,
           legal_name: data.name,
+          region:   regionDefaults.region,
+          currency: regionDefaults.currency,
+          timezone: regionDefaults.timezone,
+          ...(data.abn ? { abn: data.abn } : {}),
+          ...(data.acn ? { acn: data.acn } : {}),
         }
       });
 
@@ -332,15 +354,18 @@ async function registerRestaurant(data) {
         }
       });
 
-      // 4. Create First Outlet
+      // 4. Create First Outlet (region-aware defaults)
       const outletCode = data.name.substring(0, 3).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
       const outlet = await tx.outlet.create({
         data: {
           head_office_id: ho.id,
           name: `${data.name} - Flagship`,
           code: outletCode,
-          city: data.city || 'Mumbai',
-          owner_id: user.id
+          city: data.city || (region === 'AU' ? 'Sydney' : 'Mumbai'),
+          country: region === 'AU' ? 'Australia' : 'India',
+          currency: regionDefaults.currency,
+          timezone: regionDefaults.timezone,
+          owner_id: user.id,
         }
       });
 
@@ -350,16 +375,24 @@ async function registerRestaurant(data) {
           user_id: user.id,
           role_id: ownerRole.id,
           outlet_id: outlet.id,
-          is_primary: true
+          is_primary: true,
         }
       });
 
       return { ho, user, outlet };
     });
 
-    logger.info('New restaurant registered', { chain: data.name, hoId: result.ho.id });
+    logger.info('New restaurant registered', { chain: data.name, hoId: result.ho.id, region });
     return result;
   } catch (error) {
+    // Re-map Prisma unique constraint errors to friendly messages
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'field';
+      if (field.includes('email'))   throw new Error('A user with this email already exists.');
+      if (field.includes('phone'))   throw new Error('A user with this phone number already exists. Use a different phone.');
+      if (field.includes('contact')) throw new Error('A restaurant with this contact email already exists.');
+      throw new Error(`Duplicate value for ${field}. Please use a different value.`);
+    }
     logger.error('Restaurant registration failed', { error: error.message });
     throw error;
   }
