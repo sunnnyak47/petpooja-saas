@@ -13,9 +13,10 @@ import {
 } from '../store/slices/posSlice';
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
-  Leaf, Drumstick, Egg, Star, Flame, X, ClipboardList, Users, Pause, UserPlus,
+  Leaf, Drumstick, Egg, Star, X, ClipboardList, Users, Pause, UserPlus,
   SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine,
-  LayoutGrid, Utensils, Mic,
+  LayoutGrid, Utensils, Mic, Printer, AlertCircle, Package, Bike, UtensilsCrossed,
+  Phone, ChevronDown,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
 import VoicePOS from '../components/POS/VoicePOS';
@@ -24,7 +25,8 @@ import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
 import BillPreviewModal from '../components/POS/BillPreviewModal';
 import PaymentModal from '../components/POS/PaymentModal';
-import { AlertCircle } from 'lucide-react';
+import EBillModal from '../components/POS/EBillModal';
+import SplitBillModal from '../components/POS/SplitBillModal';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
@@ -70,6 +72,8 @@ export default function POSPage() {
   
   // Customer search state
   const [customerSearchInput, setCustomerSearchInput] = useState('');
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ full_name: '', phone: '' });
   const [isCompMode, setIsCompMode] = useState(false);
   const [tempOrderId, setTempOrderId] = useState(null);
   const [currentOrder, setCurrentOrder] = useState(null);
@@ -172,6 +176,19 @@ export default function POSPage() {
     enabled: !!outletId && customerSearchInput.length > 2,
   });
 
+  const createCustomerMutation = useMutation({
+    mutationFn: (data) => api.post('/customers', { ...data, outlet_id: outletId }),
+    onSuccess: (res) => {
+      const customer = res.data || res;
+      dispatch(setSelectedCustomer(customer));
+      setShowCustomerSearch(false);
+      setShowNewCustomerForm(false);
+      setNewCustomerForm({ full_name: '', phone: '' });
+      toast.success(`${customer.full_name} added & selected`);
+    },
+    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to create customer'),
+  });
+
   const items = menuData?.items || menuData || [];
   const filteredItems = useMemo(() => {
     let filtered = items;
@@ -232,6 +249,11 @@ export default function POSPage() {
   }, [outletId, queryClient]);
 
   const handleAddItem = (item) => {
+    // Guard: do not add items with 0 or missing price to cart
+    if (!Number(item.base_price) || Number(item.base_price) <= 0) {
+      toast.error(`"${item.name}" has no price set. Edit the menu item before adding.`, { duration: 3000 });
+      return;
+    }
     if (item.variants?.length > 0 || item.addons?.length > 0) {
       setSelectedItemForModifiers(item);
       return;
@@ -513,50 +535,79 @@ export default function POSPage() {
       {/* Left Menu Area */}
       <div className="flex-1 flex flex-col min-w-0 rounded-2xl p-4 border"
         style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-        {/* Search */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
-            <input className="input pl-10" placeholder="Search menu items..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        {/* Search + Controls */}
+        <div className="flex flex-col gap-2 mb-4">
+          {/* Row 1: Search (full width) + voice + shortcode */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+              <input
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                placeholder="Search menu items by name…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <input
+              className="w-32 px-3 py-2.5 rounded-xl text-sm border outline-none"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              placeholder="Short code…"
+              value={shortCodeSearch}
+              onChange={(e) => setShortCodeSearch(e.target.value)}
+            />
+            <button
+              onClick={() => setShowVoicePOS(true)}
+              title="Voice Order (Hindi/Tamil/Punjabi/English…)"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold shadow shrink-0 transition-all"
+              style={{ background: 'linear-gradient(135deg, #EF4444, #F97316)', color: '#fff' }}
+            >
+              <Mic className="w-4 h-4" />
+              <span>Voice</span>
+            </button>
+            {/* View mode toggle */}
+            <div className="flex rounded-xl p-1 gap-1 border shrink-0" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+              <button onClick={() => setViewMode('menu')} title="Menu View"
+                className={`p-2 rounded-lg transition-all ${viewMode === 'menu' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
+                <Utensils className="w-4 h-4" />
+              </button>
+              <button onClick={() => setViewMode('tables')} title="Table View"
+                className={`p-2 rounded-lg transition-all ${viewMode === 'tables' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          {/* Voice POS button */}
-          <button
-            onClick={() => setShowVoicePOS(true)}
-            title="Voice Order (Hindi/Tamil/Punjabi/English…)"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-bold shadow hover:from-red-400 hover:to-orange-400 transition-all shrink-0"
-          >
-            <Mic className="w-4 h-4" />
-            <span className="hidden sm:inline">Voice</span>
-          </button>
-          <div className="relative max-w-[150px]">
-            <input className="input" placeholder="Short Code (BB)" autoFocus value={shortCodeSearch} onChange={(e) => setShortCodeSearch(e.target.value)} />
-          </div>
-          <select className="input max-w-[150px]">
-             <option>All Floors</option>
-             {tableAreas?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <div className="flex rounded-xl p-1 ml-auto gap-1 border" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
-             <button
-               onClick={() => setViewMode('menu')}
-               className={`p-2 rounded-lg transition-all ${viewMode === 'menu' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}
-               title="Menu View"
-             >
-               <Utensils className="w-4 h-4" />
-             </button>
-             <button
-               onClick={() => setViewMode('tables')}
-               className={`p-2 rounded-lg transition-all ${viewMode === 'tables' ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}
-               title="Table View"
-             >
-               <LayoutGrid className="w-4 h-4" />
-             </button>
-             <div className="w-px h-4 bg-surface-700 mx-1 self-center" />
-             {['dine_in', 'takeaway', 'delivery'].map((t) => (
-                <button key={t} onClick={() => dispatch(setOrderType(t))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${orderType === t ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
-                  {t.split('_').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
-                </button>
-             ))}
+
+          {/* Row 2: Order type selector — prominent, always visible */}
+          <div className="flex items-center gap-2">
+            {[
+              { id: 'dine_in',  label: 'Dine In',   Icon: UtensilsCrossed },
+              { id: 'takeaway', label: 'Takeaway',   Icon: Package },
+              { id: 'delivery', label: 'Delivery',   Icon: Bike },
+            ].map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                onClick={() => dispatch(setOrderType(id))}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all"
+                style={{
+                  background: orderType === id ? 'var(--accent)' : 'var(--bg-secondary)',
+                  borderColor: orderType === id ? 'var(--accent)' : 'var(--border)',
+                  color: orderType === id ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+            <select
+              className="ml-auto px-3 py-2 rounded-xl text-sm border outline-none"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              value={selectedAreaId || ''}
+              onChange={e => setSelectedAreaId(e.target.value || null)}
+            >
+              <option value="">All Floors</option>
+              {tableAreas?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
         </div>
 
@@ -572,21 +623,35 @@ export default function POSPage() {
 
             {/* Menu Grid */}
             <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 content-start">
-              {filteredItems.map((item) => (
-                <button key={item.id} onClick={() => handleAddItem(item)} className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      {SQUARE_ICONS[item.food_type]}
-                      {item.short_code && <span className="text-[10px] px-1 rounded font-mono" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{item.short_code}</span>}
+              {filteredItems.map((item) => {
+                const hasNoPrice = !Number(item.base_price) || Number(item.base_price) <= 0;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleAddItem(item)}
+                    className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'} relative`}
+                    title={hasNoPrice ? 'Price not set — edit this item in Menu' : item.name}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        {SQUARE_ICONS[item.food_type]}
+                        {item.short_code && <span className="text-[10px] px-1 rounded font-mono" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{item.short_code}</span>}
+                      </div>
+                      <div className="flex gap-1">
+                        {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium text-white line-clamp-2 mb-1 group-hover:text-brand-400 transition-colors">{item.name}</p>
-                  <p className="text-base font-bold text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
-                </button>
-              ))}
+                    <p className="text-sm font-medium text-white line-clamp-2 mb-1 group-hover:text-brand-400 transition-colors">{item.name}</p>
+                    {hasNoPrice ? (
+                      <p className="text-xs font-semibold text-red-400 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> No price set
+                      </p>
+                    ) : (
+                      <p className="text-base font-bold text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : (
@@ -641,20 +706,66 @@ export default function POSPage() {
            )}
         </div>
 
-        {/* Dynamic drop downs for header options */}
+        {/* Covers (Pax) panel */}
         {showCovers && (
-          <div className="px-4 py-3 flex justify-between items-center border-b animate-slide-down" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
-            <span className="text-sm">Covers (Pax)</span>
-            <div className="flex items-center gap-3">
-               <button onClick={() => dispatch(setCovers(Math.max(1, covers - 1)))} className="w-8 h-8 rounded bg-surface-700 hover:bg-surface-600 flex items-center justify-center"><Minus className="w-4 h-4"/></button>
-               <span className="font-bold w-4 text-center">{covers}</span>
-               <button onClick={() => dispatch(setCovers(Math.min(30, covers + 1)))} className="w-8 h-8 rounded bg-surface-700 hover:bg-surface-600 flex items-center justify-center"><Plus className="w-4 h-4"/></button>
+          <div className="px-4 py-3 flex items-center justify-between border-b" style={{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Covers (Pax)</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); dispatch(setCovers(Math.max(1, covers - 1))); }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg transition-colors"
+                style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={covers}
+                onChange={(e) => dispatch(setCovers(Math.max(1, Math.min(30, Number(e.target.value) || 1))))}
+                className="w-12 text-center rounded-lg py-1 text-sm font-bold border outline-none"
+                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              />
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); dispatch(setCovers(Math.min(30, covers + 1))); }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg transition-colors"
+                style={{ background: 'var(--accent)', color: '#fff' }}
+              >
+                +
+              </button>
             </div>
           </div>
         )}
+
+        {/* Special Instructions panel */}
         {showNotes && (
-          <div className="p-3 border-b animate-slide-down" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}>
-             <textarea className="input w-full resize-none text-sm h-16 bg-surface-900 border-surface-700" placeholder="Special instructions (Max 200 char)..." maxLength={200} value={orderNotes} onChange={(e) => dispatch(setOrderNotes(e.target.value))} />
+          <div className="px-3 py-3 border-b" style={{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
+            <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Special Instructions</p>
+            <textarea
+              placeholder="e.g. No onion, extra spicy, separate packaging…"
+              maxLength={200}
+              rows={3}
+              value={orderNotes}
+              onChange={(e) => dispatch(setOrderNotes(e.target.value))}
+              style={{
+                width: '100%',
+                resize: 'none',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                padding: '10px 12px',
+                outline: 'none',
+                boxSizing: 'border-box',
+                fontFamily: 'inherit',
+                lineHeight: '1.5',
+              }}
+            />
+            <p className="text-[10px] text-right mt-1" style={{ color: 'var(--text-secondary)' }}>{orderNotes.length}/200</p>
           </div>
         )}
 
@@ -703,8 +814,22 @@ export default function POSPage() {
                <button onClick={async () => { const o = await handleCreateOrderCore('created'); setTempOrderId(o.id); setShowSplitBill(true); }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
                   <SplitSquareHorizontal className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Split</span>
                </button>
-               <button onClick={async () => { const o = await handleCreateOrderCore('created'); setTempOrderId(o.id); setShowEbill(true); }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-brand-500 hover:text-white text-surface-300 transition-colors">
-                  <FileText className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">eBill</span>
+               <button
+                 onClick={async () => {
+                   try {
+                     let orderId = tempOrderId;
+                     if (!orderId) {
+                       if (cart.length === 0) return toast.error('Add items first');
+                       const o = await handleCreateOrderCore('created');
+                       orderId = o.id;
+                       setTempOrderId(orderId);
+                     }
+                     setShowEbill(true);
+                   } catch (e) { toast.error(e.message || 'Failed to prepare eBill'); }
+                 }}
+                 className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-brand-500 hover:text-white text-surface-300 transition-colors"
+               >
+                 <FileText className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">eBill</span>
                </button>
             </div>
 
@@ -759,30 +884,114 @@ export default function POSPage() {
         )}
       </div>
 
-      {/* Customer Search Panel Side Dialog */}
+      {/* Customer Search Panel */}
       {showCustomerSearch && (
-        <div className="absolute top-4 right-[400px] w-80 bg-surface-900 border border-surface-700 rounded-2xl shadow-2xl z-40 overflow-hidden">
-           <div className="bg-surface-800 p-3 flex justify-between items-center border-b border-surface-700">
-             <h3 className="font-semibold text-white flex items-center gap-2"><Users className="w-4 h-4 text-brand-400"/> Customers</h3>
-             <button onClick={() => setShowCustomerSearch(false)} className="p-1 hover:text-red-400"><X className="w-4 h-4"/></button>
-           </div>
-           <div className="p-3">
-              <input autoFocus className="input w-full font-bold tracking-wide border-surface-700" placeholder="Mobile ending in..." value={customerSearchInput} onChange={e=>setCustomerSearchInput(e.target.value)} />
-           </div>
-           <div className="max-h-96 overflow-y-auto px-2 pb-2">
-              {customerResults?.map(c => (
-                 <button key={c.id} onClick={() => {dispatch(setSelectedCustomer(c)); setShowCustomerSearch(false)}} className="w-full text-left p-3 rounded-xl hover:bg-surface-800 mb-1 group transition-all">
-                    <p className="font-semibold text-brand-100 group-hover:text-brand-400">{c.full_name}</p>
-                    <p className="font-mono text-sm text-surface-400 mt-1">{c.phone}</p>
-                 </button>
-              ))}
-              {customerSearchInput.length > 3 && !customerResults?.length && (
-                 <div className="p-4 text-center">
-                    <p className="text-sm text-surface-400 mb-3">No matching record.</p>
-                    <button className="btn-primary w-full text-sm"><UserPlus className="w-4 h-4 inline mr-1"/> New Customer</button>
-                 </div>
-              )}
-           </div>
+        <div className="absolute top-4 right-[400px] w-80 rounded-2xl shadow-2xl z-40 overflow-hidden border"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="p-3 flex justify-between items-center border-b" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+            <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Users className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Find Customer
+            </h3>
+            <button onClick={() => { setShowCustomerSearch(false); setShowNewCustomerForm(false); }}>
+              <X className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+            </button>
+          </div>
+
+          {!showNewCustomerForm ? (
+            <>
+              <div className="p-3">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                  <input
+                    autoFocus
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                    placeholder="Search by phone number…"
+                    value={customerSearchInput}
+                    onChange={e => setCustomerSearchInput(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto px-2 pb-2">
+                {customerResults?.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => { dispatch(setSelectedCustomer(c)); setShowCustomerSearch(false); setCustomerSearchInput(''); }}
+                    className="w-full text-left p-3 rounded-xl mb-1 transition-all group"
+                    style={{ background: 'transparent' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{c.full_name}</p>
+                    <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>{c.phone}</p>
+                    {c.loyalty_points?.points > 0 && (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--accent)' }}>⭐ {c.loyalty_points.points} pts</p>
+                    )}
+                  </button>
+                ))}
+                {customerSearchInput.length > 2 && !customerResults?.length && (
+                  <div className="p-4 text-center">
+                    <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>No customer found.</p>
+                    <button
+                      onClick={() => { setShowNewCustomerForm(true); setNewCustomerForm({ full_name: '', phone: customerSearchInput }); }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
+                      style={{ background: 'var(--accent)' }}
+                    >
+                      <UserPlus className="w-4 h-4" /> Add New Customer
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="p-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                <button
+                  onClick={() => { setShowNewCustomerForm(true); setNewCustomerForm({ full_name: '', phone: customerSearchInput }); }}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold border flex items-center justify-center gap-2 transition-colors"
+                  style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--accent)10'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <UserPlus className="w-4 h-4" /> New Customer
+                </button>
+              </div>
+            </>
+          ) : (
+            /* New Customer Form */
+            <div className="p-4 space-y-3">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>New Customer</p>
+              <input
+                autoFocus
+                placeholder="Full name *"
+                value={newCustomerForm.full_name}
+                onChange={e => setNewCustomerForm(p => ({ ...p, full_name: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              />
+              <input
+                placeholder="Phone number *"
+                value={newCustomerForm.phone}
+                onChange={e => setNewCustomerForm(p => ({ ...p, phone: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowNewCustomerForm(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => createCustomerMutation.mutate(newCustomerForm)}
+                  disabled={createCustomerMutation.isPending || !newCustomerForm.full_name || !newCustomerForm.phone}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  {createCustomerMutation.isPending ? 'Adding…' : 'Add & Select'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

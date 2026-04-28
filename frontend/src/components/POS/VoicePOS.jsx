@@ -85,6 +85,7 @@ export default function VoicePOS({ onClose }) {
   const recognitionRef = useRef(null);
   const transcriptRef  = useRef('');
   const silenceTimer   = useRef(null);
+  const micStreamRef    = useRef(null);
 
   // Check Speech API support
   useEffect(() => {
@@ -116,11 +117,43 @@ export default function VoicePOS({ onClose }) {
   }, [outletId]);
 
   /* ── speech recognition ── */
-  const startListening = useCallback(() => {
+  const ensureMicrophoneAccess = useCallback(async () => {
+    // Electron desktop app — use native permission API
+    if (window.electron?.requestMicrophoneAccess) {
+      const permission = await window.electron.requestMicrophoneAccess();
+      if (!permission?.granted) {
+        throw new Error('Microphone access blocked. Click "Grant Microphone Permission" below, or allow in macOS System Settings → Privacy → Microphone.');
+      }
+    }
+
+    // Browser — check/request permission via getUserMedia
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStreamRef.current = stream;
+        stream.getTracks().forEach(track => track.stop());
+      } catch (permErr) {
+        if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+          throw new Error('Microphone access blocked. Click "Grant Microphone Permission" below, or allow in browser Settings → Privacy → Microphone.');
+        }
+        // Other errors (NotFoundError = no mic hardware) — surface them
+        throw new Error(`Microphone error: ${permErr.message}`);
+      }
+    }
+  }, []);
+
+  const startListening = useCallback(async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    // Stop existing
+    try {
+      await ensureMicrophoneAccess();
+    } catch (e) {
+      setParseError(e.message || 'Microphone access is blocked. Enable it in System Settings and reopen the app.');
+      setIsListening(false);
+      return;
+    }
+
     if (recognitionRef.current) { recognitionRef.current.stop(); }
 
     const recognition = new SpeechRecognition();
@@ -170,7 +203,12 @@ export default function VoicePOS({ onClose }) {
     recognition.onerror = (e) => {
       if (e.error === 'no-speech') return; // normal — just no speech yet
       if (e.error === 'aborted') return;
-      setParseError(`Mic error: ${e.error}. Please allow microphone access.`);
+      const messageMap = {
+        'not-allowed': 'Microphone access is blocked. Click "Grant Microphone Permission" below, or go to browser Settings → Privacy → Microphone and allow this site.',
+        'service-not-allowed': 'Speech recognition is blocked — microphone access required. Click "Grant Microphone Permission" below.',
+        network: 'Speech recognition service is unavailable. Check internet and retry.',
+      };
+      setParseError(messageMap[e.error] || `Mic error: ${e.error}. Please retry.`);
       setIsListening(false);
     };
 
@@ -183,7 +221,7 @@ export default function VoicePOS({ onClose }) {
     };
 
     recognition.start();
-  }, [lang, parseTranscript]);
+  }, [ensureMicrophoneAccess, lang, parseTranscript]);
 
   const stopListening = useCallback(() => {
     clearTimeout(silenceTimer.current);
@@ -206,6 +244,7 @@ export default function VoicePOS({ onClose }) {
   useEffect(() => () => {
     clearTimeout(silenceTimer.current);
     if (recognitionRef.current) recognitionRef.current.stop();
+    if (micStreamRef.current) micStreamRef.current.getTracks().forEach(track => track.stop());
   }, []);
 
   /* ── manual quantity edit ── */
@@ -382,9 +421,30 @@ export default function VoicePOS({ onClose }) {
 
           {/* Parse error */}
           {parseError && (
-            <div className="mx-5 mb-4 p-3 bg-red-500/10 rounded-xl flex gap-2 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>{parseError}</p>
+            <div className="mx-5 mb-4 p-3 bg-red-500/10 rounded-xl text-red-400 text-sm">
+              <div className="flex gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>{parseError}</p>
+              </div>
+              {/* Show "Grant Permission" button when mic is blocked */}
+              {(parseError.includes('blocked') || parseError.includes('access')) && (
+                <button
+                  onClick={async () => {
+                    try {
+                      setParseError('');
+                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                      stream.getTracks().forEach(t => t.stop());
+                      toast.success('Microphone access granted! Tap the mic to speak.');
+                    } catch (e) {
+                      setParseError('Permission still blocked. Open browser Settings → Site Settings → Microphone → Allow this site.');
+                    }
+                  }}
+                  className="mt-2 w-full py-2 rounded-lg text-xs font-bold text-white"
+                  style={{ background: '#EF4444' }}
+                >
+                  🎤 Grant Microphone Permission
+                </button>
+              )}
             </div>
           )}
 
