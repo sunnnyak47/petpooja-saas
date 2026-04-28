@@ -20,7 +20,11 @@ const path = require('path')
 const { app } = require('electron')
 const crypto = require('crypto')
 
-const DB_PATH = path.join(app.getPath('userData'), 'petpooja-local.db')
+let _DB_PATH = null
+function getDbPath() {
+  if (!_DB_PATH) _DB_PATH = path.join(app.getPath('userData'), 'petpooja-local.db')
+  return _DB_PATH
+}
 
 let db = null
 
@@ -35,7 +39,7 @@ let db = null
 function getDB() {
   if (db) return db
 
-  db = new Database(DB_PATH, {
+  db = new Database(getDbPath(), {
     verbose: process.env.NODE_ENV === 'development' ? console.log : null,
   })
 
@@ -878,7 +882,7 @@ const OutletDB = {
  * @returns {string}
  */
 function getDBPath() {
-  return DB_PATH
+  return getDbPath()
 }
 
 module.exports = {
