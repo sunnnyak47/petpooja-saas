@@ -2,9 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+// Use './' base for Electron (file:// protocol), '/' for Vercel/web
+const isElectron = process.env.BUILD_TARGET === 'electron';
+
 export default defineConfig({
   plugins: [react()],
-  base: './', // Required for Electron file:// protocol in packaged builds
+  base: isElectron ? './' : '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
