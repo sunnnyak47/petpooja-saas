@@ -15,7 +15,24 @@ const {
   shell,
   session,
   systemPreferences,
+  protocol,
 } = require('electron')
+
+// Register 'app://' as a privileged secure scheme BEFORE app.whenReady().
+// This gives it the same trust as https:// so the Web Speech API,
+// getUserMedia, and other secure-context APIs work from file-based builds.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      allowServiceWorkers: true,
+      corsEnabled: true,
+    },
+  },
+])
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 const Store = require('electron-store')
@@ -51,11 +68,13 @@ const isDev = !app.isPackaged
 
 /**
  * In development: load from Vite dev server (port 3001).
- * In production: load from bundled frontend/index.html via file://.
+ * In production: load from bundled frontend via app:// (secure custom protocol).
+ * Using app:// instead of file:// gives the renderer a secure context so the
+ * Web Speech API, getUserMedia, and other HTTPS-gated APIs work correctly.
  */
 const FRONTEND_URL = isDev
   ? 'http://localhost:3001'
-  : `file://${path.join(process.resourcesPath, 'frontend', 'index.html')}`
+  : 'app://index/index.html'
 
 /**
  * Allows renderer microphone access for Voice POS and exposes the native
@@ -1001,6 +1020,30 @@ function createAppMenu() {
 // APP LIFECYCLE
 // ─────────────────────────────────────
 app.whenReady().then(() => {
+  // Register app:// protocol to serve the bundled frontend files.
+  // This replaces file:// so the renderer is treated as a secure origin.
+  if (!isDev) {
+    protocol.registerFileProtocol('app', (request, callback) => {
+      const frontendDir = path.join(process.resourcesPath, 'frontend')
+      // Strip 'app://index/' prefix → relative file path
+      let filePath = request.url.replace('app://index/', '')
+      // Remove query strings / hash
+      filePath = filePath.split('?')[0].split('#')[0]
+      // Decode URI components (%20 etc.)
+      filePath = decodeURIComponent(filePath)
+
+      const fullPath = path.join(frontendDir, filePath)
+
+      // For SPA: if file doesn't exist (client-side route), serve index.html
+      const fs = require('fs')
+      if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+        callback({ path: path.join(frontendDir, 'index.html') })
+      } else {
+        callback({ path: fullPath })
+      }
+    })
+  }
+
   setupMediaPermissions()
   createWindow()
   createTray()
