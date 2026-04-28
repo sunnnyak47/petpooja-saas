@@ -38,7 +38,17 @@ app.use(helmet({
 
 app.use(cors({
   origin: function originCheck(origin, callback) {
-    if (!origin || appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*')) {
+    // Always allow requests with no origin (mobile apps, curl, Electron)
+    if (!origin) return callback(null, true);
+
+    // Allow any Vercel preview/production URL for this project
+    const isVercel = origin.includes('.vercel.app');
+    // Allow any localhost port for dev
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    // Allow explicitly whitelisted origins
+    const isWhitelisted = appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*');
+
+    if (isVercel || isLocalhost || isWhitelisted) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked origin: ${origin}`);

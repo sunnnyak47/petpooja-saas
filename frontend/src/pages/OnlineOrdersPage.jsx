@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import { 
   ShoppingBag, Globe, CheckCircle2, XCircle, 
@@ -45,12 +45,12 @@ export default function OnlineOrdersPage() {
   useEffect(() => {
     if (!outletId || !token) return;
 
-    socketRef.current = io(import.meta.env.VITE_API_URL || 'http://localhost:5001', {
+    socketRef.current = io(SOCKET_URL, {
       auth: { token },
       path: '/socket.io'
     });
 
-    const ordersNamespace = io(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/orders`, {
+    const ordersNamespace = io(`${SOCKET_URL}/orders`, {
       auth: { token }
     });
 

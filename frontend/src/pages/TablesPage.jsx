@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -46,7 +46,7 @@ export default function TablesPage() {
   
   useEffect(() => {
     if(!outletId) return;
-    const s = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, { 
+    const s = io(`${SOCKET_URL}/orders`, { 
       transports: ['websocket'],
       withCredentials: true
     });

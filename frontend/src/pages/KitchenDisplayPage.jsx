@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
@@ -247,7 +247,7 @@ export default function KitchenDisplayPage() {
   // Socket.io
   useEffect(() => {
     if (!outletId) return;
-    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/kitchen`, {
+    const socket = io(`${SOCKET_URL}/kitchen`, {
       transports: ['websocket'], withCredentials: true,
     });
     socket.emit('join_outlet', outletId);

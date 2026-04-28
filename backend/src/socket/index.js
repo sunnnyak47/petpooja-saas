@@ -20,7 +20,13 @@ let io = null;
 function initializeSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: appConfig.corsWhitelist,
+      origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        const isVercel = origin.includes('.vercel.app');
+        const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+        const isWhitelisted = appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*');
+        callback(null, isVercel || isLocalhost || isWhitelisted);
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },

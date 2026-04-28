@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
@@ -293,7 +293,7 @@ export default function RunningOrdersPage() {
   // Real-time socket
   useEffect(() => {
     if (!outletId) return;
-    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, {
+    const socket = io(`${SOCKET_URL}/orders`, {
       transports: ['websocket'], withCredentials: true
     });
     socket.emit('join_outlet', outletId);

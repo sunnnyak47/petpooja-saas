@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   QrCode, Check, X, Clock, UtensilsCrossed, User, ShoppingBag,
@@ -123,7 +123,7 @@ export default function TableQROrdersPage() {
    */
   useEffect(() => {
     if (!outletId || !token) return;
-    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, {
+    const socket = io(`${SOCKET_URL}/orders`, {
       auth: { token },
       transports: ['websocket'],
     });

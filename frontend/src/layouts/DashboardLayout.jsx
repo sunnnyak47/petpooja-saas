@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
 import { logout } from '../store/slices/authSlice';
+import { SOCKET_URL } from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
@@ -97,7 +98,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     if (!user?.outlet_id || !token) return;
-    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, {
+    const socket = io(`${SOCKET_URL}/orders`, {
       auth: { token }, transports: ['websocket'],
     });
     socket.on('connect', () => socket.emit('join_outlet', user.outlet_id));

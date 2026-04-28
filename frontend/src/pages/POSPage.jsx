@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
-import api from '../lib/api';
+import api, { SOCKET_URL } from '../lib/api';
 import hybridAPI from '../api/offlineAPI';
 import toast from 'react-hot-toast';
 import {
@@ -214,7 +214,7 @@ export default function POSPage() {
   useEffect(() => {
     if (!outletId) return;
     // Connect to /orders namespace
-    const socket = io(`${import.meta.env.VITE_API_URL || window.location.origin}/orders`, { 
+    const socket = io(`${SOCKET_URL}/orders`, {
       transports: ['websocket'],
       withCredentials: true
     });
