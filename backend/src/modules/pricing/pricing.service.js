@@ -364,8 +364,9 @@ async function getRuleAnalytics(outletId, from, to) {
 ───────────────────────────────────────────────────────────── */
 async function seedDefaultRules(outletId) {
   const prisma = getDbClient();
+  // Only skip if rules already exist (idempotent seed)
   const existing = await prisma.pricingRule.count({ where: { outlet_id: outletId, is_deleted: false } });
-  if (existing > 0) return [];
+  if (existing > 0) return { seeded: 0, message: 'Rules already exist' };
 
   const defaults = [
     {
@@ -427,7 +428,7 @@ async function seedDefaultRules(outletId) {
 
   const created = await prisma.pricingRule.createMany({ data: defaults });
   logger.info('Seeded default pricing rules', { outletId, count: created.count });
-  return defaults;
+  return { seeded: created.count };
 }
 
 module.exports = {

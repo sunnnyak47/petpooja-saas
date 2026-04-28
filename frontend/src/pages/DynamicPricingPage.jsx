@@ -94,16 +94,31 @@ function RuleModal({ rule, categories, outletId, onClose }) {
   }));
 
   const mut = useMutation({
-    mutationFn: (d) => isEdit
-      ? api.patch(`/pricing/rules/${rule.id}`, { ...d, outlet_id: outletId })
-      : api.post('/pricing/rules', { ...d, outlet_id: outletId }),
+    mutationFn: (d) => {
+      // Ensure numeric fields are numbers, not strings
+      const payload = {
+        ...d,
+        outlet_id: outletId,
+        action_value: Number(d.action_value),
+        priority: Number(d.priority) || 10,
+        max_discount_amt: d.max_discount_amt ? Number(d.max_discount_amt) : null,
+        min_order_value: d.min_order_value ? Number(d.min_order_value) : null,
+        days_of_week: Array.isArray(d.days_of_week) ? d.days_of_week : [],
+        target_ids: Array.isArray(d.target_ids) ? d.target_ids : [],
+        valid_from: d.valid_from || null,
+        valid_until: d.valid_until || null,
+      };
+      return isEdit
+        ? api.patch(`/pricing/rules/${rule.id}`, payload)
+        : api.post('/pricing/rules', payload);
+    },
     onSuccess: () => {
       toast.success(isEdit ? 'Rule updated!' : 'Rule created!');
       qc.invalidateQueries({ queryKey: ['pricing-rules'] });
       qc.invalidateQueries({ queryKey: ['pricing-live'] });
       onClose();
     },
-    onError: (e) => toast.error(e.response?.data?.message || e.message),
+    onError: (e) => toast.error(e.message || 'Failed to save rule'),
   });
 
   const QUICK_TEMPLATES = [
@@ -659,8 +674,10 @@ export default function DynamicPricingPage() {
     onError: (e) => toast.error(e.response?.data?.message || e.message),
   });
 
-  const rules = rulesData?.data || [];
-  const categories = catData?.data?.categories || catData?.data || [];
+  // queryFn already calls .then(r => r.data), so rulesData IS the array directly
+  const rules = Array.isArray(rulesData) ? rulesData : (rulesData?.data || []);
+  // catData is already the categories array after .then(r => r.data)
+  const categories = Array.isArray(catData) ? catData : (catData?.categories || catData?.data || []);
   const activeCount = rules.filter(r => r.is_active).length;
 
   return (
