@@ -22,8 +22,21 @@ function getWeekDates(baseDate) {
   });
 }
 
+// Format date as YYYY-MM-DD in LOCAL timezone (avoids UTC-shift bug)
 function fmt(date) {
-  return date.toISOString().split('T')[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Parse a date string (YYYY-MM-DD or ISO) safely in local time
+function parseDate(str) {
+  if (!str) return null;
+  // If it's an ISO string with time, use Date directly; extract date part
+  const dateOnly = String(str).split('T')[0]; // "2026-04-28"
+  const [y, mo, d] = dateOnly.split('-').map(Number);
+  return new Date(y, mo - 1, d); // local midnight, no UTC shift
 }
 
 const CERT_TYPES = ['RSA (Responsible Service of Alcohol)', 'Food Safety Handler', 'First Aid Certificate', 'Working With Children Check', 'Security License'];
@@ -103,11 +116,20 @@ export default function RosteringPage() {
     onError: e => toast.error(e.message),
   });
 
-  // Current active roster (pick first published or last draft)
-  const activeRoster = rosters.find(r => r.status === 'published') || rosters[0];
+  // Find roster that overlaps the currently viewed week
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  const activeRoster = rosters.find(r => {
+    const rs = parseDate(r.start_date);
+    const re = parseDate(r.end_date);
+    return rs <= weekEnd && re >= weekStart;
+  }) || rosters.find(r => r.status === 'published') || rosters[0];
+
+  // Filter assignments that fall in the current week view — compare date strings to avoid timezone issues
+  const weekDateStrings = weekDates.map(fmt);
   const weekAssignments = activeRoster?.assignments?.filter(a => {
-    const d = new Date(a.date);
-    return d >= weekDates[0] && d <= weekDates[6];
+    const dateStr = String(a.date).split('T')[0];
+    return weekDateStrings.includes(dateStr);
   }) || [];
 
   const getStaffColor = (staffId) => {
@@ -227,7 +249,7 @@ export default function RosteringPage() {
             <div className="grid grid-cols-7 min-h-[200px]">
               {weekDates.map((d, i) => {
                 const dateStr = fmt(d);
-                const dayAssignments = weekAssignments.filter(a => fmt(new Date(a.date)) === dateStr);
+                const dayAssignments = weekAssignments.filter(a => String(a.date).split('T')[0] === dateStr);
                 return (
                   <div key={i} className="p-2 border-r last:border-r-0 min-h-[160px]" style={{ borderColor: 'var(--border)' }}>
                     {dayAssignments.map(a => {
