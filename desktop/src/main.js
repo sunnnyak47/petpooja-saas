@@ -132,6 +132,29 @@ function createWindow() {
     mainWindow.maximize()
   })
 
+  // Fallback: show window after 6s even if ready-to-show never fires
+  // (happens when fonts or slow network resources block first paint)
+  const showFallback = setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+      mainWindow.focus()
+      mainWindow.maximize()
+    }
+  }, 6000)
+  mainWindow.once('show', () => clearTimeout(showFallback))
+
+  // Retry on load failure (e.g. protocol error, missing file)
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('[Main] Page load failed:', errorCode, errorDescription, validatedURL)
+    if (errorCode === -3) return // Aborted — user navigated away, ignore
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        console.log('[Main] Retrying loadURL...')
+        mainWindow.loadURL(FRONTEND_URL)
+      }
+    }, 1500)
+  })
+
   // Load React app
   mainWindow.loadURL(FRONTEND_URL)
 

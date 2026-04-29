@@ -23,6 +23,7 @@
     "appId": "com.petpoojaerp.app",
     "productName": "MS-RM System",
     "copyright": "Copyright 2026 Madsun Digital Marketing & Media Agency",
+    "afterSign": "build/afterSign.js",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -90,23 +91,25 @@
       }
     },
     "dmg": {
-      "title": "MS-RM System",
+      "title": "Install MS-RM System",
       "icon": "assets/icon.icns",
+      "background": null,
       "contents": [
         {
-          "x": 130,
-          "y": 220
+          "x": 150,
+          "y": 200,
+          "type": "file"
         },
         {
-          "x": 410,
-          "y": 220,
+          "x": 390,
+          "y": 200,
           "type": "link",
           "path": "/Applications"
         }
       ],
       "window": {
         "width": 540,
-        "height": 380
+        "height": 400
       }
     },
     "publish": {
