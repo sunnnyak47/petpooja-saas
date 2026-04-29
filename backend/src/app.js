@@ -200,6 +200,8 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/integrations', integrationRoutes);
+const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
+app.use('/api/aggregators', aggregatorRoutes);
 app.use('/api/ho', headofficeRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/discounts', discountRoutes);

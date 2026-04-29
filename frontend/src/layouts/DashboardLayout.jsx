@@ -54,6 +54,8 @@ const ownerNav = [
   { path: '/audit-log',      label: 'Audit Trail',     icon: Shield },
   { path: '/rostering',       label: 'Rostering',       icon: CalendarDays },
   { path: '/au-integrations', label: 'AU Integrations', icon: Link2 },
+  { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag },
+  { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true },
   { path: '/settings',       label: 'Settings',        icon: Settings },
 ];
 

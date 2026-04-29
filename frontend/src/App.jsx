@@ -21,6 +21,7 @@ import FestivalModePage from './pages/FestivalModePage';
 import FraudDetectionPage from './pages/FraudDetectionPage';
 import RosteringPage from './pages/RosteringPage';
 import AUIntegrationsPage from './pages/AUIntegrationsPage';
+import AggregatorPage from './pages/AggregatorPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
@@ -108,6 +109,7 @@ export default function App() {
         <Route path="fraud" element={<FraudDetectionPage />} />
         <Route path="rostering" element={<RosteringPage />} />
         <Route path="au-integrations" element={<AUIntegrationsPage />} />
+        <Route path="aggregators" element={<AggregatorPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
         <Route path="kitchen" element={<KitchenDisplayPage />} />
         <Route path="payments" element={<PaymentsPage />} />
