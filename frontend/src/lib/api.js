@@ -3,7 +3,11 @@ import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
 // Safe Electron detection — must use typeof guard at module scope.
-const isElectron = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+// Covers file:// (dev) and app:// (production custom protocol) schemes.
+const isElectron = typeof window !== 'undefined' &&
+  (window.location?.protocol === 'file:' ||
+   window.location?.protocol === 'app:' ||
+   typeof window.electron !== 'undefined');
 
 const RENDER_BACKEND = 'https://petpooja-saas.onrender.com';
 
