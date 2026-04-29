@@ -195,6 +195,7 @@ model Outlet {
   tax_configs            TaxConfig[]
   user_roles             UserRole[]
   wastage_logs           WastageLog[]
+  aggregator_sync_logs   AggregatorSyncLog[]
 
   @@map("outlets")
 }
@@ -649,6 +650,7 @@ model KOT {
   status       String    @default("pending") @db.VarChar(20)
   items_count  Int       @default(0)
   printed_at   DateTime? @db.Timestamptz(6)
+  started_at   DateTime? @db.Timestamptz(6)
   completed_at DateTime? @db.Timestamptz(6)
   created_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
@@ -1692,4 +1694,21 @@ model StaffCertification {
   @@index([staff_id, expiry_date])
   @@index([outlet_id])
   @@map("staff_certifications")
+}
+
+model AggregatorSyncLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  platform      String   @db.VarChar(30)
+  sync_type     String   @db.VarChar(30)
+  status        String   @default("success") @db.VarChar(20)
+  items_synced  Int      @default(0)
+  error_message String?
+  payload       Json?
+  response      Json?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  outlet        Outlet   @relation(fields: [outlet_id], references: [id])
+
+  @@index([outlet_id, platform])
+  @@map("aggregator_sync_logs")
 }

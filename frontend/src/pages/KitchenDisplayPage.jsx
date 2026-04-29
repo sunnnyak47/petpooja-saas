@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
@@ -8,7 +9,7 @@ import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
   Volume2, VolumeX, Maximize2, Timer, Utensils, Coffee,
   IceCream, Package, Eye, AlertCircle, X, Trash2,
-  Clock, Tag, User, MapPin, ArrowRight, Loader2,
+  Clock, Tag, User, MapPin, ArrowRight, Loader2, BarChart2,
 } from 'lucide-react';
 
 const STATIONS = [
@@ -227,6 +228,7 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading }) {
 export default function KitchenDisplayPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [activeStation, setActiveStation] = useState('ALL');
@@ -413,6 +415,10 @@ export default function KitchenDisplayPage() {
           </button>
           <button style={iconBtn(false)} onClick={toggleFullscreen} title="Fullscreen">
             <Maximize2 size={15} />
+          </button>
+          <button style={{ ...iconBtn(false), display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', fontSize: 13 }}
+            onClick={() => navigate('/prep-analytics')} title="Prep Time Analytics">
+            <BarChart2 size={15} /> Analytics
           </button>
         </div>
       </div>

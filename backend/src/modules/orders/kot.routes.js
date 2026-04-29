@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const kotService = require('./kot.service');
 const tableService = require('./table.service');
+const prepAnalytics = require('./prep-analytics.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { sendSuccess } = require('../../utils/response');
@@ -107,6 +108,91 @@ router.post('/floor-plan', authenticate, enforceOutletScope, async (req, res, ne
     const tables = await tableService.saveFloorPlan(outletId, req.body.tables, req.body.areas);
     sendSuccess(res, tables, 'Floor plan saved successfully');
   } catch (error) { next(error); }
+});
+
+/* ══════════════════════════════════════════════════════
+   PREP TIME ANALYTICS
+══════════════════════════════════════════════════════ */
+
+function getDateRange(query) {
+  return { from: query.from, to: query.to };
+}
+
+/** GET /api/kitchen/analytics/summary */
+router.get('/analytics/summary', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getSummary(outletId, from, to);
+    sendSuccess(res, data, 'Prep time summary');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/stations */
+router.get('/analytics/stations', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getStationStats(outletId, from, to);
+    sendSuccess(res, data, 'Station prep stats');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/items */
+router.get('/analytics/items', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getItemStats(outletId, from, to);
+    sendSuccess(res, data, 'Item prep stats');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/sla */
+router.get('/analytics/sla', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getSLACompliance(outletId, from, to);
+    sendSuccess(res, data, 'SLA compliance');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/heatmap */
+router.get('/analytics/heatmap', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getHourlyHeatmap(outletId, from, to);
+    sendSuccess(res, data, 'Hourly heatmap');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/trend */
+router.get('/analytics/trend', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const data = await prepAnalytics.getDailyTrend(outletId, from, to);
+    sendSuccess(res, data, 'Daily prep time trend');
+  } catch (err) { next(err); }
+});
+
+/** GET /api/kitchen/analytics/full — all-in-one for dashboard */
+router.get('/analytics/full', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = getDateRange(req.query);
+    const [summary, stations, items, sla, heatmap, trend] = await Promise.all([
+      prepAnalytics.getSummary(outletId, from, to),
+      prepAnalytics.getStationStats(outletId, from, to),
+      prepAnalytics.getItemStats(outletId, from, to),
+      prepAnalytics.getSLACompliance(outletId, from, to),
+      prepAnalytics.getHourlyHeatmap(outletId, from, to),
+      prepAnalytics.getDailyTrend(outletId, from, to),
+    ]);
+    sendSuccess(res, { summary, stations, items, sla, heatmap, trend }, 'Full prep analytics');
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

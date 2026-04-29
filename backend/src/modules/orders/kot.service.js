@@ -62,6 +62,12 @@ async function markItemReady(kotId, kotItemId) {
       data: { status: 'ready' },
     });
 
+    // Track started_at on first item marked ready (cooking has started)
+    const kotCheck = await prisma.kOT.findFirst({ where: { id: kotId } });
+    if (kotCheck && !kotCheck.started_at) {
+      await prisma.kOT.update({ where: { id: kotId }, data: { started_at: new Date(), status: 'preparing' } });
+    }
+
     const kot = await prisma.kOT.findFirst({ where: { id: kotId }, include: { order: true } });
 
     const io = getIO();

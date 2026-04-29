@@ -56,6 +56,7 @@ const ownerNav = [
   { path: '/au-integrations', label: 'AU Integrations', icon: Link2 },
   { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag },
   { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true },
+  { path: '/prep-analytics',  label: 'Prep Analytics',  icon: BarChart3 },
   { path: '/settings',       label: 'Settings',        icon: Settings },
 ];
 
