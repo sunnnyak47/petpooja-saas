@@ -107,6 +107,21 @@ function setupMediaPermissions() {
 function createWindow() {
   const { width, height } = store.get('windowBounds')
 
+  console.log('[createWindow] isDev:', isDev)
+  console.log('[createWindow] FRONTEND_URL:', FRONTEND_URL)
+  console.log('[createWindow] resourcesPath:', process.resourcesPath)
+  console.log('[createWindow] __dirname:', __dirname)
+
+  // Verify frontend files exist before loading
+  const fs = require('fs')
+  const frontendDir = path.join(process.resourcesPath, 'frontend')
+  const indexPath   = path.join(frontendDir, 'index.html')
+  console.log('[createWindow] frontendDir:', frontendDir)
+  console.log('[createWindow] index.html exists:', fs.existsSync(indexPath))
+  if (fs.existsSync(frontendDir)) {
+    console.log('[createWindow] frontend/ contents:', fs.readdirSync(frontendDir))
+  }
+
   mainWindow = new BrowserWindow({
     width,
     height,
@@ -120,9 +135,22 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false, // file:// origin blocks crossorigin module scripts in production
+      webSecurity: false,
     },
     show: false,
+  })
+
+  // ── DIAGNOSTIC EVENTS ──────────────────────────────────
+  mainWindow.webContents.on('did-start-loading',  () => console.log('[Renderer] did-start-loading'))
+  mainWindow.webContents.on('dom-ready',          () => console.log('[Renderer] dom-ready'))
+  mainWindow.webContents.on('did-finish-load',    () => console.log('[Renderer] did-finish-load'))
+  mainWindow.webContents.on('did-stop-loading',   () => console.log('[Renderer] did-stop-loading'))
+  mainWindow.once('ready-to-show',                () => console.log('[Renderer] ready-to-show ← window will now show'))
+
+  // Forward renderer console.log / errors to main process stdout
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['verbose', 'info', 'warning', 'error']
+    console.log(`[Renderer:${levels[level] || level}] ${message}  (${sourceId}:${line})`)
   })
 
   // Show and maximize after page loads
@@ -133,20 +161,22 @@ function createWindow() {
   })
 
   // Fallback: show window after 6s even if ready-to-show never fires
-  // (happens when fonts or slow network resources block first paint)
   const showFallback = setTimeout(() => {
     if (mainWindow && !mainWindow.isVisible()) {
+      console.log('[createWindow] ⚠ Fallback show triggered — ready-to-show never fired')
       mainWindow.show()
       mainWindow.focus()
       mainWindow.maximize()
+      // Open DevTools so we can see what went wrong
+      mainWindow.webContents.openDevTools()
     }
   }, 6000)
   mainWindow.once('show', () => clearTimeout(showFallback))
 
-  // Retry on load failure (e.g. protocol error, missing file)
+  // Retry on load failure
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error('[Main] Page load failed:', errorCode, errorDescription, validatedURL)
-    if (errorCode === -3) return // Aborted — user navigated away, ignore
+    console.error('[Main] ❌ Page load FAILED:', errorCode, errorDescription, 'url:', validatedURL)
+    if (errorCode === -3) return // Aborted
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         console.log('[Main] Retrying loadURL...')
@@ -155,7 +185,16 @@ function createWindow() {
     }, 1500)
   })
 
+  // Catch unhandled renderer JS errors
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[Main] ❌ Renderer process gone:', details.reason, details.exitCode)
+  })
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[Main] ⚠ Renderer UNRESPONSIVE')
+  })
+
   // Load React app
+  console.log('[createWindow] calling loadURL:', FRONTEND_URL)
   mainWindow.loadURL(FRONTEND_URL)
 
   // Persist window size across restarts
@@ -164,7 +203,7 @@ function createWindow() {
     store.set('windowBounds', { width: w, height: h })
   })
 
-  // Open DevTools in development
+  // Open DevTools in development only
   if (isDev) {
     mainWindow.webContents.openDevTools()
   }

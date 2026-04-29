@@ -10,7 +10,7 @@ import {
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
-  CalendarDays, Link2,
+  CalendarDays, Link2, ShoppingBag, Timer,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
