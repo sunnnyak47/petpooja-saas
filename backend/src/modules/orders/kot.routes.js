@@ -73,4 +73,40 @@ router.get('/table-areas', authenticate, enforceOutletScope, async (req, res, ne
   } catch (error) { next(error); }
 });
 
+router.post('/table-areas', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const area = await tableService.createTableArea({ ...req.body, outlet_id: req.user.outlet_id });
+    sendSuccess(res, area, 'Table area created', 201);
+  } catch (error) { next(error); }
+});
+
+router.patch('/table-areas/:id', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const area = await tableService.updateTableArea(req.params.id, req.body);
+    sendSuccess(res, area, 'Table area updated');
+  } catch (error) { next(error); }
+});
+
+router.delete('/table-areas/:id', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    await tableService.deleteTableArea(req.params.id);
+    sendSuccess(res, null, 'Table area deleted');
+  } catch (error) { next(error); }
+});
+
+router.patch('/tables/:id', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const table = await tableService.updateTable(req.params.id, req.body);
+    sendSuccess(res, table, 'Table updated');
+  } catch (error) { next(error); }
+});
+
+router.post('/floor-plan', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const tables = await tableService.saveFloorPlan(outletId, req.body.tables, req.body.areas);
+    sendSuccess(res, tables, 'Floor plan saved successfully');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
