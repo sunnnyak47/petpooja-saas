@@ -157,6 +157,7 @@ model Outlet {
   ck_indents_ck          CentralKitchenIndent[] @relation("ck_outlet")
   ck_indents_requesting  CentralKitchenIndent[] @relation("requesting_outlet")
   daily_summaries        DailySummary[]
+  eod_reports            EODReport[]
   discounts              Discount[]
   festival_modes         FestivalMode[]
   franchise_config       FranchiseConfig[]
@@ -226,6 +227,7 @@ model User {
   orders_cancelled       Order[]              @relation("cancelled_orders")
   orders_created         Order[]              @relation("staff_orders")
   orders_voided          Order[]              @relation("voided_orders")
+  eod_closures           EODReport[]          @relation("eod_closer")
   payments_processed     Payment[]
   roster_assignments     RosterAssignment[]   @relation("roster_assignments")
   rosters_created        Roster[]             @relation("roster_creator")
@@ -1284,6 +1286,65 @@ model DailySummary {
 
   @@unique([outlet_id, summary_date])
   @@map("daily_summaries")
+}
+
+model EODReport {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id          String    @db.Uuid
+  report_date        DateTime  @db.Date
+  status             String    @default("draft") @db.VarChar(20)   // draft | locked
+
+  // System-calculated from orders
+  total_orders       Int       @default(0)
+  total_revenue      Decimal   @default(0) @db.Decimal(12, 2)
+  total_tax          Decimal   @default(0) @db.Decimal(10, 2)
+  total_discount     Decimal   @default(0) @db.Decimal(10, 2)
+  void_count         Int       @default(0)
+  void_amount        Decimal   @default(0) @db.Decimal(12, 2)
+  refund_count       Int       @default(0)
+  refund_amount      Decimal   @default(0) @db.Decimal(12, 2)
+
+  // Order type breakdown
+  dine_in_orders     Int       @default(0)
+  dine_in_revenue    Decimal   @default(0) @db.Decimal(12, 2)
+  takeaway_orders    Int       @default(0)
+  takeaway_revenue   Decimal   @default(0) @db.Decimal(12, 2)
+  delivery_orders    Int       @default(0)
+  delivery_revenue   Decimal   @default(0) @db.Decimal(12, 2)
+  online_orders      Int       @default(0)
+  online_revenue     Decimal   @default(0) @db.Decimal(12, 2)
+
+  // Payment breakdown (system-calculated)
+  cash_system        Decimal   @default(0) @db.Decimal(12, 2)
+  card_system        Decimal   @default(0) @db.Decimal(12, 2)
+  upi_system         Decimal   @default(0) @db.Decimal(12, 2)
+  other_system       Decimal   @default(0) @db.Decimal(12, 2)
+
+  // Cash drawer
+  opening_cash       Decimal   @default(0) @db.Decimal(12, 2)
+  denomination_count Json?                                          // {2000:2, 500:5, 200:3, ...}
+  cash_actual        Decimal   @default(0) @db.Decimal(12, 2)      // sum of denominations
+  cash_difference    Decimal   @default(0) @db.Decimal(12, 2)      // actual - (opening + system cash)
+
+  // Top items snapshot
+  top_items          Json?                                          // [{name, qty, revenue}]
+
+  // Reconciliation notes
+  discrepancy_reason String?
+  notes              String?
+
+  // Audit
+  closed_by          String?   @db.Uuid
+  closed_at          DateTime? @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+  closer User?  @relation("eod_closer", fields: [closed_by], references: [id])
+
+  @@unique([outlet_id, report_date])
+  @@index([outlet_id, report_date])
+  @@map("eod_reports")
 }
 
 model OutletGroup {

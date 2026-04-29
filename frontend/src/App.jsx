@@ -23,6 +23,7 @@ import RosteringPage from './pages/RosteringPage';
 import AUIntegrationsPage from './pages/AUIntegrationsPage';
 import AggregatorPage from './pages/AggregatorPage';
 import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
+import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
@@ -112,6 +113,7 @@ export default function App() {
         <Route path="au-integrations" element={<AUIntegrationsPage />} />
         <Route path="aggregators" element={<AggregatorPage />} />
         <Route path="prep-analytics" element={<PrepTimeAnalyticsPage />} />
+        <Route path="eod-report" element={<EODReportPage />} />
         <Route path="online-orders" element={<OnlineOrdersPage />} />
         <Route path="kitchen" element={<KitchenDisplayPage />} />
         <Route path="payments" element={<PaymentsPage />} />

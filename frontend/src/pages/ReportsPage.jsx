@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { useState, useMemo } from 'react';
 import {
@@ -41,6 +42,7 @@ function GrowthBadge({ value }) {
 export default function ReportsPage() {
   const { user } = useSelector((s) => s.auth);
   const currency = user?.outlet?.currency || 'INR';
+  const navigate = useNavigate();
 
   const [dateRange, setDateRange] = useState(DATE_PRESETS[0].getValue());
   const [presetIndex, setPresetIndex] = useState(0);
@@ -194,6 +196,7 @@ export default function ReportsPage() {
               {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           )}
+          <button onClick={() => navigate('/eod-report')} className="btn-surface font-semibold shrink-0 gap-2 flex items-center"><CheckCircle className="w-4 h-4 text-green-400" /> Close Day</button>
           <button onClick={() => window.print()} className="btn-surface font-semibold shrink-0 gap-2"><Printer className="w-4 h-4" /> Print</button>
           <button onClick={() => handleExport('full_report')} className="btn-success font-semibold shrink-0 gap-2"><Download className="w-4 h-4" /> Export</button>
         </div>

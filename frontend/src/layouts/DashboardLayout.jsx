@@ -57,6 +57,7 @@ const ownerNav = [
   { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag },
   { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true },
   { path: '/prep-analytics',  label: 'Prep Analytics',  icon: BarChart3 },
+  { path: '/eod-report',      label: 'EOD Report',      icon: ClipboardList },
   { path: '/settings',       label: 'Settings',        icon: Settings },
 ];
 

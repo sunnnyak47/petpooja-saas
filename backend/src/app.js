@@ -199,6 +199,8 @@ app.use('/api/suppliers', procurementRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportsRoutes);
+const eodRoutes = require('./modules/reports/eod.routes');
+app.use('/api/reports/eod', eodRoutes);
 app.use('/api/integrations', integrationRoutes);
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
