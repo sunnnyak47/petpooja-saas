@@ -141,9 +141,13 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
         {items.length === 0 ? (
           <p style={{ fontSize: 13, color: textSub, fontStyle: 'italic' }}>No items</p>
         ) : items.map((item, idx) => {
-          const itemName = item.name ?? item.menu_item?.name ?? item.item_name ?? `Item ${idx + 1}`;
-          const qty      = item.quantity ?? item.qty ?? 1;
+          // Backend nests item data under order_item relation
+          const itemName = item.name ?? item.order_item?.name ?? item.menu_item?.name ?? item.item_name ?? `Item ${idx + 1}`;
+          const variantName = item.variant_name ?? item.order_item?.variant_name;
+          const qty      = item.quantity ?? item.order_item?.quantity ?? item.qty ?? 1;
           const done     = item.is_ready ?? item.status === 'ready';
+          const addons   = item.addons ?? item.order_item?.addons ?? [];
+          const note     = item.special_note ?? item.order_item?.notes;
           return (
             <div key={item.id ?? idx} style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -173,9 +177,9 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
                     textDecoration: done ? 'line-through' : 'none',
                   }}>
                     {itemName}
-                    {item.variant_name && (
+                    {variantName && (
                       <span style={{ fontSize: 12, color: textSub, fontWeight: 500, marginLeft: 5 }}>
-                        ({item.variant_name})
+                        ({variantName})
                       </span>
                     )}
                   </span>
@@ -184,13 +188,13 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
                     color: done ? textSub : borderColor,
                   }}>×{qty}</span>
                 </div>
-                {item.addons?.length > 0 && (
+                {addons.length > 0 && (
                   <p style={{ fontSize: 11, color: textSub, marginTop: 3 }}>
-                    + {item.addons.map(a => a.name).join(', ')}
+                    + {addons.map(a => a.name).join(', ')}
                   </p>
                 )}
-                {item.special_note && (
-                  <p style={{ fontSize: 11, color: '#d97706', marginTop: 3 }}>📝 {item.special_note}</p>
+                {note && (
+                  <p style={{ fontSize: 11, color: '#d97706', marginTop: 3 }}>📝 {note}</p>
                 )}
               </div>
             </div>

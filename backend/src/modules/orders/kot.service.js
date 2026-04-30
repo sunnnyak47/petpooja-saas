@@ -17,8 +17,9 @@ const { NotFoundError } = require('../../utils/errors');
 async function listPendingKOTs(outletId, query = {}) {
   const prisma = getDbClient();
   try {
-    const where = { outlet_id: outletId, is_deleted: false, status: { in: ['pending', 'preparing'] } };
-    if (query.station) where.station = query.station;
+    // Include 'ready' so KDS can show the full board (pending → preparing → ready)
+    const where = { outlet_id: outletId, is_deleted: false, status: { in: ['pending', 'preparing', 'ready'] } };
+    if (query.station && query.station !== 'ALL') where.station = query.station;
 
     return await prisma.kOT.findMany({
       where,

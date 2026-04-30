@@ -12,15 +12,68 @@ const { authenticate } = require('../../middleware/auth.middleware');
 const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { sendSuccess } = require('../../utils/response');
 
-/* -- KOT Endpoints -- */
-router.get(['/kot/pending', '/', '/pending'], authenticate, enforceOutletScope, async (req, res, next) => {
+/* ══════════════════════════════════════════════════════
+   KOT ENDPOINTS — used by Kitchen Display System (KDS)
+══════════════════════════════════════════════════════ */
+
+// GET /api/kitchen/kots  ← KDS frontend calls this
+router.get(['/kots', '/kot/pending', '/', '/pending'], authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const kots = await kotService.listPendingKOTs(outletId, req.query);
-    sendSuccess(res, kots, 'Pending KOTs retrieved');
+    sendSuccess(res, kots, 'KOTs retrieved');
   } catch (error) { next(error); }
 });
 
+// PUT /api/kitchen/kots/:id/status  ← KDS bump button (pending→preparing→ready→served)
+router.put('/kots/:id/status', authenticate, async (req, res, next) => {
+  try {
+    const { status, outlet_id } = req.body;
+    const kotId = req.params.id;
+    const prisma = require('../../config/database').getDbClient();
+
+    const kot = await prisma.kOT.findFirst({ where: { id: kotId }, include: { order: true } });
+    if (!kot) return next(Object.assign(new Error('KOT not found'), { status: 404 }));
+
+    const updated = await prisma.kOT.update({
+      where: { id: kotId },
+      data: {
+        status,
+        ...(status === 'preparing' && !kot.started_at ? { started_at: new Date() } : {}),
+        ...(status === 'served' || status === 'completed' ? { completed_at: new Date() } : {}),
+      },
+    });
+
+    // If all KOTs for this order are ready/served → update order status
+    if (status === 'ready') {
+      const allKots = await prisma.kOT.findMany({ where: { order_id: kot.order_id, is_deleted: false } });
+      const allReady = allKots.every(k => k.id === kotId ? true : ['ready', 'served', 'completed'].includes(k.status));
+      if (allReady) {
+        await prisma.order.update({ where: { id: kot.order_id }, data: { status: 'ready' } });
+      }
+    }
+
+    const { getIO } = require('../../socket/index');
+    const io = getIO();
+    if (io) {
+      const outId = outlet_id || kot.outlet_id;
+      io.of('/kitchen').to(`outlet:${outId}`).emit('kot_complete', { kot_id: kotId, status });
+      io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', { order_id: kot.order_id, status });
+    }
+
+    sendSuccess(res, updated, 'KOT status updated');
+  } catch (error) { next(error); }
+});
+
+// PUT /api/kitchen/kots/:kotId/items/:itemId/ready  ← KDS item tick
+router.put('/kots/:kotId/items/:itemId/ready', authenticate, async (req, res, next) => {
+  try {
+    const result = await kotService.markItemReady(req.params.kotId, req.params.itemId);
+    sendSuccess(res, result, 'Item marked as ready');
+  } catch (error) { next(error); }
+});
+
+// Legacy routes (kept for backwards compat)
 router.patch('/kot/:id/item-ready', authenticate, async (req, res, next) => {
   try {
     const result = await kotService.markItemReady(req.params.id, req.body.kot_item_id);
