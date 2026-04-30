@@ -163,7 +163,7 @@ async function createMenuItem(data) {
           })),
         } : undefined,
         addons: addons && addons.length > 0 ? {
-          create: addons.map((a) => ({ addon_group_id: a.addon_group_id })),
+          create: addons.map((a) => ({ ...a })),
         } : undefined,
         menu_schedules: menu_schedules && menu_schedules.length > 0 ? {
           create: menu_schedules.map((s) => ({
@@ -286,7 +286,7 @@ async function updateMenuItem(itemId, outletId, data) {
       data: {
         ...itemData,
         variants: variants ? {
-          deleteMany: {},
+          updateMany: { where: {}, data: { is_deleted: true } },
           create: variants.map((v, idx) => ({
             name: v.name,
             price_addition: v.price_addition,
@@ -296,8 +296,8 @@ async function updateMenuItem(itemId, outletId, data) {
           })),
         } : undefined,
         addons: addons ? {
-          deleteMany: {},
-          create: addons.map((a) => ({ addon_group_id: a.addon_group_id })),
+          updateMany: { where: {}, data: { is_deleted: true } },
+          create: addons.map((a) => ({ ...a })),
         } : undefined,
         menu_schedules: menu_schedules ? {
           deleteMany: {},

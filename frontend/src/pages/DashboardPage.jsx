@@ -86,7 +86,9 @@ export default function DashboardPage() {
   });
 
   const d             = dashboard || { today: {}, comparison: {}, live: {} };
-  const recentOrders  = recentOrdersRes?.data || recentOrdersRes?.orders || [];
+  const recentOrders  = (Array.isArray(recentOrdersRes?.data) ? recentOrdersRes.data : null)
+    ?? (Array.isArray(recentOrdersRes?.orders) ? recentOrdersRes.orders : null)
+    ?? (Array.isArray(recentOrdersRes) ? recentOrdersRes : []);
 
   const statCards = [
     {
@@ -292,7 +294,7 @@ export default function DashboardPage() {
                     {/* amount + status */}
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        ₹{Number(order.total_amount || 0).toLocaleString('en-IN')}
+                        ₹{Number(order.grand_total || order.total_amount || order.net_amount || 0).toLocaleString('en-IN')}
                       </p>
                       <StatusPill status={order.status} />
                     </div>

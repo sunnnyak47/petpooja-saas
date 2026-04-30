@@ -189,13 +189,14 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/kitchen', kotRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
 
-// Legacy KDS support for stale frontend builds
-app.use('/api/kitchen/kots', kotRoutes); 
+// Legacy KDS support removed — duplicate mount breaks baseUrl; use /api/kitchen only
+// TODO: remove once all frontend builds reference /api/kitchen
 const procurementRoutes = require('./modules/inventory/procurement.routes');
 
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/purchase-orders', procurementRoutes);
-app.use('/api/suppliers', procurementRoutes);
+app.use('/api/purchase-orders', require('./modules/inventory/procurement.routes'));
+// TODO: create supplier.routes.js; for now /api/suppliers is omitted to avoid duplicate-router baseUrl bug
+// app.use('/api/suppliers', require('./modules/inventory/supplier.routes'));
 app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportsRoutes);
@@ -220,7 +221,12 @@ app.use('/mock', mockRoutes);
 app.use('/test', mockTestRoutes);
 
 // Initialize Billing & Subscriptions
-require('./modules/headoffice/billing.service');
+try {
+  require('./modules/headoffice/billing.service');
+  logger.info('Billing service initialized.');
+} catch (err) {
+  logger.error('Billing service failed to initialize:', { error: err.message });
+}
 
 /* ------------------------------------------------------------------
    404 + ERROR HANDLERS

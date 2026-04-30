@@ -95,8 +95,8 @@ export default function POSPage() {
       const loadOrderFromUrl = async () => {
         try {
           const res = await api.get(`/orders/${orderIdParam}`);
-          const order = res.data;
-          
+          const order = res.data?.data ?? res.data;
+
           // Map to cart
           const cartItems = order.order_items.map(item => ({
             menu_item_id: item.menu_item_id,
@@ -109,7 +109,7 @@ export default function POSPage() {
             variant_name: item.variant_name,
             quantity: item.quantity,
             notes: item.notes,
-            addons: item.addons.map(a => ({
+            addons: (item.addons ?? []).map(a => ({
               addon_id: a.addon_id,
               name: a.name,
               price: Number(a.price),
@@ -422,7 +422,7 @@ export default function POSPage() {
           variant_name: item.variant_name,
           quantity: item.quantity,
           notes: item.notes,
-          addons: item.addons.map(a => ({
+          addons: (item.addons ?? []).map(a => ({
             addon_id: a.addon_id,
             name: a.name,
             price: Number(a.price),
@@ -693,8 +693,20 @@ export default function POSPage() {
              <div className="flex items-center gap-1">
                {selectedTable && (
                  <>
-                   <button onClick={async() => { const o = await handleCreateOrderCore('created'); setTableSelectMode('transfer'); }} className="p-1.5 hover:text-white text-surface-400" title="Transfer"><ArrowRightLeft className="w-4 h-4"/></button>
-                   <button onClick={async() => { const o = await handleCreateOrderCore('created'); setTableSelectMode('merge'); }} className="p-1.5 hover:text-white text-surface-400" title="Merge"><Combine className="w-4 h-4"/></button>
+                   <button onClick={async () => {
+                     if (!tempOrderId) {
+                       const o = await handleCreateOrderCore('created');
+                       if (o?.id) setTempOrderId(o.id);
+                     }
+                     setTableSelectMode('transfer');
+                   }} className="p-1.5 hover:text-white text-surface-400" title="Transfer"><ArrowRightLeft className="w-4 h-4"/></button>
+                   <button onClick={async () => {
+                     if (!tempOrderId) {
+                       const o = await handleCreateOrderCore('created');
+                       if (o?.id) setTempOrderId(o.id);
+                     }
+                     setTableSelectMode('merge');
+                   }} className="p-1.5 hover:text-white text-surface-400" title="Merge"><Combine className="w-4 h-4"/></button>
                  </>
                )}
                <button onClick={() => setShowCovers(!showCovers)} className={`p-1.5 rounded-lg ${showCovers ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><Users className="w-4 h-4" /></button>
@@ -804,7 +816,7 @@ export default function POSPage() {
                 <button onClick={() => dispatch(updateCartQuantity({ index: i, quantity: item.quantity + 1 }))} className="w-6 h-6 rounded bg-surface-700 text-surface-300 hover:bg-surface-600 flex items-center justify-center"><Plus className="w-3 h-3" /></button>
               </div>
               <p className={`text-sm font-semibold w-16 text-right ${isCompMode ? 'text-success-500 line-through' : 'text-white'}`}>
-                ₹{(item.base_price * item.quantity).toFixed(0)}
+                ₹{((Number(item.base_price || 0) + Number(item.variant_price || 0)) * item.quantity).toFixed(0)}
               </p>
             </div>
           ))}
@@ -823,7 +835,13 @@ export default function POSPage() {
                <button onClick={handleBogo} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
                   <Percent className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Bogo</span>
                </button>
-               <button onClick={async () => { const o = await handleCreateOrderCore('created'); setTempOrderId(o.id); setShowSplitBill(true); }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
+               <button onClick={async () => {
+                 if (!tempOrderId) {
+                   const o = await handleCreateOrderCore('created');
+                   if (o?.id) setTempOrderId(o.id);
+                 }
+                 setShowSplitBill(true);
+               }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
                   <SplitSquareHorizontal className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Split</span>
                </button>
                <button
@@ -874,13 +892,8 @@ export default function POSPage() {
             </div>
 
             <div className="flex gap-2 mb-2">
-               {!isBilled && cart.length === 0 && tempOrderId && (
-                 <button onClick={handleGenerateBill} className="btn-surface flex-1 py-3 bg-white text-black font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-brand-400 hover:text-white transition-all">
-                    <FileText className="w-4 h-4" /> GENERATE BILL
-                 </button>
-               )}
-               {/* 
-                * Keep HOLD available if not billed 
+               {/*
+                * Keep HOLD available if not billed
                 */}
                {!isBilled && cart.length > 0 && (
                  <button onClick={() => handleCreateOrder(true)} className="btn-surface flex-1 py-3 text-sm flex items-center justify-center gap-2">
@@ -891,6 +904,14 @@ export default function POSPage() {
 
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
               {isBilled ? 'PAY BILL' : `PAY ₹${cartTotals.total}`}
+            </button>
+          </div>
+        )}
+
+        {!isBilled && cart.length === 0 && tempOrderId && (
+          <div className="p-3" style={{ background: 'var(--bg-card)' }}>
+            <button onClick={handleGenerateBill} className="btn-surface w-full py-3 bg-white text-black font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-brand-400 hover:text-white transition-all">
+               <FileText className="w-4 h-4" /> GENERATE BILL
             </button>
           </div>
         )}

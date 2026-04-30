@@ -305,13 +305,12 @@ async function getCategoryWiseSales(outletId, from, to) {
 
     const orderItems = await prisma.orderItem.findMany({
       where: { order: { outlet_id: outletId, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } } },
-      include: { order: true }
+      include: { menu_item: { select: { category: { select: { name: true } } } } }
     });
-    
-    // Stub categories from item names for simplicity if category relation is deep
+
     const categories = {};
     for(const oi of orderItems) {
-       const cat = (oi.name && oi.name.includes('Tikka') ? 'Starters' : 'Main Course');
+       const cat = oi.menu_item?.category?.name || 'Uncategorised';
        if(!categories[cat]) categories[cat] = 0;
        categories[cat] += Number(oi.item_total);
     }
@@ -328,9 +327,9 @@ async function getGstReport(outletId, from, to) {
     if(!to) toDate.setDate(toDate.getDate() + 1);
 
     const orders = await prisma.order.findMany({
-      where: { outlet_id: outletId, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } }
+      where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } }
     });
-    
+
     let taxBreakdown = {};
     for (const order of orders) {
       const dateStr = order.created_at.toISOString().split('T')[0];
@@ -355,13 +354,13 @@ async function getStaffPerformance(outletId, from, to) {
     if(!to) toDate.setDate(toDate.getDate() + 1);
 
     const orders = await prisma.order.findMany({
-      where: { outlet_id: outletId, created_at: { gte: fromDate, lte: toDate } },
+      where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
       include: { staff: true }
     });
-    
+
     const staffMap = {};
     for (const order of orders) {
-       const staffName = order.staff ? `${order.staff.first_name} ${order.staff.last_name}` : 'Self Order / POS';
+       const staffName = order.staff?.full_name || 'Self Order / POS';
        if(!staffMap[staffName]) staffMap[staffName] = { name: staffName, orders: 0, revenue: 0, discounts: 0, voids: 0 };
        
        if(order.status === 'voided') staffMap[staffName].voids++;
@@ -432,7 +431,7 @@ async function getGstDetailedReport(outletId, from, to) {
         created_at: { gte: fromDate, lte: toDate },
       },
       include: {
-        items: {
+        order_items: {
           where: { is_deleted: false },
           select: {
             quantity: true,
@@ -487,7 +486,7 @@ async function getGstDetailedReport(outletId, from, to) {
       totalTax += tax;
 
       // Rate-wise from items
-      for (const item of order.items) {
+      for (const item of order.order_items) {
         const rate = Number(item.gst_rate || 0);
         const itemTax = Number(item.item_tax || 0);
         const itemTotal = Number(item.item_total || 0);
@@ -643,14 +642,14 @@ async function getFranchiseKPIs(outletId, from, to) {
   // Current period
   const orders = await prisma.order.findMany({
     where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
-    include: { items: true },
+    include: { order_items: true },
   });
 
   const revenue = orders.reduce((s, o) => s + Number(o.grand_total), 0);
   const covers = orders.reduce((s, o) => s + (o.covers || 1), 0);
   const total_orders = orders.length;
   const avg_check = total_orders > 0 ? revenue / total_orders : 0;
-  const total_items_sold = orders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.quantity, 0), 0);
+  const total_items_sold = orders.reduce((s, o) => s + o.order_items.reduce((ss, i) => ss + i.quantity, 0), 0);
 
   // Previous period (same duration)
   const duration = toDate - fromDate;

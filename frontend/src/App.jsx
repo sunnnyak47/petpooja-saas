@@ -65,14 +65,12 @@ export default function App() {
     localStorage.getItem('petpooja_setup_complete') === 'true'
   );
 
-  if (typeof window !== 'undefined' && window.electron && !setupComplete) {
-    return <SetupWizard onComplete={(config) => {
-      window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
-      window.electron.invoke('set-config', 'printerIp', config.printer_ip);
-      localStorage.setItem('petpooja_setup_complete', 'true');
-      setSetupComplete(true);
-    }} />;
-  }
+  const handleSetupComplete = (config) => {
+    window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
+    window.electron.invoke('set-config', 'printerIp', config.printer_ip);
+    localStorage.setItem('petpooja_setup_complete', 'true');
+    setSetupComplete(true);
+  };
 
   return (
     <>
@@ -80,6 +78,9 @@ export default function App() {
     <SyncStatusIndicator />
     <OfflineBanner />
     <Routes>
+      {typeof window !== 'undefined' && window.electron && !setupComplete && (
+        <Route path="*" element={<SetupWizard onComplete={handleSetupComplete} />} />
+      )}
       <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />

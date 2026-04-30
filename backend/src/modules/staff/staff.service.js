@@ -538,12 +538,13 @@ async function calculateSalary(userId, outletId, month, year) {
     overtimePay = overtimeHours * hourlyRate * 0.5; // Extra 0.5x for OT
   }
 
-  const netSalary = Math.round((basicSalary + overtimePay) * 100) / 100;
-
   // Upsert salary record
   const existing = await prisma.salaryRecord.findFirst({
     where: { user_id: userId, outlet_id: outletId, month, year, is_deleted: false },
   });
+
+  const existingBonus = existing ? Number(existing.bonus || 0) : 0;
+  const netSalary = Math.round((basicSalary + overtimePay + existingBonus) * 100) / 100;
 
   const data = {
     working_days: workingDays,

@@ -21,7 +21,7 @@ const superAdminNav = [
   { path: '/',            label: 'Analytics',         icon: BarChart3 },
   { path: '/super-admin', label: 'Restaurant Chains', icon: ShieldCheck },
   { section: 'System' },
-  { path: '/audit-logs',  label: 'System Logs',       icon: ClipboardList },
+  { path: '/audit-log',   label: 'System Logs',       icon: ClipboardList },
   { path: '/billing',     label: 'SaaS Revenue',      icon: ShoppingCart },
   { path: '/settings',    label: 'Settings',          icon: Settings },
 ];
@@ -108,7 +108,9 @@ export default function DashboardLayout() {
     socket.on('connect', () => socket.emit('join_outlet', user.outlet_id));
     socket.on('new_online_order', (d) => setPendingOrders((p) => [...p, d]));
     socket.on('new_online_order_cleared', (d) =>
-      setPendingOrders((p) => p.filter((o) => o.order_id !== d.order_id))
+      setPendingOrders((p) => p.filter((o) =>
+        (o.order_id || o.id) !== (d.order_id || d.id)
+      ))
     );
     return () => socket.disconnect();
   }, [user?.outlet_id, token]);
@@ -116,7 +118,7 @@ export default function DashboardLayout() {
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
   const navItems   = user?.role === 'super_admin' ? superAdminNav : ownerNav;
-  const showWizard = user?.role === 'owner' && !user?.head_office?.setup_completed;
+  const showWizard = user?.role === 'owner' && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
   const outletName = user?.outlet?.name || 'MS-RM System';
 
   return (

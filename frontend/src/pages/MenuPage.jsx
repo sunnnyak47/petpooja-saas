@@ -140,7 +140,7 @@ export default function MenuPage() {
          // Fallback manual loop
          const itemsArray = Array.from(selectedItems);
          for(const id of itemsArray) {
-            const item = (menuData?.items||menuData).find(i=>i.id===id);
+            const item = dbItems.find(i=>i.id===id);
             if(item) {
                const newPrice = bulkForm.type === 'percentage' 
                  ? Number(item.base_price) * (1 + Number(bulkForm.value)/100) 
@@ -202,7 +202,7 @@ export default function MenuPage() {
       const q = search.toLowerCase();
       filtered = filtered.filter(i => i.name.toLowerCase().includes(q) || i.short_code?.toLowerCase().includes(q));
     }
-    if (categoryFilter) filtered = filtered.filter(i => i.category_id === categoryFilter);
+    if (categoryFilter) filtered = filtered.filter(i => String(i.category_id) === String(categoryFilter));
     if (vegFilter) filtered = filtered.filter(i => i.food_type === vegFilter);
     if (gstFilter) filtered = filtered.filter(i => String(i.gst_rate) === gstFilter);
     

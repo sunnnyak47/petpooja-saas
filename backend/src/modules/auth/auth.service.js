@@ -287,12 +287,9 @@ async function refreshTokens(refreshToken) {
   const redis = getRedisClient();
 
   try {
-    const decoded = jwt.verify(refreshToken, appConfig.jwt.refreshSecret);
-
     const isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${refreshToken}`);
-    if (isBlacklisted) {
-      throw new UnauthorizedError('Refresh token has been revoked');
-    }
+    if (isBlacklisted) throw new UnauthorizedError('Refresh token has been revoked');
+    const decoded = jwt.verify(refreshToken, appConfig.jwt.refreshSecret);
 
     const user = await prisma.user.findFirst({
       where: { id: decoded.id, is_deleted: false, is_active: true },
@@ -358,12 +355,13 @@ async function logout(token, userId, auditInfo = {}) {
   const redis = getRedisClient();
 
   try {
-    const decoded = jwt.decode(token);
-    const ttl = decoded.exp ? decoded.exp - Math.floor(Date.now() / 1000) : 900;
+    let ttl = 900;
+    try {
+      const decoded = jwt.verify(token, appConfig.jwt.secret, { ignoreExpiration: true });
+      if (decoded?.exp) ttl = Math.max(decoded.exp - Math.floor(Date.now() / 1000), 1);
+    } catch (_) { /* use default ttl */ }
 
-    if (ttl > 0) {
-      await redis.setex(`${appConfig.redisKeys.tokenBlacklist}${token}`, ttl, 'revoked');
-    }
+    await redis.setex(`${appConfig.redisKeys.tokenBlacklist}${token}`, ttl, 'revoked');
 
     await prisma.auditLog.create({
       data: {
@@ -401,7 +399,7 @@ async function forgotPassword(phone) {
       return { message: 'If this phone is registered, you will receive an OTP shortly' };
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = String(crypto.randomInt(100000, 1000000));
     await redis.setex(`${appConfig.redisKeys.otpPrefix}${phone}`, 300, otp);
 
     logger.info('OTP generated for password reset', { phone, otp: process.env.NODE_ENV === 'development' ? otp : '******' });

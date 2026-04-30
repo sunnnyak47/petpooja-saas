@@ -12,8 +12,8 @@ const { validate } = require('../../middleware/validate.middleware');
 const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema } = require('./order.validation');
 
 router.post('/', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), orderController.createOrder);
-router.get('/', authenticate, checkLicense, enforceOutletScope, orderController.listOrders);
-router.get('/:id', authenticate, orderController.getOrder);
+router.get('/', authenticate, checkLicense, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.listOrders);
+router.get('/:id', authenticate, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.getOrder);
 router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(addItemsSchema), orderController.addItems);
 router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.generateKOT);
 router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.updateStatus);

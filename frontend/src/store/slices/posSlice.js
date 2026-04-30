@@ -40,11 +40,19 @@ const posSlice = createSlice({
     },
     clearCart(state) {
       state.cart = [];
+      state.selectedCustomer = null;
+      state.discount = { type: null, value: 0, reason: '' };
+      state.orderNotes = '';
+      state.covers = 1;
+    },
+    resetPOS(state) {
+      state.cart = [];
       state.selectedTable = null;
       state.selectedCustomer = null;
       state.discount = { type: null, value: 0, reason: '' };
       state.orderNotes = '';
       state.covers = 1;
+      state.currentOrder = null;
     },
     setCart(state, action) {
       state.cart = action.payload;
@@ -84,7 +92,7 @@ const posSlice = createSlice({
 });
 
 export const {
-  addToCart, removeFromCart, updateCartQuantity, clearCart,
+  addToCart, removeFromCart, updateCartQuantity, clearCart, resetPOS,
   setSelectedTable, setSelectedCustomer, setOrderType, setDiscount, setCurrentOrder,
   setOrderNotes, setCovers, setCart, setPOSState,
 } = posSlice.actions;

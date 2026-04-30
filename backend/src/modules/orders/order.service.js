@@ -416,7 +416,7 @@ async function addItemsToOrder(orderId, items, staffId) {
           sgst: Math.round(newSgst * 100) / 100,
           total_tax: Math.round(totalTax * 100) / 100,
           total_amount: Math.round(totalAmount * 100) / 100,
-          round_off: Math.round(Math.round(totalAmount) - totalAmount * 100) / 100,
+          round_off: Math.round((Math.round(totalAmount) - totalAmount) * 100) / 100,
           grand_total: Math.round(totalAmount),
         },
       });
@@ -523,9 +523,11 @@ async function generateKOT(orderId) {
         io.of('/kitchen').to(`outlet:${order.outlet_id}`).emit('new_kot', payload);
         io.of('/kitchen').to(`station:${order.outlet_id}:${kot.station}`).emit('new_kot', payload);
       }
-      io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
-        order_id: orderId, status: 'confirmed',
-      });
+      if (order.status === 'created') {
+        io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
+          order_id: orderId, status: 'confirmed',
+        });
+      }
     }
 
     logger.info('KOTs generated', { orderId, kotCount: kots.length });
@@ -598,16 +600,20 @@ async function processPayment(orderId, paymentData, staffId) {
         });
       }
 
-      if (order.customer_id) {
-         await customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total));
-      }
-
       await tx.orderStatusHistory.create({
         data: { order_id: orderId, from_status: order.status, to_status: 'paid', changed_by: staffId },
       });
-      
+
       return { payment };
     });
+
+    if (order.customer_id) {
+      try {
+        await customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total));
+      } catch (loyaltyErr) {
+        logger.warn('Loyalty points failed (non-critical):', loyaltyErr.message);
+      }
+    }
 
     const io = getIO();
     if (io) {
@@ -890,12 +896,6 @@ async function voidOrder(orderId, managerPin, reason, staffId) {
       await tx.orderStatusHistory.create({
         data: { order_id: orderId, from_status: order.status, to_status: 'voided', changed_by: staffId, reason },
       });
-      if (order.table_id) {
-        await tx.table.update({
-          where: { id: order.table_id },
-          data: { status: 'available', current_order_id: null },
-        });
-      }
       await tx.auditLog.create({
         data: {
           user_id: staffId, outlet_id: order.outlet_id,

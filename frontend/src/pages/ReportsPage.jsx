@@ -8,7 +8,7 @@ import {
   PieChart, Pie, Legend, LineChart, Line, CartesianGrid, Area, AreaChart,
 } from 'recharts';
 import {
-  Calendar, ShoppingBag, TrendingUp, TrendingDown, Clock,
+  Calendar, Users, TrendingUp, TrendingDown, Clock,
   Download, Printer, Package, DollarSign, BarChart2, Layers,
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
@@ -184,9 +184,9 @@ export default function ReportsPage() {
           </div>
           {showCustomRange && (
             <div className="flex items-center gap-2 animate-slide-right">
-              <input type="date" className="input text-sm py-1" value={fromStr} onChange={e => setDateRange(p => ({ ...p, from: new Date(e.target.value) }))} />
+              <input type="date" className="input text-sm py-1" value={fromStr} onChange={e => setDateRange(p => ({ ...p, from: new Date(e.target.value + 'T00:00:00') }))} />
               <span className="text-surface-500">→</span>
-              <input type="date" className="input text-sm py-1" value={toStr} onChange={e => setDateRange(p => ({ ...p, to: new Date(e.target.value) }))} />
+              <input type="date" className="input text-sm py-1" value={toStr} onChange={e => setDateRange(p => ({ ...p, to: new Date(e.target.value + 'T00:00:00') }))} />
             </div>
           )}
         </div>
@@ -207,7 +207,7 @@ export default function ReportsPage() {
         {[
           { id: 'overview', label: 'Overview', icon: BarChart2 },
           { id: 'inventory', label: 'Inventory', icon: Package },
-          { id: 'staff', label: 'Staff', icon: ShoppingBag },
+          { id: 'staff', label: 'Staff', icon: Users },
           { id: 'tax', label: currency === 'AUD' ? 'GST (AU)' : 'GST Register', icon: Layers },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -573,7 +573,7 @@ export default function ReportsPage() {
                         </tr>
                       ))}
                       {(!gstData || gstData.length === 0) && (
-                        <tr><td colSpan="5" className="p-8 text-center text-surface-500 italic">No tax data for this period</td></tr>
+                        <tr><td colSpan={currency !== 'AUD' ? 5 : 3} className="p-8 text-center text-surface-500 italic">No tax data for this period</td></tr>
                       )}
                     </tbody>
                   </table>

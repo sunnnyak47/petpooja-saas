@@ -21,8 +21,11 @@ export default function LoginPage() {
     dispatch(setLoading(true));
     try {
       const res = await api.post('/auth/login', { login, password });
-      dispatch(loginSuccess(res.data));
-      toast.success(`Welcome back, ${res.data.user.full_name}`);
+      const payload = res.data?.data || res.data;
+      dispatch(loginSuccess(payload));
+      localStorage.setItem('accessToken', payload.accessToken);
+      localStorage.setItem('refreshToken', payload.refreshToken || '');
+      toast.success(`Welcome back, ${payload.user?.full_name || payload.user?.email || 'User'}`);
       navigate('/');
     } catch (error) {
       toast.error(error.message || 'Login failed');

@@ -50,17 +50,17 @@ function OTPClockModal({ isOpen, onClose, outletId }) {
       toast.success(action === 'clock_in' ? 'Clocked In ✓' : 'Clocked Out ✓');
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       queryClient.invalidateQueries({ queryKey: ['shift-report'] });
-      close();
+      handleModalClose();
     },
     onError: (e) => toast.error(e?.response?.data?.message || 'Invalid OTP'),
   });
 
-  function close() {
+  function handleModalClose() {
     onClose(); setStep('select'); setOtp(''); setGeneratedOTP(null);
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={close} title="OTP Clock In / Out" size="sm">
+    <Modal isOpen={isOpen} onClose={handleModalClose} title="OTP Clock In / Out" size="sm">
       {step === 'select' ? (
         <div className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -143,7 +143,7 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
 
   const mutation = useMutation({
     mutationFn: (body) => staff
-      ? api.patch(`/staff/${profile?.id || staff.id}`, body)
+      ? api.patch(`/staff/${staff.id}`, body)
       : api.post('/staff', { ...body, outlet_id: outletId, role: 'staff' }),
     onSuccess: () => { toast.success(staff ? 'Staff updated ✓' : 'Staff added ✓'); onSuccess(); onClose(); },
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed'),
@@ -283,12 +283,12 @@ function AttendanceTab({ outletId }) {
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Present</p>
                   </div>
                   <div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.total_hours.toFixed(1)}h</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{(s.total_hours ?? 0).toFixed(1)}h</p>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Hours</p>
                   </div>
                   {s.overtime_hours > 0 && (
                     <div>
-                      <p className="text-sm font-bold text-amber-600">{s.overtime_hours.toFixed(1)}h OT</p>
+                      <p className="text-sm font-bold text-amber-600">{(s.overtime_hours ?? 0).toFixed(1)}h OT</p>
                     </div>
                   )}
                   <span style={{ color: 'var(--text-secondary)' }}>{expanded === s.user_id ? '▲' : '▼'}</span>
@@ -311,10 +311,10 @@ function AttendanceTab({ outletId }) {
                           <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{log.shift}</td>
                           <td className="px-3 py-2 font-medium text-emerald-600">{fmtTime(log.clock_in)}</td>
                           <td className="px-3 py-2 font-medium text-orange-600">{fmtTime(log.clock_out)}</td>
-                          <td className="px-3 py-2 font-semibold" style={{ color: 'var(--text-primary)' }}>{log.hours.toFixed(1)}</td>
+                          <td className="px-3 py-2 font-semibold" style={{ color: 'var(--text-primary)' }}>{(log.hours ?? 0).toFixed(1)}</td>
                           <td className="px-3 py-2">
                             {log.overtime > 0
-                              ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">+{log.overtime.toFixed(1)}h</span>
+                              ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">+{(log.overtime ?? 0).toFixed(1)}h</span>
                               : '—'}
                           </td>
                         </tr>

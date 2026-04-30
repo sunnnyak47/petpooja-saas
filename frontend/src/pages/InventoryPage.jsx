@@ -164,7 +164,7 @@ export default function InventoryPage() {
 
   const createPOMut = useMutation({
     mutationFn: d => api.post('/purchase-orders', { ...d, outlet_id: outletId }),
-    onSuccess: () => { toast.success('Purchase Order created'); qc.invalidateQueries({ queryKey: ['inv-pos'] }); setPOModal(false); setPOForm({ supplier_id: '', expected_date: '', notes: '', items: [] }); },
+    onSuccess: () => { toast.success('Purchase Order created'); qc.invalidateQueries({ queryKey: ['inv-pos'] }); setPOModal(false); setPOForm({ supplier_id: '', expected_date: '', notes: '', items: [] }); setPoItemSearch(''); },
     onError: e => toast.error(e.response?.data?.message || 'Failed to create PO'),
   });
 
@@ -175,12 +175,16 @@ export default function InventoryPage() {
   });
 
   // ── Derived data ─────────────────────────────────────────────
-  const stockItems  = useMemo(() => stockData?.items || [], [stockData]);
+  const stockItems  = useMemo(() =>
+    stockData?.items || (Array.isArray(stockData?.data) ? stockData.data : Array.isArray(stockData) ? stockData : []),
+    [stockData]);
   const rawMats     = useMemo(() => itemsData?.items || itemsData || [], [itemsData]);
   const menuItemArr = useMemo(() => menuItems?.items || menuItems || [], [menuItems]);
   const recipesArr  = useMemo(() => recipesData || [], [recipesData]);
   const suppliersArr = useMemo(() => suppliers || [], [suppliers]);
-  const posArr      = useMemo(() => poData?.items || [], [poData]);
+  const posArr      = useMemo(() =>
+    poData?.items || (Array.isArray(poData?.data) ? poData.data : Array.isArray(poData) ? poData : []),
+    [poData]);
   const logsArr     = useMemo(() => wasteLogs || [], [wasteLogs]);
   const lowCount    = (lowStockItems || []).length;
 
@@ -220,6 +224,7 @@ export default function InventoryPage() {
   // ── Recipe builder state ────────────────────────────────────
   const [recipeIngredients, setRecipeIngredients] = useState([]);
   const [ingSearch, setIngSearch] = useState('');
+  const [poItemSearch, setPoItemSearch] = useState('');
 
   function openRecipeBuilder(menuItem) {
     setRecipeItem(menuItem);
@@ -776,11 +781,11 @@ export default function InventoryPage() {
             <div className="flex gap-2 mb-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
-                <input className="input pl-10 w-full text-sm" placeholder="Search raw materials…" value={ingSearch} onChange={e => setIngSearch(e.target.value)} />
+                <input className="input pl-10 w-full text-sm" placeholder="Search raw materials…" value={poItemSearch} onChange={e => setPoItemSearch(e.target.value)} />
               </div>
             </div>
             <div className="max-h-40 overflow-y-auto border border-surface-700 rounded-xl divide-y divide-surface-700/50 bg-surface-950">
-              {rawMats.filter(m => m.name.toLowerCase().includes(ingSearch.toLowerCase())).slice(0, 20).map(m => (
+              {rawMats.filter(m => m.name.toLowerCase().includes(poItemSearch.toLowerCase())).slice(0, 20).map(m => (
                 <div key={m.id} className="flex items-center justify-between px-4 py-2 hover:bg-surface-800 transition-colors">
                   <div>
                     <p className="text-sm text-white font-medium">{m.name}</p>

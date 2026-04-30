@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -301,10 +301,14 @@ export default function KitchenDisplayPage() {
 
   const [activeStation, setActiveStation] = useState('ALL');
   const [soundEnabled,  setSoundEnabled]  = useState(true);
+  const soundEnabledRef = useRef(soundEnabled);
   const [showCompleted, setShowCompleted] = useState(false);
   const [confirmClear,  setConfirmClear]  = useState(null);
   const [fullscreen,    setFullscreen]    = useState(false);
   const [clock,         setClock]         = useState(new Date());
+
+  // keep soundEnabledRef in sync with state
+  useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
 
   // live clock
   useEffect(() => {
@@ -334,7 +338,7 @@ export default function KitchenDisplayPage() {
 
     socket.on('new_kot', () => {
       refresh();
-      if (soundEnabled) { try { new Audio('/notification.mp3').play().catch(() => {}); } catch {} }
+      if (soundEnabledRef.current) { try { new Audio('/notification.mp3').play().catch(() => {}); } catch {} }
     });
     socket.on('kot_item_ready', refresh);
     socket.on('kot_complete',   refresh);
@@ -352,10 +356,10 @@ export default function KitchenDisplayPage() {
           </button>
         </div>
       ), { duration: 10000, position: 'top-center' });
-      if (soundEnabled) { try { new Audio('/cancel_alert.mp3').play().catch(() => {}); } catch {} }
+      if (soundEnabledRef.current) { try { new Audio('/cancel_alert.mp3').play().catch(() => {}); } catch {} }
     });
     return () => socket.disconnect();
-  }, [outletId, queryClient, soundEnabled]);
+  }, [outletId, queryClient]);
 
   /* ── mutations ── */
   const bumpMutation = useMutation({
@@ -369,13 +373,13 @@ export default function KitchenDisplayPage() {
     onError:    (e) => toast.error(e.message),
   });
   const clearMutation = useMutation({
-    mutationFn: (type) => {
-      const toMark = allKots.filter(k => type === 'all'
+    mutationFn: ({ type, kots }) => {
+      const toMark = kots.filter(k => type === 'all'
         ? ['preparing', 'ready', 'served'].includes(k.status)
         : k.status === 'served');
       return Promise.all(toMark.map(k => api.put(`/kitchen/kots/${k.id}/status`, { status: 'served', outlet_id: outletId })));
     },
-    onSuccess: (_, type) => {
+    onSuccess: (_, { type }) => {
       queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
       toast.success(type === 'all' ? 'All orders cleared' : 'Completed orders cleared');
       setConfirmClear(null);
@@ -649,7 +653,7 @@ export default function KitchenDisplayPage() {
                 Cancel
               </button>
               <button
-                onClick={() => clearMutation.mutate(confirmClear)}
+                onClick={() => clearMutation.mutate({ type: confirmClear, kots: allKots })}
                 disabled={clearMutation.isPending}
                 style={{
                   flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
