@@ -3,10 +3,12 @@ import { store } from '../store';
 import { logout } from '../store/slices/authSlice';
 
 // Safe Electron detection — must use typeof guard at module scope.
-// Covers file:// (dev) and app:// (production custom protocol) schemes.
+// Covers: file:// (legacy), app:// (custom protocol), http://127.0.0.1 (local HTTP server mode),
+// and window.electron exposed via preload.
 const isElectron = typeof window !== 'undefined' &&
   (window.location?.protocol === 'file:' ||
    window.location?.protocol === 'app:' ||
+   window.location?.hostname === '127.0.0.1' ||
    typeof window.electron !== 'undefined');
 
 const RENDER_BACKEND = 'https://petpooja-saas.onrender.com';
