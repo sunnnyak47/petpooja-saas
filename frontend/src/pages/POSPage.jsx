@@ -300,14 +300,17 @@ export default function POSPage() {
       })),
       covers,
     });
-    setTempOrderId(res.data?.id);
-    return res.data;
+    // Backend returns { success, data: order } — unwrap to get the actual order object
+    const orderData = res.data?.data ?? res.data;
+    setTempOrderId(orderData?.id ?? null);
+    return orderData;
   };
 
   const handleCreateOrder = async (isHold = false) => {
     if (cart.length === 0) return toast.error('Cart is empty');
     try {
       const order = await handleCreateOrderCore(isHold ? 'held' : 'created');
+      if (!order?.id) return toast.error('Failed to create order. Please try again.');
       setTempOrderId(order.id);
       setCurrentOrder(order);
       
@@ -332,7 +335,8 @@ export default function POSPage() {
       let orderId = tempOrderId;
       if (!orderId) {
         const order = await handleCreateOrderCore('created');
-        orderId = order.id;
+        orderId = order?.id;
+        if (!orderId) return toast.error('Failed to create order. Please try again.');
         setTempOrderId(orderId);
       } else {
          // Add items to existing order first
@@ -360,11 +364,12 @@ export default function POSPage() {
     // If no tempOrderId but items in cart, create order first
     if (!orderId && cart.length > 0) {
        const order = await handleCreateOrderCore('created');
-       orderId = order.id;
-       setTempOrderId(orderId);
+       orderId = order?.id;
+       if (orderId) setTempOrderId(orderId);
     }
-    
-    if (!orderId) return toast.error('No order to bill');
+
+    if (!orderId || typeof orderId !== 'string' || orderId.length < 5)
+      return toast.error('No active order to bill. Please punch KOT first.');
 
     try {
       let billData;
@@ -908,9 +913,11 @@ export default function POSPage() {
           </div>
         )}
 
-        {!isBilled && cart.length === 0 && tempOrderId && (
+        {/* Show GENERATE BILL only after KOT is punched (cart empty, real order exists) */}
+        {!isBilled && cart.length === 0 && tempOrderId && typeof tempOrderId === 'string' && tempOrderId.length > 10 && (
           <div className="p-3" style={{ background: 'var(--bg-card)' }}>
-            <button onClick={handleGenerateBill} className="btn-surface w-full py-3 bg-white text-black font-bold tracking-wide flex items-center justify-center gap-2 hover:bg-brand-400 hover:text-white transition-all">
+            <button onClick={handleGenerateBill} className="w-full py-3 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all text-white"
+              style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
                <FileText className="w-4 h-4" /> GENERATE BILL
             </button>
           </div>
