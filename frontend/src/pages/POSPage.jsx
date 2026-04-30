@@ -319,9 +319,8 @@ export default function POSPage() {
         dispatch(clearCart());
         setTempOrderId(null);
       } else {
-        const kotResult = await hybridAPI.generateKOT(order.id).catch(() => api.post(`/orders/${order.id}/kot`));
-        if (kotResult?.error) toast.error(kotResult.error);
-        else toast.success(`Items sent to Kitchen!`);
+        await api.post(`/orders/${order.id}/kot`);
+        toast.success(`Items sent to Kitchen!`);
         dispatch(clearCart());
         setTempOrderId(null);
       }
@@ -351,9 +350,8 @@ export default function POSPage() {
          });
       }
 
-      const kotR = await hybridAPI.generateKOT(orderId).catch(() => api.post(`/orders/${orderId}/kot`));
-      if (kotR?.error) toast.error(kotR.error);
-      else toast.success(`Punch Successful! Sent to Kitchen.`);
+      await api.post(`/orders/${orderId}/kot`);
+      toast.success(`Punch Successful! Sent to Kitchen.`);
       dispatch(clearCart());
       // We keep tempOrderId if it's a table order
     } catch (err) { toast.error(err.message); }
@@ -372,15 +370,8 @@ export default function POSPage() {
       return toast.error('No active order to bill. Please punch KOT first.');
 
     try {
-      let billData;
-      const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
-      if (IS_ELECTRON) {
-        const result = await hybridAPI.generateBill(orderId);
-        billData = result;
-      } else {
-        const res = await api.post(`/orders/${orderId}/bill`);
-        billData = res.data;
-      }
+      const res = await api.post(`/orders/${orderId}/bill`);
+      const billData = res.data?.data ?? res.data ?? res;
       setBilledOrder(billData);
       setIsBilled(true);
       setShowBillPreview(true);
@@ -496,16 +487,11 @@ export default function POSPage() {
       if (!orderId) {
         const order = await handleCreateOrderCore('created');
         orderId = order.id;
-        await hybridAPI.generateKOT(orderId).catch(() => api.post(`/orders/${orderId}/kot`).catch(() => {}));
+        await api.post(`/orders/${orderId}/kot`).catch(() => {});
       }
 
-      const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
       const payAmt = paymentMethod === 'part' ? Number(partPaymentAmount) : (billedOrder?.grand_total || cartTotals.total);
-      if (IS_ELECTRON) {
-        await hybridAPI.processPayment(orderId, { method: paymentMethod, amount: payAmt });
-      } else {
-        await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
-      }
+      await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
 
       toast.success(paymentMethod === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
       dispatch(clearCart());
