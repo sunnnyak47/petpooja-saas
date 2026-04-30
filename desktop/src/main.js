@@ -18,9 +18,8 @@ const {
   protocol,
 } = require('electron')
 
-// Register 'app://' as a privileged secure scheme BEFORE app.whenReady().
-// This gives it the same trust as https:// so the Web Speech API,
-// getUserMedia, and other secure-context APIs work from file-based builds.
+// Keep app:// registered as a privileged scheme — used as fallback if the
+// local HTTP server fails to start. Must be called before app.whenReady().
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
@@ -63,18 +62,81 @@ const store = new Store({
 let mainWindow = null
 let tray = null
 let isOnline = true
+let localServer = null        // HTTP server for production frontend serving
+let localServerPort = 0       // assigned at runtime
 
 const isDev = !app.isPackaged
 
 /**
- * In development: load from Vite dev server (port 3001).
- * In production: load from bundled frontend via app:// (secure custom protocol).
- * Using app:// instead of file:// gives the renderer a secure context so the
- * Web Speech API, getUserMedia, and other HTTPS-gated APIs work correctly.
+ * Start a local HTTP static file server to serve the bundled frontend.
+ *
+ * Why: webkitSpeechRecognition (Web Speech API) requires an http:// or https://
+ * origin.  Google's speech-recognition service rejects requests from the custom
+ * app:// scheme, producing a "network" error every time the mic is tapped.
+ * Serving from http://127.0.0.1:<port> fixes that and also makes getUserMedia,
+ * service workers, and other secure-context APIs behave identically to Chrome.
+ *
+ * Port 0 → OS picks a free ephemeral port; no hard-coded port conflicts.
  */
-const FRONTEND_URL = isDev
-  ? 'http://localhost:3001'
-  : 'app://index/index.html'
+function startLocalFrontendServer(frontendDir) {
+  return new Promise((resolve, reject) => {
+    const http = require('http')
+    const fs   = require('fs')
+
+    const MIME = {
+      '.html' : 'text/html; charset=utf-8',
+      '.js'   : 'application/javascript',
+      '.mjs'  : 'application/javascript',
+      '.css'  : 'text/css',
+      '.json' : 'application/json',
+      '.png'  : 'image/png',
+      '.jpg'  : 'image/jpeg',
+      '.jpeg' : 'image/jpeg',
+      '.svg'  : 'image/svg+xml',
+      '.ico'  : 'image/x-icon',
+      '.woff' : 'font/woff',
+      '.woff2': 'font/woff2',
+      '.ttf'  : 'font/ttf',
+      '.eot'  : 'application/vnd.ms-fontobject',
+      '.map'  : 'application/json',
+    }
+
+    localServer = http.createServer((req, res) => {
+      let urlPath = req.url.split('?')[0].split('#')[0]
+      if (urlPath === '/') urlPath = '/index.html'
+      urlPath = decodeURIComponent(urlPath)
+
+      const fullPath = path.join(frontendDir, urlPath)
+      const ext      = path.extname(fullPath).toLowerCase()
+
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' })
+        fs.createReadStream(fullPath).pipe(res)
+      } else {
+        // SPA fallback — any unknown path serves index.html so React Router works
+        const indexPath = path.join(frontendDir, 'index.html')
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        fs.createReadStream(indexPath).pipe(res)
+      }
+    })
+
+    localServer.on('error', (err) => {
+      console.error('[LocalServer] Failed to start:', err.message)
+      reject(err)
+    })
+
+    // Port 0 = OS assigns a random free port
+    localServer.listen(0, '127.0.0.1', () => {
+      localServerPort = localServer.address().port
+      console.log(`[LocalServer] Serving frontend at http://127.0.0.1:${localServerPort}`)
+      resolve(localServerPort)
+    })
+  })
+}
+
+// FRONTEND_URL is set after the local server starts (see app.whenReady below).
+// In dev it stays as the Vite dev-server URL.
+let FRONTEND_URL = isDev ? 'http://localhost:3001' : null
 
 /**
  * Allows renderer microphone access for Voice POS and exposes the native
@@ -130,6 +192,9 @@ function createWindow() {
     title: 'Petpooja ERP',
     icon: path.join(__dirname, '../assets/icon.png'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // Move traffic lights down so they sit centred in the 56px sidebar header
+    // and never overlap the brand text or nav items.
+    trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 18 } : undefined,
     backgroundColor: '#0f172a',
     webPreferences: {
       nodeIntegration: false,
@@ -1081,29 +1146,31 @@ function createAppMenu() {
 // ─────────────────────────────────────
 // APP LIFECYCLE
 // ─────────────────────────────────────
-app.whenReady().then(() => {
-  // Register app:// protocol to serve the bundled frontend files.
-  // This replaces file:// so the renderer is treated as a secure origin.
+app.whenReady().then(async () => {
+  // In production, start a local HTTP server to serve the bundled frontend.
+  // This gives the renderer an http://127.0.0.1 origin, which Google's
+  // Web Speech API accepts — fixing the "network" error in Voice POS.
   if (!isDev) {
-    protocol.registerFileProtocol('app', (request, callback) => {
-      const frontendDir = path.join(process.resourcesPath, 'frontend')
-      // Strip 'app://index/' prefix → relative file path
-      let filePath = request.url.replace('app://index/', '')
-      // Remove query strings / hash
-      filePath = filePath.split('?')[0].split('#')[0]
-      // Decode URI components (%20 etc.)
-      filePath = decodeURIComponent(filePath)
-
-      const fullPath = path.join(frontendDir, filePath)
-
-      // For SPA: if file doesn't exist (client-side route), serve index.html
-      const fs = require('fs')
-      if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
-        callback({ path: path.join(frontendDir, 'index.html') })
-      } else {
-        callback({ path: fullPath })
-      }
-    })
+    const frontendDir = path.join(process.resourcesPath, 'frontend')
+    try {
+      const port = await startLocalFrontendServer(frontendDir)
+      FRONTEND_URL = `http://127.0.0.1:${port}`
+    } catch (err) {
+      // Fallback to app:// if the local server fails for any reason
+      console.error('[LocalServer] Falling back to app:// protocol:', err.message)
+      FRONTEND_URL = 'app://index/index.html'
+      protocol.registerFileProtocol('app', (request, callback) => {
+        const fs = require('fs')
+        let filePath = request.url.replace('app://index/', '')
+        filePath = decodeURIComponent(filePath.split('?')[0].split('#')[0])
+        const fullPath = path.join(frontendDir, filePath)
+        if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+          callback({ path: path.join(frontendDir, 'index.html') })
+        } else {
+          callback({ path: fullPath })
+        }
+      })
+    }
   }
 
   setupMediaPermissions()
@@ -1138,6 +1205,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+// Clean up local HTTP server on exit
+app.on('before-quit', () => {
+  if (localServer) {
+    localServer.close(() => console.log('[LocalServer] Stopped'))
   }
 })
 

@@ -49,6 +49,28 @@ const posSlice = createSlice({
     setCart(state, action) {
       state.cart = action.payload;
     },
+    // ── individual field setters (were exported but never defined — fixed) ──
+    setCovers(state, action) {
+      state.covers = Math.max(1, Math.min(30, Number(action.payload) || 1));
+    },
+    setOrderNotes(state, action) {
+      state.orderNotes = action.payload;
+    },
+    setSelectedTable(state, action) {
+      state.selectedTable = action.payload;
+    },
+    setSelectedCustomer(state, action) {
+      state.selectedCustomer = action.payload;
+    },
+    setOrderType(state, action) {
+      state.orderType = action.payload;
+    },
+    setDiscount(state, action) {
+      state.discount = action.payload;
+    },
+    setCurrentOrder(state, action) {
+      state.currentOrder = action.payload;
+    },
     setPOSState(state, action) {
       const { cart, selectedTable, selectedCustomer, orderType, orderNotes, covers } = action.payload;
       if (cart !== undefined) state.cart = cart;

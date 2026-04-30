@@ -172,8 +172,20 @@ export default function POSPage() {
 
   const { data: customerResults } = useQuery({
     queryKey: ['customersSearch', outletId, customerSearchInput],
-    queryFn: () => api.get(`/customers/search?phone=${customerSearchInput}&outlet_id=${outletId}`).then((r) => r.data),
-    enabled: !!outletId && customerSearchInput.length > 2,
+    queryFn: async () => {
+      const q = customerSearchInput.trim();
+      // Exact 10-digit phone → use the fast /phone/:phone endpoint
+      if (/^\d{10}$/.test(q)) {
+        const res = await api.get(`/customers/phone/${q}`);
+        const c = res.data?.data ?? res.data;
+        return c ? [c] : [];
+      }
+      // Partial input → list endpoint with search param
+      const res = await api.get(`/customers?search=${encodeURIComponent(q)}&outlet_id=${outletId}&limit=10`);
+      return res.data?.data ?? res.data?.customers ?? res.data ?? [];
+    },
+    enabled: !!outletId && customerSearchInput.trim().length >= 3,
+    staleTime: 5000,
   });
 
   const createCustomerMutation = useMutation({

@@ -152,10 +152,23 @@ export default function DashboardLayout() {
           className={`${collapsed ? 'w-[64px]' : 'w-[220px]'} flex-shrink-0 flex flex-col border-r transition-all duration-200`}
           style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
         >
-          {/* Brand */}
-          <div className="h-14 flex items-center justify-between px-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          {/* Brand header
+              On macOS the traffic lights (⛔🟡🟢) sit at x:12 y:18 inside this
+              56px-tall strip. We make the whole strip a drag region so the window
+              can be moved by dragging the sidebar header, then push the brand
+              content 78px from the left so it never collides with the buttons.
+              On Windows/Linux there are no traffic lights so padding stays at 0.  */}
+          <div
+            className="h-14 flex items-center justify-between border-b flex-shrink-0"
+            style={{
+              borderColor: 'var(--border)',
+              WebkitAppRegion: 'drag',        // makes this strip draggable (macOS)
+              paddingLeft:  collapsed ? 0 : 'calc(env(titlebar-area-x, 0px) + 78px)',
+              paddingRight: 12,
+            }}
+          >
             {!collapsed ? (
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: 'var(--accent)' }}>M</div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold truncate leading-tight" style={{ color: 'var(--text-primary)' }}>MS-RM System</p>
@@ -163,12 +176,15 @@ export default function DashboardLayout() {
                 </div>
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm mx-auto" style={{ background: 'var(--accent)' }}>M</div>
+              /* collapsed: centre icon, push it right of traffic lights */
+              <div className="flex-1 flex justify-end" style={{ WebkitAppRegion: 'no-drag' }}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: 'var(--accent)' }}>M</div>
+              </div>
             )}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="p-1.5 rounded-lg transition-colors flex-shrink-0"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: 'var(--text-secondary)', WebkitAppRegion: 'no-drag' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
@@ -240,16 +256,16 @@ export default function DashboardLayout() {
         {/* ── Main ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
-          {/* Topbar */}
-          <header className="h-14 flex items-center justify-between px-6 border-b flex-shrink-0" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-            <div>
+          {/* Topbar — also a drag region so the window can be dragged from the top-right area */}
+          <header className="h-14 flex items-center justify-between px-6 border-b flex-shrink-0" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', WebkitAppRegion: 'drag' }}>
+            <div style={{ WebkitAppRegion: 'no-drag' }}>
               <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{outletName}</p>
               <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                 {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' }}>
               {pendingOrders.length > 0 && (
                 <button
                   onClick={() => navigate('/running-orders')}

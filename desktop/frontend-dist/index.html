@@ -5,11 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="MS-RM System — Professional Restaurant Management System for POS, Kitchen, and Business Operations" />
   <title>MS-RM System — Restaurant Management</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-D1V0wee2.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CsNvx6QR.css">
+  <!-- Fonts: load Google Fonts only in web/Vercel builds. Electron uses system fonts to avoid
+       blocking first paint when the app starts offline or with slow connectivity. -->
+  <script>
+    if (window.location.protocol !== 'app:' && window.location.protocol !== 'file:' && typeof window.electron === 'undefined') {
+      var l1 = document.createElement('link'); l1.rel='preconnect'; l1.href='https://fonts.googleapis.com'; document.head.appendChild(l1);
+      var l2 = document.createElement('link'); l2.rel='preconnect'; l2.href='https://fonts.gstatic.com'; l2.crossOrigin=''; document.head.appendChild(l2);
+      var l3 = document.createElement('link'); l3.rel='stylesheet'; l3.href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap'; document.head.appendChild(l3);
+    }
+  </script>
+  <style>
+    /* System font fallback for Electron — renders instantly without network */
+    :root { --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace; }
+    body { font-family: var(--font-sans); }
+  </style>
+  <script type="module" crossorigin src="/assets/index-CHJF57oc.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DIde08SF.css">
 </head>
 <body class="antialiased">
   <div id="root"></div>
