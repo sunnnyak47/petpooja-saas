@@ -537,37 +537,33 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
     finally { setApproving(false); }
   };
 
-  // Generate PDF then immediately download it
+  // Download a blob with auth header then save locally — never opens browser
+  const blobDownload = async (filename) => {
+    // interceptor returns response.data directly — for blobs that IS the blob
+    const blob = await api.get(`/purchase-orders/${poId}/download`, { responseType: 'blob' });
+    const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename || `PO-${po?.po_number || poId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Generate PDF on server then download as blob (one click, no browser popup)
   const generateAndDownloadPdf = async () => {
     setGeneratingPdf(true);
     try {
       toast('Generating PDF…', { icon: '⏳' });
       await api.post(`/purchase-orders/${poId}/pdf`);
-      // Trigger download right away
-      const downloadUrl = `${api.defaults.baseURL}/purchase-orders/${poId}/download`;
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.target = '_blank';
-      a.download = `PO-${po?.po_number || poId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      await blobDownload(`PO-${po?.po_number || poId}.pdf`);
       toast.success('PDF downloaded!');
       loadPO();
     } catch (e) {
+      console.error('PDF error', e);
       toast.error('Failed to generate PDF');
     } finally { setGeneratingPdf(false); }
-  };
-
-  const downloadPdf = () => {
-    const downloadUrl = `${api.defaults.baseURL}/purchase-orders/${poId}/download`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.target = '_blank';
-    a.download = `PO-${po?.po_number || poId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   const openWhatsApp = () => {
