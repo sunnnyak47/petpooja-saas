@@ -70,9 +70,9 @@ export default function PurchaseOrderPage() {
         api.get('/suppliers'),
         api.get('/presets'),
       ]);
-      setOrders(poRes.data?.data?.items ?? poRes.data?.data ?? []);
-      setSuppliers(supRes.data?.data ?? []);
-      setPresets(preRes.data?.data ?? []);
+      setOrders(poRes.data?.items ?? poRes.data ?? []);
+      setSuppliers(supRes.data ?? []);
+      setPresets(preRes.data ?? []);
     } catch (e) {
       toast.error('Failed to load data');
     } finally { setLoading(false); }
@@ -360,7 +360,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                   </thead>
                   <tbody>
                     {lineItems.map((item, i) => {
-                      const amt = parseFloat(item.quantity || 0) * parseFloat(item.unit_rate || 0);
+                      const amt = parseFloat(item.quantity || item.ordered_quantity || 0) * parseFloat(item.unit_rate || item.unit_cost || 0);
                       const tax = amt * (parseFloat(item.tax_rate || 0) / 100);
                       return (
                         <tr key={i} style={{ borderTop: `1px solid ${border}` }}>
@@ -515,7 +515,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
   const loadPO = useCallback(async () => {
     try {
       const res = await api.get(`/purchase-orders/${poId}`);
-      setPo(res.data?.data ?? res.data);
+      setPo(res.data ?? res);
     } catch (e) { toast.error('Failed to load PO'); }
     finally { setLoading(false); }
   }, [poId]);
@@ -551,7 +551,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
     setSending(true);
     try {
       const res = await api.post(`/purchase-orders/${poId}/whatsapp`, { phone: whatsappPhone });
-      const result = res.data?.data;
+      const result = res.data ?? res;
       if (result?.method === 'meta_api') {
         toast.success('WhatsApp message sent!');
       } else if (result?.wa_link) {
@@ -674,7 +674,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
                 </thead>
                 <tbody>
                   {items.map((item, i) => {
-                    const amt = parseFloat(item.quantity || 0) * parseFloat(item.unit_rate || 0);
+                    const amt = parseFloat(item.quantity || item.ordered_quantity || 0) * parseFloat(item.unit_rate || item.unit_cost || 0);
                     const tax = amt * (parseFloat(item.tax_rate || 0) / 100);
                     return (
                       <tr key={item.id || i} style={{ borderTop: `1px solid ${border}` }}>
@@ -682,8 +682,8 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
                         <td className="px-4 py-2 font-semibold">{item.item_name}</td>
                         <td className="px-4 py-2 text-xs font-mono" style={{ color: muted }}>{item.hsn_code || '—'}</td>
                         <td className="px-4 py-2 text-xs">{item.unit}</td>
-                        <td className="px-4 py-2">{item.quantity}</td>
-                        <td className="px-4 py-2">{fmt(item.unit_rate)}</td>
+                        <td className="px-4 py-2">{item.quantity ?? item.ordered_quantity}</td>
+                        <td className="px-4 py-2">{fmt(item.unit_rate ?? item.unit_cost)}</td>
                         <td className="px-4 py-2">{item.tax_rate}%</td>
                         <td className="px-4 py-2 font-semibold">{fmt(amt + tax)}</td>
                       </tr>

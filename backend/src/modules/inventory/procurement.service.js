@@ -87,7 +87,7 @@ function calcTotals(items) {
   let subtotal = 0, taxTotal = 0;
   for (const item of items) {
     const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-    const rate = Number(item.unit_cost ?? item.rate ?? 0);
+    const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
     const tax  = Number(item.tax_rate ?? 0);
     const line = qty * rate;
     subtotal  += line;
@@ -98,7 +98,7 @@ function calcTotals(items) {
 
 function buildPOItemData(item, poId) {
   const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-  const rate = Number(item.unit_cost ?? item.rate ?? 0);
+  const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
   const tax  = Number(item.tax_rate ?? 0);
   const lineSub = qty * rate;
   const lineTax = lineSub * tax / 100;
@@ -269,7 +269,7 @@ async function createPurchaseOrder(outletId, data, userId) {
       po_items: {
         create: data.items.map(item => {
           const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-          const rate = Number(item.unit_cost ?? item.rate ?? 0);
+          const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
           const tax  = Number(item.tax_rate ?? 0);
           const lineSub = qty * rate;
           const lineTax = lineSub * tax / 100;
