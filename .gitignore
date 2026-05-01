@@ -8,3 +8,7 @@ logs/
 uploads/
 
 scratch/
+
+# WhatsApp Web auth credentials (Baileys session files — never commit)
+wa-auth/
+backend/wa-auth/

@@ -216,6 +216,8 @@ app.use('/api/fraud',     fraudRoutes);
 app.use('/api/rostering', rosteringRoutes);
 const auIntegrationsRoutes = require('./modules/integrations/au-integrations.routes');
 app.use('/api/integrations/au', auIntegrationsRoutes);
+const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
+app.use('/api/whatsapp', whatsappRoutes);
 app.use('/mock', mockRoutes);
 app.use('/test', mockTestRoutes);
 

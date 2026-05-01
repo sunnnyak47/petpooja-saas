@@ -537,4 +537,21 @@ function getPdfUrl(filePath, baseUrl) {
 
 function buildPOHtml() { return ''; }
 
-module.exports = { generatePOPdf, streamPOPdf, getPdfUrl, buildPOHtml };
+/**
+ * Generate PDF entirely in memory and return a Buffer.
+ * No disk I/O — suitable for WhatsApp / email sends on ephemeral filesystems.
+ * @param {object} po - purchase order object (same shape as generatePOPdf expects)
+ * @returns {Promise<Buffer>}
+ */
+async function generatePOPdfBuffer(po) {
+  return new Promise((resolve, reject) => {
+    const doc    = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Purchase Order ${po.po_number}`, Author: 'MS-RM' } });
+    const chunks = [];
+    doc.on('data',  (chunk) => chunks.push(chunk));
+    doc.on('end',   ()      => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    _drawPO(doc, po);
+  });
+}
+
+module.exports = { generatePOPdf, streamPOPdf, getPdfUrl, buildPOHtml, generatePOPdfBuffer };
