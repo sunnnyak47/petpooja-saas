@@ -532,6 +532,17 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
 
   useEffect(() => { loadPO(); }, [loadPO]);
 
+  // ── WhatsApp status check — must be declared before useEffect that uses it ──
+  const checkWAStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/whatsapp/status');
+      const d = res.data ?? res;
+      setWaStatus(d.status);
+      setWaQR(d.qr_base64 || null);
+      return d.status;
+    } catch { return 'disconnected'; }
+  }, []);
+
   // Auto-poll WhatsApp status while setup modal is open
   useEffect(() => {
     if (!showWASetup) return;
@@ -575,16 +586,6 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
   };
 
   // ── WhatsApp direct-send helpers ───────────────────────────────
-  const checkWAStatus = useCallback(async () => {
-    try {
-      const res = await api.get('/whatsapp/status');
-      const d = res.data ?? res;
-      setWaStatus(d.status);
-      setWaQR(d.qr_base64 || null);
-      return d.status;
-    } catch { return 'disconnected'; }
-  }, []);
-
   const connectWA = async () => {
     setWaConnecting(true);
     setShowWASetup(true);
