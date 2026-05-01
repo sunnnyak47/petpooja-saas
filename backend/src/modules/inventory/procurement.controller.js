@@ -129,24 +129,25 @@ async function receivePurchaseOrder(req, res, next) {
 
 async function generatePdf(req, res, next) {
   try {
-    const { filePath, relativePath } = await procurementService.generateAndSavePdf(req.params.id);
-    const filename = path.basename(filePath);
-    sendSuccess(res, {
-      pdf_path: filePath,
-      download_url: relativePath,
-    }, 'PDF generated');
+    // Generate and stream PDF directly — never rely on stored file path
+    const po = await procurementService.getPurchaseOrder(req.params.id);
+    const { streamPOPdf } = require('./po-pdf.service');
+    const filename = `PO-${po.po_number}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await streamPOPdf(po, res);
   } catch (error) { next(error); }
 }
 
 async function downloadPdf(req, res, next) {
   try {
+    // Always generate fresh — Render's ephemeral FS means stored paths are unreliable
     const po = await procurementService.getPurchaseOrder(req.params.id);
-    let pdfPath = po.pdf_path;
-    if (!pdfPath) {
-      const r = await procurementService.generateAndSavePdf(req.params.id);
-      pdfPath = r.filePath;
-    }
-    res.download(pdfPath, `PO-${po.po_number}.pdf`);
+    const { streamPOPdf } = require('./po-pdf.service');
+    const filename = `PO-${po.po_number}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await streamPOPdf(po, res);
   } catch (error) { next(error); }
 }
 

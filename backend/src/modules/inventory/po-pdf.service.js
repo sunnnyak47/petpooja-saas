@@ -47,22 +47,12 @@ const STATUS_COLORS = {
  * @param {object} po - Full PO object (with supplier, outlet, po_items)
  * @returns {Promise<string>} Absolute file path of the generated PDF
  */
-async function generatePOPdf(po) {
-  ensureDir();
-  const filename = `${(po.po_number || 'PO').replace(/[^a-zA-Z0-9-]/g, '_')}_${Date.now()}.pdf`;
-  const filePath = path.join(UPLOADS_DIR, filename);
-
+/** Build and draw all PDF content onto a PDFDocument instance */
+function _drawPO(doc, po) {
   const outlet   = po.outlet   || {};
   const supplier = po.supplier || {};
   const items    = po.po_items || [];
   const sc       = STATUS_COLORS[po.status] || STATUS_COLORS.draft;
-
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Purchase Order ${po.po_number}` } });
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
-    stream.on('finish', () => resolve(filePath));
-    stream.on('error', reject);
 
     const W  = 595.28;  // A4 width in points
     const H  = 841.89;  // A4 height in points
@@ -309,8 +299,45 @@ async function generatePOPdf(po) {
     doc.fillColor(GRAY_300).font('Helvetica').fontSize(8)
        .text('Page 1 of 1', ML, y, { width: CW, align: 'right' });
 
-    doc.end();
-    logger.info('PO PDF generated (pdfkit)', { po_number: po.po_number, path: filePath });
+  doc.end();
+}
+
+/**
+ * Generate PDF, save to disk, return absolute file path.
+ * (Used by WhatsApp send which needs a public URL)
+ */
+async function generatePOPdf(po) {
+  ensureDir();
+  const filename = `${(po.po_number || 'PO').replace(/[^a-zA-Z0-9-]/g, '_')}_${Date.now()}.pdf`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Purchase Order ${po.po_number}` } });
+    const stream = fs.createWriteStream(filePath);
+    doc.pipe(stream);
+    stream.on('finish', () => {
+      logger.info('PO PDF generated (pdfkit)', { po_number: po.po_number, path: filePath });
+      resolve(filePath);
+    });
+    stream.on('error', reject);
+    _drawPO(doc, po);
+  });
+}
+
+/**
+ * Stream PDF directly to an HTTP response — no file saved, works on ephemeral filesystems.
+ * @param {object} po - Full PO object
+ * @param {object} res - Express response stream
+ */
+function streamPOPdf(po, res) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Purchase Order ${po.po_number}` } });
+    doc.pipe(res);
+    res.on('finish', () => {
+      logger.info('PO PDF streamed (pdfkit)', { po_number: po.po_number });
+      resolve();
+    });
+    res.on('error', reject);
+    _drawPO(doc, po);
   });
 }
 
@@ -327,4 +354,4 @@ function getPdfUrl(filePath, baseUrl) {
 // Kept for backward compat (no longer used but may be imported elsewhere)
 function buildPOHtml() { return ''; }
 
-module.exports = { generatePOPdf, getPdfUrl, buildPOHtml };
+module.exports = { generatePOPdf, streamPOPdf, getPdfUrl, buildPOHtml };
