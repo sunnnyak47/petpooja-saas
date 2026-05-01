@@ -4,7 +4,8 @@
  * @module modules/inventory/po-pdf.service
  */
 
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium  = require('@sparticuz/chromium');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../../config/logger');
@@ -370,15 +371,41 @@ async function generatePOPdf(po) {
   const filename = `${po.po_number.replace(/[^a-zA-Z0-9-]/g, '_')}_${Date.now()}.pdf`;
   const filePath = path.join(UPLOADS_DIR, filename);
 
+  // @sparticuz/chromium is Linux-only (Render/cloud). On macOS/Windows, use local Chrome.
+  const isLinux = process.platform === 'linux';
+
+  let executablePath;
+  let launchArgs;
+  let headless;
+
+  if (isLinux) {
+    executablePath = await chromium.executablePath();
+    launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
+    headless = chromium.headless ?? true;
+  } else {
+    // macOS/Windows — use system Chrome or Chromium
+    const possiblePaths = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      process.env.CHROMIUM_PATH,
+    ].filter(Boolean);
+    executablePath = possiblePaths.find(p => fs.existsSync(p));
+    launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
+    headless = true;
+  }
+
+  if (!executablePath) throw new Error('No Chrome/Chromium executable found. Set CHROMIUM_PATH env var or install Google Chrome.');
+
   const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless,
+    executablePath,
+    args: launchArgs,
   });
 
   try {
     const page = await browser.newPage();
     const html = buildPOHtml(po);
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
     await page.pdf({
       path: filePath,
       format: 'A4',
