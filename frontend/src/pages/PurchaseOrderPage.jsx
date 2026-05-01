@@ -537,32 +537,25 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
     finally { setApproving(false); }
   };
 
-  // Download a blob with auth header then save locally — never opens browser
-  const blobDownload = async (filename) => {
-    // interceptor returns response.data directly — for blobs that IS the blob
-    const blob = await api.get(`/purchase-orders/${poId}/download`, { responseType: 'blob' });
-    const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename || `PO-${po?.po_number || poId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Generate PDF on server then download as blob (one click, no browser popup)
+  // Fetch PDF as authenticated blob and trigger save-file dialog
   const generateAndDownloadPdf = async () => {
     setGeneratingPdf(true);
     try {
       toast('Generating PDF…', { icon: '⏳' });
-      await api.post(`/purchase-orders/${poId}/pdf`);
-      await blobDownload(`PO-${po?.po_number || poId}.pdf`);
+      // GET /download streams the PDF directly — interceptor returns raw blob
+      const blob = await api.get(`/purchase-orders/${poId}/download`, { responseType: 'blob' });
+      const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `PO-${po?.po_number || poId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success('PDF downloaded!');
-      loadPO();
     } catch (e) {
       console.error('PDF error', e);
-      toast.error('Failed to generate PDF');
+      toast.error('Failed to download PDF');
     } finally { setGeneratingPdf(false); }
   };
 
