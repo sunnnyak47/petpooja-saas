@@ -532,6 +532,16 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
 
   useEffect(() => { loadPO(); }, [loadPO]);
 
+  // Auto-poll WhatsApp status while setup modal is open
+  useEffect(() => {
+    if (!showWASetup) return;
+    const iv = setInterval(async () => {
+      const status = await checkWAStatus();
+      if (status === 'connected') clearInterval(iv);
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [showWASetup, checkWAStatus]);
+
   const approvePO = async () => {
     setApproving(true);
     try {
@@ -846,7 +856,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
                   Open WhatsApp → Linked Devices → Link a Device → Scan QR
                 </p>
                 <div className="flex justify-center mb-4">
-                  <img src={`data:image/png;base64,${waQR}`} alt="WhatsApp QR"
+                  <img src={waQR} alt="WhatsApp QR"
                     style={{ width: 220, height: 220, borderRadius: 12, border: `4px solid #25d366` }} />
                 </div>
                 <p className="text-xs animate-pulse" style={{ color: '#25d366' }}>⏳ Waiting for scan…</p>
