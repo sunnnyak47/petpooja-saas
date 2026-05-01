@@ -227,8 +227,10 @@ async function listPurchaseOrders(outletId, query = {}) {
 
 async function getPurchaseOrder(id, outletId) {
   const prisma = getDbClient();
+  const where = { id, is_deleted: false };
+  if (outletId) where.outlet_id = outletId;
   const po = await prisma.purchaseOrder.findFirst({
-    where: { id, outlet_id: outletId, is_deleted: false },
+    where,
     include: {
       supplier: true,
       outlet: {
@@ -332,19 +334,22 @@ async function updatePurchaseOrder(id, outletId, data) {
   });
 }
 
-async function approvePurchaseOrder(id, outletId, userId) {
+async function approvePurchaseOrder(id, userId) {
   const prisma = getDbClient();
-  const po = await prisma.purchaseOrder.findFirst({ where: { id, outlet_id: outletId, is_deleted: false } });
+  const po = await prisma.purchaseOrder.findFirst({ where: { id, is_deleted: false } });
   if (!po) throw new NotFoundError('Purchase Order not found');
   return prisma.purchaseOrder.update({
     where: { id },
     data: { status: 'approved', approved_at: new Date(), approved_by: userId },
+    include: { supplier: true, po_items: { where: { is_deleted: false } } },
   });
 }
 
 async function deletePurchaseOrder(id, outletId) {
   const prisma = getDbClient();
-  const po = await prisma.purchaseOrder.findFirst({ where: { id, outlet_id: outletId, is_deleted: false } });
+  const where = { id, is_deleted: false };
+  if (outletId) where.outlet_id = outletId;
+  const po = await prisma.purchaseOrder.findFirst({ where });
   if (!po) throw new NotFoundError('Purchase Order not found');
   if (po.status === 'received') throw new BadRequestError('Cannot delete a received PO');
   return prisma.purchaseOrder.update({ where: { id }, data: { is_deleted: true } });

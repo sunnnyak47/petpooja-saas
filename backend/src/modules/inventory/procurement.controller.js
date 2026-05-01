@@ -129,13 +129,11 @@ async function receivePurchaseOrder(req, res, next) {
 
 async function generatePdf(req, res, next) {
   try {
-    const po = await procurementService.getPurchaseOrder(req.params.id);
-    const pdfPath = await procurementService.generateAndSavePdf(po);
-    // Return file path and download URL
-    const filename = path.basename(pdfPath);
+    const { filePath, relativePath } = await procurementService.generateAndSavePdf(req.params.id);
+    const filename = path.basename(filePath);
     sendSuccess(res, {
-      pdf_path: pdfPath,
-      download_url: `/uploads/purchase-orders/${filename}`,
+      pdf_path: filePath,
+      download_url: relativePath,
     }, 'PDF generated');
   } catch (error) { next(error); }
 }
@@ -145,7 +143,8 @@ async function downloadPdf(req, res, next) {
     const po = await procurementService.getPurchaseOrder(req.params.id);
     let pdfPath = po.pdf_path;
     if (!pdfPath) {
-      pdfPath = await procurementService.generateAndSavePdf(po);
+      const r = await procurementService.generateAndSavePdf(req.params.id);
+      pdfPath = r.filePath;
     }
     res.download(pdfPath, `PO-${po.po_number}.pdf`);
   } catch (error) { next(error); }
@@ -155,8 +154,7 @@ async function sendWhatsApp(req, res, next) {
   try {
     const { phone, outlet_id } = req.body;
     const outletId = outlet_id || req.user.outlet_id;
-    const po = await procurementService.getPurchaseOrder(req.params.id);
-    const result = await procurementService.sendPOWhatsApp(po, phone, outletId);
+    const result = await procurementService.sendPOWhatsApp(req.params.id, outletId, phone);
     sendSuccess(res, result, result.method === 'meta_api' ? 'WhatsApp message sent' : 'WhatsApp link generated');
   } catch (error) { next(error); }
 }
