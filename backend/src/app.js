@@ -194,9 +194,8 @@ app.use('/api/online-orders', onlineOrderRoutes);
 const procurementRoutes = require('./modules/inventory/procurement.routes');
 
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/purchase-orders', require('./modules/inventory/procurement.routes'));
-// TODO: create supplier.routes.js; for now /api/suppliers is omitted to avoid duplicate-router baseUrl bug
-// app.use('/api/suppliers', require('./modules/inventory/supplier.routes'));
+// Procurement routes handle: /api/purchase-orders/*, /api/suppliers/*, /api/presets/*
+app.use('/api', require('./modules/inventory/procurement.routes'));
 app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/reports', reportsRoutes);

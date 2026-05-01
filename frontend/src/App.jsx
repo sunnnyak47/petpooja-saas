@@ -13,6 +13,7 @@ import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
+import PurchaseOrderPage from './pages/PurchaseOrderPage';
 import CentralKitchenPage from './pages/CentralKitchenPage';
 import CRMPage from './pages/CRMPage';
 import ONDCPage from './pages/ONDCPage';
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="purchase-orders" element={<PurchaseOrderPage />} />
         <Route path="central-kitchen" element={<CentralKitchenPage />} />
         <Route path="crm" element={<CRMPage />} />
         <Route path="ondc" element={<ONDCPage />} />
