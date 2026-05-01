@@ -174,7 +174,7 @@ export default function PurchaseOrderPage() {
                     <td className="px-4 py-3" style={{ color: muted }}>
                       {po.order_date ? new Date(po.order_date).toLocaleDateString('en-IN') : '—'}
                     </td>
-                    <td className="px-4 py-3">{po.po_items?.length ?? 0} items</td>
+                    <td className="px-4 py-3">{po._count?.po_items ?? po.po_items?.length ?? 0} items</td>
                     <td className="px-4 py-3 font-semibold">{fmt(po.grand_total)}</td>
                     <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                     <td className="px-4 py-3">
@@ -515,7 +515,12 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
   const loadPO = useCallback(async () => {
     try {
       const res = await api.get(`/purchase-orders/${poId}`);
-      setPo(res.data ?? res);
+      const loaded = res.data ?? res;
+      setPo(loaded);
+      // Pre-fill WhatsApp phone from supplier
+      if (loaded?.supplier?.phone) {
+        setWhatsappPhone(loaded.supplier.phone);
+      }
     } catch (e) { toast.error('Failed to load PO'); }
     finally { setLoading(false); }
   }, [poId]);
@@ -532,34 +537,67 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
     finally { setApproving(false); }
   };
 
-  const generatePdf = async () => {
+  // Generate PDF then immediately download it
+  const generateAndDownloadPdf = async () => {
     setGeneratingPdf(true);
     try {
+      toast('Generating PDF…', { icon: '⏳' });
       await api.post(`/purchase-orders/${poId}/pdf`);
-      toast.success('PDF generated!');
+      // Trigger download right away
+      const downloadUrl = `${api.defaults.baseURL}/purchase-orders/${poId}/download`;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.target = '_blank';
+      a.download = `PO-${po?.po_number || poId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success('PDF downloaded!');
       loadPO();
-    } catch (e) { toast.error('Failed to generate PDF'); }
-    finally { setGeneratingPdf(false); }
+    } catch (e) {
+      toast.error('Failed to generate PDF');
+    } finally { setGeneratingPdf(false); }
   };
 
   const downloadPdf = () => {
-    window.open(`${api.defaults.baseURL}/purchase-orders/${poId}/download`, '_blank');
+    const downloadUrl = `${api.defaults.baseURL}/purchase-orders/${poId}/download`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.target = '_blank';
+    a.download = `PO-${po?.po_number || poId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const openWhatsApp = () => {
+    // Pre-fill from supplier phone if available
+    if (po?.supplier?.phone && !whatsappPhone) {
+      setWhatsappPhone(po.supplier.phone);
+    }
+    setShowWA(true);
   };
 
   const sendWhatsApp = async () => {
     if (!whatsappPhone.trim()) { toast.error('Enter phone number'); return; }
     setSending(true);
     try {
+      toast('Preparing WhatsApp…', { icon: '📤' });
       const res = await api.post(`/purchase-orders/${poId}/whatsapp`, { phone: whatsappPhone });
       const result = res.data ?? res;
-      if (result?.method === 'meta_api') {
+      if (result?.method === 'meta_api' || result?.status === 'sent') {
         toast.success('WhatsApp message sent!');
+        setShowWA(false);
       } else if (result?.wa_link) {
+        // Open wa.me link — works on both desktop (WhatsApp Web) and phone (app)
         window.open(result.wa_link, '_blank');
-        toast.success('Opening WhatsApp...');
+        toast.success('WhatsApp opened — review and tap Send');
+        setShowWA(false);
+      } else {
+        toast.error('No WhatsApp link returned');
       }
-      setShowWA(false);
-    } catch (e) { toast.error('Failed to send WhatsApp'); }
+      loadPO();
+    } catch (e) { toast.error('Failed to send via WhatsApp'); }
     finally { setSending(false); }
   };
 
@@ -603,20 +641,17 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <CheckCircle size={16} /> {approving ? 'Approving...' : 'Approve'}
             </button>
           )}
-          <button onClick={generatePdf} disabled={generatingPdf}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: card, border: `1px solid ${border}`, color: text }}>
-            <FileText size={16} /> {generatingPdf ? 'Generating...' : 'Generate PDF'}
+          {/* PDF: one button — generates & downloads in one shot */}
+          <button onClick={generateAndDownloadPdf} disabled={generatingPdf}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity"
+            style={{ background: '#4f46e5', color: '#fff', opacity: generatingPdf ? 0.7 : 1 }}>
+            {generatingPdf
+              ? <><span className="animate-spin">⏳</span> Generating…</>
+              : <><FileText size={16} /> Download PDF</>}
           </button>
-          {po.pdf_path && (
-            <button onClick={downloadPdf}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: card, border: `1px solid ${border}`, color: text }}>
-              <Download size={16} /> Download PDF
-            </button>
-          )}
-          <button onClick={() => setShowWA(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-semibold"
+          {/* WhatsApp: one click, phone pre-filled from supplier */}
+          <button onClick={openWhatsApp}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold"
             style={{ background: '#25d366' }}>
             <MessageSquare size={16} /> WhatsApp
           </button>
@@ -739,36 +774,71 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
 
       {/* WhatsApp Modal */}
       {showWA && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: '#00000088' }}>
-          <div style={{ background: card, border: `1px solid ${border}`, color: text, width: 360 }}
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: '#00000099' }}>
+          <div style={{ background: card, border: `1px solid ${border}`, color: text, width: 400 }}
             className="rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold flex items-center gap-2">
-                <MessageSquare size={18} style={{ color: '#25d366' }} /> Send via WhatsApp
+            {/* Header */}
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <span style={{ background: '#25d366', borderRadius: 8, padding: '4px 8px' }}>
+                  <MessageSquare size={16} color="#fff" />
+                </span>
+                Send PO via WhatsApp
               </h3>
-              <button onClick={() => setShowWA(false)}><X size={18} /></button>
+              <button onClick={() => setShowWA(false)} style={{ color: muted }}><X size={18} /></button>
             </div>
-            <p style={{ color: muted }} className="text-sm mb-4">
-              Enter the supplier's WhatsApp number to send PO PDF
+            <p style={{ color: muted }} className="text-xs mb-4">
+              The PDF invoice will be generated and sent to the supplier.
             </p>
-            <input
-              value={whatsappPhone}
-              onChange={e => setWhatsappPhone(e.target.value)}
-              placeholder="+919876543210"
-              className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-4"
-              style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}`, color: text }}
-            />
+
+            {/* PO Preview */}
+            <div className="rounded-xl p-3 mb-4 text-sm" style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}` }}>
+              <div className="flex justify-between mb-1">
+                <span style={{ color: muted }}>PO Number</span>
+                <span className="font-mono font-semibold" style={{ color: '#4f46e5' }}>{po.po_number}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span style={{ color: muted }}>Supplier</span>
+                <span className="font-semibold">{po.supplier?.name || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: muted }}>Grand Total</span>
+                <span className="font-bold" style={{ color: '#16a34a' }}>₹{Number(po.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            {/* Phone input */}
+            <label className="text-xs font-semibold mb-1 block" style={{ color: muted }}>
+              SUPPLIER WHATSAPP NUMBER
+            </label>
+            <div className="flex gap-2 mb-5">
+              <input
+                value={whatsappPhone}
+                onChange={e => setWhatsappPhone(e.target.value)}
+                placeholder="+919876543210"
+                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: isDark ? '#0f172a' : '#f1f5f9', border: `1px solid ${border}`, color: text }}
+                onKeyDown={e => e.key === 'Enter' && sendWhatsApp()}
+              />
+            </div>
+
+            {/* Actions */}
             <div className="flex gap-3">
-              <button onClick={() => setShowWA(false)} className="flex-1 py-2 rounded-lg text-sm"
-                style={{ background: isDark ? '#0f172a' : '#f1f5f9', color: muted }}>
+              <button onClick={() => setShowWA(false)} className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{ background: isDark ? '#1e293b' : '#f1f5f9', color: muted }}>
                 Cancel
               </button>
               <button onClick={sendWhatsApp} disabled={sending}
-                className="flex-1 py-2 rounded-lg text-white text-sm font-semibold"
-                style={{ background: sending ? '#94a3b8' : '#25d366' }}>
-                {sending ? 'Sending...' : 'Send'}
+                className="flex-1 py-2.5 rounded-lg text-white text-sm font-bold flex items-center justify-center gap-2 transition-opacity"
+                style={{ background: sending ? '#94a3b8' : '#25d366', opacity: sending ? 0.8 : 1 }}>
+                {sending
+                  ? <><span className="animate-spin">⏳</span> Sending…</>
+                  : <><MessageSquare size={15} /> Send Invoice</>}
               </button>
             </div>
+            <p className="text-xs mt-3 text-center" style={{ color: muted }}>
+              No WhatsApp Business API? We'll open WhatsApp Web / App for you.
+            </p>
           </div>
         </div>
       )}
