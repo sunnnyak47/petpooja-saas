@@ -269,20 +269,20 @@ export default function InventoryPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">Inventory Management</h1>
-          <p className="text-surface-500 text-sm">Track stock, manage recipes, auto-reorder from vendors</p>
+          <h1 className="page-title">Inventory Management</h1>
+          <p className="page-subtitle">Track stock, manage recipes, auto-reorder from vendors</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setWastageModal(true)} className="btn-surface text-red-400 border-red-400/20 hover:bg-red-400/10 gap-1.5">
+          <button onClick={() => setWastageModal(true)} className="btn-secondary gap-1.5">
             <AlertTriangle className="w-4 h-4" /> Log Wastage
           </button>
-          <button onClick={() => setPOModal(true)} className="btn-surface gap-1.5">
+          <button onClick={() => setPOModal(true)} className="btn-secondary gap-1.5">
             <Truck className="w-4 h-4" /> Create PO
           </button>
           <button
             onClick={() => autoOrderMut.mutate()}
             disabled={autoOrderMut.isPending}
-            className="btn-surface text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 gap-1.5"
+            className="btn-secondary gap-1.5"
             title="Check all auto-order enabled items and create POs for those below threshold"
           >
             <Zap className="w-4 h-4" /> {autoOrderMut.isPending ? 'Checking…' : 'Run Auto-Order'}

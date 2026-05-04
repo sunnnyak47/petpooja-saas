@@ -42,10 +42,41 @@ function errorHandler(err, req, res, _next) {
         path: req.originalUrl,
       });
     }
+  } else if (err.constructor?.name?.startsWith('Prisma') || (typeof err.code === 'string' && err.code.startsWith('P'))) {
+    // Prisma known errors
+    if (err.code === 'P2002') {
+      statusCode = 409;
+      message = `A record with this ${err.meta?.target?.join(', ') || 'value'} already exists`;
+      logger.warn(`Duplicate record: ${message}`, { path: req.originalUrl });
+    } else if (err.code === 'P2025') {
+      statusCode = 404;
+      message = err.meta?.cause || 'Record not found';
+      logger.warn(`Not found: ${message}`, { path: req.originalUrl });
+    } else if (err.code === 'P2003') {
+      statusCode = 400;
+      message = 'Referenced record does not exist';
+      logger.warn(`FK violation: ${message}`, { path: req.originalUrl });
+    } else if (err.code === 'P1001' || err.code === 'P1002') {
+      statusCode = 503;
+      message = 'Database temporarily unavailable. Please retry.';
+      logger.error(`DB unavailable: ${err.code}`, { path: req.originalUrl });
+    } else {
+      logger.error(`Unhandled Prisma error ${err.code}: ${err.message}`, {
+        stack: err.stack, path: req.originalUrl,
+      });
+    }
   } else if (err.name === 'SyntaxError' && err.status === 400) {
     statusCode = 400;
     message = 'Invalid JSON in request body';
     logger.warn('Malformed JSON received', { path: req.originalUrl, ip: req.ip });
+  } else if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid token';
+    logger.warn('Invalid JWT', { path: req.originalUrl });
+  } else if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Token has expired';
+    logger.warn('Expired JWT', { path: req.originalUrl });
   } else if (err.code === 'LIMIT_FILE_SIZE') {
     statusCode = 400;
     message = 'File too large. Maximum size is 10MB';

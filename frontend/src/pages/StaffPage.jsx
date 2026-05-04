@@ -68,17 +68,17 @@ function OTPClockModal({ isOpen, onClose, outletId }) {
           </p>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { val: 'clock_in', label: 'Clock In', icon: LogIn, bg: 'bg-emerald-500' },
-              { val: 'clock_out', label: 'Clock Out', icon: LogOut, bg: 'bg-orange-500' },
-            ].map(({ val, label, icon: Icon, bg }) => (
+              { val: 'clock_in', label: 'Clock In', icon: LogIn },
+              { val: 'clock_out', label: 'Clock Out', icon: LogOut },
+            ].map(({ val, label, icon: Icon }) => (
               <button key={val} onClick={() => setAction(val)}
                 className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
                 style={{
                   borderColor: action === val ? 'var(--accent)' : 'var(--border)',
                   background: action === val ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-hover)'
                 }}>
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
-                  <Icon className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: action === val ? 'var(--accent)' : 'var(--bg-secondary)' }}>
+                  <Icon className="w-5 h-5" style={{ color: action === val ? '#fff' : 'var(--text-secondary)' }} />
                 </div>
                 <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{label}</span>
               </button>
@@ -288,7 +288,7 @@ function AttendanceTab({ outletId }) {
                   </div>
                   {s.overtime_hours > 0 && (
                     <div>
-                      <p className="text-sm font-bold text-amber-600">{(s.overtime_hours ?? 0).toFixed(1)}h OT</p>
+                      <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>{(s.overtime_hours ?? 0).toFixed(1)}h OT</p>
                     </div>
                   )}
                   <span style={{ color: 'var(--text-secondary)' }}>{expanded === s.user_id ? '▲' : '▼'}</span>
@@ -309,12 +309,12 @@ function AttendanceTab({ outletId }) {
                         <tr key={i} className="border-t" style={{ borderColor: 'var(--border)' }}>
                           <td className="px-3 py-2" style={{ color: 'var(--text-primary)' }}>{fmtDate(log.clock_in)}</td>
                           <td className="px-3 py-2" style={{ color: 'var(--text-secondary)' }}>{log.shift}</td>
-                          <td className="px-3 py-2 font-medium text-emerald-600">{fmtTime(log.clock_in)}</td>
-                          <td className="px-3 py-2 font-medium text-orange-600">{fmtTime(log.clock_out)}</td>
+                          <td className="px-3 py-2 font-medium" style={{ color: 'var(--success)' }}>{fmtTime(log.clock_in)}</td>
+                          <td className="px-3 py-2 font-medium" style={{ color: 'var(--text-secondary)' }}>{fmtTime(log.clock_out)}</td>
                           <td className="px-3 py-2 font-semibold" style={{ color: 'var(--text-primary)' }}>{(log.hours ?? 0).toFixed(1)}</td>
                           <td className="px-3 py-2">
                             {log.overtime > 0
-                              ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">+{(log.overtime ?? 0).toFixed(1)}h</span>
+                              ? <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: 'color-mix(in srgb, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>+{(log.overtime ?? 0).toFixed(1)}h</span>
                               : '—'}
                           </td>
                         </tr>
@@ -419,15 +419,15 @@ function SalaryTab({ outletId }) {
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{r.present_days}/{r.working_days}</td>
                   <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{parseFloat(r.total_hours).toFixed(1)}</td>
-                  <td className="px-3 py-2.5 text-amber-600 font-medium">{parseFloat(r.overtime_hours).toFixed(1)}</td>
+                  <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--warning)' }}>{parseFloat(r.overtime_hours).toFixed(1)}</td>
                   <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.basic_salary)}</td>
-                  <td className="px-3 py-2.5 text-blue-600">{fmtCurrency(r.overtime_pay)}</td>
-                  <td className="px-3 py-2.5 text-emerald-600">{fmtCurrency(r.bonus)}</td>
+                  <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.overtime_pay)}</td>
+                  <td className="px-3 py-2.5" style={{ color: 'var(--success)' }}>{fmtCurrency(r.bonus)}</td>
                   <td className="px-3 py-2.5 font-bold" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.net_salary)}</td>
                   <td className="px-3 py-2.5">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                      r.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      r.status === 'paid' ? 'badge-success' :
+                      'badge-warning'}`}>
                       {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                     </span>
                   </td>
@@ -513,11 +513,11 @@ export default function StaffPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => clockSelf.mutate('in')} disabled={clockSelf.isPending}
-            className="btn-success flex items-center gap-2">
+            className="btn-secondary flex items-center gap-2">
             <LogIn className="w-4 h-4" /> Clock In
           </button>
           <button onClick={() => clockSelf.mutate('out')} disabled={clockSelf.isPending}
-            className="btn-warning flex items-center gap-2">
+            className="btn-secondary flex items-center gap-2">
             <LogOut className="w-4 h-4" /> Clock Out
           </button>
           <button onClick={() => setShowOTP(true)} className="btn-secondary flex items-center gap-2">

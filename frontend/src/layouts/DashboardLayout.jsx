@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
 import { logout } from '../store/slices/authSlice';
@@ -10,7 +10,7 @@ import {
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
-  CalendarDays, Link2, ShoppingBag, Timer,
+  CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -65,8 +65,13 @@ const ownerNav = [
 export default function DashboardLayout() {
   const { toggleTheme, isDark } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Close mobile sidebar on route change
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [audioLocked, setAudioLocked] = useState(true);
   const [updateProgress, setUpdateProgress] = useState(null);
@@ -119,7 +124,7 @@ export default function DashboardLayout() {
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
   const navItems   = user?.role === 'super_admin' ? superAdminNav : ownerNav;
-  const showWizard = user?.role === 'owner' && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
+  const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
   const outletName = user?.outlet?.name || 'MS-RM System';
 
   return (
@@ -150,9 +155,22 @@ export default function DashboardLayout() {
       <div className="flex flex-1 overflow-hidden">
         {showWizard && <OwnerWizard headOffice={user.head_office} />}
 
+        {/* ── Mobile backdrop ── */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
         {/* ── Sidebar ── */}
         <aside
-          className={`${collapsed ? 'w-[64px]' : 'w-[220px]'} flex-shrink-0 flex flex-col border-r transition-all duration-200`}
+          className={`
+            ${collapsed ? 'w-[64px]' : 'w-[220px]'}
+            flex-shrink-0 flex flex-col border-r transition-all duration-200
+            fixed md:relative inset-y-0 left-0 z-50
+            ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
           style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
         >
           {/* Brand header
@@ -184,14 +202,23 @@ export default function DashboardLayout() {
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: 'var(--accent)' }}>M</div>
               </div>
             )}
+            {/* Desktop collapse toggle */}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="hidden md:flex p-1.5 rounded-lg transition-colors flex-shrink-0"
               style={{ color: 'var(--text-secondary)', WebkitAppRegion: 'no-drag' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <ChevronLeft className={`w-3.5 h-3.5 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`} />
+            </button>
+            {/* Mobile close */}
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="md:hidden p-1.5 rounded-lg transition-colors flex-shrink-0"
+              style={{ color: 'var(--text-secondary)', WebkitAppRegion: 'no-drag' }}
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -260,12 +287,22 @@ export default function DashboardLayout() {
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Topbar — also a drag region so the window can be dragged from the top-right area */}
-          <header className="h-14 flex items-center justify-between px-6 border-b flex-shrink-0" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', WebkitAppRegion: 'drag' }}>
-            <div style={{ WebkitAppRegion: 'no-drag' }}>
-              <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{outletName}</p>
-              <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
-              </p>
+          <header className="h-14 flex items-center justify-between px-4 md:px-6 border-b flex-shrink-0" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', WebkitAppRegion: 'drag' }}>
+            <div className="flex items-center gap-3" style={{ WebkitAppRegion: 'no-drag' }}>
+              {/* Hamburger — mobile only */}
+              <button
+                onClick={() => setMobileOpen(true)}
+                className="md:hidden p-2 rounded-lg transition-colors"
+                style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}
+              >
+                <MenuIcon className="w-4 h-4" />
+              </button>
+              <div>
+                <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{outletName}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' }}>

@@ -89,9 +89,9 @@ export default function useOfflineSync() {
 
       // Browser queue flush
       const cached = localStorage.getItem('pp_offline_queue');
-      if (!cached) return;
+      if (!cached) { setSyncMessage(''); return; }
       const queue = JSON.parse(cached);
-      if (queue.length === 0) return;
+      if (queue.length === 0) { setSyncMessage(''); return; }
 
       const failed = [];
       for (const action of queue) {
@@ -115,10 +115,16 @@ export default function useOfflineSync() {
       localStorage.setItem('pp_offline_queue', JSON.stringify(failed));
       setPendingActions(failed.length);
       setLastSyncTime(new Date().toISOString());
-      setSyncMessage(failed.length === 0 ? 'All synced ✓' : `${failed.length} failed`);
+      if (failed.length === 0) {
+        setSyncMessage('All synced ✓');
+        setTimeout(() => setSyncMessage(''), 2000);
+      } else {
+        setSyncMessage(`${failed.length} failed`);
+      }
     } catch (e) {
       console.error('Sync failed:', e);
       setSyncMessage('Sync failed');
+      setTimeout(() => setSyncMessage(''), 3000);
     } finally {
       setIsSyncing(false);
     }

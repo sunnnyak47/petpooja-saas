@@ -15,17 +15,17 @@ import {
 
 /* ─── stations ─── */
 const STATIONS = [
-  { id: 'ALL',     label: 'All',     icon: Eye,      color: '#818cf8' },
-  { id: 'KITCHEN', label: 'Kitchen', icon: Utensils, color: '#f97316' },
-  { id: 'BAR',     label: 'Bar',     icon: Coffee,   color: '#a855f7' },
-  { id: 'DESSERT', label: 'Dessert', icon: IceCream, color: '#ec4899' },
-  { id: 'PACKING', label: 'Packing', icon: Package,  color: '#14b8a6' },
+  { id: 'ALL',     label: 'All',     icon: Eye      },
+  { id: 'KITCHEN', label: 'Kitchen', icon: Utensils },
+  { id: 'BAR',     label: 'Bar',     icon: Coffee   },
+  { id: 'DESSERT', label: 'Dessert', icon: IceCream },
+  { id: 'PACKING', label: 'Packing', icon: Package  },
 ];
 
 const COLUMNS = [
-  { status: 'pending',   label: 'NEW',     emoji: '🆕', accent: '#6366f1', darkBg: 'rgba(99,102,241,0.10)',   lightBg: 'rgba(99,102,241,0.07)',  border: 'rgba(99,102,241,0.25)' },
-  { status: 'preparing', label: 'COOKING', emoji: '🔥', accent: '#f97316', darkBg: 'rgba(249,115,22,0.10)',  lightBg: 'rgba(249,115,22,0.07)', border: 'rgba(249,115,22,0.25)'  },
-  { status: 'ready',     label: 'READY',   emoji: '✅', accent: '#22c55e', darkBg: 'rgba(34,197,94,0.10)',   lightBg: 'rgba(34,197,94,0.07)',  border: 'rgba(34,197,94,0.25)'   },
+  { status: 'pending',   label: 'NEW',     emoji: '🆕', accent: 'var(--accent)',   accentHex: '#6366f1', darkBg: 'rgba(99,102,241,0.10)',   lightBg: 'rgba(99,102,241,0.05)',  border: 'rgba(99,102,241,0.2)' },
+  { status: 'preparing', label: 'COOKING', emoji: '🔥', accent: 'var(--warning)',  accentHex: '#f97316', darkBg: 'rgba(249,115,22,0.10)',   lightBg: 'rgba(249,115,22,0.05)', border: 'rgba(249,115,22,0.2)'  },
+  { status: 'ready',     label: 'READY',   emoji: '✅', accent: 'var(--success)',  accentHex: '#22c55e', darkBg: 'rgba(34,197,94,0.10)',    lightBg: 'rgba(34,197,94,0.05)',  border: 'rgba(34,197,94,0.2)'   },
 ];
 
 /* ─── elapsed time ─── */
@@ -50,7 +50,7 @@ function fmtElapsed(totalSecs) {
 }
 
 /* ─── KOT card ─── */
-function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
+function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, colAccentHex, isDark }) {
   const totalSecs = useElapsedTime(kot.created_at);
   const mins      = Math.floor(totalSecs / 60);
   const isUrgent  = mins >= 15;
@@ -64,30 +64,22 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
                   : kot.order?.order_type === 'delivery' ? 'DELIVERY'
                   : tableNum ? `TABLE ${tableNum}` : 'DINE IN';
 
-  const borderColor = isUrgent ? '#ef4444' : colAccent;
+  const borderColor = isUrgent ? 'var(--danger)' : colAccent;
+  const borderHex   = isUrgent ? '#ef4444' : colAccentHex;
 
-  // theme-aware colors
-  const cardBg     = isDark ? '#0f172a' : '#ffffff';
-  const headerBg   = isDark ? '#111827' : '#f8fafc';
-  const itemBg     = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
-  const itemBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-  const textMain   = isDark ? '#f1f5f9' : '#0f172a';
-  const textSub    = isDark ? '#64748b' : '#64748b';
-  const divider    = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
-  const timerBg    = isUrgent ? '#ef4444' : isWarn ? '#d97706'
-                   : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
-  const timerColor = (isUrgent || isWarn) ? '#fff' : textSub;
+  const timerBg    = isUrgent ? 'var(--danger)' : isWarn ? 'var(--warning)' : 'var(--bg-hover)';
+  const timerColor = (isUrgent || isWarn) ? '#fff' : 'var(--text-secondary)';
 
   return (
     <div style={{
-      background: cardBg,
+      background: 'var(--bg-card)',
       borderRadius: 14,
-      border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.09)'}`,
-      borderLeft: `5px solid ${borderColor}`,
+      border: `1px solid var(--border)`,
+      borderLeft: `5px solid ${borderHex}`,
       overflow: 'hidden',
       boxShadow: isUrgent
-        ? `0 0 0 2px rgba(239,68,68,0.2), 0 4px 20px rgba(0,0,0,${isDark ? 0.5 : 0.12})`
-        : `0 2px 12px rgba(0,0,0,${isDark ? 0.35 : 0.08})`,
+        ? `0 0 0 2px rgba(239,68,68,0.2), 0 4px 20px rgba(0,0,0,0.12)`
+        : `0 2px 8px rgba(0,0,0,0.06)`,
       animation: isUrgent ? 'urgentPulse 2s ease-in-out infinite' : undefined,
       display: 'flex', flexDirection: 'column',
       marginBottom: 12,
@@ -95,15 +87,15 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
 
       {/* header */}
       <div style={{
-        padding: '11px 15px', background: headerBg,
+        padding: '11px 15px', background: 'var(--bg-secondary)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        borderBottom: `1px solid ${divider}`,
+        borderBottom: `1px solid var(--border)`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 900, fontSize: 17, color: textMain, letterSpacing: '-0.3px' }}>
+          <span style={{ fontWeight: 900, fontSize: 17, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
             KOT #{kot.kot_number || kot.id?.slice(-5).toUpperCase()}
           </span>
-          {kot.is_rush && <Flame size={15} color="#ef4444" />}
+          {kot.is_rush && <Flame size={15} color="var(--danger)" />}
         </div>
         <span style={{
           fontFamily: 'monospace', fontWeight: 800, fontSize: 14,
@@ -119,29 +111,28 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
       {/* order meta */}
       <div style={{
         padding: '7px 15px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-        borderBottom: `1px solid ${divider}`,
-        background: isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.015)',
+        borderBottom: `1px solid var(--border)`,
+        background: 'var(--bg-hover)',
       }}>
         <span style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: '0.07em', color: borderColor,
-          background: `${borderColor}18`, padding: '3px 9px', borderRadius: 5,
+          fontSize: 11, fontWeight: 800, letterSpacing: '0.07em', color: borderHex,
+          background: `${borderHex}18`, padding: '3px 9px', borderRadius: 5,
         }}>{orderType}</span>
         {kot.order?.order_number && (
-          <span style={{ fontSize: 12, color: textSub }}>
-            Order <strong style={{ color: isDark ? '#94a3b8' : '#334155' }}>#{kot.order.order_number}</strong>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            Order <strong style={{ color: 'var(--text-primary)' }}>#{kot.order.order_number}</strong>
           </span>
         )}
         {kot.order?.covers > 0 && (
-          <span style={{ fontSize: 12, color: textSub }}>👥 {kot.order.covers} pax</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>👥 {kot.order.covers} pax</span>
         )}
       </div>
 
       {/* items */}
       <div style={{ flex: 1, padding: '11px 15px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.length === 0 ? (
-          <p style={{ fontSize: 13, color: textSub, fontStyle: 'italic' }}>No items</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>No items</p>
         ) : items.map((item, idx) => {
-          // Backend nests item data under order_item relation
           const itemName = item.name ?? item.order_item?.name ?? item.menu_item?.name ?? item.item_name ?? `Item ${idx + 1}`;
           const variantName = item.variant_name ?? item.order_item?.variant_name;
           const qty      = item.quantity ?? item.order_item?.quantity ?? item.qty ?? 1;
@@ -152,16 +143,14 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
             <div key={item.id ?? idx} style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
               padding: '8px 10px', borderRadius: 8,
-              background: done
-                ? (isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.05)')
-                : itemBg,
-              border: `1px solid ${done ? 'rgba(34,197,94,0.2)' : itemBorder}`,
+              background: done ? 'rgba(34,197,94,0.05)' : 'var(--bg-hover)',
+              border: `1px solid ${done ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
             }}>
               <button
                 onClick={() => onItemReady?.(kot.id, item.id)}
                 style={{
                   width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                  border: `2px solid ${done ? '#22c55e' : isDark ? '#334155' : '#cbd5e1'}`,
+                  border: `2px solid ${done ? '#22c55e' : 'var(--border)'}`,
                   background: done ? '#22c55e' : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer', padding: 0,
@@ -173,28 +162,28 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                   <span style={{
                     fontSize: 15, fontWeight: 700, lineHeight: 1.3,
-                    color: done ? textSub : textMain,
+                    color: done ? 'var(--text-secondary)' : 'var(--text-primary)',
                     textDecoration: done ? 'line-through' : 'none',
                   }}>
                     {itemName}
                     {variantName && (
-                      <span style={{ fontSize: 12, color: textSub, fontWeight: 500, marginLeft: 5 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginLeft: 5 }}>
                         ({variantName})
                       </span>
                     )}
                   </span>
                   <span style={{
                     fontSize: 20, fontWeight: 900, flexShrink: 0,
-                    color: done ? textSub : borderColor,
+                    color: done ? 'var(--text-secondary)' : borderHex,
                   }}>×{qty}</span>
                 </div>
                 {addons.length > 0 && (
-                  <p style={{ fontSize: 11, color: textSub, marginTop: 3 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3 }}>
                     + {addons.map(a => a.name).join(', ')}
                   </p>
                 )}
                 {note && (
-                  <p style={{ fontSize: 11, color: '#d97706', marginTop: 3 }}>📝 {note}</p>
+                  <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3 }}>📝 {note}</p>
                 )}
               </div>
             </div>
@@ -204,9 +193,9 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
         {(kot.order?.special_instructions || kot.notes) && (
           <div style={{
             marginTop: 2, padding: '8px 12px', borderRadius: 8, fontSize: 12,
-            color: '#b45309', lineHeight: 1.5,
-            background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.08)',
-            border: '1px solid rgba(245,158,11,0.2)',
+            color: 'var(--warning)', lineHeight: 1.5,
+            background: 'rgba(245,158,11,0.07)',
+            border: '1px solid rgba(245,158,11,0.18)',
           }}>
             📝 {kot.order?.special_instructions || kot.notes}
           </div>
@@ -214,41 +203,39 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
 
         {allReady && kot.status === 'preparing' && (
           <div style={{
-            fontSize: 12, color: '#16a34a', fontWeight: 700, textAlign: 'center', padding: '6px 0',
-            background: isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.06)', borderRadius: 6,
+            fontSize: 12, color: 'var(--success)', fontWeight: 700, textAlign: 'center', padding: '6px 0',
+            background: 'rgba(34,197,94,0.06)', borderRadius: 6,
           }}>✅ All items ready — tap Mark Ready</div>
         )}
       </div>
 
       {/* action */}
-      <div style={{ padding: '11px 15px', borderTop: `1px solid ${divider}` }}>
+      <div style={{ padding: '11px 15px', borderTop: `1px solid var(--border)` }}>
         {kot.status === 'pending' && (
           <button onClick={() => onBump?.(kot.id, 'preparing')} disabled={bumpLoading} style={{
             width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-            background: 'linear-gradient(135deg, #ea580c, #f97316)',
+            background: 'var(--accent)',
             color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: '0 4px 14px rgba(249,115,22,0.35)',
             opacity: bumpLoading ? 0.6 : 1, letterSpacing: '0.03em',
           }}>🔥 START COOKING</button>
         )}
         {kot.status === 'preparing' && (
           <button onClick={() => onBump?.(kot.id, 'ready')} disabled={bumpLoading} style={{
             width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-            background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+            background: 'var(--success)',
             color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
             opacity: bumpLoading ? 0.6 : 1, letterSpacing: '0.03em',
           }}>✅ MARK READY</button>
         )}
         {kot.status === 'ready' && (
           <button onClick={() => onBump?.(kot.id, 'served')} disabled={bumpLoading} style={{
             width: '100%', padding: '12px 0', borderRadius: 10, cursor: 'pointer',
-            background: isDark ? '#1e293b' : '#f1f5f9',
-            color: isDark ? '#94a3b8' : '#475569',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-secondary)',
             fontWeight: 700, fontSize: 14,
-            border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+            border: `1px solid var(--border)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             opacity: bumpLoading ? 0.6 : 1,
           }}>
@@ -256,7 +243,7 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, isDark }) {
           </button>
         )}
         {kot.status === 'served' && (
-          <div style={{ textAlign: 'center', color: textSub, fontSize: 12, fontWeight: 600, padding: '4px 0' }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, padding: '4px 0' }}>
             ✓ Completed
           </div>
         )}
@@ -381,27 +368,14 @@ export default function KitchenDisplayPage() {
     return map;
   }, [filteredKots]);
 
-  // theme-aware palette
-  const bg         = isDark ? '#020617' : '#f1f5f9';
-  const topBarBg   = isDark ? '#060d1a' : '#ffffff';
-  const topBorder  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.1)';
-  const tabBarBg   = isDark ? '#040a15' : '#f8fafc';
-  const tabBorder  = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)';
-  const textMain   = isDark ? '#f1f5f9' : '#0f172a';
-  const textSub    = isDark ? '#64748b' : '#64748b';
-  const btnBase    = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-  const clockBg    = isDark ? '#0f172a' : '#f8fafc';
-  const clockBorder= isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)';
-  const colDivider = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)';
-  const modalBg    = isDark ? '#0f172a' : '#ffffff';
-  const modalBorder= isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+  // all colors via CSS variables — no hardcoded hex
 
   const timeStr = clock.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   const dateStr = clock.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
   const totalActive = stats.pending + stats.preparing + stats.ready;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: bg, color: textMain, overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', color: 'var(--text-primary)', overflow: 'hidden' }}>
       <style>{`
         @keyframes urgentPulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
@@ -418,25 +392,25 @@ export default function KitchenDisplayPage() {
 
       {/* ═══ TOP BAR ═══ */}
       <div style={{
-        flexShrink: 0, background: topBarBg,
-        borderBottom: `1px solid ${topBorder}`,
+        flexShrink: 0, background: 'var(--bg-card)',
+        borderBottom: `1px solid var(--border)`,
         padding: '0 24px', height: 62,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: isDark ? 'none' : '0 1px 8px rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
       }}>
         {/* left: branding + clock */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 10,
-              background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+              background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
               <ChefHat size={20} color="#fff" />
             </div>
             <div>
-              <div style={{ fontWeight: 900, fontSize: 16, color: textMain, lineHeight: 1.1 }}>Kitchen Display</div>
-              <div style={{ fontSize: 11, color: textSub, fontWeight: 500 }}>
+              <div style={{ fontWeight: 900, fontSize: 16, color: 'var(--text-primary)', lineHeight: 1.1 }}>Kitchen Display</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>
                 {totalActive > 0 ? `${totalActive} active order${totalActive > 1 ? 's' : ''}` : 'No active orders'}
               </div>
             </div>
@@ -445,28 +419,28 @@ export default function KitchenDisplayPage() {
           {/* clock */}
           <div style={{
             fontFamily: 'monospace', textAlign: 'right',
-            background: clockBg, borderRadius: 8, padding: '5px 14px',
-            border: `1px solid ${clockBorder}`,
+            background: 'var(--bg-secondary)', borderRadius: 8, padding: '5px 14px',
+            border: `1px solid var(--border)`,
           }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: textMain, letterSpacing: '0.04em', lineHeight: 1.1 }}>{timeStr}</div>
-            <div style={{ fontSize: 10, color: textSub, fontWeight: 600 }}>{dateStr}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.04em', lineHeight: 1.1 }}>{timeStr}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>{dateStr}</div>
           </div>
         </div>
 
-        {/* center: stat counters */}
+        {/* center: stat counters — semantic colors (pending/cooking/ready/served) */}
         <div style={{ display: 'flex', gap: 8 }}>
           {[
-            { n: stats.pending,   label: 'NEW',     accent: '#6366f1', bg: isDark ? 'rgba(99,102,241,0.12)'  : 'rgba(99,102,241,0.08)'  },
-            { n: stats.preparing, label: 'COOKING', accent: '#f97316', bg: isDark ? 'rgba(249,115,22,0.12)'  : 'rgba(249,115,22,0.08)'  },
-            { n: stats.ready,     label: 'READY',   accent: '#22c55e', bg: isDark ? 'rgba(34,197,94,0.12)'   : 'rgba(34,197,94,0.08)'   },
-            { n: stats.served,    label: 'SERVED',  accent: '#64748b', bg: isDark ? 'rgba(71,85,105,0.15)'   : 'rgba(71,85,105,0.07)'   },
+            { n: stats.pending,   label: 'NEW',     css: 'var(--accent)',   alphaBg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+            { n: stats.preparing, label: 'COOKING', css: 'var(--warning)',  alphaBg: 'color-mix(in srgb, var(--warning) 10%, transparent)' },
+            { n: stats.ready,     label: 'READY',   css: 'var(--success)',  alphaBg: 'color-mix(in srgb, var(--success) 10%, transparent)' },
+            { n: stats.served,    label: 'SERVED',  css: 'var(--text-secondary)', alphaBg: 'var(--bg-hover)' },
           ].map(s => (
             <div key={s.label} style={{
-              background: s.bg, borderRadius: 10, padding: '6px 16px', textAlign: 'center',
-              border: `1px solid ${s.accent}22`,
+              background: s.alphaBg, borderRadius: 10, padding: '6px 16px', textAlign: 'center',
+              border: `1px solid var(--border)`,
             }}>
-              <div style={{ fontSize: 22, fontWeight: 900, color: s.accent, lineHeight: 1 }}>{s.n}</div>
-              <div style={{ fontSize: 10, color: s.accent, fontWeight: 700, letterSpacing: '0.07em', opacity: 0.7 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: s.css, lineHeight: 1 }}>{s.n}</div>
+              <div style={{ fontSize: 10, color: s.css, fontWeight: 700, letterSpacing: '0.07em', opacity: 0.8 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -475,8 +449,8 @@ export default function KitchenDisplayPage() {
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button className="kds-btn" onClick={() => setSoundEnabled(v => !v)} style={{
             padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: soundEnabled ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)') : btnBase,
-            color: soundEnabled ? '#6366f1' : textSub,
+            background: soundEnabled ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-hover)',
+            color: soundEnabled ? 'var(--accent)' : 'var(--text-secondary)',
             fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
           }}>
             {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
@@ -485,8 +459,8 @@ export default function KitchenDisplayPage() {
 
           <button className="kds-btn" onClick={() => setShowCompleted(v => !v)} style={{
             padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: showCompleted ? (isDark ? 'rgba(100,116,139,0.15)' : 'rgba(100,116,139,0.1)') : btnBase,
-            color: showCompleted ? (isDark ? '#94a3b8' : '#475569') : textSub,
+            background: showCompleted ? 'var(--bg-secondary)' : 'var(--bg-hover)',
+            color: 'var(--text-secondary)',
             fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <CheckCircle2 size={14} />
@@ -495,8 +469,8 @@ export default function KitchenDisplayPage() {
 
           <button className="kds-btn" onClick={() => setConfirmClear('completed')} style={{
             padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.07)',
-            color: '#ef4444', fontSize: 12, fontWeight: 600,
+            background: 'var(--bg-hover)',
+            color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 5,
           }}>
             <Trash2 size={14} /> Clear Done
@@ -504,14 +478,14 @@ export default function KitchenDisplayPage() {
 
           <button className="kds-btn" onClick={() => queryClient.invalidateQueries({ queryKey: ['kds-kots'] })} style={{
             padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: btnBase, color: textSub,
+            background: 'var(--bg-hover)', color: 'var(--text-secondary)',
           }} title="Refresh">
             <RefreshCw size={14} />
           </button>
 
           <button className="kds-btn" onClick={toggleFullscreen} style={{
             padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: btnBase, color: textSub,
+            background: 'var(--bg-hover)', color: 'var(--text-secondary)',
           }} title="Fullscreen">
             <Maximize2 size={14} />
           </button>
@@ -521,7 +495,7 @@ export default function KitchenDisplayPage() {
       {/* ═══ STATION TABS ═══ */}
       <div style={{
         flexShrink: 0, display: 'flex', gap: 6, padding: '10px 24px',
-        background: tabBarBg, borderBottom: `1px solid ${tabBorder}`, overflowX: 'auto',
+        background: 'var(--bg-secondary)', borderBottom: `1px solid var(--border)`, overflowX: 'auto',
       }}>
         {STATIONS.map(s => {
           const Icon   = s.icon;
@@ -530,9 +504,9 @@ export default function KitchenDisplayPage() {
             <button key={s.id} className="kds-station" onClick={() => setActiveStation(s.id)} style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
               padding: '7px 16px', borderRadius: 9, cursor: 'pointer',
-              border: `1.5px solid ${active ? s.color : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)')}`,
-              background: active ? s.color + '18' : 'transparent',
-              color: active ? s.color : textSub,
+              border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+              background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
+              color: active ? 'var(--accent)' : 'var(--text-secondary)',
               fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap',
             }}>
               <Icon size={14} /> {s.label}
@@ -543,7 +517,7 @@ export default function KitchenDisplayPage() {
 
       {/* ═══ KANBAN BOARD ═══ */}
       {isLoading ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: textSub }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--text-secondary)' }}>
           <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} />
           <span style={{ fontSize: 16, fontWeight: 600 }}>Loading orders…</span>
         </div>
@@ -554,17 +528,17 @@ export default function KitchenDisplayPage() {
         }}>
           {COLUMNS.map((col, colIdx) => {
             const colKots = kotsByStatus[col.status] || [];
-            const colHeaderBg = isDark ? col.darkBg : col.lightBg;
             return (
               <div key={col.status} style={{
                 display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                borderRight: colIdx < COLUMNS.length - 1 ? `1px solid ${colDivider}` : 'none',
+                borderRight: colIdx < COLUMNS.length - 1 ? `1px solid var(--border)` : 'none',
+                background: 'var(--bg-secondary)',
               }}>
                 {/* column header */}
                 <div style={{
                   flexShrink: 0, padding: '12px 16px',
-                  background: colHeaderBg,
-                  borderBottom: `2px solid ${col.accent}30`,
+                  background: 'var(--bg-card)',
+                  borderBottom: `2px solid ${col.border}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -574,9 +548,9 @@ export default function KitchenDisplayPage() {
                     </span>
                   </div>
                   <span style={{
-                    minWidth: 30, height: 30, borderRadius: 8,
+                    minWidth: 28, height: 28, borderRadius: 8,
                     background: col.accent, color: '#fff',
-                    fontWeight: 900, fontSize: 16,
+                    fontWeight: 900, fontSize: 14,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px',
                   }}>
                     {colKots.length}
@@ -590,8 +564,8 @@ export default function KitchenDisplayPage() {
                       display: 'flex', flexDirection: 'column', alignItems: 'center',
                       justifyContent: 'center', height: '100%', gap: 10, paddingTop: 60,
                     }}>
-                      <UtensilsCrossed size={36} color={col.accent + '25'} />
-                      <p style={{ fontSize: 13, color: isDark ? '#1e293b' : '#cbd5e1', fontWeight: 600 }}>
+                      <UtensilsCrossed size={36} color="var(--border)" />
+                      <p style={{ fontSize: 13, color: 'var(--border)', fontWeight: 600 }}>
                         No {col.label.toLowerCase()} orders
                       </p>
                     </div>
@@ -603,6 +577,7 @@ export default function KitchenDisplayPage() {
                       onItemReady={handleItemReady}
                       bumpLoading={bumpMutation.isPending}
                       colAccent={col.accent}
+                      colAccentHex={col.accentHex}
                       isDark={isDark}
                     />
                   ))}
@@ -617,26 +592,27 @@ export default function KitchenDisplayPage() {
       {confirmClear && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9999,
-          background: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)',
+          background: 'rgba(0,0,0,0.5)',
           backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
-            background: modalBg, border: `1px solid ${modalBorder}`,
+            background: 'var(--bg-card)', border: `1px solid var(--border)`,
             borderRadius: 16, padding: '32px 36px', width: 380, textAlign: 'center',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
           }}>
             <div style={{
               width: 52, height: 52, borderRadius: 14,
-              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+              background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--danger) 25%, transparent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px',
             }}>
-              <Trash2 size={24} color="#ef4444" />
+              <Trash2 size={24} color="var(--danger)" />
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: textMain, marginBottom: 10 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>
               {confirmClear === 'all' ? 'Clear All Orders?' : 'Clear Served Orders?'}
             </h3>
-            <p style={{ fontSize: 14, color: textSub, marginBottom: 26, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 26, lineHeight: 1.6 }}>
               {confirmClear === 'all'
                 ? 'All cooking & ready orders will be marked as served and cleared.'
                 : `${stats.served} served order${stats.served !== 1 ? 's' : ''} will be dismissed from this display.`}
@@ -644,8 +620,8 @@ export default function KitchenDisplayPage() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirmClear(null)} style={{
                 flex: 1, padding: '12px 0', borderRadius: 10,
-                border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-                background: 'transparent', color: textSub,
+                border: `1px solid var(--border)`,
+                background: 'transparent', color: 'var(--text-secondary)',
                 fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>Cancel</button>
               <button
@@ -653,7 +629,7 @@ export default function KitchenDisplayPage() {
                 disabled={clearMutation.isPending}
                 style={{
                   flex: 1, padding: '12px 0', borderRadius: 10, border: 'none',
-                  background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                  background: 'var(--danger)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
                   opacity: clearMutation.isPending ? 0.6 : 1,
                 }}
               >

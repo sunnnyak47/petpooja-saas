@@ -29,7 +29,7 @@ import EBillModal from '../components/POS/EBillModal';
 import SplitBillModal from '../components/POS/SplitBillModal';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
-const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
+const BORDER_COLORS = { veg: 'border-l-slate-200', non_veg: 'border-l-slate-200', egg: 'border-l-slate-200' };
 const SQUARE_ICONS = {
   veg: <div className="w-3 h-3 border border-green-500 flex items-center justify-center p-[1px]"><div className="w-full h-full bg-green-500 rounded-full"></div></div>,
   non_veg: <div className="w-3 h-3 border border-red-500 flex items-center justify-center p-[1px]"><div className="w-full h-full bg-red-500 rounded-full"></div></div>,
@@ -563,7 +563,7 @@ export default function POSPage() {
               onClick={() => setShowVoicePOS(true)}
               title="Voice Order (Hindi/Tamil/Punjabi/English…)"
               className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold shadow shrink-0 transition-all"
-              style={{ background: 'linear-gradient(135deg, #EF4444, #F97316)', color: '#fff' }}
+              style={{ background: 'var(--accent)', color: '#fff' }}
             >
               <Mic className="w-4 h-4" />
               <span>Voice</span>
@@ -644,13 +644,13 @@ export default function POSPage() {
                         {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-white line-clamp-2 mb-1 group-hover:text-brand-400 transition-colors">{item.name}</p>
+                    <p className="text-sm font-medium line-clamp-2 mb-1 transition-colors" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
                     {hasNoPrice ? (
-                      <p className="text-xs font-semibold text-red-400 flex items-center gap-1">
+                      <p className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}>
                         <AlertCircle className="w-3 h-3" /> No price set
                       </p>
                     ) : (
-                      <p className="text-base font-bold text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
+                      <p className="text-base font-bold" style={{ color: 'var(--accent)' }}>₹{Number(item.base_price).toFixed(0)}</p>
                     )}
                   </button>
                 );

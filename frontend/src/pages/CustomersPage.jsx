@@ -12,10 +12,16 @@ import {
 } from 'lucide-react';
 
 const SEGMENT_STYLES = {
-  new:     'bg-blue-500/15 text-blue-400 border border-blue-500/20',
-  regular: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
-  vip:     'bg-purple-500/15 text-purple-400 border border-purple-500/20',
-  lapsed:  'bg-red-500/15 text-red-400 border border-red-500/20',
+  new:     'badge badge-neutral',
+  regular: 'badge badge-neutral',
+  vip:     'badge badge-neutral',
+  lapsed:  'badge badge-danger',
+};
+const SEGMENT_INLINE = {
+  new:     { background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)', borderColor: 'color-mix(in srgb, var(--accent) 25%, transparent)' },
+  regular: {},
+  vip:     { background: 'color-mix(in srgb, var(--accent) 15%, transparent)', color: 'var(--accent)', borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)', fontWeight: 700 },
+  lapsed:  {},
 };
 
 const EMPTY_FORM = {
@@ -156,16 +162,16 @@ export default function CustomersPage() {
 
       {/* Birthday alert */}
       {upcoming.length > 0 && (
-        <div className="flex items-center gap-3 bg-pink-500/10 border border-pink-500/20 rounded-2xl px-5 py-3">
-          <Cake className="w-5 h-5 text-pink-400 flex-shrink-0" />
+        <div className="flex items-center gap-3 rounded-2xl px-5 py-3" style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+          <Cake className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent)' }} />
           <div className="flex-1">
-            <p className="font-bold text-white text-sm">🎂 Upcoming Birthdays!</p>
-            <p className="text-xs text-surface-400">
+            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>🎂 Upcoming Birthdays!</p>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {upcoming.map(c => `${c.full_name || c.phone} (in ${daysUntilBirthday(c.date_of_birth)}d)`).join(', ')}
             </p>
           </div>
           <button onClick={() => { setCampaignData(d => ({ ...d, target_segment: 'all', name: 'Birthday Special', message: 'Happy Birthday! 🎂 Enjoy a special treat from us today. Visit us to claim your birthday discount!' })); setCampaignOpen(true); }}
-            className="text-xs text-pink-400 font-bold border border-pink-500/30 px-3 py-1.5 rounded-lg hover:bg-pink-500/10 transition-all whitespace-nowrap">
+            className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap btn-secondary">
             Send Birthday Campaign
           </button>
         </div>
@@ -180,7 +186,7 @@ export default function CustomersPage() {
         <div className="flex gap-2">
           {['', 'new', 'regular', 'vip', 'lapsed'].map(s => (
             <button key={s} onClick={() => setSegFilter(s)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${segFilter === s ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}>
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${segFilter === s ? 'btn-primary' : 'btn-secondary'}`}>
               {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
             </button>
           ))}
@@ -217,10 +223,10 @@ export default function CustomersPage() {
                             {c.full_name?.charAt(0)?.toUpperCase() || '#'}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-white">{c.full_name || 'Unknown'}</p>
+                            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{c.full_name || 'Unknown'}</p>
                             <p className="text-xs text-surface-500">{c.email || c.dietary_preference || ''}</p>
                           </div>
-                          {bdays !== null && <Cake className="w-4 h-4 text-pink-400" title={`Birthday in ${bdays} day${bdays !== 1 ? 's' : ''}!`} />}
+                          {bdays !== null && <Cake className="w-4 h-4" style={{ color: 'var(--accent)' }} title={`Birthday in ${bdays} day${bdays !== 1 ? 's' : ''}!`} />}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-surface-300">
@@ -230,14 +236,14 @@ export default function CustomersPage() {
                         {c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${SEGMENT_STYLES[c.segment] || SEGMENT_STYLES.new}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${SEGMENT_STYLES[c.segment] || SEGMENT_STYLES.new}`} style={SEGMENT_INLINE[c.segment] || SEGMENT_INLINE.new}>
                           {c.segment === 'vip' && <Crown className="w-3 h-3 inline mr-0.5" />}
                           {c.segment || 'new'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-surface-300">{c._count?.orders || 0}</td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-bold text-amber-400 flex items-center gap-1">
+                        <span className="text-sm font-bold flex items-center gap-1" style={{ color: 'var(--accent)' }}>
                           <Star className="w-3 h-3" />{c.loyalty_points?.current_balance || 0}
                         </span>
                       </td>
@@ -291,19 +297,20 @@ export default function CustomersPage() {
                 {selectedCustomer.full_name?.charAt(0)?.toUpperCase() || '#'}
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-black text-white">{selectedCustomer.full_name || 'Unknown'}</h3>
+                <h3 className="text-lg font-black" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.full_name || 'Unknown'}</h3>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-sm text-surface-400 flex items-center gap-1"><Phone className="w-3 h-3" />{selectedCustomer.phone}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${SEGMENT_STYLES[selectedCustomer.segment] || SEGMENT_STYLES.new}`}>{selectedCustomer.segment}</span>
+                  <span className="text-sm flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}><Phone className="w-3 h-3" />{selectedCustomer.phone}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${SEGMENT_STYLES[selectedCustomer.segment] || SEGMENT_STYLES.new}`} style={SEGMENT_INLINE[selectedCustomer.segment] || SEGMENT_INLINE.new}>{selectedCustomer.segment}</span>
                 </div>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-surface-800">
+            <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
               {['profile', 'loyalty', 'orders'].map(t => (
                 <button key={t} onClick={() => setDetailTab(t)}
-                  className={`px-4 py-2 text-xs font-bold capitalize transition-all border-b-2 ${detailTab === t ? 'border-brand-500 text-white' : 'border-transparent text-surface-500 hover:text-surface-300'}`}>
+                  className="px-4 py-2 text-xs font-bold capitalize transition-all border-b-2"
+                  style={{ borderColor: detailTab === t ? 'var(--accent)' : 'transparent', color: detailTab === t ? 'var(--accent)' : 'var(--text-secondary)' }}>
                   {t}
                 </button>
               ))}
@@ -313,40 +320,40 @@ export default function CustomersPage() {
               <div className="space-y-3">
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-surface-800/50 rounded-xl p-3 text-center">
-                    <ShoppingBag className="w-4 h-4 text-brand-400 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-white">{selectedCustomer._count?.orders || 0}</p>
-                    <p className="text-[10px] text-surface-500">Orders</p>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-hover)' }}>
+                    <ShoppingBag className="w-4 h-4 mx-auto mb-1" style={{ color: 'var(--accent)' }} />
+                    <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{selectedCustomer._count?.orders || 0}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Orders</p>
                   </div>
-                  <div className="bg-surface-800/50 rounded-xl p-3 text-center">
-                    <Star className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-amber-400">{selectedCustomer.loyalty_points?.current_balance || 0}</p>
-                    <p className="text-[10px] text-surface-500">Loyalty Pts</p>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-hover)' }}>
+                    <Star className="w-4 h-4 mx-auto mb-1" style={{ color: 'var(--accent)' }} />
+                    <p className="text-lg font-bold" style={{ color: 'var(--accent)' }}>{selectedCustomer.loyalty_points?.current_balance || 0}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Loyalty Pts</p>
                   </div>
-                  <div className="bg-surface-800/50 rounded-xl p-3 text-center">
-                    <TrendingUp className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-                    <p className="text-sm font-bold text-white">₹{Number(selectedCustomer.total_spend || 0).toLocaleString('en-IN')}</p>
-                    <p className="text-[10px] text-surface-500">Lifetime</p>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-hover)' }}>
+                    <TrendingUp className="w-4 h-4 mx-auto mb-1" style={{ color: 'var(--success)' }} />
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>₹{Number(selectedCustomer.total_spend || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Lifetime</p>
                   </div>
                 </div>
 
                 {/* Profile fields */}
-                <div className="bg-surface-800/30 rounded-xl p-4 space-y-2 text-sm">
-                  {selectedCustomer.email && <div className="flex justify-between"><span className="text-surface-400">Email</span><span className="text-white">{selectedCustomer.email}</span></div>}
-                  {selectedCustomer.gender && <div className="flex justify-between"><span className="text-surface-400">Gender</span><span className="text-white capitalize">{selectedCustomer.gender}</span></div>}
+                <div className="rounded-xl p-4 space-y-2 text-sm" style={{ background: 'var(--bg-hover)' }}>
+                  {selectedCustomer.email && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Email</span><span style={{ color: 'var(--text-primary)' }}>{selectedCustomer.email}</span></div>}
+                  {selectedCustomer.gender && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Gender</span><span className="capitalize" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.gender}</span></div>}
                   {selectedCustomer.date_of_birth && (
                     <div className="flex justify-between">
-                      <span className="text-surface-400">Birthday</span>
-                      <span className="text-white flex items-center gap-1">
+                      <span style={{ color: 'var(--text-secondary)' }}>Birthday</span>
+                      <span className="flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
                         {new Date(selectedCustomer.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}
-                        {daysUntilBirthday(selectedCustomer.date_of_birth) !== null && <Cake className="w-3.5 h-3.5 text-pink-400" />}
+                        {daysUntilBirthday(selectedCustomer.date_of_birth) !== null && <Cake className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />}
                       </span>
                     </div>
                   )}
-                  {selectedCustomer.anniversary && <div className="flex justify-between"><span className="text-surface-400">Anniversary</span><span className="text-white">{new Date(selectedCustomer.anniversary).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}</span></div>}
-                  {selectedCustomer.dietary_preference && <div className="flex justify-between"><span className="text-surface-400">Diet</span><span className="text-white capitalize">{selectedCustomer.dietary_preference}</span></div>}
-                  {selectedCustomer.last_visit_at && <div className="flex justify-between"><span className="text-surface-400">Last Visit</span><span className="text-white">{new Date(selectedCustomer.last_visit_at).toLocaleDateString('en-IN')}</span></div>}
-                  {selectedCustomer.notes && <div className="flex justify-between"><span className="text-surface-400">Notes</span><span className="text-white text-xs">{selectedCustomer.notes}</span></div>}
+                  {selectedCustomer.anniversary && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Anniversary</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.anniversary).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}</span></div>}
+                  {selectedCustomer.dietary_preference && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Diet</span><span className="capitalize" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.dietary_preference}</span></div>}
+                  {selectedCustomer.last_visit_at && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Last Visit</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.last_visit_at).toLocaleDateString('en-IN')}</span></div>}
+                  {selectedCustomer.notes && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Notes</span><span className="text-xs" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.notes}</span></div>}
                 </div>
 
                 <button onClick={() => { setIsDetailOpen(false); openEdit(selectedCustomer); }} className="btn-surface w-full text-sm">Edit Profile</button>
@@ -355,29 +362,29 @@ export default function CustomersPage() {
 
             {detailTab === 'loyalty' && (
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                <div className="flex justify-between items-center bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+                <div className="flex justify-between items-center rounded-xl px-4 py-3" style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
                   <div>
-                    <p className="text-xs text-surface-400">Current Balance</p>
-                    <p className="text-2xl font-black text-amber-400">{selectedCustomer.loyalty_points?.current_balance || 0} pts</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Current Balance</p>
+                    <p className="text-2xl font-black" style={{ color: 'var(--accent)' }}>{selectedCustomer.loyalty_points?.current_balance || 0} pts</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-surface-400">Lifetime Earned</p>
-                    <p className="text-sm font-bold text-white">{selectedCustomer.loyalty_points?.total_earned || 0}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lifetime Earned</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.loyalty_points?.total_earned || 0}</p>
                   </div>
                 </div>
                 {(customerDetail?.loyalty_transactions || []).map(tx => (
-                  <div key={tx.id} className="flex justify-between items-center bg-surface-800/30 rounded-xl px-4 py-2">
+                  <div key={tx.id} className="flex justify-between items-center rounded-xl px-4 py-2" style={{ background: 'var(--bg-hover)' }}>
                     <div>
-                      <p className="text-xs font-bold text-white capitalize">{tx.type}</p>
-                      <p className="text-[10px] text-surface-500">{new Date(tx.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                      <p className="text-xs font-bold capitalize" style={{ color: 'var(--text-primary)' }}>{tx.type}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(tx.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</p>
                     </div>
-                    <p className={`text-sm font-black ${tx.points > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <p className="text-sm font-black" style={{ color: tx.points > 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {tx.points > 0 ? '+' : ''}{tx.points} pts
                     </p>
                   </div>
                 ))}
                 {(customerDetail?.loyalty_transactions || []).length === 0 && (
-                  <p className="text-center py-8 text-surface-500 text-sm">No loyalty transactions yet</p>
+                  <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>No loyalty transactions yet</p>
                 )}
               </div>
             )}
@@ -385,16 +392,16 @@ export default function CustomersPage() {
             {detailTab === 'orders' && (
               <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {(customerDetail?.orders || []).map(o => (
-                  <div key={o.id} className="flex justify-between items-center bg-surface-800/30 rounded-xl px-4 py-2">
+                  <div key={o.id} className="flex justify-between items-center rounded-xl px-4 py-2" style={{ background: 'var(--bg-hover)' }}>
                     <div>
-                      <p className="text-xs font-bold text-white">#ORD-{String(o.order_number).padStart(5,'0')}</p>
-                      <p className="text-[10px] text-surface-500">{new Date(o.created_at).toLocaleDateString('en-IN')}</p>
+                      <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>#ORD-{String(o.order_number).padStart(5,'0')}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(o.created_at).toLocaleDateString('en-IN')}</p>
                     </div>
-                    <p className="text-sm font-bold text-white">₹{Number(o.grand_total || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>₹{Number(o.grand_total || 0).toLocaleString('en-IN')}</p>
                   </div>
                 ))}
                 {(customerDetail?.orders || []).length === 0 && (
-                  <p className="text-center py-8 text-surface-500 text-sm">No orders yet</p>
+                  <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>No orders yet</p>
                 )}
               </div>
             )}
@@ -415,7 +422,7 @@ export default function CustomersPage() {
                     <span className="text-white font-medium">{c.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-surface-400 text-xs">{c.type} · {c.target_segment}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${c.status === 'sent' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-surface-700 text-surface-400'}`}>{c.status || 'draft'}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${c.status === 'sent' ? 'badge-success' : 'badge-neutral'}`}>{c.status || 'draft'}</span>
                     </div>
                   </div>
                 ))}
@@ -540,7 +547,7 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
         </div>
         <div>
           <label className="label">Loyalty — auto-enrolled ✓</label>
-          <div className="input bg-emerald-500/5 border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2 h-10">
+          <div className="input text-xs flex items-center gap-2 h-10" style={{ color: 'var(--success)' }}>
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> Enrolled on save
           </div>
         </div>

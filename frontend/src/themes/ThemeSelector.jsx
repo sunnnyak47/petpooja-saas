@@ -25,7 +25,7 @@ const ThemeSelector = () => {
       <div className="mb-6">
         <h3 className="text-lg font-black"
             style={{ color: 'var(--text-primary)' }}>
-          🎨 App Theme
+          App Theme
         </h3>
         <p className="text-sm mt-1"
            style={{ color: 'var(--text-secondary)' }}>

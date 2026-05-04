@@ -212,6 +212,69 @@ function segmentTranscript(transcript) {
  * @param {string} transcript - raw speech transcript
  * @returns {Promise<{matched: object[], unmatched: string[], transcript: string}>}
  */
+const CONFIDENCE_THRESHOLD = 0.45;
+
+/**
+ * Find best matching item for a text snippet.
+ * Returns { item, score, aliasMatched } or null.
+ */
+function bestMatch(text, aliasIndex) {
+  let bestScore = 0;
+  let bestItem = null;
+  let bestAlias = '';
+  for (const { item, aliases } of aliasIndex) {
+    for (const alias of aliases) {
+      const score = similarity(text, alias);
+      if (score > bestScore) {
+        bestScore = score;
+        bestItem = item;
+        bestAlias = alias;
+      }
+    }
+  }
+  if (bestItem && bestScore >= CONFIDENCE_THRESHOLD) {
+    return { item: bestItem, score: bestScore, aliasMatched: bestAlias };
+  }
+  return null;
+}
+
+/**
+ * Greedy parse: given a text segment (after quantity extraction),
+ * find all menu items it contains — handles "cold coffee gulab jamun"
+ * where no conjunction was spoken between items.
+ * Returns array of { item, score, spoken_as }.
+ */
+function greedyParseSegment(text, aliasIndex) {
+  const results = [];
+  let remaining = text.trim().toLowerCase();
+  let guard = 0;
+
+  while (remaining.length >= 2 && guard++ < 15) {
+    const match = bestMatch(remaining, aliasIndex);
+    if (!match) break;
+
+    results.push(match);
+
+    // Try to remove the matched alias from the remaining text so we can
+    // find additional items in the same spoken segment.
+    const aliasLower = match.aliasMatched.toLowerCase();
+    const pos = remaining.indexOf(aliasLower);
+    if (pos >= 0) {
+      remaining = (remaining.slice(0, pos) + remaining.slice(pos + aliasLower.length)).trim();
+    } else {
+      // Alias wasn't literally found — stop to avoid infinite loop
+      break;
+    }
+
+    // Only continue if the full segment was NOT an exact/near-exact match
+    // (i.e., the original text was longer than just the item name — multi-item case)
+    if (match.score > 0.85 && remaining.length < 2) break;
+    if (match.score >= 0.9 && results.length === 1 && remaining.length < 2) break;
+  }
+
+  return results;
+}
+
 async function parseTranscript(outletId, transcript) {
   const prisma = getDbClient();
 
@@ -221,7 +284,7 @@ async function parseTranscript(outletId, transcript) {
     select: {
       id: true, name: true, base_price: true, food_type: true,
       kitchen_station: true, is_available: true,
-      variants: { select: { id: true, name: true, price: true }, take: 1 },
+      variants: { select: { id: true, name: true, price_addition: true }, take: 1 },
     },
   });
 
@@ -235,54 +298,48 @@ async function parseTranscript(outletId, transcript) {
     aliases: buildAliases(item.name),
   }));
 
-  // Segment the transcript
+  // Segment the transcript on conjunctions
   const segments = segmentTranscript(transcript);
   const matched = [];
   const unmatched = [];
+
+  const pushMatch = (item, qty, score, spokenAs) => {
+    const existingIdx = matched.findIndex(m => m.menu_item_id === item.id);
+    if (existingIdx >= 0) {
+      matched[existingIdx].quantity += qty;
+    } else {
+      matched.push({
+        menu_item_id: item.id,
+        name: item.name,
+        base_price: Number(item.base_price),
+        food_type: item.food_type,
+        kitchen_station: item.kitchen_station,
+        quantity: qty,
+        variant_id: null,
+        variant_price: 0,
+        addons: [],
+        confidence: Math.round(score * 100),
+        spoken_as: spokenAs,
+      });
+    }
+  };
 
   for (const segment of segments) {
     if (!segment || segment.length < 2) continue;
 
     const { qty, rest } = extractQuantity(segment);
-    const searchText = rest || segment;
+    const searchText = (rest || segment).trim();
 
     if (!searchText || searchText.length < 2) continue;
 
-    // Score every menu item against this segment
-    let bestScore = 0;
-    let bestItem = null;
+    // Greedy match: may find multiple items in a single spoken segment
+    const greedyResults = greedyParseSegment(searchText, aliasIndex);
 
-    for (const { item, aliases } of aliasIndex) {
-      for (const alias of aliases) {
-        const score = similarity(searchText, alias);
-        if (score > bestScore) {
-          bestScore = score;
-          bestItem = item;
-        }
-      }
-    }
-
-    const CONFIDENCE_THRESHOLD = 0.45;
-    if (bestItem && bestScore >= CONFIDENCE_THRESHOLD) {
-      // Merge with existing matched item if same menu_item_id
-      const existingIdx = matched.findIndex(m => m.menu_item_id === bestItem.id);
-      if (existingIdx >= 0) {
-        matched[existingIdx].quantity += qty;
-      } else {
-        matched.push({
-          menu_item_id: bestItem.id,
-          name: bestItem.name,
-          base_price: Number(bestItem.base_price),
-          food_type: bestItem.food_type,
-          kitchen_station: bestItem.kitchen_station,
-          quantity: qty,
-          variant_id: null,
-          variant_price: 0,
-          addons: [],
-          confidence: Math.round(bestScore * 100),
-          spoken_as: segment,
-        });
-      }
+    if (greedyResults.length > 0) {
+      // First result gets the spoken quantity; subsequent items default to 1
+      greedyResults.forEach((r, idx) => {
+        pushMatch(r.item, idx === 0 ? qty : 1, r.score, segment);
+      });
     } else {
       unmatched.push(searchText);
     }

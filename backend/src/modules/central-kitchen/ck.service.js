@@ -317,7 +317,7 @@ async function getOutlets(user) {
   const prisma = getDbClient();
   return prisma.outlet.findMany({
     where: { is_deleted: false },
-    select: { id: true, name: true, address: true },
+    select: { id: true, name: true, address_line1: true, city: true },
     orderBy: { name: 'asc' },
   });
 }

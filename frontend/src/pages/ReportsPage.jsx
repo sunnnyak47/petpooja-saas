@@ -56,7 +56,7 @@ export default function ReportsPage() {
 
   const { data: outlets } = useQuery({
     queryKey: ['outlets'],
-    queryFn: () => api.get('/outlets').then(r => r.data),
+    queryFn: () => api.get('/ho/outlets').then(r => r.data),
     enabled: user?.role === 'owner' || user?.role === 'super_admin',
   });
 
@@ -196,9 +196,9 @@ export default function ReportsPage() {
               {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           )}
-          <button onClick={() => navigate('/eod-report')} className="btn-surface font-semibold shrink-0 gap-2 flex items-center"><CheckCircle className="w-4 h-4 text-green-400" /> Close Day</button>
+          <button onClick={() => navigate('/eod-report')} className="btn-secondary font-semibold shrink-0 gap-2 flex items-center"><CheckCircle className="w-4 h-4" /> Close Day</button>
           <button onClick={() => window.print()} className="btn-surface font-semibold shrink-0 gap-2"><Printer className="w-4 h-4" /> Print</button>
-          <button onClick={() => handleExport('full_report')} className="btn-success font-semibold shrink-0 gap-2"><Download className="w-4 h-4" /> Export</button>
+          <button onClick={() => handleExport('full_report')} className="btn-primary font-semibold shrink-0 gap-2"><Download className="w-4 h-4" /> Export</button>
         </div>
       </div>
 
@@ -232,11 +232,11 @@ export default function ReportsPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 {[
                   { label: 'Revenue', value: fmtCurrency(k.revenue, currency), sub: <GrowthBadge value={k.revenue_growth} />, color: 'bg-brand-500' },
-                  { label: 'Orders', value: k.total_orders || 0, sub: <GrowthBadge value={k.orders_growth} />, color: 'bg-blue-500' },
-                  { label: 'Avg Check', value: fmtCurrency(k.avg_check, currency), sub: <span className="text-xs text-surface-400">per order</span>, color: 'bg-purple-500' },
-                  { label: 'Food Cost %', value: k.food_cost_pct ? `${k.food_cost_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.food_cost, currency)}</span>, color: k.food_cost_pct > 35 ? 'bg-red-500' : 'bg-amber-500' },
-                  { label: 'Waste %', value: k.waste_pct ? `${k.waste_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.waste_value, currency)}</span>, color: k.waste_pct > 5 ? 'bg-red-500' : 'bg-orange-500' },
-                  { label: 'Gross Margin', value: k.gross_margin_pct ? `${k.gross_margin_pct}%` : '—', sub: <span className="text-xs text-surface-400">net of COGS</span>, color: k.gross_margin_pct > 60 ? 'bg-success-500' : 'bg-teal-500' },
+                  { label: 'Orders', value: k.total_orders || 0, sub: <GrowthBadge value={k.orders_growth} />, color: 'bg-brand-500' },
+                  { label: 'Avg Check', value: fmtCurrency(k.avg_check, currency), sub: <span className="text-xs text-surface-400">per order</span>, color: 'bg-brand-500' },
+                  { label: 'Food Cost %', value: k.food_cost_pct ? `${k.food_cost_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.food_cost, currency)}</span>, color: 'bg-brand-500' },
+                  { label: 'Waste %', value: k.waste_pct ? `${k.waste_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.waste_value, currency)}</span>, color: 'bg-brand-500' },
+                  { label: 'Gross Margin', value: k.gross_margin_pct ? `${k.gross_margin_pct}%` : '—', sub: <span className="text-xs text-surface-400">net of COGS</span>, color: 'bg-brand-500' },
                 ].map((card, i) => (
                   <div key={i} className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden group">
                     <div className={`absolute -right-4 -top-4 w-14 h-14 rounded-full ${card.color} opacity-20 group-hover:scale-150 transition-transform`}></div>

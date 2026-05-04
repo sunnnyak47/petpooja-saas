@@ -275,7 +275,7 @@ export default function MenuPage() {
                  <Percent className="w-4 h-4"/> Update Prices ({selectedItems.size})
                </button>
             )}
-            <button onClick={() => setIsAISyncOpen(true)} className="btn-surface flex items-center gap-2 border-purple-500/30 text-purple-400 hover:bg-purple-500/10 shadow-lg shadow-purple-500/5">
+            <button onClick={() => setIsAISyncOpen(true)} className="btn-secondary flex items-center gap-2">
                <Sparkles className="w-4 h-4" /> AI Sync
             </button>
             {viewMode === 'items' && (

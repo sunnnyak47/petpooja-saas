@@ -164,11 +164,10 @@ async function getCRMDashboard(outletId) {
       where: { is_deleted: false },
       orderBy: { total_spend: 'desc' },
       take: 10,
-      include: { loyalty_points: { select: { current_balance: true } } },
       select: {
         id: true, full_name: true, phone: true, segment: true,
         total_visits: true, total_spend: true, last_visit_at: true,
-        loyalty_points: true,
+        loyalty_points: { select: { current_balance: true } },
       },
     }),
 

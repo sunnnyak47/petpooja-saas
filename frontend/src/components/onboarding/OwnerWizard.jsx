@@ -24,9 +24,15 @@ export default function OwnerWizard({ headOffice }) {
   const completeMutation = useMutation({
     mutationFn: (data) => api.patch('/ho/setup-complete', data),
     onSuccess: () => {
+      // Patch localStorage so reload doesn't re-show the wizard
+      try {
+        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+        if (stored.head_office) stored.head_office.setup_completed = true;
+        localStorage.setItem('user', JSON.stringify(stored));
+      } catch {}
       queryClient.invalidateQueries(['auth-user']);
       toast.success(`Your ${branding.platform_name} is ready! Go Live!`);
-      window.location.reload(); // Refresh to clear wizard overlay
+      window.location.reload();
     }
   });
 
@@ -45,7 +51,7 @@ export default function OwnerWizard({ headOffice }) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">Welcome to {branding.platform_name}!</h1>
-              <p className="text-sm text-slate-500 font-medium">Let's set up your {headOffice.name} workspace</p>
+              <p className="text-sm text-slate-500 font-medium">Let's set up your {headOffice?.name || 'restaurant'} workspace</p>
             </div>
           </div>
           <div className="flex gap-2">

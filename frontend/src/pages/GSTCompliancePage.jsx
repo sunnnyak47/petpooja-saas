@@ -51,7 +51,7 @@ export default function GSTCompliancePage() {
 
   const { data: outlets } = useQuery({
     queryKey: ['outlets'],
-    queryFn: () => api.get('/outlets').then((r) => r.data),
+    queryFn: () => api.get('/ho/outlets').then((r) => r.data),
     enabled: user?.role === 'owner' || user?.role === 'super_admin',
   });
 

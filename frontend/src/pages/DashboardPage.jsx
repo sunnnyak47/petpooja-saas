@@ -105,20 +105,20 @@ export default function DashboardPage() {
         ? Math.round(((d.today?.orders - d.comparison.yesterday_orders) / d.comparison.yesterday_orders) * 100)
         : 0,
       icon:   ShoppingBag,
-      accent: '#0ea5e9',
+      accent: 'var(--accent)',
     },
     {
       label:  'Avg Order Value',
       value:  `₹${(d.today?.avg_order_value || 0).toLocaleString('en-IN')}`,
       icon:   TrendingUp,
-      accent: '#16a34a',
+      accent: 'var(--accent)',
     },
     {
       label:  'Table Occupancy',
       value:  `${d.live?.occupancy_pct || 0}%`,
       sub:    `${d.live?.active_tables || 0}/${d.live?.total_tables || 0} tables`,
       icon:   Users,
-      accent: '#d97706',
+      accent: 'var(--accent)',
     },
   ];
 
@@ -143,7 +143,7 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            {greeting()}, {user?.full_name?.split(' ')[0]} 👋
+            {greeting()}, {user?.full_name?.split(' ')[0]}
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Here's what's happening at your restaurant today
@@ -190,15 +190,15 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Live Status</p>
             <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--success)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block" style={{ background: 'var(--success)' }} />
               Live
             </span>
           </div>
           <div className="space-y-2.5">
             {[
-              { label: 'Running Orders', value: d.today?.running_orders || 0, color: 'var(--warning)' },
-              { label: 'Pending KOTs',   value: d.live?.pending_kots    || 0, color: 'var(--accent)'  },
-              { label: 'Paid Orders',    value: d.today?.paid_orders    || 0, color: 'var(--success)' },
+              { label: 'Running Orders', value: d.today?.running_orders || 0, color: 'var(--text-primary)' },
+              { label: 'Pending KOTs',   value: d.live?.pending_kots    || 0, color: 'var(--text-primary)' },
+              { label: 'Paid Orders',    value: d.today?.paid_orders    || 0, color: 'var(--text-primary)' },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -352,9 +352,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'New Order',  icon: ShoppingCart,    path: '/pos',      color: 'var(--accent)', desc: 'Open POS terminal'       },
-              { label: 'Tables',     icon: Users,           path: '/tables',   color: '#0ea5e9',       desc: 'View floor plan'         },
-              { label: 'Menu',       icon: UtensilsCrossed, path: '/menu',     color: '#16a34a',       desc: 'Edit items & categories' },
-              { label: 'Reports',    icon: BarChart3,       path: '/reports',  color: '#d97706',       desc: 'Sales & analytics'       },
+              { label: 'Tables',     icon: Users,           path: '/tables',   color: 'var(--accent)', desc: 'View floor plan'         },
+              { label: 'Menu',       icon: UtensilsCrossed, path: '/menu',     color: 'var(--accent)', desc: 'Edit items & categories' },
+              { label: 'Reports',    icon: BarChart3,       path: '/reports',  color: 'var(--accent)', desc: 'Sales & analytics'       },
             ].map(({ label, icon: Icon, path, color, desc }) => (
               <button
                 key={label}

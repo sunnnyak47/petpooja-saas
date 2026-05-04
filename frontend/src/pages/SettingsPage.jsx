@@ -89,7 +89,7 @@ export default function SettingsPage() {
     queryFn: async () => {
       if (!outletId) return null;
       const res = await api.get(`/ho/settings?outlet_id=${outletId}`);
-      return res.data;
+      return res.data?.data || res.data;
     },
     enabled: !!outletId,
     staleTime: 60000,
@@ -127,13 +127,33 @@ export default function SettingsPage() {
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed to save settings'),
   });
 
-  const ToggleSwitch = ({ checked, onChange, label }) => (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-surface-300">{label}</span>
-      <button onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors ${checked ? 'bg-brand-500' : 'bg-surface-700'}`}>
-        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : ''} shadow-sm`} />
+  const ToggleSwitch = ({ checked, onChange, label, description }) => (
+    <div className="flex items-center justify-between py-3">
+      <div className="flex-1 min-w-0 pr-4">
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{label}</span>
+        {description && <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{description}</p>}
+      </div>
+      <button
+        onClick={() => onChange(!checked)}
+        className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200"
+        style={{ background: checked ? 'var(--accent)' : 'var(--border)' }}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 shadow-sm ${checked ? 'translate-x-5' : ''}`} />
       </button>
+    </div>
+  );
+
+  const Field = ({ label, children }) => (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+
+  const SectionTitle = ({ title, subtitle }) => (
+    <div className="mb-6 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+      <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+      {subtitle && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>}
     </div>
   );
 
@@ -141,178 +161,179 @@ export default function SettingsPage() {
     switch (activeSection) {
       case 'general':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">General Settings</h3>
-            <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">Restaurant Name</label>
-              <input value={settings.outlet_name} onChange={(e) => updateSetting('outlet_name', e.target.value)} className="input w-full" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Currency</label>
-                <select value={settings.currency} onChange={(e) => updateSetting('currency', e.target.value)} className="input w-full">
+          <div className="space-y-5">
+            <SectionTitle title="General Settings" subtitle="Basic outlet information and regional preferences" />
+            <Field label="Restaurant Name">
+              <input value={settings.outlet_name} onChange={(e) => updateSetting('outlet_name', e.target.value)} className="input" placeholder="e.g. Madsun Kitchen" />
+            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Currency">
+                <select value={settings.currency} onChange={(e) => updateSetting('currency', e.target.value)} className="input">
                   <option value="INR">INR (₹)</option>
                   <option value="USD">USD ($)</option>
                   <option value="AED">AED (د.إ)</option>
                   <option value="ZAR">ZAR (R)</option>
                 </select>
-              </div>
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Language</label>
-                <select value={settings.language} onChange={(e) => updateSetting('language', e.target.value)} className="input w-full">
+              </Field>
+              <Field label="Language">
+                <select value={settings.language} onChange={(e) => updateSetting('language', e.target.value)} className="input">
                   <option value="en">English</option>
                   <option value="hi">Hindi</option>
                   <option value="mr">Marathi</option>
                   <option value="ta">Tamil</option>
                 </select>
-              </div>
+              </Field>
             </div>
           </div>
         );
       case 'tax':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Tax & GST Configuration</h3>
-            <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">GSTIN</label>
-              <input value={settings.gstin} onChange={(e) => updateSetting('gstin', e.target.value)} className="input w-full font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Default GST Slab</label>
-                <select value={settings.default_gst_slab} onChange={(e) => updateSetting('default_gst_slab', e.target.value)} className="input w-full">
-                  <option value="0">0% (Exempt)</option>
-                  <option value="5">5% (Restaurant)</option>
+          <div className="space-y-5">
+            <SectionTitle title="Tax & GST" subtitle="Configure GST registration and applicable tax slabs" />
+            <Field label="GSTIN">
+              <input value={settings.gstin} onChange={(e) => updateSetting('gstin', e.target.value)} className="input font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
+            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Default GST Slab">
+                <select value={settings.default_gst_slab} onChange={(e) => updateSetting('default_gst_slab', e.target.value)} className="input">
+                  <option value="0">0% — Exempt</option>
+                  <option value="5">5% — Non-AC Restaurant</option>
                   <option value="12">12%</option>
-                  <option value="18">18% (AC Restaurant)</option>
+                  <option value="18">18% — AC Restaurant</option>
                 </select>
-              </div>
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Service Charge %</label>
-                <input type="number" value={settings.service_charge_pct} onChange={(e) => updateSetting('service_charge_pct', e.target.value)} className="input w-full" step="0.5" />
-              </div>
+              </Field>
+              <Field label="Service Charge (%)">
+                <input type="number" value={settings.service_charge_pct} onChange={(e) => updateSetting('service_charge_pct', e.target.value)} className="input" step="0.5" min="0" max="20" />
+              </Field>
             </div>
-            <ToggleSwitch label="GST Inclusive Pricing" checked={settings.gst_inclusive} onChange={(v) => updateSetting('gst_inclusive', v)} />
+            <div className="pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+              <ToggleSwitch label="GST Inclusive Pricing" description="Menu prices already include GST" checked={settings.gst_inclusive} onChange={(v) => updateSetting('gst_inclusive', v)} />
+            </div>
           </div>
         );
       case 'receipt':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Receipt Printer</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Printer Type</label>
-                <select value={settings.printer_type} onChange={(e) => updateSetting('printer_type', e.target.value)} className="input w-full">
+          <div className="space-y-5">
+            <SectionTitle title="Receipt Printer" subtitle="Configure thermal or network printer settings" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Printer Type">
+                <select value={settings.printer_type} onChange={(e) => updateSetting('printer_type', e.target.value)} className="input">
                   <option value="thermal">Thermal (ESC/POS)</option>
                   <option value="dot_matrix">Dot Matrix</option>
                   <option value="laser">Laser</option>
                   <option value="browser">Browser Print</option>
                 </select>
-              </div>
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Paper Width</label>
-                <select value={settings.paper_width} onChange={(e) => updateSetting('paper_width', e.target.value)} className="input w-full">
-                  <option value="58">58mm</option>
-                  <option value="80">80mm</option>
+              </Field>
+              <Field label="Paper Width">
+                <select value={settings.paper_width} onChange={(e) => updateSetting('paper_width', e.target.value)} className="input">
+                  <option value="58">58 mm</option>
+                  <option value="80">80 mm</option>
                   <option value="A4">A4</option>
                 </select>
-              </div>
+              </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Printer IP</label>
-                <input value={settings.printer_ip} onChange={(e) => updateSetting('printer_ip', e.target.value)} className="input w-full font-mono" placeholder="192.168.1.100" />
-              </div>
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Port</label>
-                <input value={settings.printer_port} onChange={(e) => updateSetting('printer_port', e.target.value)} className="input w-full font-mono" placeholder="9100" />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Printer IP Address">
+                <input value={settings.printer_ip} onChange={(e) => updateSetting('printer_ip', e.target.value)} className="input font-mono" placeholder="192.168.1.100" />
+              </Field>
+              <Field label="Port">
+                <input value={settings.printer_port} onChange={(e) => updateSetting('printer_port', e.target.value)} className="input font-mono" placeholder="9100" />
+              </Field>
             </div>
-            <ToggleSwitch label="Print Logo on Receipt" checked={settings.print_logo} onChange={(v) => updateSetting('print_logo', v)} />
-            <ToggleSwitch label="Print Address" checked={settings.print_address} onChange={(v) => updateSetting('print_address', v)} />
-            <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">Footer Text</label>
-              <input value={settings.footer_text} onChange={(e) => updateSetting('footer_text', e.target.value)} className="input w-full" />
+            <div className="pt-1 border-t space-y-1" style={{ borderColor: 'var(--border)' }}>
+              <ToggleSwitch label="Print Logo" description="Include outlet logo on receipts" checked={settings.print_logo} onChange={(v) => updateSetting('print_logo', v)} />
+              <ToggleSwitch label="Print Address" description="Show outlet address on receipts" checked={settings.print_address} onChange={(v) => updateSetting('print_address', v)} />
             </div>
+            <Field label="Footer Message">
+              <input value={settings.footer_text} onChange={(e) => updateSetting('footer_text', e.target.value)} className="input" placeholder="Thank you for dining with us!" />
+            </Field>
           </div>
         );
       case 'kds':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Kitchen Display Settings</h3>
-            <ToggleSwitch label="Auto-accept new orders" checked={settings.kds_auto_accept} onChange={(v) => updateSetting('kds_auto_accept', v)} />
-            <ToggleSwitch label="Sound alerts" checked={settings.kds_sound} onChange={(v) => updateSetting('kds_sound', v)} />
-            <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">Alert Threshold (minutes)</label>
-              <input type="number" value={settings.kds_alert_threshold} onChange={(e) => updateSetting('kds_alert_threshold', e.target.value)} className="input w-full" />
+          <div className="space-y-5">
+            <SectionTitle title="Kitchen Display" subtitle="Control how orders appear on KDS screens" />
+            <div className="space-y-1">
+              <ToggleSwitch label="Auto-accept Orders" description="Automatically accept incoming orders without manual confirmation" checked={settings.kds_auto_accept} onChange={(v) => updateSetting('kds_auto_accept', v)} />
+              <ToggleSwitch label="Sound Alerts" description="Play audio when new orders arrive" checked={settings.kds_sound} onChange={(v) => updateSetting('kds_sound', v)} />
             </div>
+            <Field label="Alert Threshold (minutes)">
+              <input type="number" value={settings.kds_alert_threshold} onChange={(e) => updateSetting('kds_alert_threshold', e.target.value)} className="input" min="1" max="60" />
+            </Field>
           </div>
         );
       case 'payment':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Payment Methods</h3>
-            <ToggleSwitch label="Accept Cash" checked={settings.accept_cash} onChange={(v) => updateSetting('accept_cash', v)} />
-            <ToggleSwitch label="Accept Card" checked={settings.accept_card} onChange={(v) => updateSetting('accept_card', v)} />
-            <ToggleSwitch label="Accept UPI" checked={settings.accept_upi} onChange={(v) => updateSetting('accept_upi', v)} />
+          <div className="space-y-5">
+            <SectionTitle title="Payment Methods" subtitle="Enable payment modes accepted at your outlet" />
+            <div className="space-y-1">
+              <ToggleSwitch label="Cash" checked={settings.accept_cash} onChange={(v) => updateSetting('accept_cash', v)} />
+              <ToggleSwitch label="Card / POS Machine" checked={settings.accept_card} onChange={(v) => updateSetting('accept_card', v)} />
+              <ToggleSwitch label="UPI" checked={settings.accept_upi} onChange={(v) => updateSetting('accept_upi', v)} />
+            </div>
             {settings.accept_upi && (
-              <div className="space-y-3 pl-2 border-l-2 ml-2" style={{ borderColor: 'var(--accent)' }}>
-                <div>
-                  <label className="label">UPI VPA (e.g. business@ybl)</label>
+              <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: 'var(--accent)' }}>
+                <Field label="UPI VPA">
                   <input type="text" value={settings.upi_vpa} onChange={(e) => updateSetting('upi_vpa', e.target.value)} className="input" placeholder="yourstore@ybl" />
-                </div>
-                <div>
-                  <label className="label">Merchant / Display Name</label>
+                </Field>
+                <Field label="Merchant Display Name">
                   <input type="text" value={settings.merchant_name} onChange={(e) => updateSetting('merchant_name', e.target.value)} className="input" placeholder="My Restaurant" />
-                </div>
+                </Field>
               </div>
             )}
-            <div className="border-t pt-4 mt-4" style={{ borderColor: 'var(--border)' }}>
-              <ToggleSwitch label="Razorpay Integration" checked={settings.razorpay_enabled} onChange={(v) => updateSetting('razorpay_enabled', v)} />
+            <div className="pt-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Razorpay Gateway</p>
+              <ToggleSwitch label="Enable Razorpay" description="Online payment collection via Razorpay" checked={settings.razorpay_enabled} onChange={(v) => updateSetting('razorpay_enabled', v)} />
               {settings.razorpay_enabled && (
-                <div className="mt-2">
-                  <label className="text-xs text-surface-400 font-bold mb-1 block">Razorpay Key ID</label>
-                  <input type="password" value={settings.razorpay_key} onChange={(e) => updateSetting('razorpay_key', e.target.value)} className="input w-full font-mono" placeholder="rzp_live_..." />
-                </div>
+                <Field label="Razorpay Key ID">
+                  <input type="password" value={settings.razorpay_key} onChange={(e) => updateSetting('razorpay_key', e.target.value)} className="input font-mono" placeholder="rzp_live_..." />
+                </Field>
               )}
             </div>
           </div>
         );
       case 'notifications':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Notification Preferences</h3>
-            <ToggleSwitch label="SMS Notifications" checked={settings.sms_enabled} onChange={(v) => updateSetting('sms_enabled', v)} />
-            <ToggleSwitch label="Email Notifications" checked={settings.email_enabled} onChange={(v) => updateSetting('email_enabled', v)} />
-            <ToggleSwitch label="WhatsApp Notifications" checked={settings.whatsapp_enabled} onChange={(v) => updateSetting('whatsapp_enabled', v)} />
-            <ToggleSwitch label="Low Stock Alerts" checked={settings.low_stock_alert} onChange={(v) => updateSetting('low_stock_alert', v)} />
+          <div className="space-y-5">
+            <SectionTitle title="Notifications" subtitle="Choose how staff and customers receive alerts" />
+            <div className="space-y-1">
+              <ToggleSwitch label="SMS" description="Send order confirmations via SMS" checked={settings.sms_enabled} onChange={(v) => updateSetting('sms_enabled', v)} />
+              <ToggleSwitch label="Email" description="Send receipts and updates by email" checked={settings.email_enabled} onChange={(v) => updateSetting('email_enabled', v)} />
+              <ToggleSwitch label="WhatsApp" description="Send order updates on WhatsApp" checked={settings.whatsapp_enabled} onChange={(v) => updateSetting('whatsapp_enabled', v)} />
+            </div>
+            <div className="pt-4 border-t space-y-1" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-secondary)' }}>Operations</p>
+              <ToggleSwitch label="Low Stock Alerts" description="Notify when inventory items fall below threshold" checked={settings.low_stock_alert} onChange={(v) => updateSetting('low_stock_alert', v)} />
+            </div>
           </div>
         );
       case 'appearance':
         return (
-          <div className="space-y-6">
+          <div className="space-y-5">
+            <SectionTitle title="Appearance" subtitle="Customize the look and feel of the interface" />
             <ThemeSelector />
-            
-            <div className="border-t border-surface-800 pt-6">
-              <h3 className="text-sm font-bold text-white mb-4">Layout Options</h3>
-              <ToggleSwitch label="Compact Layout" checked={settings.compact_layout} onChange={(v) => updateSetting('compact_layout', v)} />
+            <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+              <ToggleSwitch label="Compact Layout" description="Reduce spacing to show more content on screen" checked={settings.compact_layout} onChange={(v) => updateSetting('compact_layout', v)} />
             </div>
           </div>
         );
       case 'hardware':
         return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-4">Hardware Configuration</h3>
-            <ToggleSwitch label="Cash Drawer" checked={settings.cash_drawer_enabled} onChange={(v) => updateSetting('cash_drawer_enabled', v)} />
+          <div className="space-y-5">
+            <SectionTitle title="Hardware" subtitle="Connect peripherals and point-of-sale hardware" />
+            <div className="space-y-1">
+              <ToggleSwitch label="Cash Drawer" description="Automatically open drawer on payment" checked={settings.cash_drawer_enabled} onChange={(v) => updateSetting('cash_drawer_enabled', v)} />
+            </div>
             {settings.cash_drawer_enabled && (
-              <div>
-                <label className="text-xs text-surface-400 font-bold mb-1 block">Cash Drawer Serial Port</label>
-                <input value={settings.cash_drawer_port} onChange={(e) => updateSetting('cash_drawer_port', e.target.value)} className="input w-full font-mono" placeholder="/dev/ttyUSB0" />
-              </div>
+              <Field label="Cash Drawer Serial Port">
+                <input value={settings.cash_drawer_port} onChange={(e) => updateSetting('cash_drawer_port', e.target.value)} className="input font-mono" placeholder="/dev/ttyUSB0" />
+              </Field>
             )}
-            <ToggleSwitch label="Barcode Scanner" checked={settings.barcode_scanner_enabled} onChange={(v) => updateSetting('barcode_scanner_enabled', v)} />
-            <ToggleSwitch label="Weighing Scale" checked={settings.weighing_scale_enabled} onChange={(v) => updateSetting('weighing_scale_enabled', v)} />
-            <ToggleSwitch label="Customer-Facing Display" checked={settings.customer_display_enabled} onChange={(v) => updateSetting('customer_display_enabled', v)} />
+            <div className="pt-4 border-t space-y-1" style={{ borderColor: 'var(--border)' }}>
+              <ToggleSwitch label="Barcode Scanner" description="Enable barcode scanning for quick item lookup" checked={settings.barcode_scanner_enabled} onChange={(v) => updateSetting('barcode_scanner_enabled', v)} />
+              <ToggleSwitch label="Weighing Scale" description="Auto-read weight for sold-by-weight items" checked={settings.weighing_scale_enabled} onChange={(v) => updateSetting('weighing_scale_enabled', v)} />
+              <ToggleSwitch label="Customer-Facing Display" description="Show order total on a second screen" checked={settings.customer_display_enabled} onChange={(v) => updateSetting('customer_display_enabled', v)} />
+            </div>
           </div>
         );
       default:
@@ -321,35 +342,59 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-full flex p-6 gap-6">
-      {/* Sidebar */}
-      <div className="w-64 shrink-0 bg-surface-900 rounded-2xl border border-surface-800 p-4">
-        <div className="flex items-center gap-2 mb-6">
-          <Settings className="w-6 h-6 text-brand-400" />
-          <h2 className="text-lg font-black text-white">Settings</h2>
-        </div>
-        <nav className="space-y-1">
-          {SECTIONS.map((s) => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeSection === s.id ? 'bg-brand-500/20 text-brand-400' : 'text-surface-400 hover:text-white hover:bg-surface-800'}`}>
-              {s.icon}
-              {s.label}
-              <ChevronRight className={`w-4 h-4 ml-auto transition-transform ${activeSection === s.id ? 'rotate-90' : ''}`} />
-            </button>
-          ))}
-        </nav>
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Settings</h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Configure your outlet preferences and integrations</p>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 bg-surface-900 rounded-2xl border border-surface-800 p-6 overflow-y-auto">
-        {renderSection()}
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-surface-800">
-          <button className="px-6 py-2.5 rounded-xl bg-surface-800 text-surface-300 font-bold text-sm hover:bg-surface-700 transition-all flex items-center gap-2">
-            <RotateCcw className="w-4 h-4" /> Reset
-          </button>
-          <button onClick={() => saveMutation.mutate()} className="btn-primary px-8 py-2.5 flex items-center gap-2">
-            <Save className="w-4 h-4" /> Save Settings
-          </button>
+      <div className="flex flex-col md:flex-row gap-5">
+        {/* Sidebar nav */}
+        <div className="md:w-52 shrink-0">
+          <nav className="card p-2 space-y-0.5">
+            {SECTIONS.map((s) => {
+              const isActive = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left"
+                  style={{
+                    background: isActive ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
+                    color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <span className={isActive ? '' : 'opacity-70'}>{s.icon}</span>
+                  {s.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Content panel */}
+        <div className="flex-1 min-w-0">
+          <div className="card p-6">
+            {renderSection()}
+            <div className="flex justify-end gap-3 mt-8 pt-5 border-t" style={{ borderColor: 'var(--border)' }}>
+              <button
+                onClick={() => toast('Reset not yet implemented')}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" /> Reset
+              </button>
+              <button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {saveMutation.isPending ? 'Saving…' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
