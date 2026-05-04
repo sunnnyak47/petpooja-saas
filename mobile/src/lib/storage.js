@@ -1,10 +1,9 @@
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const storage = new MMKV({ id: 'msrm-storage' });
-
+// Expo Go compatible storage — MMKV requires native build (APK/dev client)
 export const Storage = {
-  getString: (key) => storage.getString(key),
-  set: (key, value) => storage.set(key, value),
-  delete: (key) => storage.delete(key),
-  contains: (key) => storage.contains(key),
+  getString: async (key) => AsyncStorage.getItem(key),
+  set: async (key, value) => AsyncStorage.setItem(key, value),
+  delete: async (key) => AsyncStorage.removeItem(key),
+  contains: async (key) => (await AsyncStorage.getItem(key)) !== null,
 };

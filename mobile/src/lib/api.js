@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Storage } from './storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE_URL = 'https://petpooja-saas.onrender.com/api';
 
@@ -9,9 +9,8 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// MMKV is synchronous — no async/await needed, zero latency
-api.interceptors.request.use((config) => {
-  const token = Storage.getString('auth_token');
+api.interceptors.request.use(async (config) => {
+  const token = await AsyncStorage.getItem('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

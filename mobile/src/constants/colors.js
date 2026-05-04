@@ -55,3 +55,19 @@ export const Colors = {
   cardDark:      '#0F2040',
   borderDark:    '#1E3A5F',
 };
+
+// Gradient presets — pass directly to LinearGradient colors prop
+export const Gradients = {
+  gold:    ['#C9A84C', '#F0C040'],
+  indigo:  ['#2D2F8A', '#5B5EF4'],
+  success: ['#0A6E4A', '#10C98A'],
+  surface: ['#0F1D35', '#162840'],
+  header:  ['#0A1628', '#0F2040'],
+};
+
+// Glass effect helpers — rgba values for transparent/frosted UI layers
+export const Glass = {
+  card:      'rgba(15, 29, 53, 0.72)',   // semi-transparent surface bg
+  border:    'rgba(30, 58, 95, 0.55)',   // subtle frosted border
+  highlight: 'rgba(255, 255, 255, 0.06)', // top-edge gloss sheen
+};
