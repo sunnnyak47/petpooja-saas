@@ -1,0 +1,15 @@
+# Inherit nothing — EAS uses this file independently
+node_modules/
+.expo/
+dist/
+web-build/
+/ios
+/android
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.env*.local
+App.js.bak
+index.js.bak
