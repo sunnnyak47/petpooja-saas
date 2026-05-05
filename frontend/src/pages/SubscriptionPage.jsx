@@ -36,17 +36,10 @@ export default function SubscriptionPage() {
 
   const { data: sub, isLoading } = useQuery({
     queryKey: ['subscription', headOfficeId],
-    queryFn: () => api.get(`/superadmin/chains/${headOfficeId}/subscription`).then(r => r.data),
-    enabled: !!headOfficeId,
+    queryFn: () => api.get('/ho/my-subscription').then(r => r.data),
+    enabled: true,
     staleTime: 60_000,
   });
-
-  if (!headOfficeId) return (
-    <div className="p-6 flex flex-col items-center justify-center py-24 gap-3">
-      <Package className="w-12 h-12" style={{ color: 'var(--text-secondary)' }} />
-      <p style={{ color: 'var(--text-primary)' }}>Subscription info not available</p>
-    </div>
-  );
 
   const PlanIcon = PLAN_ICONS[sub?.plan] || Zap;
   const planColor = PLAN_COLORS[sub?.plan] || '#94a3b8';

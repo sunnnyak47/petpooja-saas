@@ -175,4 +175,48 @@ router.put('/settings', authenticate, validate(saveSettingsSchema), async (req, 
   } catch (error) { next(error); }
 });
 
+/**
+ * GET /api/ho/my-subscription
+ * Owner-facing: returns current plan info for their own head office
+ */
+router.get('/my-subscription', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const headOfficeId = req.user?.head_office_id;
+    if (!headOfficeId) return res.status(400).json({ success: false, message: 'No head office linked to this account' });
+
+    const ho = await prisma.headOffice.findUnique({
+      where: { id: headOfficeId },
+      select: { id: true, name: true, plan: true, is_active: true, created_at: true,
+        outlets: { where: { is_deleted: false }, select: { id: true, name: true } },
+        users:   { where: { is_deleted: false, is_active: true }, select: { id: true } },
+      },
+    });
+    if (!ho) return res.status(404).json({ success: false, message: 'Head office not found' });
+
+    const PLAN_PRICES = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
+    const PLAN_LIMITS = {
+      TRIAL:      { outlets: 1,  staff: 3,   features: ['pos', 'menu', 'orders'] },
+      STARTER:    { outlets: 2,  staff: 10,  features: ['pos', 'menu', 'orders', 'reports', 'tables', 'payments'] },
+      PRO:        { outlets: 5,  staff: 50,  features: ['pos', 'menu', 'orders', 'reports', 'tables', 'payments', 'crm', 'inventory', 'kitchen', 'online_orders'] },
+      ENTERPRISE: { outlets: 20, staff: 200, features: ['all'] },
+    };
+
+    sendSuccess(res, {
+      plan:          ho.plan,
+      plan_price:    PLAN_PRICES[ho.plan] || 0,
+      plan_limits:   PLAN_LIMITS[ho.plan] || PLAN_LIMITS.TRIAL,
+      outlets_used:  ho.outlets.length,
+      staff_used:    ho.users.length,
+      is_active:     ho.is_active,
+      member_since:  ho.created_at,
+      invoices:      [],
+      next_plans:    Object.entries(PLAN_PRICES)
+        .filter(([p]) => p !== ho.plan && PLAN_PRICES[p] > (PLAN_PRICES[ho.plan] || 0))
+        .map(([plan, price]) => ({ plan, price, limits: PLAN_LIMITS[plan] })),
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
