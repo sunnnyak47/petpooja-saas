@@ -206,33 +206,47 @@ export default function DashboardLayout() {
           `}
           style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--border)' }}
         >
-          {/* Brand header
-              On macOS the traffic lights (⛔🟡🟢) sit at x:12 y:18 inside this
-              56px-tall strip. We make the whole strip a drag region so the window
-              can be moved by dragging the sidebar header, then push the brand
-              content 78px from the left so it never collides with the buttons.
-              On Windows/Linux there are no traffic lights so padding stays at 0.  */}
+          {/* Brand header */}
           <div
-            className="h-14 flex items-center justify-between border-b flex-shrink-0"
+            className={`h-14 flex items-center justify-between border-b flex-shrink-0 ${collapsed ? 'px-2' : 'px-4'}`}
             style={{
               borderColor: 'var(--border)',
-              WebkitAppRegion: 'drag',        // makes this strip draggable (macOS)
-              paddingLeft:  collapsed ? 0 : 'calc(env(titlebar-area-x, 0px) + 78px)',
-              paddingRight: 12,
+              WebkitAppRegion: 'drag',
+              ...(typeof window !== 'undefined' && window.electron ? {
+                paddingLeft: collapsed ? 0 : 'calc(env(titlebar-area-x, 0px) + 78px)',
+              } : {}),
             }}
           >
             {!collapsed ? (
-              <div className="flex items-center gap-2.5 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: 'var(--accent)' }}>M</div>
+              <div className="flex items-center gap-3 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
+                {/* 3D Logo */}
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.25)',
+                    transform: 'perspective(400px) rotateY(-3deg)',
+                  }}
+                >
+                  M
+                </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold truncate leading-tight" style={{ color: 'var(--text-primary)' }}>MS-RM System</p>
-                  <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Restaurant Management</p>
+                  <p className="text-[13px] font-extrabold truncate leading-tight tracking-tight" style={{ color: 'var(--text-primary)' }}>MS-RM System</p>
+                  <p className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Restaurant Management</p>
                 </div>
               </div>
             ) : (
-              /* collapsed: centre icon, push it right of traffic lights */
-              <div className="flex-1 flex justify-end" style={{ WebkitAppRegion: 'no-drag' }}>
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm" style={{ background: 'var(--accent)' }}>M</div>
+              <div className="flex-1 flex justify-center" style={{ WebkitAppRegion: 'no-drag' }}>
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.25)',
+                    transform: 'perspective(400px) rotateY(-3deg)',
+                  }}
+                >
+                  M
+                </div>
               </div>
             )}
             {/* Desktop collapse toggle */}
