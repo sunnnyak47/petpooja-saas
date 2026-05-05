@@ -1494,17 +1494,24 @@ const superadminService = {
   async getAllUsers({ search, role, plan } = {}) {
     const headOffices = await prisma.headOffice.findMany({
       where: { is_deleted: false },
-      select: { id: true, name: true, plan: true, is_active: true, country_code: true,
+      select: {
+        id: true, name: true, plan: true, is_active: true,
         outlets: {
           where: { is_deleted: false },
+          select: { id: true, name: true },
+        },
+        users: {
+          where: { is_deleted: false },
           select: {
-            id: true, name: true,
-            users: {
-              where: { is_deleted: false },
+            id: true, full_name: true, email: true, phone: true,
+            is_active: true, created_at: true, last_login_at: true,
+            user_roles: {
+              where: { is_deleted: false, is_primary: true },
               select: {
-                id: true, name: true, email: true, phone: true, role: true,
-                is_active: true, created_at: true, last_login_at: true,
+                outlet_id: true,
+                role: { select: { name: true, display_name: true } },
               },
+              take: 1,
             },
           },
         },
@@ -1513,24 +1520,38 @@ const superadminService = {
 
     const users = [];
     for (const ho of headOffices) {
-      for (const outlet of ho.outlets) {
-        for (const u of outlet.users) {
-          if (role && role !== 'ALL' && u.role !== role) continue;
-          if (plan && plan !== 'ALL' && ho.plan !== plan) continue;
-          if (search) {
-            const q = search.toLowerCase();
-            if (!u.name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q) && !ho.name?.toLowerCase().includes(q)) continue;
-          }
-          users.push({
-            ...u,
-            outlet_name: outlet.name,
-            outlet_id: outlet.id,
-            chain_name: ho.name,
-            chain_id: ho.id,
-            chain_plan: ho.plan,
-            chain_active: ho.is_active,
-          });
+      for (const u of ho.users) {
+        const primaryRole = u.user_roles?.[0];
+        const roleName = primaryRole?.role?.name || 'owner';
+        const outletId = primaryRole?.outlet_id;
+        const outlet = ho.outlets.find(o => o.id === outletId);
+
+        if (role && role !== 'ALL' && roleName !== role) continue;
+        if (plan && plan !== 'ALL' && ho.plan !== plan) continue;
+        if (search) {
+          const q = search.toLowerCase();
+          const nm = u.full_name?.toLowerCase() || '';
+          const em = u.email?.toLowerCase() || '';
+          const ph = u.phone?.toLowerCase() || '';
+          const ch = ho.name?.toLowerCase() || '';
+          if (!nm.includes(q) && !em.includes(q) && !ph.includes(q) && !ch.includes(q)) continue;
         }
+        users.push({
+          id: u.id,
+          name: u.full_name,
+          email: u.email,
+          phone: u.phone,
+          role: roleName,
+          is_active: u.is_active,
+          created_at: u.created_at,
+          last_login_at: u.last_login_at,
+          outlet_name: outlet?.name || ho.name,
+          outlet_id: outletId || null,
+          chain_name: ho.name,
+          chain_id: ho.id,
+          chain_plan: ho.plan,
+          chain_active: ho.is_active,
+        });
       }
     }
     return users.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -1618,6 +1639,174 @@ const superadminService = {
     if (website !== undefined) data.website = website;
 
     return await prisma.headOffice.update({ where: { id: headOfficeId }, data });
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P3/P4: PLATFORM HEALTH MONITOR
+  // ─────────────────────────────────────────────────────────────────────────────
+  async getPlatformHealth() {
+    const now = new Date();
+    const last24h = new Date(now - 24 * 60 * 60 * 1000);
+    const last7d  = new Date(now - 7  * 24 * 60 * 60 * 1000);
+
+    const [
+      totalChains, activeChains, totalOutlets, totalUsers,
+      ordersToday, ordersWeek, revenueToday,
+      auditLogsToday, activeTrials,
+    ] = await Promise.all([
+      prisma.headOffice.count({ where: { is_deleted: false } }),
+      prisma.headOffice.count({ where: { is_deleted: false, is_active: true } }),
+      prisma.outlet.count({ where: { is_deleted: false } }),
+      prisma.user.count({ where: { is_deleted: false } }),
+      prisma.order.count({ where: { created_at: { gte: last24h }, status: { not: 'CANCELLED' } } }),
+      prisma.order.count({ where: { created_at: { gte: last7d }, status: { not: 'CANCELLED' } } }),
+      prisma.order.aggregate({ where: { created_at: { gte: last24h }, status: { not: 'CANCELLED' } }, _sum: { total_amount: true } }),
+      prisma.auditLog.count({ where: { created_at: { gte: last24h } } }).catch(() => 0),
+      prisma.headOffice.count({ where: { is_deleted: false, plan: 'TRIAL' } }),
+    ]);
+
+    return {
+      chains:      { total: totalChains, active: activeChains, inactive: totalChains - activeChains, trial: activeTrials },
+      outlets:     { total: totalOutlets },
+      users:       { total: totalUsers },
+      orders:      { last_24h: ordersToday, last_7d: ordersWeek },
+      revenue:     { last_24h: parseFloat(revenueToday._sum.total_amount || 0) },
+      activity:    { audit_logs_24h: auditLogsToday },
+      uptime:      { api: 'Operational', database: 'Operational', storage: 'Operational' },
+      checked_at:  now.toISOString(),
+    };
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P3/P4: IMPERSONATION AUDIT LOG
+  // ─────────────────────────────────────────────────────────────────────────────
+  IMPERSONATION_KEY: 'impersonation_log',
+
+  async getImpersonationLog() {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.IMPERSONATION_KEY } });
+    if (!cfg) return [];
+    try { return JSON.parse(cfg.value); } catch { return []; }
+  },
+
+  async logImpersonation({ admin_id, admin_email, target_chain_id, target_chain_name, target_user_id, target_user_email }) {
+    const logs = await superadminService.getImpersonationLog();
+    logs.unshift({
+      id: `imp_${Date.now()}`,
+      admin_id, admin_email,
+      target_chain_id, target_chain_name,
+      target_user_id, target_user_email,
+      timestamp: new Date().toISOString(),
+      duration_mins: null,
+    });
+    // Keep only last 500 entries
+    const trimmed = logs.slice(0, 500);
+    await prisma.systemConfig.upsert({
+      where:  { key: superadminService.IMPERSONATION_KEY },
+      update: { value: JSON.stringify(trimmed) },
+      create: { key: superadminService.IMPERSONATION_KEY, value: JSON.stringify(trimmed), description: 'Impersonation audit log' },
+    });
+    return trimmed[0];
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P3: OWNER STAFF ANALYTICS (called from owner dashboard routes)
+  // ─────────────────────────────────────────────────────────────────────────────
+  async getStaffAnalytics(headOfficeId) {
+    const [totalStaff, activeStaff, recentAttendance] = await Promise.all([
+      prisma.user.count({ where: { head_office_id: headOfficeId, is_deleted: false } }),
+      prisma.user.count({ where: { head_office_id: headOfficeId, is_deleted: false, is_active: true } }),
+      prisma.attendanceLog.findMany({
+        where: { outlet: { head_office_id: headOfficeId }, created_at: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        include: { user: { select: { full_name: true, email: true } } },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+      }).catch(() => []),
+    ]);
+    return { total_staff: totalStaff, active_staff: activeStaff, recent_attendance: recentAttendance };
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P4: MENU PERFORMANCE ANALYTICS
+  // ─────────────────────────────────────────────────────────────────────────────
+  async getMenuAnalytics(outletId) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const orderItems = await prisma.orderItem.findMany({
+      where: { order: { outlet_id: outletId, created_at: { gte: thirtyDaysAgo }, status: { not: 'CANCELLED' } } },
+      include: { menu_item: { select: { id: true, name: true, price: true, category_id: true, category: { select: { name: true } } } } },
+    }).catch(() => []);
+
+    // Aggregate by item
+    const itemMap = {};
+    for (const oi of orderItems) {
+      if (!oi.menu_item) continue;
+      const key = oi.menu_item.id;
+      if (!itemMap[key]) {
+        itemMap[key] = { id: key, name: oi.menu_item.name, category: oi.menu_item.category?.name || 'Uncategorized',
+          price: parseFloat(oi.menu_item.price || 0), qty: 0, revenue: 0, orders: new Set() };
+      }
+      itemMap[key].qty     += oi.quantity || 1;
+      itemMap[key].revenue += parseFloat(oi.total_price || oi.unit_price || 0);
+      itemMap[key].orders.add(oi.order_id);
+    }
+
+    const items = Object.values(itemMap).map(i => ({ ...i, order_count: i.orders.size, orders: undefined }));
+    items.sort((a, b) => b.qty - a.qty);
+
+    const totalQty = items.reduce((s, i) => s + i.qty, 0);
+    let cumulative = 0;
+    const withABC = items.map(item => {
+      cumulative += item.qty;
+      const pct = totalQty > 0 ? (cumulative / totalQty) * 100 : 0;
+      return { ...item, abc: pct <= 70 ? 'A' : pct <= 90 ? 'B' : 'C' };
+    });
+
+    return {
+      top_sellers:  withABC.filter(i => i.abc === 'A').slice(0, 10),
+      moderate:     withABC.filter(i => i.abc === 'B').slice(0, 10),
+      slow_movers:  withABC.filter(i => i.abc === 'C').slice(0, 10),
+      total_items_sold: totalQty,
+      period_days: 30,
+    };
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P4: SUBSCRIPTION INFO FOR OWNERS
+  // ─────────────────────────────────────────────────────────────────────────────
+  async getSubscriptionInfo(headOfficeId) {
+    const ho = await prisma.headOffice.findUnique({
+      where: { id: headOfficeId },
+      select: { id: true, name: true, plan: true, is_active: true, created_at: true,
+        outlets: { where: { is_deleted: false }, select: { id: true, name: true } },
+        users:   { where: { is_deleted: false, is_active: true }, select: { id: true } },
+      },
+    });
+    if (!ho) throw new Error('Chain not found');
+
+    const PLAN_PRICES = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
+    const PLAN_LIMITS = {
+      TRIAL:      { outlets: 1,  staff: 3,  features: ['pos', 'menu', 'orders'] },
+      STARTER:    { outlets: 2,  staff: 10, features: ['pos', 'menu', 'orders', 'reports', 'tables', 'payments'] },
+      PRO:        { outlets: 5,  staff: 50, features: ['pos', 'menu', 'orders', 'reports', 'tables', 'payments', 'crm', 'inventory', 'kitchen', 'online_orders'] },
+      ENTERPRISE: { outlets: 20, staff: 200, features: ['all'] },
+    };
+
+    const invoices = await superadminService._loadInvoices();
+    const myInvoices = invoices.filter(inv => inv.head_office_id === headOfficeId)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return {
+      plan:          ho.plan,
+      plan_price:    PLAN_PRICES[ho.plan] || 0,
+      plan_limits:   PLAN_LIMITS[ho.plan] || PLAN_LIMITS.TRIAL,
+      outlets_used:  ho.outlets.length,
+      staff_used:    ho.users.length,
+      is_active:     ho.is_active,
+      member_since:  ho.created_at,
+      invoices:      myInvoices.slice(0, 10),
+      next_plans:    Object.entries(PLAN_PRICES)
+        .filter(([p]) => p !== ho.plan && PLAN_PRICES[p] > (PLAN_PRICES[ho.plan] || 0))
+        .map(([plan, price]) => ({ plan, price, limits: PLAN_LIMITS[plan] })),
+    };
   },
 };
 

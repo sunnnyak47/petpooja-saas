@@ -439,6 +439,48 @@ const superadminController = {
       sendSuccess(res, result, 'Chain profile updated');
     } catch (err) { next(err); }
   },
+
+  // ─── P3/P4: Platform Health Monitor ──────────────────────────────────────
+  async getPlatformHealth(req, res, next) {
+    try {
+      const data = await superadminService.getPlatformHealth();
+      sendSuccess(res, data, 'Platform health');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P3/P4: Impersonation Audit Log ──────────────────────────────────────
+  async getImpersonationLog(req, res, next) {
+    try {
+      const data = await superadminService.getImpersonationLog();
+      sendSuccess(res, data, 'Impersonation log');
+    } catch (err) { next(err); }
+  },
+
+  async logImpersonation(req, res, next) {
+    try {
+      const entry = await superadminService.logImpersonation(req.body);
+      sendSuccess(res, entry, 'Logged');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P4: Menu Analytics ───────────────────────────────────────────────────
+  async getMenuAnalytics(req, res, next) {
+    try {
+      const { outlet_id } = req.query;
+      if (!outlet_id) return sendError(res, 400, 'outlet_id required');
+      const data = await superadminService.getMenuAnalytics(outlet_id);
+      sendSuccess(res, data, 'Menu analytics');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P4: Subscription Info ────────────────────────────────────────────────
+  async getSubscriptionInfo(req, res, next) {
+    try {
+      const headOfficeId = req.params.id;
+      const data = await superadminService.getSubscriptionInfo(headOfficeId);
+      sendSuccess(res, data, 'Subscription info');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

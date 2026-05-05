@@ -57,6 +57,13 @@ import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import SetupWizard from './pages/SetupWizard';
 import WelcomePage from './pages/WelcomePage';
+import PlatformHealthPage from './pages/PlatformHealthPage';
+import ImpersonationLogPage from './pages/ImpersonationLogPage';
+import SubscriptionPage from './pages/SubscriptionPage';
+import MenuAnalyticsPage from './pages/MenuAnalyticsPage';
+import LiveDashboardPage from './pages/LiveDashboardPage';
+import AdvancedReportsPage from './pages/AdvancedReportsPage';
+import ReservationsPage from './pages/ReservationsPage';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -155,8 +162,19 @@ export default function App() {
         <Route path="broadcasts" element={<BroadcastPage />} />
         <Route path="all-users" element={<AllUsersPage />} />
         <Route path="promo-codes" element={<PromoCodesPage />} />
+
+        {/* P3 Routes */}
+        <Route path="platform-health"    element={<PlatformHealthPage />} />
+        <Route path="impersonation-log"  element={<ImpersonationLogPage />} />
+        <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
+        <Route path="reservations"       element={<ReservationsPage />} />
+
+        {/* P4 Routes */}
+        <Route path="subscription"       element={<SubscriptionPage />} />
+        <Route path="menu-analytics"     element={<MenuAnalyticsPage />} />
+        <Route path="live"               element={<LiveDashboardPage />} />
       </Route>
-      
+
       {/* Catch All */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

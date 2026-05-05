@@ -13,8 +13,10 @@ import {
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
+  Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
+import NotificationCenter from '../components/NotificationCenter';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
 import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
@@ -38,6 +40,8 @@ const superAdminNav = [
   { path: '/audit-log',           label: 'System Logs',        icon: ClipboardList },
   { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart },
   { path: '/platform-settings',   label: 'Platform Settings',  icon: Sliders },
+  { path: '/platform-health',     label: 'Platform Health',    icon: Activity },
+  { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 
@@ -62,7 +66,12 @@ const ownerNav = [
   { section: 'Revenue' },
   { path: '/payments',       label: 'Payments',        icon: CreditCard, feature: 'payments' },
   { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
-  { path: '/reports',        label: 'Reports',         icon: BarChart3, feature: 'reports' },
+  { path: '/reports',           label: 'Reports',         icon: BarChart3, feature: 'reports' },
+  { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
+  { path: '/menu-analytics',    label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
+  { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
+  { path: '/reservations',      label: 'Reservations',     icon: BookOpen, feature: 'tables' },
+  { path: '/subscription',      label: 'My Subscription',  icon: Star },
   { section: 'System' },
   { path: '/qr-codes',       label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
   { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true, feature: 'qr_orders' },
@@ -391,6 +400,9 @@ export default function DashboardLayout() {
                   <span className="absolute top-1 right-1 w-2 h-2 rounded-full border-2" style={{ background: 'var(--danger)', borderColor: 'var(--bg-card)' }} />
                 )}
               </button>
+
+              {/* In-App Notification Center */}
+              <NotificationCenter />
 
               <button
                 onClick={toggleTheme}

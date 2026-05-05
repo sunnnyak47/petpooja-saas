@@ -1,0 +1,19 @@
+# Exclude everything except frontend
+backend
+desktop
+electron
+mobile
+kitchen
+customer-ui
+superadmin-frontend
+landing
+jb-barbershop
+scratch
+infrastructure
+nginx
+docker
+node_modules
+*.traineddata
+.claude
+dist
+*.log

@@ -222,6 +222,8 @@ const auIntegrationsRoutes = require('./modules/integrations/au-integrations.rou
 app.use('/api/integrations/au', auIntegrationsRoutes);
 const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
 app.use('/api/whatsapp', whatsappRoutes);
+const reservationRoutes = require('./modules/reservations/reservations.routes');
+app.use('/api/reservations', reservationRoutes);
 app.use('/mock', mockRoutes);
 app.use('/test', mockTestRoutes);
 

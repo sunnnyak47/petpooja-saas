@@ -108,4 +108,17 @@ router.post('/promo-codes/validate', superadminController.validatePromoCode);
 /** P2: Chain Profile Edit */
 router.patch('/chains/:id/profile', superadminController.updateChainProfile);
 
+/** P3/P4: Platform Health Monitor */
+router.get('/health', superadminController.getPlatformHealth);
+
+/** P3/P4: Impersonation Audit Log */
+router.get('/impersonation-log', superadminController.getImpersonationLog);
+router.post('/impersonation-log', superadminController.logImpersonation);
+
+/** P4: Menu Performance Analytics */
+router.get('/menu-analytics', superadminController.getMenuAnalytics);
+
+/** P4: Subscription Info per chain */
+router.get('/chains/:id/subscription', superadminController.getSubscriptionInfo);
+
 module.exports = router;
