@@ -254,6 +254,41 @@ async function startApp() {
     const prisma = getDbClient();
     await prisma.$connect();
     logger.info('Database connection established.');
+
+    // ── Schema drift migration (idempotent) ──────────────────────────────
+    // Applies columns that exist in schema.prisma but may be missing from DB.
+    // Uses ADD COLUMN IF NOT EXISTS so it is safe to re-run on every deploy.
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE outlets
+          ADD COLUMN IF NOT EXISTS abn            VARCHAR(11),
+          ADD COLUMN IF NOT EXISTS acn            VARCHAR(9),
+          ADD COLUMN IF NOT EXISTS bill_footer    TEXT,
+          ADD COLUMN IF NOT EXISTS bill_header    TEXT,
+          ADD COLUMN IF NOT EXISTS metadata       JSONB DEFAULT '{}',
+          ADD COLUMN IF NOT EXISTS printer_ip     VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS printer_type   VARCHAR(30) DEFAULT 'THERMAL',
+          ADD COLUMN IF NOT EXISTS tables_count   INTEGER NOT NULL DEFAULT 0;
+      `);
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE head_offices
+          ADD COLUMN IF NOT EXISTS abn                VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS acn                VARCHAR(15),
+          ADD COLUMN IF NOT EXISTS country_code       VARCHAR(2)  NOT NULL DEFAULT 'IN',
+          ADD COLUMN IF NOT EXISTS currency           VARCHAR(5)  NOT NULL DEFAULT 'INR',
+          ADD COLUMN IF NOT EXISTS region             VARCHAR(5)  NOT NULL DEFAULT 'IN',
+          ADD COLUMN IF NOT EXISTS regulations_profile VARCHAR(20) NOT NULL DEFAULT 'INDIA',
+          ADD COLUMN IF NOT EXISTS timezone           VARCHAR(50) NOT NULL DEFAULT 'Asia/Kolkata',
+          ADD COLUMN IF NOT EXISTS setup_completed    BOOLEAN NOT NULL DEFAULT false,
+          ADD COLUMN IF NOT EXISTS plan               VARCHAR(50) NOT NULL DEFAULT 'TRIAL',
+          ADD COLUMN IF NOT EXISTS metadata           JSONB DEFAULT '{}';
+      `);
+      logger.info('Schema drift migration applied successfully.');
+    } catch (migErr) {
+      // Non-fatal: log but do not crash startup
+      logger.warn('Schema drift migration warning (non-fatal):', { error: migErr.message });
+    }
+    // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
     logger.error('Failed to establish database connection during startup:', err.message);
   }

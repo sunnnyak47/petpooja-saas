@@ -366,7 +366,8 @@ async function registerRestaurant(data) {
           currency: regionDefaults.currency,
           timezone: regionDefaults.timezone,
           owner_id: user.id,
-        }
+        },
+        select: { id: true, name: true, code: true }, // Explicit select guards against schema-drift P2022 errors
       });
 
       // 5. Assign Owner Role
