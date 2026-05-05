@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   Sparkles, MapPin, Calendar, ChefHat, Tag, Palette, Gift,
   ToggleLeft, ToggleRight, Zap, Star, Clock, AlertTriangle,
@@ -102,9 +103,9 @@ function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onC
         {/* Dates */}
         <div className="flex items-center gap-2 text-xs text-surface-400 mb-3">
           <Calendar size={11} />
-          <span>{new Date(festival.start || festival.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+          <span>{new Date(festival.start || festival.start_date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</span>
           <span>→</span>
-          <span>{new Date(festival.end || festival.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+          <span>{new Date(festival.end || festival.end_date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</span>
           {festival.days_until_start !== undefined && festival.days_until_start > 0 && (
             <span className="ml-auto text-surface-500">{festival.days_until_start}d away</span>
           )}
@@ -445,7 +446,7 @@ function ActiveModeBanner({ activeMode, outletId, onToggle }) {
           <div className="text-right">
             <div className="text-xs text-surface-400">Active until</div>
             <div className="text-sm font-semibold text-surface-50">
-              {new Date(activeMode.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              {new Date(activeMode.end_date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
             </div>
           </div>
           <button onClick={() => onToggle(activeMode.id)}
@@ -460,6 +461,7 @@ function ActiveModeBanner({ activeMode, outletId, onToggle }) {
 
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function FestivalModePage() {
+  const { locale, symbol } = useCurrency();
   const outletId = localStorage.getItem('outlet_id') || '';
   const [tab, setTab]                         = useState('upcoming');
   const [search, setSearch]                   = useState('');
@@ -693,8 +695,8 @@ export default function FestivalModePage() {
                         )}
                       </div>
                       <div className="text-xs text-surface-400 mt-0.5">
-                        {new Date(cfg.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} →{' '}
-                        {new Date(cfg.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        {new Date(cfg.start_date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })} →{' '}
+                        {new Date(cfg.end_date).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
                         {cfg.custom_banner && <span className="ml-2 text-surface-500">· {cfg.custom_banner.slice(0, 40)}…</span>}
                       </div>
                     </div>

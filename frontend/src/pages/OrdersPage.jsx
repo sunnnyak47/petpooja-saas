@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -30,6 +31,7 @@ const STATUS_FLOW = ['created', 'confirmed', 'preparing', 'ready', 'served', 'pa
 export default function OrdersPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const { format, locale } = useCurrency();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -152,7 +154,7 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{order.order_type?.replace('_', ' ')}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order.table?.table_number || '—'}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order._count?.order_items || 0}</td>
-                  <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>₹{Number(order.grand_total || 0).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{format(order.grand_total || 0)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <select
                       className={`${STATUS_STYLES[order.status] || 'badge-neutral'} bg-transparent border-0 font-medium cursor-pointer focus:ring-0 appearance-none text-sm`}
@@ -162,7 +164,7 @@ export default function OrdersPage() {
                       {STATUS_FLOW.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleReorder(order); }}
@@ -212,7 +214,7 @@ export default function OrdersPage() {
                           <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.menu_item?.name || item.name || 'Item'}</p>
                           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Qty: {item.quantity}</p>
                         </div>
-                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>₹{Number(item.item_total || item.total_price || item.price || 0).toFixed(0)}</p>
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{format(item.item_total || item.total_price || item.price || 0)}</p>
                       </div>
                     ))
                   : <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Loading items...</div>
@@ -222,11 +224,11 @@ export default function OrdersPage() {
 
             {/* Totals */}
             <div className="rounded-xl p-4 space-y-2" style={{ background: 'var(--bg-hover)' }}>
-              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Subtotal</span><span style={{ color: 'var(--text-primary)' }}>₹{Number(selectedOrder.subtotal || selectedOrder.sub_total || 0).toFixed(0)}</span></div>
-              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Tax</span><span style={{ color: 'var(--text-primary)' }}>₹{Number(selectedOrder.total_tax || 0).toFixed(0)}</span></div>
-              {selectedOrder.discount_amount > 0 && <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Discount</span><span style={{ color: 'var(--success)' }}>-₹{Number(selectedOrder.discount_amount).toFixed(0)}</span></div>}
+              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Subtotal</span><span style={{ color: 'var(--text-primary)' }}>{format(selectedOrder.subtotal || selectedOrder.sub_total || 0)}</span></div>
+              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Tax</span><span style={{ color: 'var(--text-primary)' }}>{format(selectedOrder.total_tax || 0)}</span></div>
+              {selectedOrder.discount_amount > 0 && <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Discount</span><span style={{ color: 'var(--success)' }}>-{format(selectedOrder.discount_amount)}</span></div>}
               <div className="flex justify-between text-base font-bold pt-2" style={{ borderTop: `1px solid var(--border)` }}>
-                <span style={{ color: 'var(--text-primary)' }}>Grand Total</span><span style={{ color: 'var(--accent)' }}>₹{Number(selectedOrder.grand_total || 0).toLocaleString('en-IN')}</span>
+                <span style={{ color: 'var(--text-primary)' }}>Grand Total</span><span style={{ color: 'var(--accent)' }}>{format(selectedOrder.grand_total || 0)}</span>
               </div>
             </div>
 

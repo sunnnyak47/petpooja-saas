@@ -765,9 +765,81 @@ async function getRevenueTrendRange(outletId, from, to) {
   }));
 }
 
+/**
+ * Returns financial year date range for a given date and region.
+ * AU: July 1 – June 30. IN: April 1 – March 31.
+ */
+function getFinancialYearRange(date = new Date(), region = 'IN') {
+  const d = new Date(date);
+  const month = d.getMonth(); // 0-indexed
+  const year = d.getFullYear();
+  if (region === 'AU') {
+    const fyStart = month >= 6 ? year : year - 1;
+    return {
+      start: new Date(fyStart, 6, 1),
+      end: new Date(fyStart + 1, 5, 30),
+      label: `FY${fyStart}-${fyStart + 1}`,
+    };
+  }
+  // India
+  const fyStart = month >= 3 ? year : year - 1;
+  return {
+    start: new Date(fyStart, 3, 1),
+    end: new Date(fyStart + 1, 2, 31),
+    label: `FY${fyStart}-${String(fyStart + 1).slice(2)}`,
+  };
+}
+
+/**
+ * BAS (Business Activity Statement) report for Australian outlets.
+ * Returns GST collected, GST on purchases, and net GST payable.
+ */
+async function getBASReport(outletId, from, to) {
+  const { getDbClient } = require('../../config/database');
+  const prisma = getDbClient();
+
+  const orders = await prisma.order.findMany({
+    where: {
+      outlet_id: outletId,
+      created_at: { gte: new Date(from), lte: new Date(to) },
+      is_deleted: false,
+      status: { in: ['billed', 'paid', 'completed'] },
+    },
+    select: { total_amount: true, tax_amount: true },
+  });
+
+  const totalSalesInclGST = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+  const gstCollected = Math.round(totalSalesInclGST * 10 / 110 * 100) / 100;
+
+  // GST paid on purchases (from purchase orders)
+  const pos = await prisma.purchaseOrder.findMany({
+    where: {
+      outlet_id: outletId,
+      created_at: { gte: new Date(from), lte: new Date(to) },
+      is_deleted: false,
+    },
+    select: { total_amount: true, tax_amount: true },
+  }).catch(() => []);
+
+  const gstPaid = pos.reduce((s, p) => s + Number(p.tax_amount || 0), 0);
+  const netGSTPayable = Math.round((gstCollected - gstPaid) * 100) / 100;
+
+  return {
+    period: { from, to },
+    g1_total_sales_incl_gst: totalSalesInclGST,
+    g1_label: 'G1 Total Sales',
+    gst_collected: gstCollected,
+    gst_paid_on_purchases: gstPaid,
+    net_gst_payable: netGSTPayable,
+    net_sales_excl_gst: Math.round((totalSalesInclGST - gstCollected) * 100) / 100,
+    order_count: orders.length,
+  };
+}
+
 module.exports = {
   getDailySales, getItemWiseSales, getRevenueTrend,
   getDashboard, getHourlyBreakdown, getCategoryWiseSales, getGstReport, getStaffPerformance,
   getTopSellingItems, getGstDetailedReport, exportGstCsv,
   getFranchiseKPIs, getInventoryValuation, getRevenueTrendRange,
+  getFinancialYearRange, getBASReport,
 };

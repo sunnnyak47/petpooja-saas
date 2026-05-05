@@ -39,11 +39,14 @@ export default function SettingsPage() {
     currency: 'INR',
     timezone: 'Asia/Kolkata',
     language: 'en',
-    // Tax
+    // Tax / Compliance
     default_gst_slab: '5',
     gst_inclusive: false,
     service_charge_pct: '0',
     gstin: '',
+    fssai_number: '',
+    abn: '',
+    acn: '',
     // Receipt
     printer_type: 'thermal',
     printer_ip: '',
@@ -169,7 +172,8 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Currency">
                 <select value={settings.currency} onChange={(e) => updateSetting('currency', e.target.value)} className="input">
-                  <option value="INR">INR (₹)</option>
+                  <option value="INR">₹ Indian Rupee (INR)</option>
+                  <option value="AUD">A$ Australian Dollar (AUD)</option>
                   <option value="USD">USD ($)</option>
                   <option value="AED">AED (د.إ)</option>
                   <option value="ZAR">ZAR (R)</option>
@@ -184,15 +188,44 @@ export default function SettingsPage() {
                 </select>
               </Field>
             </div>
+            <Field label="Timezone">
+              <select value={settings.timezone} onChange={(e) => updateSetting('timezone', e.target.value)} className="input">
+                <option value="Asia/Kolkata">IST — India Standard Time (UTC+5:30)</option>
+                <option value="Australia/Sydney">AEST — Australian Eastern (Sydney/Melbourne)</option>
+                <option value="Australia/Melbourne">AEST — Melbourne</option>
+                <option value="Australia/Brisbane">AEST — Brisbane (no DST)</option>
+                <option value="Australia/Perth">AWST — Perth (UTC+8)</option>
+                <option value="Australia/Adelaide">ACST — Adelaide (UTC+9:30)</option>
+                <option value="Australia/Darwin">ACST — Darwin</option>
+              </select>
+            </Field>
           </div>
         );
-      case 'tax':
+      case 'tax': {
+        const isAUSett = settings.currency === 'AUD';
         return (
           <div className="space-y-5">
-            <SectionTitle title="Tax & GST" subtitle="Configure GST registration and applicable tax slabs" />
-            <Field label="GSTIN">
-              <input value={settings.gstin} onChange={(e) => updateSetting('gstin', e.target.value)} className="input font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
-            </Field>
+            <SectionTitle title={isAUSett ? 'Tax & Compliance (AU)' : 'Tax & GST'} subtitle={isAUSett ? 'Configure ABN/ACN and GST settings for Australian operations' : 'Configure GST registration and applicable tax slabs'} />
+            {isAUSett ? (
+              <>
+                <Field label="ABN (Australian Business Number)">
+                  <input value={settings.abn} onChange={(e) => updateSetting('abn', e.target.value)} className="input font-mono" placeholder="12 345 678 901" maxLength={11} />
+                </Field>
+                <Field label="ACN (Australian Company Number)">
+                  <input value={settings.acn} onChange={(e) => updateSetting('acn', e.target.value)} className="input font-mono" placeholder="123 456 789" maxLength={9} />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="GSTIN">
+                  <input value={settings.gstin} onChange={(e) => updateSetting('gstin', e.target.value)} className="input font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
+                </Field>
+                <Field label="FSSAI Number">
+                  <input value={settings.fssai_number} onChange={(e) => updateSetting('fssai_number', e.target.value)} className="input font-mono" placeholder="FSSAI licence number" maxLength={14} />
+                </Field>
+              </>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Default GST Slab">
                 <select value={settings.default_gst_slab} onChange={(e) => updateSetting('default_gst_slab', e.target.value)} className="input">
@@ -207,10 +240,11 @@ export default function SettingsPage() {
               </Field>
             </div>
             <div className="pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
-              <ToggleSwitch label="GST Inclusive Pricing" description="Menu prices already include GST" checked={settings.gst_inclusive} onChange={(v) => updateSetting('gst_inclusive', v)} />
+              <ToggleSwitch label={isAUSett ? 'GST Inclusive Pricing (10%)' : 'GST Inclusive Pricing'} description="Menu prices already include GST" checked={settings.gst_inclusive} onChange={(v) => updateSetting('gst_inclusive', v)} />
             </div>
           </div>
         );
+      }
       case 'receipt':
         return (
           <div className="space-y-5">

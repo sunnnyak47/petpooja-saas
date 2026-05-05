@@ -8,6 +8,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useCurrency } from '../hooks/useCurrency';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -19,8 +20,8 @@ import {
   ArrowRight, Clock, User, Shield,
 } from 'lucide-react';
 
-/* ─── Currency denominations (₹) ───────────────────────────────── */
-const DENOMS = [
+/* ─── Currency denominations ─────────────────────────────────────── */
+const IN_DENOMS = [
   { value: 2000, label: '₹2000', color: '#16a34a' },
   { value:  500, label: '₹500',  color: '#2563eb' },
   { value:  200, label: '₹200',  color: '#7c3aed' },
@@ -33,13 +34,22 @@ const DENOMS = [
   { value:    1, label: '₹1',    color: '#475569' },
 ];
 
-/* ─── Helpers ───────────────────────────────────────────────────── */
-const fmt = (n) => `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const pct = (part, total) => total > 0 ? ((part / total) * 100).toFixed(1) : '0.0';
+const AU_DENOMS = [
+  { value:  100, label: 'A$100', color: '#16a34a' },
+  { value:   50, label: 'A$50',  color: '#2563eb' },
+  { value:   20, label: 'A$20',  color: '#7c3aed' },
+  { value:   10, label: 'A$10',  color: '#db2777' },
+  { value:    5, label: 'A$5',   color: '#d97706' },
+  { value:    2, label: 'A$2',   color: '#0891b2' },
+  { value:    1, label: 'A$1',   color: '#059669' },
+  { value: 0.50, label: '50¢',   color: '#9333ea' },
+  { value: 0.20, label: '20¢',   color: '#64748b' },
+  { value: 0.10, label: '10¢',   color: '#475569' },
+  { value: 0.05, label: '5¢',    color: '#334155' },
+];
 
-function computeCashActual(counts) {
-  return DENOMS.reduce((s, d) => s + d.value * (Number(counts[d.value] || 0)), 0);
-}
+/* ─── Helpers ───────────────────────────────────────────────────── */
+const pct = (part, total) => total > 0 ? ((part / total) * 100).toFixed(1) : '0.0';
 
 /* ─── Step indicator ────────────────────────────────────────────── */
 const STEPS = [
@@ -226,6 +236,10 @@ export default function EODReportPage() {
   const outletId  = user?.outlet_id;
   const navigate  = useNavigate();
   const qc        = useQueryClient();
+  const { format, locale, isAU } = useCurrency();
+  const fmt = (n) => format(n ?? 0);
+  const DENOMS = isAU ? AU_DENOMS : IN_DENOMS;
+  const computeCashActual = (counts) => DENOMS.reduce((s, d) => s + d.value * (Number(counts[d.value] || 0)), 0);
 
   const [step,        setStep]        = useState(1);
   const [activeView,  setActiveView]  = useState('wizard'); // wizard | history
@@ -384,7 +398,7 @@ export default function EODReportPage() {
                   return (
                     <tr key={r.id} className="border-b border-border hover:bg-surface/50 cursor-pointer"
                       onClick={() => { setSelectedDate(r.report_date.slice(0,10)); setActiveView('wizard'); setStep(5); }}>
-                      <td className="p-3 text-sm font-medium">{new Date(r.report_date).toLocaleDateString('en-IN')}</td>
+                      <td className="p-3 text-sm font-medium">{new Date(r.report_date).toLocaleDateString(locale)}</td>
                       <td className="p-3 text-sm">{r.total_orders}</td>
                       <td className="p-3 text-sm font-semibold">{fmt(r.total_revenue)}</td>
                       <td className="p-3 text-sm">{fmt(r.cash_system)}</td>

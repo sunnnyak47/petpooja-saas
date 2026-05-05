@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
+import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
@@ -255,6 +256,7 @@ function KOTCard({ kot, onBump, onItemReady, bumpLoading, colAccent, colAccentHe
 /* ─── main page ─── */
 export default function KitchenDisplayPage() {
   const { user }    = useSelector((s) => s.auth);
+  const { locale }  = useCurrency();
   const outletId    = user?.outlet_id || user?.outlets?.[0]?.id;
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
@@ -370,8 +372,8 @@ export default function KitchenDisplayPage() {
 
   // all colors via CSS variables — no hardcoded hex
 
-  const timeStr = clock.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-  const dateStr = clock.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeStr = clock.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const dateStr = clock.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
   const totalActive = stats.pending + stats.preparing + stats.ready;
 
   return (

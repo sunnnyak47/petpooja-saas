@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
@@ -44,6 +45,7 @@ function daysUntilBirthday(dob) {
 export default function CustomersPage() {
   const { user }  = useSelector(s => s.auth);
   const outletId  = user?.outlet_id;
+  const { format, locale } = useCurrency();
   const qc        = useQueryClient();
 
   const [search, setSearch]   = useState('');
@@ -233,7 +235,7 @@ export default function CustomersPage() {
                         <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-surface-500" />{c.phone}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-surface-400">
-                        {c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                        {c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString(locale, { day: '2-digit', month: 'short' }) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${SEGMENT_STYLES[c.segment] || SEGMENT_STYLES.new}`} style={SEGMENT_INLINE[c.segment] || SEGMENT_INLINE.new}>
@@ -248,7 +250,7 @@ export default function CustomersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-surface-500">
-                        {c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString('en-IN') : 'Never'}
+                        {c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString(locale) : 'Never'}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -332,7 +334,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-hover)' }}>
                     <TrendingUp className="w-4 h-4 mx-auto mb-1" style={{ color: 'var(--success)' }} />
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>₹{Number(selectedCustomer.total_spend || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{format(selectedCustomer.total_spend || 0)}</p>
                     <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Lifetime</p>
                   </div>
                 </div>
@@ -345,14 +347,14 @@ export default function CustomersPage() {
                     <div className="flex justify-between">
                       <span style={{ color: 'var(--text-secondary)' }}>Birthday</span>
                       <span className="flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
-                        {new Date(selectedCustomer.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}
+                        {new Date(selectedCustomer.date_of_birth).toLocaleDateString(locale, { day: '2-digit', month: 'long' })}
                         {daysUntilBirthday(selectedCustomer.date_of_birth) !== null && <Cake className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />}
                       </span>
                     </div>
                   )}
-                  {selectedCustomer.anniversary && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Anniversary</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.anniversary).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}</span></div>}
+                  {selectedCustomer.anniversary && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Anniversary</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.anniversary).toLocaleDateString(locale, { day: '2-digit', month: 'long' })}</span></div>}
                   {selectedCustomer.dietary_preference && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Diet</span><span className="capitalize" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.dietary_preference}</span></div>}
-                  {selectedCustomer.last_visit_at && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Last Visit</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.last_visit_at).toLocaleDateString('en-IN')}</span></div>}
+                  {selectedCustomer.last_visit_at && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Last Visit</span><span style={{ color: 'var(--text-primary)' }}>{new Date(selectedCustomer.last_visit_at).toLocaleDateString(locale)}</span></div>}
                   {selectedCustomer.notes && <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Notes</span><span className="text-xs" style={{ color: 'var(--text-primary)' }}>{selectedCustomer.notes}</span></div>}
                 </div>
 
@@ -376,7 +378,7 @@ export default function CustomersPage() {
                   <div key={tx.id} className="flex justify-between items-center rounded-xl px-4 py-2" style={{ background: 'var(--bg-hover)' }}>
                     <div>
                       <p className="text-xs font-bold capitalize" style={{ color: 'var(--text-primary)' }}>{tx.type}</p>
-                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(tx.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(tx.created_at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</p>
                     </div>
                     <p className="text-sm font-black" style={{ color: tx.points > 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {tx.points > 0 ? '+' : ''}{tx.points} pts
@@ -395,9 +397,9 @@ export default function CustomersPage() {
                   <div key={o.id} className="flex justify-between items-center rounded-xl px-4 py-2" style={{ background: 'var(--bg-hover)' }}>
                     <div>
                       <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>#ORD-{String(o.order_number).padStart(5,'0')}</p>
-                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(o.created_at).toLocaleDateString('en-IN')}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{new Date(o.created_at).toLocaleDateString(locale)}</p>
                     </div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>₹{Number(o.grand_total || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{format(o.grand_total || 0)}</p>
                   </div>
                 ))}
                 {(customerDetail?.orders || []).length === 0 && (

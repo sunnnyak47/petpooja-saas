@@ -38,6 +38,17 @@ async function computeOutletScore(outletId) {
   const day14 = new Date(now - 14 * 86400000);
   const day30 = new Date(now - 30 * 86400000);
 
+  // Fetch outlet currency for region-aware thresholds
+  const outletMeta = await prisma.outlet.findUnique({
+    where: { id: outletId },
+    select: { currency: true, region: true },
+  }).catch(() => null);
+  const isAU = outletMeta?.currency === 'AUD';
+  const currencySymbol = isAU ? 'A$' : '₹';
+  const REV_THRESHOLDS = isAU
+    ? [60000, 25000, 6000, 1200]   // AUD monthly thresholds
+    : [500000, 200000, 50000, 10000]; // INR monthly thresholds
+
   // ── Parallel data fetching ─────────────────────────────────────────────────
   const [
     ordersLast7,
@@ -156,11 +167,11 @@ async function computeOutletScore(outletId) {
   if (totalRevenue30d === 0) {
     revenueScore = 0;
     revenueSignal = 'No revenue recorded in 30 days';
-  } else if (totalRevenue30d >= 500000) { revenueScore = 15; revenueSignal = `₹${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
-  else if (totalRevenue30d >= 200000)   { revenueScore = 12; revenueSignal = `₹${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
-  else if (totalRevenue30d >= 50000)    { revenueScore = 9;  revenueSignal = `₹${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
-  else if (totalRevenue30d >= 10000)    { revenueScore = 6;  revenueSignal = `₹${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
-  else                                  { revenueScore = 3;  revenueSignal = `Low revenue: ₹${Math.round(totalRevenue30d).toLocaleString('en-IN')}`; }
+  } else if (totalRevenue30d >= REV_THRESHOLDS[0]) { revenueScore = 15; revenueSignal = `${currencySymbol}${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
+  else if (totalRevenue30d >= REV_THRESHOLDS[1])   { revenueScore = 12; revenueSignal = `${currencySymbol}${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
+  else if (totalRevenue30d >= REV_THRESHOLDS[2])   { revenueScore = 9;  revenueSignal = `${currencySymbol}${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
+  else if (totalRevenue30d >= REV_THRESHOLDS[3])   { revenueScore = 6;  revenueSignal = `${currencySymbol}${Math.round(totalRevenue30d / 1000)}k revenue this month`; }
+  else                                              { revenueScore = 3;  revenueSignal = `Low revenue: ${currencySymbol}${Math.round(totalRevenue30d).toLocaleString()}`; }
 
   // ── 5. Customer Retention (15 pts) ────────────────────────────────────────
   const totalCust30d = customers30d.length;

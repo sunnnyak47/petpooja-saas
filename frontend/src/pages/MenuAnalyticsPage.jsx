@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   TrendingUp, TrendingDown, Minus, BarChart2, Star,
   AlertTriangle, Package, ChevronRight, Flame, Snowflake
@@ -17,7 +18,7 @@ const ABC_CONFIG = {
   C: { label: 'Slow Movers',   color: '#f87171', bg: 'rgba(239,68,68,0.12)',  icon: Snowflake,   desc: 'Low volume — consider promotions or removal' },
 };
 
-function ItemCard({ item }) {
+function ItemCard({ item, fmt = (v) => '₹' + parseFloat(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }) }) {
   const cfg = ABC_CONFIG[item.abc] || ABC_CONFIG.C;
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl transition-all hover:opacity-80"
@@ -33,7 +34,7 @@ function ItemCard({ item }) {
       <div className="text-right flex-shrink-0">
         <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.qty} sold</p>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          ₹{parseFloat(item.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+          {fmt(item.revenue || 0)}
         </p>
       </div>
     </div>
@@ -42,6 +43,7 @@ function ItemCard({ item }) {
 
 export default function MenuAnalyticsPage() {
   const { user } = useSelector(s => s.auth);
+  const { format } = useCurrency();
   const [outletId, setOutletId] = useState(user?.outlet_id || '');
   const [activeTab, setActiveTab] = useState('A');
 
@@ -157,7 +159,7 @@ export default function MenuAnalyticsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {tabItems[activeTab].map(item => <ItemCard key={item.id} item={item} />)}
+              {tabItems[activeTab].map(item => <ItemCard key={item.id} item={item} fmt={format} />)}
             </div>
           )}
         </div>

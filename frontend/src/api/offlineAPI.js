@@ -56,7 +56,11 @@ function generateInvoiceNumber(outlet) {
 function generateReceiptHTML(bill) {
   const items = bill.items || bill.order_items || []
   const outlet = bill.outlet || {}
-  const fmt = (n) => `₹${parseFloat(n || 0).toFixed(2)}`
+  const isAU = outlet.region === 'AU' || bill.currency === 'AUD'
+  const locale = isAU ? 'en-AU' : 'en-IN'
+  const fmt = (n) => isAU
+    ? `A$${parseFloat(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `₹${parseFloat(n || 0).toFixed(2)}`
   const itemRows = items.map(i => `
     <tr>
       <td style="padding:3px 0;font-size:12px">${i.menu_item_name || i.name}</td>
@@ -80,11 +84,14 @@ function generateReceiptHTML(bill) {
   <h2>${outlet.name || 'Restaurant'}</h2>
   ${outlet.address ? `<p class="center" style="margin:2px 0;font-size:11px">${outlet.address}${outlet.city ? ', ' + outlet.city : ''}</p>` : ''}
   ${outlet.phone ? `<p class="center" style="margin:2px 0;font-size:11px">Ph: ${outlet.phone}</p>` : ''}
-  ${outlet.gstin ? `<p class="center" style="margin:2px 0;font-size:11px">GSTIN: ${outlet.gstin}</p>` : ''}
+  ${isAU
+    ? (outlet.abn ? `<p class="center" style="margin:2px 0;font-size:11px">ABN: ${outlet.abn}</p>` : '')
+    : `${outlet.gstin ? `<p class="center" style="margin:2px 0;font-size:11px">GSTIN: ${outlet.gstin}</p>` : ''}${outlet.fssai_number ? `<p class="center" style="margin:2px 0;font-size:11px">FSSAI: ${outlet.fssai_number}</p>` : ''}`
+  }
   <div class="line"></div>
   <table><tr>
     <td style="font-size:11px">Invoice: <b>${bill.invoice_number || 'N/A'}</b></td>
-    <td style="text-align:right;font-size:11px">${new Date().toLocaleDateString('en-IN')}</td>
+    <td style="text-align:right;font-size:11px">${new Date().toLocaleDateString(locale)}</td>
   </tr></table>
   ${bill.table_number ? `<p style="margin:2px 0;font-size:11px">Table: ${bill.table_number}</p>` : ''}
   <div class="line"></div>
@@ -99,14 +106,16 @@ function generateReceiptHTML(bill) {
   <div class="line"></div>
   <table>
     <tr><td style="font-size:12px">Subtotal</td><td style="text-align:right;font-size:12px">${fmt(bill.subtotal)}</td></tr>
-    ${bill.cgst_amount || bill.cgst ? `<tr><td style="font-size:12px">CGST</td><td style="text-align:right;font-size:12px">${fmt(bill.cgst_amount || bill.cgst)}</td></tr>` : ''}
-    ${bill.sgst_amount || bill.sgst ? `<tr><td style="font-size:12px">SGST</td><td style="text-align:right;font-size:12px">${fmt(bill.sgst_amount || bill.sgst)}</td></tr>` : ''}
+    ${isAU
+      ? (bill.tax_amount ? `<tr><td style="font-size:12px">GST (10%)</td><td style="text-align:right;font-size:12px">${fmt(bill.tax_amount)}</td></tr>` : '')
+      : `${bill.cgst_amount || bill.cgst ? `<tr><td style="font-size:12px">CGST</td><td style="text-align:right;font-size:12px">${fmt(bill.cgst_amount || bill.cgst)}</td></tr>` : ''}${bill.sgst_amount || bill.sgst ? `<tr><td style="font-size:12px">SGST</td><td style="text-align:right;font-size:12px">${fmt(bill.sgst_amount || bill.sgst)}</td></tr>` : ''}`
+    }
     ${bill.service_charge ? `<tr><td style="font-size:12px">Service Charge</td><td style="text-align:right;font-size:12px">${fmt(bill.service_charge)}</td></tr>` : ''}
     ${bill.discount_amount ? `<tr><td style="font-size:12px">Discount</td><td style="text-align:right;font-size:12px">-${fmt(bill.discount_amount)}</td></tr>` : ''}
     <tr class="total"><td>TOTAL</td><td style="text-align:right">${fmt(bill.grand_total || bill.total_amount)}</td></tr>
   </table>
   <div class="line"></div>
-  ${outlet.fssai ? `<p class="footer">FSSAI: ${outlet.fssai}</p>` : ''}
+  ${!isAU && outlet.fssai ? `<p class="footer">FSSAI: ${outlet.fssai}</p>` : ''}
   <p class="footer">Thank you! Visit Again 🙏</p>
   <script>window.onload=()=>window.print()</script>
   </body></html>`

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -31,6 +32,7 @@ const EMPTY_ITEM = {
 export default function MenuPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const { symbol, format } = useCurrency();
   const queryClient = useQueryClient();
   
   // Filters
@@ -396,7 +398,7 @@ export default function MenuPage() {
                           
                           <p className="font-bold text-white text-base leading-tight mb-0.5 pr-2 truncate">{item.name}</p>
                           <div className="flex items-end justify-between mt-2">
-                             <p className="text-lg font-black text-brand-400">₹{Number(item.base_price).toFixed(0)}</p>
+                             <p className="text-lg font-black text-brand-400">{symbol}{Number(item.base_price).toFixed(0)}</p>
                              {item.short_code && <span className="font-mono text-xs text-surface-500 font-bold bg-surface-900 px-1.5 py-0.5 rounded border border-surface-700">{item.short_code}</span>}
                           </div>
                        </div>
@@ -420,7 +422,7 @@ export default function MenuPage() {
                        <div className="flex-1">
                           <div className="flex justify-between items-start">
                              <h4 className="text-lg font-bold text-white">{combo.name}</h4>
-                             <span className="text-xl font-black text-brand-400">₹{combo.combo_price}</span>
+                             <span className="text-xl font-black text-brand-400">{symbol}{combo.combo_price}</span>
                           </div>
                           <p className="text-xs text-surface-400 mt-1 line-clamp-2">{combo.description || 'No description provided.'}</p>
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -733,7 +735,7 @@ export default function MenuPage() {
                     <div key={item.id} className="flex items-center justify-between px-3 py-2 hover:bg-surface-800 transition-colors">
                       <div>
                         <p className="text-sm font-medium text-white">{item.name}</p>
-                        <p className="text-xs text-surface-500">₹{item.base_price}</p>
+                        <p className="text-xs text-surface-500">{symbol}{item.base_price}</p>
                       </div>
                       {alreadyAdded ? (
                         <div className="flex items-center gap-2">

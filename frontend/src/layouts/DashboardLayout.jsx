@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { useCurrency } from '../hooks/useCurrency';
 import { io } from 'socket.io-client';
 import { logout, updateUser } from '../store/slices/authSlice';
 import api from '../lib/api';
@@ -113,6 +114,7 @@ export default function DashboardLayout() {
   const [audioLocked, setAudioLocked] = useState(true);
   const [updateProgress, setUpdateProgress] = useState(null);
   const { user, token } = useSelector((s) => s.auth);
+  const { locale } = useCurrency();
   const audioCtxRef = useRef(null);
 
   useEffect(() => {
@@ -373,7 +375,7 @@ export default function DashboardLayout() {
               <div>
                 <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>{outletName}</p>
                 <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+                  {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               </div>
             </div>

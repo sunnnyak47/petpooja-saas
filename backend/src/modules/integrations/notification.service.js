@@ -13,6 +13,24 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || '';
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID || '';
 
 /**
+ * Normalizes a phone number to E.164, region-aware.
+ * @param {string} phone
+ * @param {string} [region='IN']
+ */
+function normalizePhone(phone, region = 'IN') {
+  const digits = String(phone).replace(/\D/g, '');
+  if (region === 'AU') {
+    if (digits.startsWith('61')) return '+' + digits;
+    if (digits.startsWith('0')) return '+61' + digits.slice(1);
+    return '+61' + digits;
+  }
+  // India
+  if (digits.startsWith('91') && digits.length === 12) return '+' + digits;
+  if (digits.length === 10) return '+91' + digits;
+  return '+' + digits;
+}
+
+/**
  * Sends an SMS via MSG91 API.
  * @param {string} phone - 10-digit Indian phone number
  * @param {string} message - SMS content

@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import {
   TrendingUp, TrendingDown, BarChart2, PieChart, DollarSign,
   Calendar, Download, RefreshCw, ArrowUpRight, ArrowDownRight,
@@ -29,7 +30,7 @@ function HeatCell({ value, max }) {
   );
 }
 
-function PLRow({ label, value, isRevenue = false, isExpense = false, isProfit = false, indent = false }) {
+function PLRow({ label, value, isRevenue = false, isExpense = false, isProfit = false, indent = false, fmt = (v) => formatCurrencyStatic(v) }) {
   const color = isProfit ? (value >= 0 ? '#4ade80' : '#f87171') : isRevenue ? '#4ade80' : isExpense ? '#f87171' : 'var(--text-primary)';
   return (
     <div className="flex items-center justify-between py-2.5"
@@ -37,13 +38,14 @@ function PLRow({ label, value, isRevenue = false, isExpense = false, isProfit = 
       <span className={`text-sm ${isProfit ? 'font-bold' : 'font-medium'}`}
         style={{ color: isProfit ? color : 'var(--text-primary)' }}>{label}</span>
       <span className={`text-sm ${isProfit ? 'font-bold' : ''}`} style={{ color }}>
-        {isExpense ? '- ' : ''}₹{Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+        {isExpense ? '- ' : ''}{fmt(Math.abs(value))}
       </span>
     </div>
   );
 }
 
 export default function AdvancedReportsPage() {
+  const { format, locale } = useCurrency();
   const [dateRange, setDateRange] = useState('week');
   const [reportType, setReportType] = useState('overview');
 
@@ -141,8 +143,8 @@ export default function AdvancedReportsPage() {
       {/* Summary KPIs */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Gross Revenue',  value: `₹${(pl.gross_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, trend: '+12%', up: true,  color: '#22c55e', icon: TrendingUp },
-          { label: 'Net Profit',     value: `₹${(pl.net_profit || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,    trend: '+8%',  up: true,  color: '#4ade80', icon: DollarSign },
+          { label: 'Gross Revenue',  value: format(pl.gross_revenue || 0), trend: '+12%', up: true,  color: '#22c55e', icon: TrendingUp },
+          { label: 'Net Profit',     value: format(pl.net_profit || 0),    trend: '+8%',  up: true,  color: '#4ade80', icon: DollarSign },
           { label: 'Total Orders',   value: (reports?.total_orders || 0).toLocaleString(),                                        trend: '+5%',  up: true,  color: '#6366f1', icon: ShoppingCart },
           { label: 'Profit Margin',  value: `${pl.gross_revenue ? Math.round((pl.net_profit / pl.gross_revenue) * 100) : 0}%`,   trend: '-1%',  up: false, color: '#f59e0b', icon: BarChart2 },
         ].map(kpi => (
@@ -246,7 +248,7 @@ export default function AdvancedReportsPage() {
                     <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
                       <span>{cat.orders} orders</span>
                       <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        ₹{cat.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        {format(cat.revenue)}
                       </span>
                       <span style={{ color }}>{cat.pct}%</span>
                     </div>
@@ -260,7 +262,7 @@ export default function AdvancedReportsPage() {
           </div>
           <div className="pt-2 flex items-center justify-between text-sm font-semibold" style={{ borderTop: '1px solid var(--border)' }}>
             <span style={{ color: 'var(--text-primary)' }}>Total Revenue</span>
-            <span style={{ color: '#4ade80' }}>₹{totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+            <span style={{ color: '#4ade80' }}>{format(totalRevenue)}</span>
           </div>
         </div>
       )}
@@ -300,7 +302,7 @@ export default function AdvancedReportsPage() {
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <p className="text-[9px]" style={{ color: 'var(--text-secondary)' }}>
-                      ₹{(d.v / 1000).toFixed(0)}k
+                      {format(d.v)}
                     </p>
                     <div className="w-full rounded-t-sm" style={{ height: `${pct}%`, background: '#6366f1', minHeight: 4 }} />
                     <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{d.day}</p>
@@ -314,7 +316,7 @@ export default function AdvancedReportsPage() {
           <div className="rounded-xl p-5 space-y-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Key Metrics</h3>
             {[
-              { label: 'Avg Daily Revenue', value: `₹${((pl.gross_revenue || 0) / 7).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#22c55e' },
+              { label: 'Avg Daily Revenue', value: format((pl.gross_revenue || 0) / 7), icon: TrendingUp, color: '#22c55e' },
               { label: 'Food Cost %',        value: `${pl.gross_revenue ? Math.round((pl.food_cost / pl.gross_revenue) * 100) : 35}%`, icon: Utensils, color: '#f59e0b' },
               { label: 'Staff Cost %',       value: `${pl.gross_revenue ? Math.round((pl.staff_cost / pl.gross_revenue) * 100) : 18}%`, icon: Users, color: '#a78bfa' },
               { label: 'Profit Margin',      value: `${pl.gross_revenue ? Math.round((pl.net_profit / pl.gross_revenue) * 100) : 29}%`, icon: DollarSign, color: '#4ade80' },

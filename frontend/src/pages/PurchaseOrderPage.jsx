@@ -12,9 +12,10 @@ import {
 import api from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import toast from 'react-hot-toast';
+import { formatCurrencyStatic } from '../hooks/useCurrency';
 
 /* ── helpers ─────────────────────────────────── */
-const fmt = (n) => `₹${parseFloat(n || 0).toFixed(2)}`;
+const fmt = (n, currency = 'INR') => formatCurrencyStatic(n, currency);
 const CATEGORIES = [
   'ALL', 'Vegetables', 'Dairy', 'Grains & Flours', 'Spices & Masalas',
   'Meat & Fish', 'Dry Goods', 'Packaging', 'Beverages', 'Other',
@@ -172,7 +173,7 @@ export default function PurchaseOrderPage() {
                     </td>
                     <td className="px-4 py-3">{po.supplier?.name ?? '—'}</td>
                     <td className="px-4 py-3" style={{ color: muted }}>
-                      {po.order_date ? new Date(po.order_date).toLocaleDateString('en-IN') : '—'}
+                      {po.order_date ? new Date(po.order_date).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-3">{po._count?.po_items ?? po.po_items?.length ?? 0} items</td>
                     <td className="px-4 py-3 font-semibold">{fmt(po.grand_total)}</td>
@@ -677,7 +678,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <StatusBadge status={po.status} />
             </div>
             <p style={{ color: muted }} className="text-sm">
-              {po.order_date ? new Date(po.order_date).toLocaleDateString('en-IN') : ''}
+              {po.order_date ? new Date(po.order_date).toLocaleDateString() : ''}
               {supplier.name ? ` · ${supplier.name}` : ''}
             </p>
           </div>
@@ -725,12 +726,12 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span style={{ color: muted }}>Order Date</span>
-                  <span>{po.order_date ? new Date(po.order_date).toLocaleDateString('en-IN') : '—'}</span>
+                  <span>{po.order_date ? new Date(po.order_date).toLocaleDateString() : '—'}</span>
                 </div>
                 {po.delivery_date && (
                   <div className="flex justify-between">
                     <span style={{ color: muted }}>Delivery Date</span>
-                    <span>{new Date(po.delivery_date).toLocaleDateString('en-IN')}</span>
+                    <span>{new Date(po.delivery_date).toLocaleDateString()}</span>
                   </div>
                 )}
                 {po.reference_number && (
@@ -926,7 +927,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <div className="flex justify-between">
                 <span style={{ color: muted }}>Grand Total</span>
                 <span className="font-bold" style={{ color: '#16a34a' }}>
-                  ₹{Number(po.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {fmt(po.grand_total || 0)}
                 </span>
               </div>
             </div>

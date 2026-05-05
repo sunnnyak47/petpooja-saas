@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import hybridAPI from '../api/offlineAPI';
+import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import {
   addToCart, removeFromCart, updateCartQuantity, clearCart,
@@ -84,6 +85,7 @@ export default function POSPage() {
   const { cart, orderType, selectedTable, orderNotes, covers, selectedCustomer } = useSelector((s) => s.pos);
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const { format, symbol } = useCurrency();
 
   const [searchParams] = useSearchParams();
   const orderIdParam = searchParams.get('order_id');
@@ -650,7 +652,7 @@ export default function POSPage() {
                         <AlertCircle className="w-3 h-3" /> No price set
                       </p>
                     ) : (
-                      <p className="text-base font-bold" style={{ color: 'var(--accent)' }}>₹{Number(item.base_price).toFixed(0)}</p>
+                      <p className="text-base font-bold" style={{ color: 'var(--accent)' }}>{symbol}{Number(item.base_price).toFixed(0)}</p>
                     )}
                   </button>
                 );
@@ -799,7 +801,7 @@ export default function POSPage() {
                      <span key={ai} className="text-[9px] text-brand-400 bg-brand-500/10 px-1 rounded">+{a.name} (x{a.quantity})</span>
                    ))}
                 </div>
-                <p className="text-xs text-surface-500 mt-0.5">₹{(Number(item.base_price) + (item.variant_price || 0)).toFixed(0)} × {item.quantity}</p>
+                <p className="text-xs text-surface-500 mt-0.5">{symbol}{(Number(item.base_price) + (item.variant_price || 0)).toFixed(0)} × {item.quantity}</p>
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => dispatch(updateCartQuantity({ index: i, quantity: item.quantity - 1 }))} className="w-6 h-6 rounded bg-surface-700 text-surface-300 hover:bg-surface-600 flex items-center justify-center"><Minus className="w-3 h-3" /></button>
@@ -807,7 +809,7 @@ export default function POSPage() {
                 <button onClick={() => dispatch(updateCartQuantity({ index: i, quantity: item.quantity + 1 }))} className="w-6 h-6 rounded bg-surface-700 text-surface-300 hover:bg-surface-600 flex items-center justify-center"><Plus className="w-3 h-3" /></button>
               </div>
               <p className={`text-sm font-semibold w-16 text-right ${isCompMode ? 'text-success-500 line-through' : 'text-white'}`}>
-                ₹{((Number(item.base_price || 0) + Number(item.variant_price || 0)) * item.quantity).toFixed(0)}
+                {symbol}{((Number(item.base_price || 0) + Number(item.variant_price || 0)) * item.quantity).toFixed(0)}
               </p>
             </div>
           ))}
@@ -856,8 +858,8 @@ export default function POSPage() {
 
             <div className="flex justify-between items-end mb-3 px-1">
               <div>
-                 <p className="text-xs text-surface-400">Total Tax: ₹{cartTotals.tax.toFixed(1)}</p>
-                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">₹{cartTotals.total}</p>
+                 <p className="text-xs text-surface-400">Total Tax: {symbol}{cartTotals.tax.toFixed(1)}</p>
+                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">{symbol}{cartTotals.total}</p>
                  {isCompMode && <p className="text-xs text-success-400 mt-1 uppercase font-bold tracking-widest">100% Waived</p>}
               </div>
             </div>
@@ -894,7 +896,7 @@ export default function POSPage() {
             </div>
 
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
-              {isBilled ? 'PAY BILL' : `PAY ₹${cartTotals.total}`}
+              {isBilled ? 'PAY BILL' : `PAY ${symbol}${cartTotals.total}`}
             </button>
           </div>
         )}

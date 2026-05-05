@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import {
   FileText, IndianRupee, CheckCircle2, Clock, AlertCircle,
   RefreshCw, Download, Plus, ChevronDown, Search, Filter, X
@@ -55,7 +56,7 @@ function InvoiceRow({ inv, onUpdate }) {
         </span>
       </td>
       <td className="px-5 py-3.5 font-bold" style={{ color: '#4ade80' }}>
-        ₹{Number(inv.amount).toLocaleString()}
+        {formatCurrencyStatic(inv.amount)}
       </td>
       <td className="px-5 py-3.5">
         <span className="flex items-center gap-1.5 text-xs font-semibold w-fit px-2.5 py-1 rounded-full"
@@ -85,6 +86,7 @@ function InvoiceRow({ inv, onUpdate }) {
 }
 
 export default function InvoicingPage() {
+  const { format } = useCurrency();
   const qc = useQueryClient();
   const now = new Date();
   const [genMonth, setGenMonth] = useState(now.getMonth() + 1);
@@ -158,8 +160,8 @@ export default function InvoicingPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Pending Collection', value: `₹${totalPending.toLocaleString()}`, sub: `${invoices.filter(i => i.status === 'PENDING').length} invoices`, color: '#f59e0b', icon: Clock },
-          { label: 'Collected This Month', value: `₹${totalPaid.toLocaleString()}`, sub: `${invoices.filter(i => i.status === 'PAID').length} invoices paid`, color: '#22c55e', icon: CheckCircle2 },
+          { label: 'Pending Collection', value: format(totalPending), sub: `${invoices.filter(i => i.status === 'PENDING').length} invoices`, color: '#f59e0b', icon: Clock },
+          { label: 'Collected This Month', value: format(totalPaid), sub: `${invoices.filter(i => i.status === 'PAID').length} invoices paid`, color: '#22c55e', icon: CheckCircle2 },
           { label: 'Overdue Invoices', value: overdue, sub: 'Requires follow-up', color: '#ef4444', icon: AlertCircle },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-5 flex items-start gap-4"

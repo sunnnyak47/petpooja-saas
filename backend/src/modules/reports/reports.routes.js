@@ -171,4 +171,14 @@ router.get('/revenue-trend-range', authenticate, hasPermission('VIEW_REPORTS'), 
   } catch (error) { next(error); }
 });
 
+router.get('/bas-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { sendSuccess } = require('../../utils/response');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from, to } = req.query;
+    const data = await reportsService.getBASReport(outletId, from, to);
+    sendSuccess(res, data, 'BAS report');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;

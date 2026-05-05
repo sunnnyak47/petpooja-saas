@@ -28,12 +28,23 @@ function ensureAuthDir() {
   if (!fs.existsSync(WA_AUTH_DIR)) fs.mkdirSync(WA_AUTH_DIR, { recursive: true });
 }
 
-/** Format an E.164-style phone number to a WhatsApp JID. */
-function toJid(phone) {
-  // Strip everything except digits
+/** Normalize phone to E.164 digits (no +), region-aware. */
+function normalizePhone(phone, region = 'IN') {
   const digits = String(phone).replace(/\D/g, '');
-  // Prepend country code 91 if not already present (10-digit Indian numbers)
-  const normalized = digits.startsWith('91') ? digits : `91${digits}`;
+  if (region === 'AU') {
+    if (digits.startsWith('61')) return digits;
+    if (digits.startsWith('0')) return '61' + digits.slice(1);
+    return '61' + digits;
+  }
+  // India
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  if (digits.length === 10) return '91' + digits;
+  return digits;
+}
+
+/** Format an E.164-style phone number to a WhatsApp JID. */
+function toJid(phone, region = 'IN') {
+  const normalized = normalizePhone(phone, region);
   return `${normalized}@s.whatsapp.net`;
 }
 

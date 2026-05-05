@@ -88,16 +88,33 @@ function calculateGST(amount, gstRate, isSameState = true) {
 }
 
 /**
- * Formats a number as Indian Rupee currency string.
- * @param {number} amount - Amount in INR
- * @returns {string} Formatted string (e.g., '₹1,23,456.00')
+ * Formats a number as currency string, supporting INR and AUD.
+ * @param {number} amount - Amount
+ * @param {string} [currency='INR'] - Currency code (INR or AUD)
+ * @returns {string} Formatted string
  */
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 2,
-  }).format(amount);
+function formatCurrency(amount, currency = 'INR') {
+  const num = Number(amount || 0);
+  if (currency === 'AUD') {
+    return `A$${num.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Calculates tax for a given amount, region-aware.
+ * For AU: flat GST. For IN: delegates to calculateGST.
+ * @param {number} amount - Taxable amount
+ * @param {number} rate - Tax rate percentage
+ * @param {string} [region='IN'] - Region code
+ * @param {boolean} [isSameState=true] - Same-state flag (IN only)
+ */
+function calculateTax(amount, rate, region = 'IN', isSameState = true) {
+  if (region === 'AU') {
+    const gstAmount = Math.round((amount * rate / 100) * 100) / 100;
+    return { gst: gstAmount, cgst: 0, sgst: 0, igst: 0, totalTax: gstAmount };
+  }
+  return calculateGST(amount, rate, isSameState);
 }
 
 /**
@@ -182,6 +199,7 @@ module.exports = {
   generateInvoiceNumber,
   generateOrderNumber,
   calculateGST,
+  calculateTax,
   formatCurrency,
   calculateDiscount,
   parsePagination,

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import HealthScoreWidget from '../components/HealthScoreWidget';
 import {
   TrendingUp, ShoppingBag, IndianRupee, Users,
@@ -86,6 +87,8 @@ export default function DashboardPage() {
     refetchInterval: 20000,
   });
 
+  const { format, locale } = useCurrency();
+
   const d             = dashboard || { today: {}, comparison: {}, live: {} };
   const recentOrders  = (Array.isArray(recentOrdersRes?.data) ? recentOrdersRes.data : null)
     ?? (Array.isArray(recentOrdersRes?.orders) ? recentOrdersRes.orders : null)
@@ -94,7 +97,7 @@ export default function DashboardPage() {
   const statCards = [
     {
       label:  "Today's Revenue",
-      value:  `₹${(d.today?.revenue || 0).toLocaleString('en-IN')}`,
+      value:  format(d.today?.revenue || 0),
       change: d.comparison?.revenue_growth_pct || 0,
       icon:   IndianRupee,
       accent: 'var(--accent)',
@@ -110,7 +113,7 @@ export default function DashboardPage() {
     },
     {
       label:  'Avg Order Value',
-      value:  `₹${(d.today?.avg_order_value || 0).toLocaleString('en-IN')}`,
+      value:  format(d.today?.avg_order_value || 0),
       icon:   TrendingUp,
       accent: 'var(--accent)',
     },
@@ -298,7 +301,7 @@ export default function DashboardPage() {
                     {/* amount + status */}
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        ₹{Number(order.grand_total || order.total_amount || order.net_amount || 0).toLocaleString('en-IN')}
+                        {format(order.grand_total || order.total_amount || order.net_amount || 0)}
                       </p>
                       <StatusPill status={order.status} />
                     </div>

@@ -5,7 +5,8 @@
 
 const Joi = require('joi');
 
-const phoneRegex = /^[6-9]\d{9}$/;
+// Accepts Indian 10-digit (6-9XXXXXXXXX) or Australian mobile/landline (+61 or 04xx or 02/03/07/08)
+const phoneRegex = /^(\+?61[0-9]{9}|0[2-9][0-9]{8}|[6-9][0-9]{9})$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,50}$/;
 
 /**

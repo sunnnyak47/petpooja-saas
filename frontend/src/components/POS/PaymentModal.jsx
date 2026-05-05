@@ -10,6 +10,7 @@ import {
   CheckCircle2, Loader, Copy, RefreshCw, Shield, X, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 
 const METHODS = [
   { id: 'cash',  label: 'Cash',       icon: Banknote,            color: '#16a34a' },
@@ -40,6 +41,7 @@ export default function PaymentModal({
   customer,
   onSuccess,         // (method, paidAmount) => void
 }) {
+  const { format, symbol, locale } = useCurrency();
   const [method, setMethod]           = useState('cash');
   const [partAmount, setPartAmount]   = useState('');
   const [upiVpa, setUpiVpa]           = useState('');
@@ -155,7 +157,7 @@ export default function PaymentModal({
         <div className="text-center rounded-2xl p-5 border" style={{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
           <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--text-secondary)' }}>Amount Due</p>
           <p className="text-5xl font-black font-mono tracking-tight" style={{ color: 'var(--accent)' }}>
-            ₹{amount.toLocaleString('en-IN')}
+            {format(amount)}
           </p>
           {orderNumber && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Order #{orderNumber}</p>}
         </div>
@@ -270,7 +272,7 @@ export default function PaymentModal({
             <input
               type="number"
               className="input text-2xl font-bold text-center py-3"
-              placeholder={`Max ₹${amount}`}
+              placeholder={`Max ${symbol}${amount}`}
               value={partAmount}
               onChange={(e) => setPartAmount(e.target.value)}
               max={amount}
@@ -279,13 +281,13 @@ export default function PaymentModal({
             {partAmount && Number(partAmount) > 0 && Number(partAmount) < amount && (
               <div className="flex justify-between text-sm px-1">
                 <span style={{ color: 'var(--text-secondary)' }}>Collected</span>
-                <span className="font-bold text-emerald-600">₹{Number(partAmount).toLocaleString('en-IN')}</span>
+                <span className="font-bold text-emerald-600">{format(partAmount)}</span>
               </div>
             )}
             {remaining > 0 && (
               <div className="flex justify-between text-sm px-1">
                 <span style={{ color: 'var(--text-secondary)' }}>Remaining Due</span>
-                <span className="font-bold" style={{ color: 'var(--danger)' }}>₹{remaining.toLocaleString('en-IN')}</span>
+                <span className="font-bold" style={{ color: 'var(--danger)' }}>{format(remaining)}</span>
               </div>
             )}
           </div>
@@ -329,7 +331,7 @@ export default function PaymentModal({
             ? <>Open Razorpay Checkout <ChevronRight className="w-4 h-4" /></>
             : method === 'upi' && upiVpa && !upiPaid
             ? 'Waiting for UPI Confirmation…'
-            : `Confirm ${method === 'part' ? `₹${partAmount || 0}` : `₹${amount.toLocaleString('en-IN')}`} ${method.toUpperCase()}`
+            : `Confirm ${method === 'part' ? format(partAmount || 0) : format(amount)} ${method.toUpperCase()}`
           }
         </button>
 
@@ -341,6 +343,7 @@ export default function PaymentModal({
 /* ── Cash change calculator ── */
 function CashChangeCalculator({ amount }) {
   const [tendered, setTendered] = useState('');
+  const { format, symbol, locale } = useCurrency();
   const QUICK = [10, 20, 50, 100, 200, 500, 2000];
   const change = tendered && Number(tendered) >= amount ? Number(tendered) - amount : null;
 
@@ -377,12 +380,12 @@ function CashChangeCalculator({ amount }) {
       {change !== null && (
         <div className="flex items-center justify-between px-4 py-3 rounded-xl border" style={{ background: 'color-mix(in srgb, var(--success) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--success) 20%, transparent)' }}>
           <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Return Change</span>
-          <span className="text-2xl font-black" style={{ color: 'var(--success)' }}>₹{change.toLocaleString('en-IN')}</span>
+          <span className="text-2xl font-black" style={{ color: 'var(--success)' }}>{format(change)}</span>
         </div>
       )}
       {tendered && Number(tendered) < amount && (
         <p className="text-xs text-center" style={{ color: 'var(--danger)' }}>
-          Short by ₹{(amount - Number(tendered)).toLocaleString('en-IN')}
+          Short by {format(amount - Number(tendered))}
         </p>
       )}
     </div>

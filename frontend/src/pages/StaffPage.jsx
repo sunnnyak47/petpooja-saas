@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import {
@@ -12,15 +13,16 @@ import {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function fmtTime(dt) {
+function fmtTime(dt, locale = 'en-IN') {
   if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return new Date(dt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
-function fmtDate(dt) {
+function fmtDate(dt, locale = 'en-IN') {
   if (!dt) return '—';
-  return new Date(dt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return new Date(dt).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
-function fmtCurrency(n) {
+function fmtCurrency(n, currency = 'INR') {
+  if (currency === 'AUD') return 'A$' + parseFloat(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2 });
   return '₹' + parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 }
 

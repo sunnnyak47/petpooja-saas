@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../hooks/useCurrency';
 import Modal from '../components/Modal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
 import BillPreviewModal from '../components/POS/BillPreviewModal';
@@ -106,7 +107,7 @@ function OrderCard({ order, onAction }) {
           </div>
           <div className="bg-surface-700/30 rounded-lg py-1.5">
             <p className="text-[10px] text-surface-500 uppercase tracking-wider">Amount</p>
-            <p className="text-sm font-bold text-brand-400">₹{Number(order.grand_total || 0).toLocaleString('en-IN')}</p>
+            <p className="text-sm font-bold text-brand-400">{format(order.grand_total || 0)}</p>
           </div>
         </div>
 
@@ -160,7 +161,7 @@ function OrderCard({ order, onAction }) {
               onClick={() => onAction('pay', order)}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-600 hover:to-green-700 transition-all"
             >
-              <CreditCard className="w-4 h-4" /> Settle — ₹{Number(order.grand_total).toLocaleString('en-IN')}
+              <CreditCard className="w-4 h-4" /> Settle — {format(order.grand_total)}
             </button>
           )}
 
@@ -233,7 +234,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
                 className="text-left p-3 border rounded-xl transition-all group" style={{ background: "var(--bg-hover)", borderColor: "var(--border)" }}
               >
                 <p className="text-xs font-semibold text-white group-hover:text-brand-400 truncate">{item.name}</p>
-                <p className="text-brand-400 font-bold text-sm mt-1">₹{Number(item.base_price).toFixed(0)}</p>
+                <p className="text-brand-400 font-bold text-sm mt-1">{symbol}{Number(item.base_price).toFixed(0)}</p>
               </button>
             ))}
           </div>
@@ -249,7 +250,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
               <div key={p.menu_item_id} className="flex items-center justify-between rounded-lg px-2 py-1.5" style={{ background: "var(--bg-hover)" }}>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-white truncate font-medium">{p.name}</p>
-                  <p className="text-[10px] text-brand-400">x{p.quantity} · ₹{(p.price * p.quantity).toFixed(0)}</p>
+                  <p className="text-[10px] text-brand-400">x{p.quantity} · {symbol}{(p.price * p.quantity).toFixed(0)}</p>
                 </div>
                 <button onClick={() => removeItem(p.menu_item_id)} className="ml-2 text-surface-500 hover:text-red-400">
                   <X className="w-3.5 h-3.5" />
@@ -273,6 +274,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
 export default function RunningOrdersPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const { format, symbol, locale } = useCurrency();
   const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState('all');

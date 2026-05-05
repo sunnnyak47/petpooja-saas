@@ -129,6 +129,8 @@ model Outlet {
   email                  String?                @db.VarChar(150)
   gstin                  String?                @db.VarChar(20)
   fssai_number           String?                @db.VarChar(20)
+  abn                    String?                @db.VarChar(11)
+  acn                    String?                @db.VarChar(9)
   latitude               Decimal?               @db.Decimal(10, 7)
   longitude              Decimal?               @db.Decimal(10, 7)
   timezone               String                 @default("Asia/Kolkata") @db.VarChar(50)
@@ -794,6 +796,7 @@ model Supplier {
   email              String?         @db.VarChar(150)
   address            String?
   gstin              String?         @db.VarChar(20)
+  abn                String?         @db.VarChar(11)
   pan                String?         @db.VarChar(12)
   payment_terms      String?         @db.VarChar(50)
   is_active          Boolean         @default(true)

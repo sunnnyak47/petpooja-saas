@@ -18,6 +18,10 @@
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
 
+function getTimezone(region) {
+  return region === 'AU' ? 'Australia/Sydney' : 'Asia/Kolkata';
+}
+
 /* ─────────────────────────────────────────────────────────────
    THRESHOLDS (sensible defaults; can be overridden per-outlet)
 ───────────────────────────────────────────────────────────── */
@@ -100,7 +104,7 @@ async function notifyOwnerWhatsApp(outletId, alert) {
       ``,
       `*Risk Score:* ${alert.risk_score}/100`,
       `*Severity:* ${alert.severity.toUpperCase()}`,
-      `*Time:* ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+      `*Time:* ${new Date().toLocaleString('en-IN', { timeZone: getTimezone(alert.region || 'IN') })}`,
       ``,
       `_Review in your Petpooja dashboard → Staff → Fraud Alerts_`,
     ].join('\n');

@@ -764,6 +764,54 @@ function extractDeliveryAddress(platform, data) {
   return null;
 }
 
+// ── AU Aggregator Handlers ─────────────────────────────────────────────────
+
+/**
+ * Process an incoming DoorDash order webhook payload.
+ * @param {object} payload - DoorDash webhook body
+ * @param {string} outletId
+ */
+async function processDoorDashOrder(payload, outletId) {
+  const { order_id, items = [], delivery_address, customer = {}, total_amount } = payload;
+  logger.info(`[DoorDash] New order ${order_id} for outlet ${outletId}`);
+  return {
+    external_id: order_id,
+    platform: 'doordash',
+    region: 'AU',
+    currency: 'AUD',
+    items: (items || []).map(i => ({
+      name: i.name || i.item_name,
+      quantity: i.quantity,
+      price: i.unit_price || i.price,
+    })),
+    total: total_amount,
+    customer: {
+      name: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(),
+      phone: customer.phone || customer.phone_number,
+    },
+    delivery_address,
+  };
+}
+
+/**
+ * Process an incoming Menulog order webhook payload.
+ * @param {object} payload - Menulog webhook body
+ * @param {string} outletId
+ */
+async function processMenulogOrder(payload, outletId) {
+  logger.info(`[Menulog] New order for outlet ${outletId}`);
+  return {
+    platform: 'menulog',
+    region: 'AU',
+    currency: 'AUD',
+    external_id: payload.order_id || payload.id,
+    items: payload.items || [],
+    total: payload.total_amount || payload.total,
+    customer: payload.customer || {},
+    delivery_address: payload.delivery_address,
+  };
+}
+
 module.exports = {
   PLATFORMS,
   getPlatformConfig,
@@ -784,4 +832,6 @@ module.exports = {
   getActiveOnlineOrders,
   getOnlineOrderHistory,
   getOnlineStats,
+  processDoorDashOrder,
+  processMenulogOrder,
 };

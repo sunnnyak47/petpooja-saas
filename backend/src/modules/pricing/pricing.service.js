@@ -23,16 +23,19 @@ function detectSeason() {
 /* ─────────────────────────────────────────────────────────────
    TIME / DAY HELPERS
 ───────────────────────────────────────────────────────────── */
-function nowIST() {
+function nowLocal(timezone = 'Asia/Kolkata') {
   const now = new Date();
-  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const local = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
   return {
-    hour: ist.getHours(),
-    minute: ist.getMinutes(),
-    dayOfWeek: ist.getDay(),         // 0 = Sun
-    timeStr: `${String(ist.getHours()).padStart(2,'0')}:${String(ist.getMinutes()).padStart(2,'0')}`,
+    hour: local.getHours(),
+    minute: local.getMinutes(),
+    dayOfWeek: local.getDay(),         // 0 = Sun
+    timeStr: `${String(local.getHours()).padStart(2,'0')}:${String(local.getMinutes()).padStart(2,'0')}`,
   };
 }
+
+// Backward-compat alias
+function nowIST() { return nowLocal('Asia/Kolkata'); }
 
 function timeToMins(t) {
   const [h, m] = t.split(':').map(Number);
