@@ -3,9 +3,10 @@
  */
 const express = require('express');
 const router = express.Router();
-const { conversationalParse, getSupportedLanguages } = require('./voice-pos.service');
+const { conversationalParse, getSupportedLanguages, getUpsellSuggestions, placeVoiceOrder } = require('./voice-pos.service');
 const { authenticate } = require('../../middleware/auth.middleware');
-const { sendSuccess } = require('../../utils/response');
+const { hasPermission } = require('../../middleware/rbac.middleware');
+const { sendSuccess, sendCreated } = require('../../utils/response');
 
 /**
  * POST /api/voice-pos/converse
@@ -34,6 +35,47 @@ router.post('/converse', authenticate, async (req, res, next) => {
  */
 router.get('/languages', authenticate, (req, res) => {
   sendSuccess(res, getSupportedLanguages(), 'Supported languages');
+});
+
+/**
+ * POST /api/voice-pos/upsell
+ * Get Groq-powered upsell suggestions for the current cart
+ * Body: { cart, outlet_id? }
+ */
+router.post('/upsell', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { cart = [] } = req.body;
+    if (!outletId) return res.status(400).json({ success: false, message: 'Outlet ID required' });
+    const suggestions = await getUpsellSuggestions(outletId, cart);
+    sendSuccess(res, suggestions, 'Upsell suggestions');
+  } catch (e) { next(e); }
+});
+
+/**
+ * POST /api/voice-pos/place-order
+ * Create a real order directly from Voice POS (bypasses Redux cart)
+ * Body: { cart, outlet_id?, order_type, table_id?, customer_name? }
+ */
+router.post('/place-order', authenticate, hasPermission('CREATE_ORDER'), async (req, res, next) => {
+  try {
+    const outletId    = req.body.outlet_id || req.user.outlet_id;
+    const { cart, order_type, table_id, customer_name } = req.body;
+
+    if (!outletId) return res.status(400).json({ success: false, message: 'Outlet ID required' });
+    if (!cart?.length) return res.status(400).json({ success: false, message: 'Cart is empty' });
+
+    const result = await placeVoiceOrder({
+      outletId,
+      cart,
+      orderType:    order_type   || 'dine_in',
+      tableId:      table_id     || null,
+      staffId:      req.user.id,
+      customerName: customer_name || null,
+    });
+
+    sendCreated(res, result, `Order #${result.order?.order_number} placed via Voice POS`);
+  } catch (e) { next(e); }
 });
 
 module.exports = router;

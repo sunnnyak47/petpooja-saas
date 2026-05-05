@@ -92,12 +92,15 @@ RULES:
    - "make it 3" or "teen karo" → update last mentioned item quantity
    - "no that one, butter chicken" → correct last item
    - "sab hatao" / "clear cart" / "start over" → empty cart, action="cleared"
-   - "confirm" / "ho gaya" / "done" / "yes" → action="confirm"
+   - "confirm" / "ho gaya" / "done" / "order karo" / "yes" → action="confirm"
 6. Extract item-level notes: "no onion", "extra spicy", "thoda kam mirch", "bina pyaz"
 7. If completely unclear, ask for clarification in "response"
 8. Always respond in the SAME language the waiter used (Hindi reply for Hindi input, etc.)
 9. Keep responses SHORT and conversational — max 2 sentences
 10. ALWAYS return valid JSON matching the schema exactly
+11. Detect TABLE NUMBER: if waiter says "table 3", "table number 5", "teen number table", "number 7 pe", extract the number into table_number field
+12. Detect ORDER TYPE: if waiter says "takeaway", "parcel", "to go", "packing", "ghar ke liye" → order_type="takeaway"; "dine in", "andar baithenge", "yahan khayenge" → order_type="dine_in"
+13. Detect CUSTOMER NAME: if waiter says "Ram ka order", "Priya ke liye" → extract name into customer_name field
 
 RESPONSE SCHEMA:
 {
@@ -105,7 +108,10 @@ RESPONSE SCHEMA:
   "response": "spoken reply to waiter",
   "action": "continue|needs_variant|confirm|cleared",
   "unmatched": ["words not on menu"],
-  "changes": ["human readable list of what changed"]
+  "changes": ["human readable list of what changed"],
+  "table_number": null,
+  "order_type": null,
+  "customer_name": null
 }`;
 }
 
@@ -145,6 +151,9 @@ async function conversationalParse(outletId, transcript, conversationHistory, cu
     if (!result.action) result.action = 'continue';
     if (!result.unmatched) result.unmatched = [];
     if (!result.changes) result.changes = [];
+    if (result.table_number === undefined) result.table_number = null;
+    if (result.order_type === undefined) result.order_type = null;
+    if (result.customer_name === undefined) result.customer_name = null;
 
     // Ensure prices are filled from menu for any items the LLM matched
     result.cart = result.cart.map(cartItem => {
@@ -179,6 +188,79 @@ async function conversationalParse(outletId, transcript, conversationHistory, cu
   }
 }
 
+/* ── Upsell suggestions via Groq ────────────────────────────── */
+async function getUpsellSuggestions(outletId, cart) {
+  if (!cart?.length) return [];
+  try {
+    const menuItems = await getMenuItems(outletId);
+    if (!menuItems.length) return [];
+
+    // Only suggest items NOT already in cart
+    const cartIds = new Set(cart.map(i => i.menu_item_id));
+    const available = menuItems.filter(m => !cartIds.has(m.id));
+    if (!available.length) return [];
+
+    const cartSummary = cart.map(i => `${i.name} x${i.quantity}`).join(', ');
+    const menuSummary = available.slice(0, 60).map(m =>
+      `ID:${m.id}|"${m.name}"|₹${m.base_price}|${m.food_type}`
+    ).join('\n');
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are a restaurant upsell assistant. Suggest 2-3 complementary items that pair well with the customer's order. Be concise.`,
+      },
+      {
+        role: 'user',
+        content: `Current order: ${cartSummary}\n\nAvailable items:\n${menuSummary}\n\nSuggest 2-3 complementary items. Return JSON: {"suggestions":[{"menu_item_id":"...","name":"...","unit_price":0,"food_type":"veg","reason":"pairs well with X"}]}`,
+      },
+    ];
+
+    const result = await callGroq(messages);
+    const suggestions = (result.suggestions || []).slice(0, 3).map(s => {
+      const menuItem = menuItems.find(m => m.id === s.menu_item_id);
+      if (!menuItem) return null;
+      return {
+        menu_item_id: menuItem.id,
+        name: menuItem.name,
+        unit_price: Number(menuItem.base_price),
+        food_type: menuItem.food_type,
+        reason: s.reason || '',
+      };
+    }).filter(Boolean);
+
+    logger.info(`[VoicePOS] Upsell: ${suggestions.length} suggestions for cart of ${cart.length}`);
+    return suggestions;
+  } catch (err) {
+    logger.warn(`[VoicePOS] Upsell error (non-fatal): ${err.message}`);
+    return [];
+  }
+}
+
+/* ── Place order directly from Voice POS ───────────────────── */
+async function placeVoiceOrder({ outletId, cart, orderType, tableId, staffId, customerName }) {
+  const { createOrder } = require('../orders/order.service');
+
+  const orderData = {
+    outlet_id: outletId,
+    order_type: orderType || 'dine_in',
+    table_id:   tableId  || null,
+    source:     'pos',
+    notes:      customerName ? `Voice order — Customer: ${customerName}` : 'Voice order',
+    items: cart.map(item => ({
+      menu_item_id: item.menu_item_id,
+      variant_id:   item.variant_id  || null,
+      quantity:     item.quantity,
+      notes:        item.notes       || null,
+      addons:       [],
+    })),
+  };
+
+  const result = await createOrder(orderData, staffId);
+  logger.info(`[VoicePOS] Order placed — #${result.order.order_number} (${orderData.order_type}) ${cart.length} items`);
+  return result;
+}
+
 /* ── Supported languages ────────────────────────────────────── */
 function getSupportedLanguages() {
   return [
@@ -198,4 +280,4 @@ function getSupportedLanguages() {
   ];
 }
 
-module.exports = { conversationalParse, getSupportedLanguages };
+module.exports = { conversationalParse, getSupportedLanguages, getUpsellSuggestions, placeVoiceOrder };
