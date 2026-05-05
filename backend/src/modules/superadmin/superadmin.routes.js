@@ -43,4 +43,8 @@ router.get('/region-templates', superadminController.getRegionTemplates);
 /** PATCH /api/superadmin/chains/:id/region — switch HeadOffice region */
 router.patch('/chains/:id/region', superadminController.switchRegion);
 
+/** GET/PATCH /api/superadmin/chains/:id/features — feature flag management */
+router.get('/chains/:id/features', superadminController.getFeatures);
+router.patch('/chains/:id/features', superadminController.updateFeatures);
+
 module.exports = router;

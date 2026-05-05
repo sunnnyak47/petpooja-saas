@@ -153,7 +153,23 @@ const superadminController = {
       const result = await superadminService.switchHeadOfficeRegion(req.params.id, req.body);
       sendSuccess(res, result, 'Region switched successfully');
     } catch (err) { next(err); }
-  }
+  },
+
+  /** GET /api/superadmin/chains/:id/features */
+  async getFeatures(req, res, next) {
+    try {
+      const result = await superadminService.getChainFeatures(req.params.id);
+      sendSuccess(res, result, 'Chain features retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/chains/:id/features */
+  async updateFeatures(req, res, next) {
+    try {
+      const result = await superadminService.updateChainFeatures(req.params.id, req.body);
+      sendSuccess(res, result, 'Chain features updated successfully');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

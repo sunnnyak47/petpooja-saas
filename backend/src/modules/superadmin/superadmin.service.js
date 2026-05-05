@@ -735,7 +735,103 @@ const superadminService = {
       region_applied: tpl,
       outlets_updated: headOffice.outlets.length,
     };
-  }
+  },
+
+  /**
+   * All platform features that can be toggled per chain.
+   * Default: all ON.
+   */
+  ALL_FEATURES: [
+    // Core
+    { key: 'pos',             label: 'Point of Sale (POS)',      category: 'Core',       description: 'Take orders and process payments at the counter' },
+    { key: 'orders',          label: 'Order History',             category: 'Core',       description: 'View and manage all past orders' },
+    { key: 'menu',            label: 'Menu Management',           category: 'Core',       description: 'Add, edit and manage menu items & categories' },
+    { key: 'tables',          label: 'Table Management',          category: 'Core',       description: 'Manage dine-in tables and floor layout' },
+    { key: 'customers',       label: 'Customer Management',       category: 'Core',       description: 'Customer profiles, history and contact info' },
+    { key: 'staff',           label: 'Staff Management',          category: 'Core',       description: 'Manage staff accounts and roles' },
+    { key: 'payments',        label: 'Payments',                  category: 'Core',       description: 'Payment methods, UPI, cards and settlements' },
+    { key: 'discounts',       label: 'Discounts & Promotions',    category: 'Core',       description: 'Create and manage discount rules and offers' },
+    // Operations
+    { key: 'kitchen',         label: 'Kitchen Display (KDS)',     category: 'Operations', description: 'Live kitchen display system for order tickets' },
+    { key: 'running_orders',  label: 'Live Running Orders',       category: 'Operations', description: 'Real-time view of active in-progress orders' },
+    { key: 'qr_orders',       label: 'QR Table Ordering',         category: 'Operations', description: 'Customers scan QR to order from their table' },
+    { key: 'qr_codes',        label: 'QR Code Generator',         category: 'Operations', description: 'Generate and print QR codes for tables' },
+    { key: 'inventory',       label: 'Inventory Management',      category: 'Operations', description: 'Track stock levels and raw materials' },
+    { key: 'purchase_orders', label: 'Purchase Orders',           category: 'Operations', description: 'Create supplier POs and track deliveries' },
+    { key: 'central_kitchen', label: 'Central Kitchen',           category: 'Operations', description: 'Manage centralized production kitchen orders' },
+    // Growth
+    { key: 'online_orders',   label: 'Online Orders',             category: 'Growth',     description: 'Accept orders from your own online storefront' },
+    { key: 'aggregators',     label: 'Aggregators (Zomato/Swiggy)', category: 'Growth',   description: 'Receive and manage orders from food aggregators' },
+    { key: 'ondc',            label: 'ONDC Network',              category: 'Growth',     description: 'List on Open Network for Digital Commerce' },
+    { key: 'crm',             label: 'CRM & Loyalty',             category: 'Growth',     description: 'Loyalty points, campaigns and customer rewards' },
+    // Analytics
+    { key: 'reports',         label: 'Reports & Analytics',       category: 'Analytics',  description: 'Sales, revenue and business performance reports' },
+    { key: 'eod_report',      label: 'EOD Report',                category: 'Analytics',  description: 'End-of-day cash and sales summary report' },
+    { key: 'prep_analytics',  label: 'Prep Time Analytics',       category: 'Analytics',  description: 'Kitchen efficiency and prep time tracking' },
+    { key: 'fraud',           label: 'Fraud Detection',           category: 'Analytics',  description: 'AI-powered detection of suspicious transactions' },
+    // Advanced
+    { key: 'dynamic_pricing', label: 'Dynamic Pricing',           category: 'Advanced',   description: 'Automatically adjust prices based on time/demand' },
+    { key: 'festival_mode',   label: 'Festival Mode',             category: 'Advanced',   description: 'Special pricing, menus and branding for events' },
+    { key: 'rostering',       label: 'Staff Rostering',           category: 'Advanced',   description: 'Schedule and manage staff rosters and shifts' },
+    { key: 'integrations',    label: 'Integrations (Tally etc.)', category: 'Advanced',   description: 'Third-party accounting and delivery integrations' },
+    { key: 'audit_log',       label: 'Audit Log',                 category: 'Advanced',   description: 'Full security and compliance activity log' },
+  ],
+
+  /** Build default features object — all features ON */
+  getDefaultFeatures() {
+    return superadminService.ALL_FEATURES.reduce((acc, f) => {
+      acc[f.key] = true;
+      return acc;
+    }, {});
+  },
+
+  /** GET features for a chain */
+  async getChainFeatures(headOfficeId) {
+    const ho = await prisma.headOffice.findUnique({
+      where: { id: headOfficeId },
+      select: { id: true, name: true, metadata: true },
+    });
+    if (!ho) throw new Error('Chain not found');
+
+    const stored = (ho.metadata?.features) || {};
+    const defaults = superadminService.getDefaultFeatures();
+    // Merge: stored values override defaults (new features default ON)
+    const features = { ...defaults, ...stored };
+
+    return {
+      chain_id: ho.id,
+      chain_name: ho.name,
+      features,
+      feature_definitions: superadminService.ALL_FEATURES,
+    };
+  },
+
+  /** PATCH features for a chain */
+  async updateChainFeatures(headOfficeId, body) {
+    const ho = await prisma.headOffice.findUnique({
+      where: { id: headOfficeId },
+      select: { id: true, name: true, metadata: true },
+    });
+    if (!ho) throw new Error('Chain not found');
+
+    const existingMeta = ho.metadata || {};
+    const existingFeatures = existingMeta.features || {};
+    const updatedFeatures = { ...existingFeatures, ...body.features };
+
+    const updated = await prisma.headOffice.update({
+      where: { id: headOfficeId },
+      data: {
+        metadata: { ...existingMeta, features: updatedFeatures },
+      },
+      select: { id: true, name: true, metadata: true },
+    });
+
+    return {
+      chain_id: updated.id,
+      chain_name: updated.name,
+      features: updated.metadata.features,
+    };
+  },
 };
 
 module.exports = superadminService;

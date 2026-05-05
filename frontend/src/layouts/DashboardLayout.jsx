@@ -10,7 +10,7 @@ import {
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
-  CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X,
+  CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft,
 } from 'lucide-react';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
@@ -18,12 +18,13 @@ import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
 
 const superAdminNav = [
   { section: 'Platform' },
-  { path: '/',            label: 'Analytics',         icon: BarChart3 },
-  { path: '/super-admin', label: 'Restaurant Chains', icon: ShieldCheck },
+  { path: '/',                 label: 'Analytics',          icon: BarChart3 },
+  { path: '/super-admin',      label: 'Restaurant Chains',  icon: ShieldCheck },
+  { path: '/feature-access',   label: 'Feature Access',     icon: ToggleLeft },
   { section: 'System' },
-  { path: '/audit-log',   label: 'System Logs',       icon: ClipboardList },
-  { path: '/billing',     label: 'SaaS Revenue',      icon: ShoppingCart },
-  { path: '/settings',    label: 'Settings',          icon: Settings },
+  { path: '/audit-log',        label: 'System Logs',        icon: ClipboardList },
+  { path: '/billing',          label: 'SaaS Revenue',       icon: ShoppingCart },
+  { path: '/settings',         label: 'Settings',           icon: Settings },
 ];
 
 const ownerNav = [
