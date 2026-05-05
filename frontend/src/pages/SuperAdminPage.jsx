@@ -8,7 +8,7 @@ import {
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
-  TrendingUp, BarChart3,
+  TrendingUp, BarChart3, Loader2,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -46,6 +46,7 @@ export default function SuperAdminPage() {
   const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN' });
   const [notesModal, setNotesModal]     = useState(null); // { chain, text }
   const [planDropdown, setPlanDropdown] = useState(null); // chain.id
+  const [activeTab, setActiveTab]       = useState('chains');
 
   const { data: chains = [], isLoading } = useQuery({
     queryKey: ['admin-chains'],
@@ -154,6 +155,21 @@ export default function SuperAdminPage() {
       setNotesModal(null);
     },
     onError: (e) => toast.error(e.response?.data?.message || 'Save failed'),
+  });
+
+  const { data: onboardingData = [], isLoading: onboardingLoading, refetch: refetchOnboarding } = useQuery({
+    queryKey: ['onboarding-overview'],
+    queryFn: () => api.get('/superadmin/onboarding-overview').then(r => r.data?.data || []),
+    enabled: activeTab === 'onboarding',
+  });
+
+  const resetWizardMutation = useMutation({
+    mutationFn: (chainId) => api.post(`/superadmin/chains/${chainId}/reset-wizard`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['onboarding-overview']);
+      toast.success('Wizard reset for this chain');
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Reset failed'),
   });
 
   const filteredChains = chains.filter(c => {
@@ -310,7 +326,33 @@ export default function SuperAdminPage() {
         </div>
       </div>
 
+      {/* ── Tab Navigation ── */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl mb-6 w-fit">
+        {[
+          { id: 'chains', label: '🏪 Chains', count: chains.length },
+          { id: 'onboarding', label: '🚀 Onboarding', count: null },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+            {tab.count !== null && (
+              <span className="ml-2 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-xs">
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* ── Chain grid ── */}
+      {activeTab === 'chains' && (
       <div>
         {/* Filter bar */}
         <div className="flex flex-wrap gap-3 items-center mb-4">
@@ -532,6 +574,120 @@ export default function SuperAdminPage() {
           )}
         </div>
       </div>
+      )}
+
+      {/* ── Onboarding Tab ── */}
+      {activeTab === 'onboarding' && (
+        <div>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Onboarding Progress</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Track each restaurant's setup wizard completion</p>
+            </div>
+            <button
+              onClick={() => refetchOnboarding()}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-100 transition-colors"
+            >
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+
+          {/* Stats row */}
+          {!onboardingLoading && onboardingData.length > 0 && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {[
+                { label: 'Total Chains', value: onboardingData.length, color: 'blue' },
+                { label: 'Setup Complete', value: onboardingData.filter(c => c.setup_completed).length, color: 'green' },
+                { label: 'In Progress / Not Started', value: onboardingData.filter(c => !c.setup_completed).length, color: 'amber' },
+              ].map(stat => (
+                <div key={stat.label} className={`bg-${stat.color}-50 border border-${stat.color}-100 rounded-2xl p-4`}>
+                  <div className={`text-2xl font-bold text-${stat.color}-700`}>{stat.value}</div>
+                  <div className={`text-sm text-${stat.color}-600 mt-1`}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Table */}
+          {onboardingLoading ? (
+            <div className="flex items-center justify-center py-16 text-gray-400">
+              <Loader2 className="animate-spin mr-2" size={20} /> Loading onboarding data...
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {['Restaurant', 'Plan', 'Status', 'Wizard Step', 'Days Since Signup', 'Actions'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {onboardingData.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No chains found</td></tr>
+                  ) : onboardingData.map((chain) => (
+                    <tr key={chain.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{chain.name}</div>
+                        <div className="text-xs text-gray-400">{chain.contact_email}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
+                          {chain.plan || 'TRIAL'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {chain.setup_completed ? (
+                          <span className="flex items-center gap-1 text-green-700 text-xs font-medium">
+                            <CheckCircle size={13} className="text-green-500" /> Complete
+                          </span>
+                        ) : chain.wizard_step > 1 ? (
+                          <span className="flex items-center gap-1 text-amber-600 text-xs font-medium">
+                            <Clock size={13} /> In Progress
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Not Started</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {chain.setup_completed ? (
+                          <span className="text-green-600 text-xs font-medium">7/7 ✓</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-0.5">
+                              {[1,2,3,4,5,6,7].map(s => (
+                                <div key={s} className={`w-3 h-3 rounded-full ${s < (chain.wizard_step||1) ? 'bg-indigo-500' : s === (chain.wizard_step||1) ? 'bg-amber-400' : 'bg-gray-200'}`} />
+                              ))}
+                            </div>
+                            <span className="text-xs text-gray-500">{chain.wizard_step || 1}/7</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {chain.days_since_signup === 0 ? 'Today' : `${chain.days_since_signup}d ago`}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Reset wizard for "${chain.name}"? This will require them to redo the setup.`)) {
+                              resetWizardMutation.mutate(chain.id);
+                            }
+                          }}
+                          className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                        >
+                          Reset Wizard
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Notes Modal ── */}
       {notesModal && (

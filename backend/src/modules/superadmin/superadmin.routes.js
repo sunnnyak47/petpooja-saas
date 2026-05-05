@@ -126,4 +126,10 @@ router.get('/chain-health',       superadminController.getAllChainHealth);
 router.get('/chain-health/:id',   superadminController.getChainHealthDetail);
 router.get('/health-summary',     superadminController.getHealthSummary);
 
+/** GET /api/superadmin/onboarding-overview — All chains with wizard progress */
+router.get('/onboarding-overview', superadminController.getOnboardingOverview);
+
+/** POST /api/superadmin/chains/:id/reset-wizard — Reset wizard for a chain */
+router.post('/chains/:id/reset-wizard', superadminController.resetChainWizard);
+
 module.exports = router;

@@ -214,6 +214,8 @@ app.use('/api/discounts', discountRoutes);
 app.use('/api/ck', ckRoutes);
 app.use('/api/ondc', ondcRoutes);
 app.use('/api/voice-pos', voicePosRoutes);
+const onboardingRoutes = require('./modules/onboarding/onboarding.routes');
+app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/pricing',   pricingRoutes);
 app.use('/api/festival',  festivalRoutes);
 app.use('/api/fraud',     fraudRoutes);

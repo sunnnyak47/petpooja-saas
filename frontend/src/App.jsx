@@ -65,6 +65,7 @@ import LiveDashboardPage from './pages/LiveDashboardPage';
 import AdvancedReportsPage from './pages/AdvancedReportsPage';
 import ReservationsPage from './pages/ReservationsPage';
 import ChainHealthPage from './pages/ChainHealthPage';
+import OnboardingPage from './pages/OnboardingPage';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -77,7 +78,14 @@ function ProtectedRoute({ children }) {
 function HomeRedirect() {
   const { user } = useSelector((s) => s.auth);
   if (user?.role === 'super_admin') {
-     return <SuperAdminPage />;
+    return <SuperAdminPage />;
+  }
+  // New restaurant owners who haven't completed onboarding
+  const onboardingComplete =
+    user?.head_office?.setup_completed === true ||
+    localStorage.getItem('petpooja_onboarding_complete') === 'true';
+  if (!onboardingComplete && user?.role === 'owner') {
+    return <Navigate to="/onboarding" replace />;
   }
   return <DashboardPage />;
 }
@@ -115,7 +123,8 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         {/* The Home page acts as an intelligent traffic officer */}
         <Route index element={<HomeRedirect />} />
-        
+        <Route path="onboarding" element={<OnboardingPage />} />
+
         {/* Owner Dashboard Items (Hidden for Super Admin via Sidebar) */}
         <Route path="pos"             element={<FeatureGate feature="pos"><POSPage /></FeatureGate>} />
         <Route path="running-orders"  element={<FeatureGate feature="running_orders"><RunningOrdersPage /></FeatureGate>} />

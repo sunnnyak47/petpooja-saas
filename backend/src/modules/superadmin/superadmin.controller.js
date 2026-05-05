@@ -2,6 +2,7 @@
  * @fileoverview SuperAdmin Controller — Email/Password auth + platform management
  */
 const superadminService = require('./superadmin.service');
+const onboardingService = require('../onboarding/onboarding.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 
 const superadminController = {
@@ -506,6 +507,32 @@ const superadminController = {
       const data = await getPlatformHealthSummary();
       sendSuccess(res, data, 'Platform health summary');
     } catch (err) { next(err); }
+  },
+
+  async getOnboardingOverview(req, res, next) {
+    try {
+      const overview = await onboardingService.getOnboardingOverview();
+      const { sendSuccess } = require('../../utils/response');
+      sendSuccess(res, overview, 'Onboarding overview retrieved');
+    } catch (error) { next(error); }
+  },
+
+  async resetChainWizard(req, res, next) {
+    try {
+      const { getDbClient } = require('../../config/database');
+      const prisma = getDbClient();
+      // Find primary outlet for this head office
+      const outlet = await prisma.outlet.findFirst({
+        where: { head_office_id: req.params.id, is_deleted: false },
+        select: { id: true }
+      });
+      if (!outlet) {
+        return res.status(404).json({ success: false, message: 'No outlet found for chain' });
+      }
+      const result = await onboardingService.resetWizard(req.params.id, outlet.id);
+      const { sendSuccess } = require('../../utils/response');
+      sendSuccess(res, result, 'Wizard reset for chain');
+    } catch (error) { next(error); }
   },
 };
 
