@@ -11,6 +11,7 @@ const { hasRole, hasPermission } = require('../../middleware/rbac.middleware');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const Joi = require('joi');
 const { validate } = require('../../middleware/validate.middleware');
+const logger = require('../../config/logger');
 
 /**
  * Joi schema for saving outlet settings.
@@ -67,18 +68,20 @@ router.post('/register', authenticate, hasRole('super_admin'), async (req, res, 
     const result = await hoService.registerRestaurant(req.body);
     sendCreated(res, result, 'New restaurant chain onboarded');
   } catch (error) {
-    // Surface ALL errors with full detail so we can diagnose issues
     const { ConflictError } = require('../../utils/errors');
-    logger.error('ho/register failed', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack?.split('\n').slice(0, 4).join(' | '),
-    });
-    if (error.code === 'P2002' || error.message.includes('already exists') || error.message.includes('required') || error.message.includes('Use a different')) {
+    try {
+      logger.error('ho/register failed', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+        stack: error.stack?.split('\n').slice(0, 4).join(' | '),
+      });
+    } catch (_) { /* logger unavailable — swallow so response still sends */ }
+
+    if (error.code === 'P2002' || error.message?.includes('already exists') || error.message?.includes('Use a different')) {
       return next(new ConflictError(error.message));
     }
-    // Surface the real error message in development + staging for diagnosis
+    // Surface real Prisma error for diagnosis
     return res.status(500).json({
       success: false,
       message: error.message || 'Registration failed',
