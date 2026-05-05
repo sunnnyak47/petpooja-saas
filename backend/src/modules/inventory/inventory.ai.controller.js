@@ -4,7 +4,7 @@
  */
 
 const aiService = require('./inventory.ai.service');
-const { successResponse } = require('../../utils/response');
+const { sendSuccess } = require('../../utils/response');
 const logger = require('../../config/logger');
 
 async function suggestItems(req, res, next) {
@@ -14,7 +14,7 @@ async function suggestItems(req, res, next) {
 
     logger.info('AI suggest items', { restaurant_type });
     const items = await aiService.suggestItemsForRestaurant(restaurant_type);
-    return successResponse(res, items, 'Items suggested');
+    return sendSuccess(res, items, 'Items suggested');
   } catch (err) {
     next(err);
   }
@@ -26,7 +26,7 @@ async function suggestRecipe(req, res, next) {
     if (!dish_name) return res.status(400).json({ success: false, message: 'dish_name is required' });
 
     const ingredients = await aiService.suggestRecipeIngredients(dish_name, existing_items);
-    return successResponse(res, ingredients, 'Recipe ingredients suggested');
+    return sendSuccess(res, ingredients, 'Recipe ingredients suggested');
   } catch (err) {
     next(err);
   }
@@ -38,7 +38,7 @@ async function getInsights(req, res, next) {
     if (!outletId) return res.status(400).json({ success: false, message: 'outlet_id required' });
 
     const insights = await aiService.getStockInsights(outletId);
-    return successResponse(res, insights, 'Insights generated');
+    return sendSuccess(res, insights, 'Insights generated');
   } catch (err) {
     next(err);
   }
@@ -50,7 +50,7 @@ async function buildPO(req, res, next) {
     if (!outletId) return res.status(400).json({ success: false, message: 'outlet_id required' });
 
     const result = await aiService.buildSmartPO(outletId);
-    return successResponse(res, result, 'Smart PO built');
+    return sendSuccess(res, result, 'Smart PO built');
   } catch (err) {
     next(err);
   }
@@ -62,7 +62,7 @@ async function autofillItem(req, res, next) {
     if (!item_name) return res.status(400).json({ success: false, message: 'item_name is required' });
 
     const data = await aiService.autofillItem(item_name);
-    return successResponse(res, data, 'Item details suggested');
+    return sendSuccess(res, data, 'Item details suggested');
   } catch (err) {
     next(err);
   }
