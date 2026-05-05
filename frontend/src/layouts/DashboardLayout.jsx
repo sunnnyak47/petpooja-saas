@@ -12,7 +12,7 @@ import {
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
-  TrendingUp, FileText, Receipt, Radio, MessageSquare, Users, Tag, Sliders,
+  TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
