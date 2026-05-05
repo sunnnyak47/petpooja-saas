@@ -222,7 +222,7 @@ async function computeOutletScore(outletId) {
  */
 async function computeAllChainScores({ headOfficeId } = {}) {
   const where = { is_deleted: false };
-  if (headOfficeId) where.head_office_id = headOfficeId;
+  if (headOfficeId) where.id = headOfficeId;
 
   const headOffices = await prisma.headOffice.findMany({
     where,
