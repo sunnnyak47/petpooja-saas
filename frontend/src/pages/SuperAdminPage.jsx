@@ -159,7 +159,7 @@ export default function SuperAdminPage() {
 
   const { data: onboardingData = [], isLoading: onboardingLoading, refetch: refetchOnboarding } = useQuery({
     queryKey: ['onboarding-overview'],
-    queryFn: () => api.get('/superadmin/onboarding-overview').then(r => r.data?.data || []),
+    queryFn: () => api.get('/superadmin/onboarding-overview').then(r => r.data || []),
     enabled: activeTab === 'onboarding',
   });
 
