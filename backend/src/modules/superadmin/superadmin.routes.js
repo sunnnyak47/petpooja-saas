@@ -121,4 +121,9 @@ router.get('/menu-analytics', superadminController.getMenuAnalytics);
 /** P4: Subscription Info per chain */
 router.get('/chains/:id/subscription', superadminController.getSubscriptionInfo);
 
+/** Chain Health Score */
+router.get('/chain-health',       superadminController.getAllChainHealth);
+router.get('/chain-health/:id',   superadminController.getChainHealthDetail);
+router.get('/health-summary',     superadminController.getHealthSummary);
+
 module.exports = router;

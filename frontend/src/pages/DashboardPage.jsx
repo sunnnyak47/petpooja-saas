@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import HealthScoreWidget from '../components/HealthScoreWidget';
 import {
   TrendingUp, ShoppingBag, IndianRupee, Users,
   ArrowUpRight, ArrowDownRight, ShoppingCart,
@@ -184,6 +185,9 @@ export default function DashboardPage() {
 
       {/* ── Middle row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Health Score Widget */}
+        <HealthScoreWidget />
 
         {/* Live status */}
         <div className="card">

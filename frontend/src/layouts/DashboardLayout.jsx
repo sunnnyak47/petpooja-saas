@@ -14,6 +14,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
+  HeartPulse,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
@@ -41,6 +42,7 @@ const superAdminNav = [
   { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart },
   { path: '/platform-settings',   label: 'Platform Settings',  icon: Sliders },
   { path: '/platform-health',     label: 'Platform Health',    icon: Activity },
+  { path: '/chain-health',        label: 'Chain Health Scores',icon: HeartPulse },
   { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
@@ -72,6 +74,7 @@ const ownerNav = [
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
   { path: '/reservations',      label: 'Reservations',     icon: BookOpen, feature: 'tables' },
   { path: '/subscription',      label: 'My Subscription',  icon: Star },
+  { path: '/chain-health',      label: 'Health Score',     icon: HeartPulse },
   { section: 'System' },
   { path: '/qr-codes',       label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
   { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true, feature: 'qr_orders' },

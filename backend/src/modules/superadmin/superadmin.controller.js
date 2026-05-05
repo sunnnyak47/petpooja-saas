@@ -481,6 +481,32 @@ const superadminController = {
       sendSuccess(res, data, 'Subscription info');
     } catch (err) { next(err); }
   },
+
+  // ─── Chain Health Score ───────────────────────────────────────────────────
+  async getAllChainHealth(req, res, next) {
+    try {
+      const { computeAllChainScores } = require('./health-score.service');
+      const data = await computeAllChainScores();
+      sendSuccess(res, data, 'Chain health scores');
+    } catch (err) { next(err); }
+  },
+
+  async getChainHealthDetail(req, res, next) {
+    try {
+      const { computeAllChainScores } = require('./health-score.service');
+      const all = await computeAllChainScores({ headOfficeId: req.params.id });
+      if (!all.length) return sendError(res, 404, 'Chain not found');
+      sendSuccess(res, all[0], 'Chain health detail');
+    } catch (err) { next(err); }
+  },
+
+  async getHealthSummary(req, res, next) {
+    try {
+      const { getPlatformHealthSummary } = require('./health-score.service');
+      const data = await getPlatformHealthSummary();
+      sendSuccess(res, data, 'Platform health summary');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

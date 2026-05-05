@@ -176,6 +176,22 @@ router.put('/settings', authenticate, validate(saveSettingsSchema), async (req, 
 });
 
 /**
+ * GET /api/ho/my-health-score
+ * Owner-facing: returns chain health score for their own head office
+ */
+router.get('/my-health-score', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
+  try {
+    const { computeAllChainScores } = require('../superadmin/health-score.service');
+    const headOfficeId = req.user?.head_office_id;
+    if (!headOfficeId) return res.status(400).json({ success: false, message: 'No head office linked to this account' });
+    const results = await computeAllChainScores({ headOfficeId });
+    const { sendSuccess } = require('../../utils/response');
+    if (!results.length) return res.status(404).json({ success: false, message: 'No chain data found' });
+    sendSuccess(res, results[0], 'Health score');
+  } catch (err) { next(err); }
+});
+
+/**
  * GET /api/ho/my-subscription
  * Owner-facing: returns current plan info for their own head office
  */

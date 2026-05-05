@@ -64,6 +64,7 @@ import MenuAnalyticsPage from './pages/MenuAnalyticsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
 import AdvancedReportsPage from './pages/AdvancedReportsPage';
 import ReservationsPage from './pages/ReservationsPage';
+import ChainHealthPage from './pages/ChainHealthPage';
 
 // Simple check for access
 function ProtectedRoute({ children }) {
@@ -168,6 +169,9 @@ export default function App() {
         <Route path="impersonation-log"  element={<ImpersonationLogPage />} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="reservations"       element={<ReservationsPage />} />
+
+        {/* Chain Health Score */}
+        <Route path="chain-health"       element={<ChainHealthPage />} />
 
         {/* P4 Routes */}
         <Route path="subscription"       element={<SubscriptionPage />} />
