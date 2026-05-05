@@ -26,6 +26,7 @@ import AggregatorPage from './pages/AggregatorPage';
 import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
 import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import BillingPage from './pages/BillingPage';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import PaymentsPage from './pages/PaymentsPage';
@@ -130,6 +131,7 @@ export default function App() {
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />
+        <Route path="billing" element={<BillingPage />} />
       </Route>
       
       {/* Catch All */}
