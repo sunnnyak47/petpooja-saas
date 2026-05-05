@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
-import { logout } from '../store/slices/authSlice';
+import { logout, updateUser } from '../store/slices/authSlice';
+import api from '../lib/api';
 import { SOCKET_URL } from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import {
@@ -30,38 +31,48 @@ const superAdminNav = [
 const ownerNav = [
   { section: 'Operations' },
   { path: '/',               label: 'Dashboard',       icon: LayoutDashboard },
-  { path: '/pos',            label: 'POS Terminal',    icon: ShoppingCart },
-  { path: '/running-orders', label: 'Live Orders',     icon: Clock,    isLive: true },
-  { path: '/kitchen',        label: 'Kitchen Display', icon: ChefHat },
+  { path: '/pos',            label: 'POS Terminal',    icon: ShoppingCart, feature: 'pos' },
+  { path: '/running-orders', label: 'Live Orders',     icon: Clock,    isLive: true, feature: 'running_orders' },
+  { path: '/kitchen',        label: 'Kitchen Display', icon: ChefHat, feature: 'kitchen' },
   { section: 'Management' },
-  { path: '/orders',         label: 'Order History',   icon: ClipboardList },
-  { path: '/menu',           label: 'Menu',            icon: UtensilsCrossed },
-  { path: '/inventory',        label: 'Inventory',       icon: Package },
-  { path: '/purchase-orders',  label: 'Purchase Orders', icon: ShoppingBag },
-  { path: '/central-kitchen', label: 'Central Kitchen', icon: Warehouse },
-  { path: '/customers',      label: 'Customers',       icon: Users },
-  { path: '/crm',            label: 'Loyalty & CRM',   icon: Heart },
-  { path: '/ondc',           label: 'ONDC',            icon: Globe },
-  { path: '/pricing',         label: 'Dynamic Pricing',  icon: Zap },
-  { path: '/festival',        label: 'Festival Mode',    icon: Sparkles },
-  { path: '/fraud',           label: 'Fraud Detection',  icon: ShieldAlert },
+  { path: '/orders',         label: 'Order History',   icon: ClipboardList, feature: 'orders' },
+  { path: '/menu',           label: 'Menu',            icon: UtensilsCrossed, feature: 'menu' },
+  { path: '/inventory',        label: 'Inventory',       icon: Package, feature: 'inventory' },
+  { path: '/purchase-orders',  label: 'Purchase Orders', icon: ShoppingBag, feature: 'purchase_orders' },
+  { path: '/central-kitchen', label: 'Central Kitchen', icon: Warehouse, feature: 'central_kitchen' },
+  { path: '/customers',      label: 'Customers',       icon: Users, feature: 'customers' },
+  { path: '/crm',            label: 'Loyalty & CRM',   icon: Heart, feature: 'crm' },
+  { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc' },
+  { path: '/pricing',         label: 'Dynamic Pricing',  icon: Zap, feature: 'dynamic_pricing' },
+  { path: '/festival',        label: 'Festival Mode',    icon: Sparkles, feature: 'festival_mode' },
+  { path: '/fraud',           label: 'Fraud Detection',  icon: ShieldAlert, feature: 'fraud' },
   { section: 'Revenue' },
-  { path: '/payments',       label: 'Payments',        icon: CreditCard },
-  { path: '/discounts',      label: 'Promotions',      icon: Tag },
-  { path: '/reports',        label: 'Reports',         icon: BarChart3 },
+  { path: '/payments',       label: 'Payments',        icon: CreditCard, feature: 'payments' },
+  { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
+  { path: '/reports',        label: 'Reports',         icon: BarChart3, feature: 'reports' },
   { section: 'System' },
-  { path: '/qr-codes',       label: 'QR Codes',        icon: QrCode },
-  { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true },
-  { path: '/integrations',   label: 'Integrations',    icon: Puzzle },
-  { path: '/audit-log',      label: 'Audit Trail',     icon: Shield },
-  { path: '/rostering',       label: 'Rostering',       icon: CalendarDays },
-  { path: '/au-integrations', label: 'AU Integrations', icon: Link2 },
-  { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag },
-  { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true },
-  { path: '/prep-analytics',  label: 'Prep Analytics',  icon: BarChart3 },
-  { path: '/eod-report',      label: 'EOD Report',      icon: ClipboardList },
+  { path: '/qr-codes',       label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
+  { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true, feature: 'qr_orders' },
+  { path: '/integrations',   label: 'Integrations',    icon: Puzzle, feature: 'integrations' },
+  { path: '/audit-log',      label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
+  { path: '/rostering',       label: 'Rostering',       icon: CalendarDays, feature: 'rostering' },
+  { path: '/au-integrations', label: 'AU Integrations', icon: Link2, feature: 'integrations' },
+  { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag, feature: 'aggregators' },
+  { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true, feature: 'online_orders' },
+  { path: '/prep-analytics',  label: 'Prep Analytics',  icon: BarChart3, feature: 'prep_analytics' },
+  { path: '/eod-report',      label: 'EOD Report',      icon: ClipboardList, feature: 'eod_report' },
   { path: '/settings',       label: 'Settings',        icon: Settings },
 ];
+
+// Helper: check if a feature is enabled. Default to ON if not present in user.features
+// (super_admin always sees everything; users without features key see everything)
+function isFeatureEnabled(user, featureKey) {
+  if (!featureKey) return true;
+  if (user?.role === 'super_admin') return true;
+  const features = user?.features;
+  if (!features || typeof features !== 'object') return true; // no flags = legacy = show all
+  return features[featureKey] !== false;
+}
 
 export default function DashboardLayout() {
   const { toggleTheme, isDark } = useTheme();
@@ -100,6 +111,17 @@ export default function DashboardLayout() {
     return window.electron.onUpdateProgress((d) => setUpdateProgress(d.percent));
   }, []);
 
+  // On mount, refresh user (so latest feature flags are picked up after superadmin changes)
+  useEffect(() => {
+    if (!token) return;
+    api.get('/auth/me')
+      .then(r => {
+        const fresh = r?.data?.user;
+        if (fresh) dispatch(updateUser(fresh));
+      })
+      .catch(() => {/* ignore — keep cached user */});
+  }, [token, dispatch]);
+
   useEffect(() => {
     if (user?.primary_color) {
       document.documentElement.style.setProperty('--accent', user.primary_color);
@@ -124,7 +146,17 @@ export default function DashboardLayout() {
 
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
-  const navItems   = user?.role === 'super_admin' ? superAdminNav : ownerNav;
+  const rawNavItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
+  // Filter out disabled features. Keep section headers that still have at least one visible item below.
+  const navItems = (() => {
+    const filtered = rawNavItems.filter(item => item.section || isFeatureEnabled(user, item.feature));
+    // Drop section headers with no items beneath them
+    return filtered.filter((item, i) => {
+      if (!item.section) return true;
+      const next = filtered[i + 1];
+      return next && !next.section;
+    });
+  })();
   const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
   const outletName = user?.outlet?.name || 'MS-RM System';
 

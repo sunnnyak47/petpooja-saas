@@ -139,7 +139,9 @@ async function resetPassword(req, res, next) {
  */
 async function getMe(req, res, next) {
   try {
-    sendSuccess(res, { user: req.user }, 'User profile retrieved');
+    // Reload user from DB so latest features/permissions are included
+    const fresh = req.user?.id ? await authService.getCurrentUser(req.user.id) : req.user;
+    sendSuccess(res, { user: { ...fresh, role: req.user?.role, permissions: req.user?.permissions, outlet_id: req.user?.outlet_id } }, 'User profile retrieved');
   } catch (error) {
     next(error);
   }

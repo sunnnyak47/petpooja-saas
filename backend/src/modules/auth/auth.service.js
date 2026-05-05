@@ -156,7 +156,7 @@ async function login(login, password, auditInfo = {}) {
             outlet: { select: { id: true, name: true, code: true, primary_color: true } },
           },
         },
-        head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true } }
+        head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true, metadata: true } }
       },
     });
     logger.debug(`Prisma user lookup took ${Date.now() - startDb}ms`);
@@ -243,6 +243,7 @@ async function login(login, password, auditInfo = {}) {
     });
 
     const { password_hash: _, ...userWithoutPassword } = user;
+    const features = user.head_office?.metadata?.features ?? {};
 
     return {
       user: {
@@ -251,6 +252,7 @@ async function login(login, password, auditInfo = {}) {
         outlet_id: outletId,
         outlet: primaryRole?.outlet || null,
         permissions,
+        features,
       },
       accessToken,
       refreshToken,
@@ -510,7 +512,7 @@ async function getCurrentUser(userId) {
             outlet: { select: { id: true, name: true, code: true, city: true } },
           },
         },
-        head_office: { select: { id: true, name: true, setup_completed: true, primary_color: true, logo_url: true } }
+        head_office: { select: { id: true, name: true, setup_completed: true, primary_color: true, logo_url: true, metadata: true } }
       },
     });
 
@@ -519,7 +521,8 @@ async function getCurrentUser(userId) {
     }
 
     const { password_hash: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const features = user.head_office?.metadata?.features ?? {};
+    return { ...userWithoutPassword, features };
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
     logger.error('Get current user failed', { error: error.message, userId });

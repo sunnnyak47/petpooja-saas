@@ -28,6 +28,7 @@ import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import BillingPage from './pages/BillingPage';
 import FeatureAccessPage from './pages/FeatureAccessPage';
+import FeatureGate from './components/FeatureGate';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import PaymentsPage from './pages/PaymentsPage';
@@ -98,37 +99,37 @@ export default function App() {
         <Route index element={<HomeRedirect />} />
         
         {/* Owner Dashboard Items (Hidden for Super Admin via Sidebar) */}
-        <Route path="pos" element={<POSPage />} />
-        <Route path="running-orders" element={<RunningOrdersPage />} />
-        <Route path="orders" element={<OrdersPage />} />
-        <Route path="menu" element={<MenuPage />} />
-        <Route path="tables" element={<TablesPage />} />
-        <Route path="customers" element={<CustomersPage />} />
-        <Route path="staff" element={<StaffPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
-        <Route path="purchase-orders" element={<PurchaseOrderPage />} />
-        <Route path="central-kitchen" element={<CentralKitchenPage />} />
-        <Route path="crm" element={<CRMPage />} />
-        <Route path="ondc" element={<ONDCPage />} />
-        <Route path="pricing" element={<DynamicPricingPage />} />
-        <Route path="festival" element={<FestivalModePage />} />
-        <Route path="fraud" element={<FraudDetectionPage />} />
-        <Route path="rostering" element={<RosteringPage />} />
-        <Route path="au-integrations" element={<AUIntegrationsPage />} />
-        <Route path="aggregators" element={<AggregatorPage />} />
-        <Route path="prep-analytics" element={<PrepTimeAnalyticsPage />} />
-        <Route path="eod-report" element={<EODReportPage />} />
-        <Route path="online-orders" element={<OnlineOrdersPage />} />
-        <Route path="kitchen" element={<KitchenDisplayPage />} />
-        <Route path="payments" element={<PaymentsPage />} />
-        <Route path="discounts" element={<DiscountsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="integrations" element={<IntegrationsPage />} />
-        <Route path="integrations/tally" element={<TallySync />} />
-        <Route path="audit-log" element={<AuditLogPage />} />
-        <Route path="qr-codes" element={<QRCodesPage />} />
-        <Route path="qr-orders" element={<TableQROrdersPage />} />
+        <Route path="pos"             element={<FeatureGate feature="pos"><POSPage /></FeatureGate>} />
+        <Route path="running-orders"  element={<FeatureGate feature="running_orders"><RunningOrdersPage /></FeatureGate>} />
+        <Route path="orders"          element={<FeatureGate feature="orders"><OrdersPage /></FeatureGate>} />
+        <Route path="menu"            element={<FeatureGate feature="menu"><MenuPage /></FeatureGate>} />
+        <Route path="tables"          element={<FeatureGate feature="tables"><TablesPage /></FeatureGate>} />
+        <Route path="customers"       element={<FeatureGate feature="customers"><CustomersPage /></FeatureGate>} />
+        <Route path="staff"           element={<FeatureGate feature="staff"><StaffPage /></FeatureGate>} />
+        <Route path="reports"         element={<FeatureGate feature="reports"><ReportsPage /></FeatureGate>} />
+        <Route path="inventory"       element={<FeatureGate feature="inventory"><InventoryPage /></FeatureGate>} />
+        <Route path="purchase-orders" element={<FeatureGate feature="purchase_orders"><PurchaseOrderPage /></FeatureGate>} />
+        <Route path="central-kitchen" element={<FeatureGate feature="central_kitchen"><CentralKitchenPage /></FeatureGate>} />
+        <Route path="crm"             element={<FeatureGate feature="crm"><CRMPage /></FeatureGate>} />
+        <Route path="ondc"            element={<FeatureGate feature="ondc"><ONDCPage /></FeatureGate>} />
+        <Route path="pricing"         element={<FeatureGate feature="dynamic_pricing"><DynamicPricingPage /></FeatureGate>} />
+        <Route path="festival"        element={<FeatureGate feature="festival_mode"><FestivalModePage /></FeatureGate>} />
+        <Route path="fraud"           element={<FeatureGate feature="fraud"><FraudDetectionPage /></FeatureGate>} />
+        <Route path="rostering"       element={<FeatureGate feature="rostering"><RosteringPage /></FeatureGate>} />
+        <Route path="au-integrations" element={<FeatureGate feature="integrations"><AUIntegrationsPage /></FeatureGate>} />
+        <Route path="aggregators"     element={<FeatureGate feature="aggregators"><AggregatorPage /></FeatureGate>} />
+        <Route path="prep-analytics"  element={<FeatureGate feature="prep_analytics"><PrepTimeAnalyticsPage /></FeatureGate>} />
+        <Route path="eod-report"      element={<FeatureGate feature="eod_report"><EODReportPage /></FeatureGate>} />
+        <Route path="online-orders"   element={<FeatureGate feature="online_orders"><OnlineOrdersPage /></FeatureGate>} />
+        <Route path="kitchen"         element={<FeatureGate feature="kitchen"><KitchenDisplayPage /></FeatureGate>} />
+        <Route path="payments"        element={<FeatureGate feature="payments"><PaymentsPage /></FeatureGate>} />
+        <Route path="discounts"       element={<FeatureGate feature="discounts"><DiscountsPage /></FeatureGate>} />
+        <Route path="settings"        element={<SettingsPage />} />
+        <Route path="integrations"    element={<FeatureGate feature="integrations"><IntegrationsPage /></FeatureGate>} />
+        <Route path="integrations/tally" element={<FeatureGate feature="integrations"><TallySync /></FeatureGate>} />
+        <Route path="audit-log"       element={<FeatureGate feature="audit_log"><AuditLogPage /></FeatureGate>} />
+        <Route path="qr-codes"        element={<FeatureGate feature="qr_codes"><QRCodesPage /></FeatureGate>} />
+        <Route path="qr-orders"       element={<FeatureGate feature="qr_orders"><TableQROrdersPage /></FeatureGate>} />
         
         {/* The "Super Root" (Hidden for Owners via Sidebar) */}
         <Route path="super-admin" element={<SuperAdminPage />} />
