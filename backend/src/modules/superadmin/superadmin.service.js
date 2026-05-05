@@ -1148,7 +1148,7 @@ const superadminService = {
     // Active chains per month (chains created before end of that month)
     const chains = await prisma.headOffice.findMany({
       where: { is_deleted: false },
-      select: { id: true, plan: true, created_at: true, is_active: true, country: true },
+      select: { id: true, plan: true, created_at: true, is_active: true, country_code: true },
     });
 
     const PLAN_MRR = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
@@ -1168,7 +1168,7 @@ const superadminService = {
     // Region breakdown
     const byRegion = {};
     chains.forEach(c => {
-      const region = c.country || 'IN';
+      const region = c.country_code || 'IN';
       if (!byRegion[region]) byRegion[region] = { chains: 0, mrr: 0 };
       byRegion[region].chains++;
       byRegion[region].mrr += PLAN_MRR[c.plan] || 0;
