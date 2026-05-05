@@ -95,7 +95,7 @@ export default function InvoicingPage() {
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices'],
-    queryFn: () => api.get('/superadmin/invoices').then(r => r.data.data),
+    queryFn: () => api.get('/superadmin/invoices').then(r => r.data),
     staleTime: 30_000,
   });
 

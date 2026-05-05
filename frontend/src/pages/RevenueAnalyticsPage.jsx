@@ -90,7 +90,7 @@ function MrrLabels({ data }) {
 export default function RevenueAnalyticsPage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['revenue-analytics'],
-    queryFn: () => api.get('/superadmin/revenue-analytics').then(r => r.data.data),
+    queryFn: () => api.get('/superadmin/revenue-analytics').then(r => r.data),
     staleTime: 5 * 60_000,
   });
 

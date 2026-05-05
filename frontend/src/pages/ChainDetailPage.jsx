@@ -49,13 +49,13 @@ export default function ChainDetailPage() {
 
   const { data: chainData } = useQuery({
     queryKey: ['chain-detail', id],
-    queryFn: () => api.get(`/superadmin/chains/${id}`).then(r => r.data.data),
+    queryFn: () => api.get(`/superadmin/chains/${id}`).then(r => r.data),
     staleTime: 60_000,
   });
 
   const { data: outlets = [], isLoading } = useQuery({
     queryKey: ['chain-outlets', id],
-    queryFn: () => api.get(`/superadmin/chains/${id}/outlets`).then(r => r.data.data),
+    queryFn: () => api.get(`/superadmin/chains/${id}/outlets`).then(r => r.data),
     staleTime: 30_000,
   });
 

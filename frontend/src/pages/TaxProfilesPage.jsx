@@ -209,7 +209,7 @@ export default function TaxProfilesPage() {
 
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ['tax-profiles'],
-    queryFn: () => api.get('/superadmin/tax-profiles').then(r => r.data.data),
+    queryFn: () => api.get('/superadmin/tax-profiles').then(r => r.data),
     staleTime: 60_000,
   });
 
