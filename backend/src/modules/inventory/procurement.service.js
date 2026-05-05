@@ -250,7 +250,6 @@ async function getPurchaseOrder(id, outletId) {
 
 async function createPurchaseOrder(outletId, data, userId) {
   const prisma = getDbClient();
-  if (!data.supplier_id)             throw new BadRequestError('Supplier is required');
   if (!data.items || !data.items.length) throw new BadRequestError('Add at least one item');
 
   const { subtotal, taxTotal, grandTotal } = calcTotals(data.items);

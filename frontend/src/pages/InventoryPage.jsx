@@ -231,11 +231,11 @@ export default function InventoryPage() {
   // Check if inventory is empty → show onboarding
   const { data: stockData, isLoading: checkingStock } = useQuery({
     queryKey: ['inv-stock-check', outletId],
-    queryFn: () => api.get(`/inventory/stock?outlet_id=${outletId}&limit=1`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/stock?outlet_id=${outletId}&limit=1`),
     enabled: !!outletId,
   });
 
-  const hasItems = (stockData?.data?.items?.length || stockData?.data?.length || 0) > 0;
+  const hasItems = ((Array.isArray(stockData?.data) ? stockData.data : stockData?.data?.items || stockData?.data || []).length > 0);
   const [onboardingDone, setOnboardingDone] = useState(false);
 
   const showOnboarding = !checkingStock && !hasItems && !onboardingDone;
@@ -243,7 +243,7 @@ export default function InventoryPage() {
   // Suppliers query (for suppliers section)
   const { data: suppliersData } = useQuery({
     queryKey: ['inv-suppliers', outletId],
-    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`),
     enabled: !!outletId,
   });
   const suppliers = suppliersData?.data || [];
@@ -251,7 +251,7 @@ export default function InventoryPage() {
   // Purchase Orders query (for PO section)
   const { data: poData } = useQuery({
     queryKey: ['inv-pos', outletId],
-    queryFn: () => api.get(`/purchase-orders?outlet_id=${outletId}&limit=20`).then(r => r.data),
+    queryFn: () => api.get(`/purchase-orders?outlet_id=${outletId}&limit=20`),
     enabled: !!outletId,
   });
   const pos = poData?.data?.orders || poData?.data || [];
@@ -259,7 +259,7 @@ export default function InventoryPage() {
   // Wastage logs (for logs section)
   const { data: wastageData } = useQuery({
     queryKey: ['inv-waste', outletId],
-    queryFn: () => api.get(`/inventory/wastage?outlet_id=${outletId}&limit=30`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/wastage?outlet_id=${outletId}&limit=30`),
     enabled: !!outletId,
   });
   const wastageLogs = wastageData?.data || [];
@@ -267,7 +267,7 @@ export default function InventoryPage() {
   // Recipes
   const { data: recipesData } = useQuery({
     queryKey: ['inv-recipes', outletId],
-    queryFn: () => api.get(`/inventory/recipes?outlet_id=${outletId}`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/recipes?outlet_id=${outletId}`),
     enabled: !!outletId,
   });
   const recipes = recipesData?.data || [];

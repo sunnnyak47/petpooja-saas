@@ -37,13 +37,14 @@ export default function ItemGrid({ outletId, onItemClick, onAdjust }) {
       const params = new URLSearchParams({ outlet_id: outletId, limit: '200' });
       if (search) params.set('search', search);
       if (filter === 'low') params.set('low_stock', 'true');
-      return api.get(`/inventory/stock?${params}`).then(r => r.data);
+      return api.get(`/inventory/stock?${params}`);
     },
     enabled: !!outletId,
     refetchInterval: 30000,
   });
 
-  const items = data?.data?.items || data?.data || [];
+  const raw = data?.data;
+  const items = Array.isArray(raw) ? raw : (raw?.items || raw || []);
 
   // Group by status priority for display
   const sorted = [...items].sort((a, b) => {

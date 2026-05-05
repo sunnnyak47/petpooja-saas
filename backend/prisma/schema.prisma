@@ -811,7 +811,7 @@ model Supplier {
 model PurchaseOrder {
   id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   outlet_id        String              @db.Uuid
-  supplier_id      String              @db.Uuid
+  supplier_id      String?             @db.Uuid
   po_number        String              @unique @db.VarChar(30)
   status           String              @default("draft") @db.VarChar(20)
   total_amount     Decimal             @default(0) @db.Decimal(12, 2)
@@ -835,7 +835,7 @@ model PurchaseOrder {
   po_items         POItem[]
   whatsapp_logs    WhatsAppSendLog[]
   outlet           Outlet              @relation(fields: [outlet_id], references: [id])
-  supplier         Supplier            @relation(fields: [supplier_id], references: [id])
+  supplier         Supplier?           @relation(fields: [supplier_id], references: [id])
 
   @@index([outlet_id, status])
   @@index([outlet_id, created_at(sort: Desc)])

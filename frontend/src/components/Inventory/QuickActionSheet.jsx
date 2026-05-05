@@ -49,11 +49,12 @@ function ItemSearch({ outletId, onSelect, placeholder = 'Search ingredients…' 
   const [q, setQ] = useState('');
   const { data } = useQuery({
     queryKey: ['inv-items-search', outletId, q],
-    queryFn: () => api.get(`/inventory/items?outlet_id=${outletId}&search=${q}&limit=20`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/items?outlet_id=${outletId}&search=${q}&limit=20`),
     enabled: !!outletId && q.length > 0,
   });
 
-  const items = data?.data?.items || data?.data || [];
+  const raw = data?.data;
+  const items = Array.isArray(raw) ? raw : (raw?.items || raw || []);
 
   return (
     <div className="relative">
@@ -400,7 +401,7 @@ export function CreatePOSheet({ outletId, onClose }) {
 
   const { data: suppliersData } = useQuery({
     queryKey: ['inv-suppliers', outletId],
-    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`),
     enabled: !!outletId,
   });
   const suppliers = suppliersData?.data || [];
