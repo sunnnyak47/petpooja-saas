@@ -803,9 +803,8 @@ async function getBASReport(outletId, from, to) {
       outlet_id: outletId,
       created_at: { gte: new Date(from), lte: new Date(to) },
       is_deleted: false,
-      status: { in: ['billed', 'paid', 'completed'] },
     },
-    select: { total_amount: true, tax_amount: true },
+    select: { total_amount: true, total_tax: true },
   });
 
   const totalSalesInclGST = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);

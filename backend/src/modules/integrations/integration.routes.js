@@ -224,4 +224,7 @@ router.put('/config', authenticate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+/* ── Accounting (Tally + Xero AU) ─────────────────────────────── */
+router.use('/accounting', accountingRoutes);
+
 module.exports = router;
