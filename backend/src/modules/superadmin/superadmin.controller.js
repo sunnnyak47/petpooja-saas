@@ -253,6 +253,77 @@ const superadminController = {
       sendSuccess(res, list, 'Chain announcements retrieved');
     } catch (err) { next(err); }
   },
+
+  // ── P1: Outlet Dashboard ──────────────────────────────────────────────────
+
+  /** GET /api/superadmin/chains/:id/outlets */
+  async getChainOutlets(req, res, next) {
+    try {
+      const outlets = await superadminService.getChainOutlets(req.params.id);
+      sendSuccess(res, outlets, 'Chain outlets retrieved');
+    } catch (err) { next(err); }
+  },
+
+  // ── P1: Revenue Analytics ─────────────────────────────────────────────────
+
+  /** GET /api/superadmin/revenue-analytics */
+  async getRevenueAnalytics(req, res, next) {
+    try {
+      const data = await superadminService.getRevenueAnalytics();
+      sendSuccess(res, data, 'Revenue analytics retrieved');
+    } catch (err) { next(err); }
+  },
+
+  // ── P1: Invoice Management ────────────────────────────────────────────────
+
+  /** GET /api/superadmin/invoices */
+  async getInvoices(req, res, next) {
+    try {
+      const list = await superadminService.getInvoices(req.query.head_office_id);
+      sendSuccess(res, list, 'Invoices retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/superadmin/invoices/generate */
+  async generateInvoices(req, res, next) {
+    try {
+      const { month, year } = req.body;
+      const now = new Date();
+      const result = await superadminService.generateMonthlyInvoices(
+        month || now.getMonth() + 1,
+        year || now.getFullYear()
+      );
+      sendSuccess(res, result, `Generated ${result.generated} invoices`);
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/invoices/:id */
+  async updateInvoice(req, res, next) {
+    try {
+      const result = await superadminService.updateInvoice(req.params.id, req.body);
+      sendSuccess(res, result, 'Invoice updated');
+    } catch (err) { next(err); }
+  },
+
+  // ── P1: Tax Profiles ──────────────────────────────────────────────────────
+
+  /** GET /api/superadmin/tax-profiles */
+  async getTaxProfiles(req, res, next) {
+    try {
+      const profiles = await superadminService.getTaxProfiles();
+      sendSuccess(res, profiles, 'Tax profiles retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** PUT /api/superadmin/tax-profiles */
+  async saveTaxProfiles(req, res, next) {
+    try {
+      const { profiles } = req.body;
+      if (!Array.isArray(profiles)) return sendError(res, 400, 'profiles must be an array');
+      const result = await superadminService.saveTaxProfiles(profiles);
+      sendSuccess(res, result, 'Tax profiles saved');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

@@ -506,6 +506,15 @@ export default function SuperAdminPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-0.5" />
                       )}
                     </button>
+
+                    {/* View Outlets — P1 */}
+                    <button
+                      onClick={() => navigate(`/chain/${chain.id}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80 ml-auto"
+                      style={{ borderColor: '#f59e0b30', background: '#f59e0b08', color: '#f59e0b' }}>
+                      <ChevronRight className="w-3 h-3" />
+                      View Outlets
+                    </button>
                   </div>
                 </div>
               </div>

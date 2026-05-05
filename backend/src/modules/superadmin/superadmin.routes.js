@@ -59,6 +59,21 @@ router.patch('/chains/:id/plan', superadminController.assignPlan);
 /** GET /api/superadmin/live-stats — global live stats */
 router.get('/live-stats', superadminController.getLiveStats);
 
+/** GET /api/superadmin/chains/:id/outlets — outlet dashboard */
+router.get('/chains/:id/outlets', superadminController.getChainOutlets);
+
+/** GET /api/superadmin/revenue-analytics — MRR trends, churn, region */
+router.get('/revenue-analytics', superadminController.getRevenueAnalytics);
+
+/** Invoice management */
+router.get('/invoices', superadminController.getInvoices);
+router.post('/invoices/generate', superadminController.generateInvoices);
+router.patch('/invoices/:id', superadminController.updateInvoice);
+
+/** Tax profiles */
+router.get('/tax-profiles', superadminController.getTaxProfiles);
+router.put('/tax-profiles', superadminController.saveTaxProfiles);
+
 /** Announcements — NOTE: for-chain route must come before /:id to avoid param collision */
 router.get('/announcements/for-chain/:headOfficeId', superadminController.getChainAnnouncements);
 router.get('/announcements', superadminController.getAnnouncements);

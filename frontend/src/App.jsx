@@ -27,6 +27,10 @@ import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
 import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
+import ChainDetailPage from './pages/ChainDetailPage';
+import RevenueAnalyticsPage from './pages/RevenueAnalyticsPage';
+import InvoicingPage from './pages/InvoicingPage';
+import TaxProfilesPage from './pages/TaxProfilesPage';
 import BillingPage from './pages/BillingPage';
 import FeatureAccessPage from './pages/FeatureAccessPage';
 import FeatureGate from './components/FeatureGate';
@@ -137,6 +141,10 @@ export default function App() {
         <Route path="billing" element={<BillingPage />} />
         <Route path="feature-access" element={<FeatureAccessPage />} />
         <Route path="announcements" element={<AnnouncementsPage />} />
+        <Route path="chain/:id" element={<ChainDetailPage />} />
+        <Route path="revenue-analytics" element={<RevenueAnalyticsPage />} />
+        <Route path="invoicing" element={<InvoicingPage />} />
+        <Route path="tax-profiles" element={<TaxProfilesPage />} />
       </Route>
       
       {/* Catch All */}

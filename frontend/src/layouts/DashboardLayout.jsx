@@ -12,6 +12,7 @@ import {
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
+  TrendingUp, FileText, Receipt,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
@@ -20,14 +21,18 @@ import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
 
 const superAdminNav = [
   { section: 'Platform' },
-  { path: '/',                 label: 'Analytics',          icon: BarChart3 },
-  { path: '/super-admin',      label: 'Restaurant Chains',  icon: ShieldCheck },
-  { path: '/feature-access',   label: 'Feature Access',     icon: ToggleLeft },
-  { path: '/announcements',    label: 'Announcements',      icon: Megaphone },
+  { path: '/',                    label: 'Analytics',          icon: BarChart3 },
+  { path: '/super-admin',         label: 'Restaurant Chains',  icon: ShieldCheck },
+  { path: '/feature-access',      label: 'Feature Access',     icon: ToggleLeft },
+  { path: '/announcements',       label: 'Announcements',      icon: Megaphone },
+  { section: 'Finance' },
+  { path: '/revenue-analytics',   label: 'Revenue Analytics',  icon: TrendingUp },
+  { path: '/invoicing',           label: 'Invoicing',          icon: FileText },
+  { path: '/tax-profiles',        label: 'Tax Profiles',       icon: Receipt },
   { section: 'System' },
-  { path: '/audit-log',        label: 'System Logs',        icon: ClipboardList },
-  { path: '/billing',          label: 'SaaS Revenue',       icon: ShoppingCart },
-  { path: '/settings',         label: 'Settings',           icon: Settings },
+  { path: '/audit-log',           label: 'System Logs',        icon: ClipboardList },
+  { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart },
+  { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 
 const ownerNav = [

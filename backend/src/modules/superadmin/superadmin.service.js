@@ -1078,6 +1078,218 @@ const superadminService = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // P1: OUTLET DASHBOARD — Per-outlet stats for a chain
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getChainOutlets(headOfficeId) {
+    const outlets = await prisma.outlet.findMany({
+      where: { head_office_id: headOfficeId, is_deleted: false },
+      include: {
+        _count: { select: { orders: true, menu_items: true } },
+        orders: {
+          where: {
+            created_at: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          },
+          select: { total_amount: true, status: true, created_at: true },
+        },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return outlets.map(o => {
+      const revenue30d = o.orders.reduce((sum, ord) => sum + Number(ord.total_amount || 0), 0);
+      const todayOrders = o.orders.filter(ord => new Date(ord.created_at) >= today);
+      const todayRevenue = todayOrders.reduce((sum, ord) => sum + Number(ord.total_amount || 0), 0);
+      const lastOrder = o.orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+      // Health score: 0-100 based on orders/day, menu size
+      const ordersPerDay = o.orders.length / 30;
+      const menuScore = Math.min(o._count.menu_items / 50, 1) * 25;
+      const activityScore = Math.min(ordersPerDay / 20, 1) * 50;
+      const revenueScore = Math.min(revenue30d / 100000, 1) * 25;
+      const healthScore = Math.round(menuScore + activityScore + revenueScore);
+
+      return {
+        id: o.id,
+        name: o.name,
+        address: o.address,
+        city: o.city,
+        phone: o.phone,
+        is_active: o.is_active,
+        created_at: o.created_at,
+        orders_total: o._count.orders,
+        menu_items_count: o._count.menu_items,
+        orders_30d: o.orders.length,
+        revenue_30d: revenue30d,
+        orders_today: todayOrders.length,
+        revenue_today: todayRevenue,
+        last_order_at: lastOrder?.created_at || null,
+        health_score: healthScore,
+      };
+    });
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P1: REVENUE ANALYTICS — MRR trend, churn, region comparison
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getRevenueAnalytics() {
+    const now = new Date();
+    // Build last 12 months
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleString('default', { month: 'short', year: '2-digit' }) });
+    }
+
+    // Active chains per month (chains created before end of that month)
+    const chains = await prisma.headOffice.findMany({
+      where: { is_deleted: false },
+      select: { id: true, plan: true, created_at: true, is_active: true, country: true },
+    });
+
+    const PLAN_MRR = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
+
+    const mrrData = months.map(m => {
+      const endOfMonth = new Date(m.year, m.month, 0, 23, 59, 59);
+      const startOfMonth = new Date(m.year, m.month - 1, 1);
+      const activeChains = chains.filter(c => new Date(c.created_at) <= endOfMonth);
+      const mrr = activeChains.reduce((sum, c) => sum + (PLAN_MRR[c.plan] || 0), 0);
+      const newChains = chains.filter(c => {
+        const cd = new Date(c.created_at);
+        return cd >= startOfMonth && cd <= endOfMonth;
+      }).length;
+      return { label: m.label, mrr, chains: activeChains.length, new_chains: newChains };
+    });
+
+    // Region breakdown
+    const byRegion = {};
+    chains.forEach(c => {
+      const region = c.country || 'IN';
+      if (!byRegion[region]) byRegion[region] = { chains: 0, mrr: 0 };
+      byRegion[region].chains++;
+      byRegion[region].mrr += PLAN_MRR[c.plan] || 0;
+    });
+
+    // Plan distribution
+    const byPlan = {};
+    chains.forEach(c => {
+      byPlan[c.plan] = (byPlan[c.plan] || 0) + 1;
+    });
+
+    const currentMrr = chains.reduce((sum, c) => sum + (PLAN_MRR[c.plan] || 0), 0);
+    const prevMonth = mrrData[mrrData.length - 2];
+    const mrrGrowth = prevMonth?.mrr > 0 ? ((currentMrr - prevMonth.mrr) / prevMonth.mrr * 100).toFixed(1) : 0;
+
+    // Churn: chains that are inactive
+    const churned = chains.filter(c => !c.is_active).length;
+    const churnRate = chains.length > 0 ? ((churned / chains.length) * 100).toFixed(1) : 0;
+
+    return { mrr_trend: mrrData, by_region: byRegion, by_plan: byPlan, current_mrr: currentMrr, mrr_growth: mrrGrowth, churn_rate: churnRate, total_chains: chains.length, churned_chains: churned };
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P1: INVOICE MANAGEMENT — Monthly SaaS invoices per chain
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  INVOICE_KEY: 'platform_invoices',
+
+  async _loadInvoices() {
+    try {
+      const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.INVOICE_KEY } });
+      return cfg?.value ? JSON.parse(cfg.value) : [];
+    } catch { return []; }
+  },
+
+  async _saveInvoices(list) {
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.INVOICE_KEY },
+      update: { value: JSON.stringify(list) },
+      create: { key: superadminService.INVOICE_KEY, value: JSON.stringify(list) },
+    });
+  },
+
+  async getInvoices(headOfficeId) {
+    const all = await superadminService._loadInvoices();
+    if (headOfficeId) return all.filter(i => i.head_office_id === headOfficeId);
+    return all;
+  },
+
+  async generateMonthlyInvoices(month, year) {
+    const PLAN_PRICE = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
+    const chains = await prisma.headOffice.findMany({
+      where: { is_deleted: false, is_active: true },
+      select: { id: true, name: true, contact_email: true, plan: true },
+    });
+
+    const existing = await superadminService._loadInvoices();
+    const newInvoices = [];
+
+    for (const chain of chains) {
+      const alreadyExists = existing.find(i => i.head_office_id === chain.id && i.month === month && i.year === year);
+      if (alreadyExists) continue;
+      const amount = PLAN_PRICE[chain.plan] || 0;
+      if (amount === 0) continue;
+      newInvoices.push({
+        id: `INV-${Date.now()}-${chain.id.slice(0, 6)}`,
+        head_office_id: chain.id,
+        chain_name: chain.name,
+        email: chain.contact_email,
+        plan: chain.plan,
+        amount,
+        month, year,
+        status: 'PENDING',
+        created_at: new Date().toISOString(),
+        paid_at: null,
+        notes: '',
+      });
+    }
+
+    const updated = [...existing, ...newInvoices];
+    await superadminService._saveInvoices(updated);
+    return { generated: newInvoices.length, invoices: newInvoices };
+  },
+
+  async updateInvoice(id, data) {
+    const list = await superadminService._loadInvoices();
+    const idx = list.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error('Invoice not found');
+    list[idx] = { ...list[idx], ...data, id };
+    await superadminService._saveInvoices(list);
+    return list[idx];
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P1: TAX PROFILES — Per-region tax configuration
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  TAX_KEY: 'platform_tax_profiles',
+
+  async getTaxProfiles() {
+    try {
+      const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.TAX_KEY } });
+      if (cfg?.value) return JSON.parse(cfg.value);
+    } catch { /* fall through */ }
+    // Default profiles
+    return [
+      { id: 'IN_GST', region: 'IN', name: 'India GST', slabs: [{ rate: 0, label: '0% (Exempt)' }, { rate: 5, label: '5% GST' }, { rate: 12, label: '12% GST' }, { rate: 18, label: '18% GST' }, { rate: 28, label: '28% GST' }], default_slab: 5, gst_type: 'REGULAR', inclusive: false },
+      { id: 'AU_GST', region: 'AU', name: 'Australia GST', slabs: [{ rate: 0, label: '0% (GST-Free)' }, { rate: 10, label: '10% GST' }], default_slab: 10, gst_type: 'INCLUSIVE', inclusive: true },
+    ];
+  },
+
+  async saveTaxProfiles(profiles) {
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.TAX_KEY },
+      update: { value: JSON.stringify(profiles) },
+      create: { key: superadminService.TAX_KEY, value: JSON.stringify(profiles) },
+    });
+    return profiles;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // PLAN MANAGEMENT
   // ─────────────────────────────────────────────────────────────────────────────
 
