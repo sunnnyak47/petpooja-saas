@@ -1,150 +1,212 @@
 /**
- * @fileoverview AI Menu Sync Service.
- * Uses Gemini Pro Vision to extract menu data from images.
+ * @fileoverview AI Menu Sync Service — Gemini Vision (gemini-1.5-flash, free 1500 req/day).
+ * Pipeline: image → Gemini Vision (gemini-2.5-flash-lite) → structured JSON → DB.
+ * Get a free API key at https://aistudio.google.com
  * @module modules/menu/ai_menu.service
  */
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const logger = require("../../config/logger");
-const { getDbClient } = require("../../config/database");
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const logger = require('../../config/logger');
+const { getDbClient } = require('../../config/database');
 
-/**
- * Scans a menu image and extracts structured data.
- * @param {Buffer} imageBuffer - The menu photo
- * @param {string} mimeType - image/jpeg, image/png, etc.
- * @returns {Promise<Object>} Structured menu JSON
- */
-async function scanMenuImage(imageBuffer, mimeType) {
+/* ─────────────────────────────────────────────────────────────
+   GEMINI CLIENT
+───────────────────────────────────────────────────────────── */
+
+function getGeminiModel() {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    logger.error("AI Sync failed: GEMINI_API_KEY is not defined in environment variables");
-    throw new Error("AI Sync failed: API Key missing in environment variables. Please check Render settings.");
-  }
-
-  // Mask the key for logs: first 4 and last 4 chars
-  const maskedKey = apiKey.length > 8 
-    ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`
-    : "****";
-  logger.info(`AI Menu Scan triggered using API key: ${maskedKey} (Length: ${apiKey.length})`);
-
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `
-      You are an expert menu digitizer for a restaurant ERP. 
-      Analyze the attached menu photo and extract all categories, menu items, prices, descriptions, variants, and addons.
-      
-      Return ONLY a valid JSON object in this format:
-      {
-        "categories": [
-          {
-            "name": "Category Name",
-            "items": [
-              {
-                "name": "Item Name",
-                "description": "Item Description",
-                "base_price": 450,
-                "food_type": "veg/non-veg/egg",
-                "variants": [
-                  { "name": "Full", "price": 500 },
-                  { "name": "Half", "price": 300 }
-                ],
-                "addons": [
-                  { "name": "Extra Cheese", "price": 50 }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-
-      Important Rules:
-      1. If an item has multiple prices (e.g. Small/Large), treat them as variants.
-      2. If an item is clearly vegetarian (green dot or name like Paneer), set food_type to 'veg'.
-      3. Prices should be numbers.
-      4. If you see combos (e.g. Burger + Fries + Coke), mark them clearly in the description.
-      5. Do not include currency symbols.
-    `;
-
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: imageBuffer.toString("base64"),
-          mimeType,
-        },
-      },
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
-    
-    // Clean up markdown code blocks if the AI returns them
-    const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    logger.error("AI Menu Scan failed", { error: error.message });
-    throw new Error("Failed to scan menu image with AI. Ensure GEMINI_API_KEY is valid.");
-  }
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set in .env — get a free key at https://aistudio.google.com');
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 }
 
-/**
- * Bulk syncs the reviewed menu data to the database.
- * @param {string} outletId - The outlet to sync to
- * @param {Object} data - The reviewed menu JSON
- * @returns {Promise<Object>} Sync results
- */
+/* ─────────────────────────────────────────────────────────────
+   VISION EXTRACTION PROMPT
+───────────────────────────────────────────────────────────── */
+
+const MENU_PROMPT = `You are a restaurant menu data extractor. Look at this menu image carefully and extract ALL items.
+
+Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON.
+
+Format:
+{
+  "categories": [
+    {
+      "name": "CATEGORY NAME",
+      "items": [
+        {
+          "name": "Item Name",
+          "description": "ingredients or description if shown",
+          "base_price": 100,
+          "food_type": "veg" or "non_veg",
+          "variants": [
+            { "name": "Regular", "price": 100, "price_addition": 0 },
+            { "name": "Medium",  "price": 200, "price_addition": 100 },
+            { "name": "Large",   "price": 300, "price_addition": 200 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Extract EVERY item visible — do not skip any.
+- For pizzas with R / M / L columns: use variants named Regular, Medium, Large.
+- For 2-size items: use Half / Full.
+- base_price = the lowest / first price shown.
+- food_type: "non_veg" if item contains chicken, mutton, egg, fish, prawn; otherwise "veg".
+- description: the ingredient line shown in parentheses or below the item name, if any.
+- Ignore promotional text, daily offers, address, phone numbers, logos, QR codes.
+- Include combo items and snacks as their own categories.
+- Do NOT include "Extra Topping", "Extra Sauce", combo header rows in items list.
+`;
+
+/* ─────────────────────────────────────────────────────────────
+   MAIN OCR via Gemini Vision
+───────────────────────────────────────────────────────────── */
+
+async function scanMenuImage(imageBuffer, mimeType) {
+  logger.info('AI Menu Scan started via Gemini Vision');
+
+  const model = getGeminiModel();
+  const mime = mimeType || 'image/jpeg';
+
+  let result;
+  try {
+    result = await model.generateContent([
+      MENU_PROMPT,
+      { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
+    ]);
+  } catch (err) {
+    if (err.message?.includes('limit: 0') || err.message?.includes('free_tier')) {
+      throw new Error('Gemini API key has no free quota. Get a fresh key from aistudio.google.com/app/apikey and set GEMINI_API_KEY in .env');
+    }
+    if (err.message?.includes('429') || err.message?.includes('quota')) {
+      throw new Error('Gemini rate limit hit — wait 1 minute and try again (1500 free scans/day)');
+    }
+    if (err.message?.includes('API_KEY') || err.message?.includes('not set')) {
+      throw new Error('GEMINI_API_KEY not set in backend .env — get a free key at aistudio.google.com/app/apikey');
+    }
+    throw err;
+  }
+
+  const raw = result.response.text().trim();
+  logger.info('Gemini response received', { chars: raw.length, preview: raw.slice(0, 200) });
+
+  // Strip markdown code fences if Gemini wraps in ```json ... ```
+  const jsonStr = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+
+  let structured;
+  try {
+    structured = JSON.parse(jsonStr);
+  } catch (e) {
+    logger.error('JSON parse failed', { raw: raw.slice(0, 500) });
+    throw new Error('Gemini returned invalid JSON — try again or use a clearer photo.');
+  }
+
+  if (!structured.categories || !Array.isArray(structured.categories)) {
+    structured = { categories: [] };
+  }
+
+  // Sanitise numeric fields
+  for (const cat of structured.categories) {
+    cat.items = (cat.items || []).map(item => ({
+      ...item,
+      base_price: parseFloat(item.base_price) || 0,
+      variants: (item.variants || []).map((v, i) => ({
+        name: v.name || `Size ${i + 1}`,
+        price: parseFloat(v.price) || 0,
+        price_addition: parseFloat(v.price_addition) ?? (i === 0 ? 0 : parseFloat(v.price) - parseFloat((cat.items.find(x => x.name === item.name) || item).base_price)),
+      })),
+      food_type: item.food_type === 'non_veg' ? 'non_veg' : 'veg',
+      description: item.description || '',
+      addons: [],
+    }));
+  }
+
+  const totalItems = structured.categories.reduce((s, c) => s + c.items.length, 0);
+  logger.info('Menu extraction complete', {
+    categories: structured.categories.length,
+    items: totalItems,
+  });
+
+  return structured;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SYNC REVIEWED MENU TO DB
+───────────────────────────────────────────────────────────── */
+
 async function syncMenu(outletId, data) {
   const prisma = getDbClient();
-  const results = { categoriesCreated: 0, itemsCreated: 0, variantsCreated: 0 };
+  const results = { categoriesCreated: 0, itemsCreated: 0, variantsCreated: 0, addonsCreated: 0 };
 
   await prisma.$transaction(async (tx) => {
     for (const catData of data.categories) {
-      // 1. Create or Find Category
-      const category = await tx.menuCategory.create({
-        data: {
-          name: catData.name,
-          outlet_id: outletId,
-          display_order: results.categoriesCreated,
-        },
+      let category = await tx.menuCategory.findFirst({
+        where: { outlet_id: outletId, name: catData.name },
       });
-      results.categoriesCreated++;
+      if (!category) {
+        category = await tx.menuCategory.create({
+          data: { name: catData.name, outlet_id: outletId, display_order: results.categoriesCreated },
+        });
+        results.categoriesCreated++;
+      }
 
       for (const itemData of catData.items) {
-        // 2. Create Menu Item
         const item = await tx.menuItem.create({
           data: {
             name: itemData.name,
-            description: itemData.description || "",
+            description: itemData.description || '',
             base_price: parseFloat(itemData.base_price) || 0,
             category_id: category.id,
             outlet_id: outletId,
-            food_type: itemData.food_type || "veg",
-            kitchen_station: "KITCHEN",
+            food_type: itemData.food_type || 'veg',
+            kitchen_station: 'KITCHEN',
             is_active: true,
           },
         });
         results.itemsCreated++;
 
-        // 3. Create Variants if any
-        if (itemData.variants && itemData.variants.length > 0) {
-          for (const varData of itemData.variants) {
-            await tx.itemVariant.create({
-              data: {
-                menu_item_id: item.id,
-                name: varData.name,
-                price_addition: (parseFloat(varData.price) || 0) - item.base_price,
-                is_active: true,
-              },
+        for (const v of (itemData.variants || [])) {
+          await tx.itemVariant.create({
+            data: {
+              menu_item_id: item.id,
+              name: v.name,
+              price_addition: parseFloat(v.price_addition ?? v.price ?? 0),
+              is_active: true,
+            },
+          });
+          results.variantsCreated++;
+        }
+
+        if (itemData.addons?.length > 0) {
+          const group = await tx.addonGroup.create({
+            data: {
+              name: 'Add-ons',
+              outlet_id: outletId,
+              is_required: false,
+              min_select: 0,
+              max_select: itemData.addons.length,
+              menu_items: { connect: { id: item.id } },
+            },
+          });
+          for (const a of itemData.addons) {
+            await tx.addonItem.create({
+              data: { addon_group_id: group.id, name: a.name, price: parseFloat(a.price || 0), is_active: true },
             });
-            results.variantsCreated++;
+            results.addonsCreated++;
           }
         }
       }
     }
   });
 
+  logger.info('Menu sync complete', results);
   return results;
 }
 

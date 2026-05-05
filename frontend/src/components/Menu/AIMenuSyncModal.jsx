@@ -3,77 +3,90 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../Modal';
-import { 
-  Camera, Upload, Sparkles, Loader2, CheckCircle2, 
-  Trash2, Edit3, ChevronRight, ChevronDown, Package,
-  AlertCircle, X
+import {
+  Camera, Upload, Sparkles, Loader2, CheckCircle2,
+  Trash2, ChevronRight, ChevronDown,
+  AlertCircle, X, RefreshCw, Zap,
 } from 'lucide-react';
 
-/**
- * AIMenuSyncModal - AI-powered menu extraction from photos.
- */
+const SCAN_STEPS = [
+  'Uploading image to Gemini Vision…',
+  'Analysing menu layout…',
+  'Reading categories…',
+  'Extracting items & prices…',
+  'Detecting variants (R/M/L)…',
+  'Structuring menu data…',
+];
+
 export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
   const queryClient = useQueryClient();
-  const [step, setStep] = useState('upload'); // upload, scanning, review
+  const [step, setStep] = useState('upload');
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
   const [expandedCats, setExpandedCats] = useState(new Set());
+  const [scanStep, setScanStep] = useState(0);
 
-  // 1. Scan Mutation
   const scanMutation = useMutation({
-    mutationFn: async (file) => {
-      const formData = new FormData();
-      formData.append('image', file);
-      const { data } = await api.post('/menu/ai/scan-menu', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return data;
+    mutationFn: async (imageFile) => {
+      setScanStep(0);
+
+      // Animate progress steps while Gemini processes
+      let s = 0;
+      const interval = setInterval(() => {
+        s = Math.min(s + 1, SCAN_STEPS.length - 1);
+        setScanStep(s);
+      }, 2000);
+
+      try {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        const { data } = await api.post('/menu/ai/scan-menu', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return data;
+      } finally {
+        clearInterval(interval);
+      }
     },
     onSuccess: (data) => {
       setExtractedData(data);
       setStep('review');
-      // Expand all by default
       setExpandedCats(new Set(data.categories.map((_, i) => i)));
     },
     onError: (err) => {
-      toast.error('AI Scan failed: ' + (err.response?.data?.message || err.message));
+      toast.error('Scan failed: ' + (err.response?.data?.message || err.message));
       setStep('upload');
-    }
+    },
   });
 
-  // 2. Sync Mutation
   const syncMutation = useMutation({
     mutationFn: (data) => api.post('/menu/ai/confirm-sync', { outlet_id: outletId, menu_data: data }),
-    onSuccess: () => {
-      toast.success('Menu synced successfully!');
+    onSuccess: (res) => {
+      const r = res.data?.data || res.data || {};
+      toast.success(`Synced! ${r.categoriesCreated || 0} categories · ${r.itemsCreated || 0} items · ${r.variantsCreated || 0} variants`);
       queryClient.invalidateQueries({ queryKey: ['menuItemsAll'] });
       queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
       resetAndClose();
     },
-    onError: (err) => toast.error('Sync failed: ' + (err.response?.data?.message || err.message))
+    onError: (err) => toast.error('Sync failed: ' + (err.response?.data?.message || err.message)),
   });
 
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
-    if (selected) {
-      setFile(selected);
-      setPreviewUrl(URL.createObjectURL(selected));
-    }
+    if (selected) { setFile(selected); setPreviewUrl(URL.createObjectURL(selected)); }
   };
 
   const startScan = () => {
     if (!file) return;
+    setScanStep(0);
     setStep('scanning');
     scanMutation.mutate(file);
   };
 
   const resetAndClose = () => {
-    setStep('upload');
-    setFile(null);
-    setPreviewUrl(null);
-    setExtractedData(null);
-    onClose();
+    setStep('upload'); setFile(null); setPreviewUrl(null);
+    setExtractedData(null); setScanStep(0); onClose();
   };
 
   const toggleCat = (idx) => {
@@ -82,139 +95,212 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
     setExpandedCats(next);
   };
 
-  const removeCategory = (catIdx) => {
-    const next = { ...extractedData };
-    next.categories = next.categories.filter((_, i) => i !== catIdx);
-    setExtractedData(next);
-  };
+  const removeCategory = (catIdx) =>
+    setExtractedData(d => ({ ...d, categories: d.categories.filter((_, i) => i !== catIdx) }));
 
-  const removeItem = (catIdx, itemIdx) => {
-    const next = { ...extractedData };
-    next.categories[catIdx].items = next.categories[catIdx].items.filter((_, i) => i !== itemIdx);
-    setExtractedData(next);
-  };
+  const removeItem = (catIdx, itemIdx) =>
+    setExtractedData(d => {
+      const cats = [...d.categories];
+      cats[catIdx] = { ...cats[catIdx], items: cats[catIdx].items.filter((_, i) => i !== itemIdx) };
+      return { ...d, categories: cats };
+    });
 
-  const updateItem = (catIdx, itemIdx, field, value) => {
-    const next = { ...extractedData };
-    next.categories[catIdx].items[itemIdx][field] = value;
-    setExtractedData(next);
-  };
+  const updateItem = (catIdx, itemIdx, field, value) =>
+    setExtractedData(d => {
+      const cats = [...d.categories];
+      const items = [...cats[catIdx].items];
+      items[itemIdx] = { ...items[itemIdx], [field]: value };
+      cats[catIdx] = { ...cats[catIdx], items };
+      return { ...d, categories: cats };
+    });
+
+  const totalItems = extractedData?.categories?.reduce((s, c) => s + c.items.length, 0) || 0;
+  const progress = Math.round(((scanStep + 1) / SCAN_STEPS.length) * 100);
 
   return (
     <Modal isOpen={isOpen} onClose={resetAndClose} title="AI Menu Sync ✨" size={step === 'review' ? 'xl' : 'md'}>
       <div className="mt-4 min-h-[400px] flex flex-col">
-        
-        {/* STEP 1: UPLOAD */}
+
+        {/* ── UPLOAD ── */}
         {step === 'upload' && (
           <div className="flex-1 flex flex-col items-center justify-center space-y-6 py-8">
-            <div className="w-20 h-20 bg-brand-500/10 rounded-3xl flex items-center justify-center text-brand-400">
+            <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
+              style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
               <Camera className="w-10 h-10" />
             </div>
             <div className="text-center">
-              <h3 className="text-xl font-bold text-white">Upload Menu Photo</h3>
-              <p className="text-surface-400 text-sm mt-1 max-w-xs mx-auto">
-                Snap a clear photo of your physical menu, and we'll digitize it instantly.
+              <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Upload Menu Photo</h3>
+              <p className="text-sm mt-1 max-w-xs mx-auto" style={{ color: 'var(--text-secondary)' }}>
+                Snap a clear photo of your physical menu — categories, items, prices, variants all extracted automatically.
               </p>
             </div>
 
             <div className="w-full max-w-sm">
               {!file ? (
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-surface-700 rounded-2xl p-10 hover:border-brand-500 hover:bg-surface-800/50 cursor-pointer transition-all group">
-                  <Upload className="w-8 h-8 text-surface-500 group-hover:text-brand-400 mb-2" />
-                  <span className="text-surface-400 font-bold text-sm">Click to choose image</span>
+                <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-10 cursor-pointer transition-all group"
+                  style={{ borderColor: 'var(--border)' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                  <Upload className="w-8 h-8 mb-2" style={{ color: 'var(--text-secondary)' }} />
+                  <span className="font-bold text-sm" style={{ color: 'var(--text-secondary)' }}>Click to choose image</span>
+                  <span className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>JPG, PNG, WEBP up to 10MB</span>
                   <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
                 </label>
               ) : (
-                <div className="relative rounded-2xl overflow-hidden border border-surface-700 aspect-[4/3] bg-surface-900">
+                <div className="relative rounded-2xl overflow-hidden border aspect-[4/3]"
+                  style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                   <img src={previewUrl} className="w-full h-full object-contain" alt="Preview" />
-                  <button onClick={() => setFile(null)} className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-red-500 transition-colors">
+                  <button onClick={() => { setFile(null); setPreviewUrl(null); }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full text-white"
+                    style={{ background: 'rgba(0,0,0,0.6)' }}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
             </div>
 
-            <button disabled={!file} onClick={startScan} className="btn-primary w-full max-w-sm py-4 text-base font-bold shadow-xl shadow-brand-500/20 disabled:opacity-50">
-              <Sparkles className="w-5 h-5 mr-2" /> Start AI Scan
+            <div className="w-full max-w-sm grid grid-cols-3 gap-2 text-center">
+              {[['Categories', '🗂️'], ['Items + Prices', '₹'], ['Variants', '📐']].map(([label, icon]) => (
+                <div key={label} className="px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+                  <div className="text-base mb-0.5">{icon}</div>{label}
+                </div>
+              ))}
+            </div>
+
+            <button disabled={!file} onClick={startScan}
+              className="w-full max-w-sm py-4 rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 transition-opacity"
+              style={{ background: 'var(--accent)' }}>
+              <Sparkles className="w-5 h-5" /> Start AI Scan
             </button>
           </div>
         )}
 
-        {/* STEP 2: SCANNING */}
+        {/* ── SCANNING ── */}
         {step === 'scanning' && (
           <div className="flex-1 flex flex-col items-center justify-center space-y-6 py-12">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full border-4 border-brand-500/20 border-t-brand-500 animate-spin" />
-              <Sparkles className="w-10 h-10 text-brand-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="relative w-24 h-24">
+              <div className="absolute inset-0 rounded-full border-4 animate-spin"
+                style={{ borderColor: 'color-mix(in srgb, var(--accent) 20%, transparent)', borderTopColor: 'var(--accent)' }} />
+              <Sparkles className="w-10 h-10 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{ color: 'var(--accent)' }} />
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-black text-white animate-pulse">Digitizing Menu...</h3>
-              <p className="text-surface-400 text-sm mt-2 max-w-sm mx-auto">
-                Our AI is extracting categories, items, and pricing. This usually takes 10-15 seconds depending on menu size.
+              <h3 className="text-2xl font-black animate-pulse" style={{ color: 'var(--text-primary)' }}>
+                Digitizing Menu…
+              </h3>
+              <p className="text-sm mt-2 max-w-sm mx-auto" style={{ color: 'var(--text-secondary)' }}>
+                {SCAN_STEPS[scanStep]}
               </p>
             </div>
-            <div className="w-full max-w-xs space-y-2 mt-4">
-               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-brand-400">
-                  <span>Extracting Metadata</span>
-                  <span>75%</span>
-               </div>
-               <div className="h-1.5 bg-surface-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-500 w-3/4 animate-progress" />
-               </div>
+            <div className="w-full max-w-xs space-y-2">
+              <div className="flex justify-between text-xs font-bold uppercase tracking-widest"
+                style={{ color: 'var(--accent)' }}>
+                <span>Processing</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-hover)' }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${progress}%`, background: 'var(--accent)' }} />
+              </div>
+              <p className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
+                Gemini Vision AI — understands any menu layout
+              </p>
             </div>
           </div>
         )}
 
-        {/* STEP 3: REVIEW */}
+        {/* ── REVIEW ── */}
         {step === 'review' && extractedData && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-3 p-4 bg-brand-500/5 border-b border-brand-500/10 mb-4 rounded-xl">
-               <div className="p-2 bg-brand-500/20 rounded-lg text-brand-400"><CheckCircle2 className="w-5 h-5" /></div>
-               <div>
-                  <h4 className="text-white font-bold">Extraction Complete</h4>
-                  <p className="text-surface-400 text-xs">Review the detected items below and edit if needed.</p>
-               </div>
+            <div className="flex items-center gap-3 p-4 rounded-xl mb-4"
+              style={{ background: 'color-mix(in srgb, var(--success) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--success) 20%, transparent)' }}>
+              <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--success)' }} />
+              <div className="flex-1">
+                <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  Extraction Complete — {extractedData.categories.length} categories · {totalItems} items found
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                  Edit names/prices below before syncing. Click the dot to toggle veg/non-veg. Remove anything wrong.
+                </p>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               {extractedData.categories.map((cat, cIdx) => (
-                <div key={cIdx} className="bg-surface-800/40 border border-surface-700 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="flex items-center justify-between p-3 bg-surface-800">
-                    <button onClick={() => toggleCat(cIdx)} className="flex items-center gap-2 text-white font-black uppercase text-xs tracking-widest">
-                      {expandedCats.has(cIdx) ? <ChevronDown className="w-4 h-4 text-brand-400" /> : <ChevronRight className="w-4 h-4 text-brand-400" />}
+                <div key={cIdx} className="rounded-2xl overflow-hidden"
+                  style={{ border: '1px solid var(--border)' }}>
+                  <div className="flex items-center justify-between px-4 py-3"
+                    style={{ background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)' }}>
+                    <button onClick={() => toggleCat(cIdx)}
+                      className="flex items-center gap-2 font-black uppercase text-xs tracking-widest"
+                      style={{ color: 'var(--accent)' }}>
+                      {expandedCats.has(cIdx)
+                        ? <ChevronDown className="w-4 h-4" />
+                        : <ChevronRight className="w-4 h-4" />}
                       {cat.name}
-                      <span className="ml-2 text-surface-500 normal-case font-medium">({cat.items.length} items)</span>
+                      <span className="font-medium normal-case" style={{ color: 'var(--text-secondary)' }}>
+                        ({cat.items.length} items)
+                      </span>
                     </button>
-                    <button onClick={() => removeCategory(cIdx)} className="text-surface-500 hover:text-red-400 p-1.5"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => removeCategory(cIdx)}
+                      className="p-1.5 rounded-lg hover:opacity-70 transition-opacity"
+                      style={{ color: 'var(--danger)' }}>
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  
+
                   {expandedCats.has(cIdx) && (
-                    <div className="divide-y divide-surface-700/50">
+                    <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                       {cat.items.map((item, iIdx) => (
-                        <div key={iIdx} className="p-4 grid grid-cols-12 gap-4 items-center group hover:bg-surface-800/20 transition-colors">
-                           <div className="col-span-1 flex items-center justify-center">
-                              <div className={`w-3 h-3 border rounded-sm ${item.food_type === 'non_veg' ? 'border-red-500' : 'border-green-500'} flex items-center justify-center p-[2px]`}>
-                                <div className={`w-full h-full rounded-full ${item.food_type === 'non_veg' ? 'bg-red-500' : 'bg-green-500'}`} />
-                              </div>
-                           </div>
-                           <div className="col-span-5">
-                              <input className="bg-transparent text-sm font-bold text-white w-full border-none outline-none focus:ring-0 p-0" 
-                                value={item.name} onChange={(e) => updateItem(cIdx, iIdx, 'name', e.target.value)} />
-                              <p className="text-[10px] text-surface-500 font-medium truncate">{item.description || 'No description'}</p>
-                           </div>
-                           <div className="col-span-4 flex items-center gap-2 px-3 py-1.5 bg-surface-900 rounded-xl border border-surface-700">
-                              <span className="text-xs font-black text-brand-400 uppercase">₹</span>
-                              <input type="number" className="bg-transparent border-none outline-none w-16 text-sm font-black text-white p-0" 
-                                value={item.base_price} onChange={(e) => updateItem(cIdx, iIdx, 'base_price', e.target.value)} />
-                                
-                              {item.variants?.length > 0 && (
-                                <span className="ml-auto text-[10px] font-black bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded uppercase">+{item.variants.length} Variants</span>
-                              )}
-                           </div>
-                           <div className="col-span-2 flex justify-end gap-2">
-                              <button className="text-surface-600 hover:text-white p-1.5"><Edit3 className="w-4 h-4" /></button>
-                              <button onClick={() => removeItem(cIdx, iIdx)} className="text-surface-600 hover:text-red-400 p-1.5"><Trash2 className="w-4 h-4" /></button>
-                           </div>
+                        <div key={iIdx} className="px-4 py-3 grid grid-cols-12 gap-3 items-center"
+                          style={{ background: 'var(--bg-card)' }}>
+                          <div className="col-span-1 flex justify-center">
+                            <button onClick={() => updateItem(cIdx, iIdx, 'food_type', item.food_type === 'veg' ? 'non_veg' : 'veg')}
+                              title="Toggle veg/non-veg"
+                              className="w-4 h-4 border-2 rounded-sm flex items-center justify-center"
+                              style={{ borderColor: item.food_type === 'non_veg' ? 'var(--danger)' : 'var(--success)' }}>
+                              <div className="w-2 h-2 rounded-full"
+                                style={{ background: item.food_type === 'non_veg' ? 'var(--danger)' : 'var(--success)' }} />
+                            </button>
+                          </div>
+
+                          <div className="col-span-5">
+                            <input
+                              className="bg-transparent text-sm font-bold w-full border-none outline-none p-0"
+                              style={{ color: 'var(--text-primary)' }}
+                              value={item.name}
+                              onChange={(e) => updateItem(cIdx, iIdx, 'name', e.target.value)} />
+                            {item.description && (
+                              <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="col-span-4 flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                            <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>₹</span>
+                            <input type="number"
+                              className="bg-transparent border-none outline-none w-16 text-sm font-black p-0"
+                              style={{ color: 'var(--text-primary)' }}
+                              value={item.base_price}
+                              onChange={(e) => updateItem(cIdx, iIdx, 'base_price', e.target.value)} />
+                            {item.variants?.length > 0 && (
+                              <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded"
+                                style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
+                                +{item.variants.length}V
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="col-span-2 flex justify-end">
+                            <button onClick={() => removeItem(cIdx, iIdx)}
+                              className="p-1.5 rounded-lg hover:opacity-70 transition-opacity"
+                              style={{ color: 'var(--danger)' }}>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -223,18 +309,26 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
               ))}
             </div>
 
-            <div className="mt-6 p-4 border-t border-surface-800 flex items-center justify-between">
-               <div className="flex items-center gap-2 text-surface-500">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Prices include 5% Default GST</span>
-               </div>
-               <div className="flex gap-3">
-                  <button onClick={() => setStep('upload')} className="btn-surface px-6 py-2.5 font-bold">Rescan</button>
-                  <button onClick={() => syncMutation.mutate(extractedData)} disabled={syncMutation.isPending} className="btn-success px-8 py-2.5 font-black flex items-center gap-2 text-lg shadow-lg shadow-green-500/20">
-                    {syncMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                    {syncMutation.isPending ? 'Syncing...' : 'Sync to Production'}
-                  </button>
-               </div>
+            <div className="mt-4 pt-4 flex items-center justify-between"
+              style={{ borderTop: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <AlertCircle className="w-4 h-4" />
+                <span>Default GST 5% will be applied</span>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep('upload')}
+                  className="btn-surface px-5 py-2.5 font-bold flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4" /> Rescan
+                </button>
+                <button onClick={() => syncMutation.mutate(extractedData)}
+                  disabled={syncMutation.isPending || !extractedData?.categories?.length}
+                  className="px-8 py-2.5 rounded-xl font-black text-white flex items-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: 'var(--success)' }}>
+                  {syncMutation.isPending
+                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Syncing…</>
+                    : <><Zap className="w-5 h-5" /> Sync {totalItems} Items</>}
+                </button>
+              </div>
             </div>
           </div>
         )}

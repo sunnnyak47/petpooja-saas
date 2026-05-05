@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('./inventory.controller');
+const aiController = require('./inventory.ai.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
@@ -36,5 +37,12 @@ router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), i
 // Suppliers
 router.get('/suppliers', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listSuppliers);
 router.post('/suppliers', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.createSupplier);
+
+// AI-powered endpoints
+router.post('/ai/suggest-items',  authenticate, hasPermission('MANAGE_INVENTORY'), aiController.suggestItems);
+router.post('/ai/suggest-recipe', authenticate, hasPermission('MANAGE_INVENTORY'), aiController.suggestRecipe);
+router.get('/ai/insights',        authenticate, hasPermission('VIEW_INVENTORY'),   enforceOutletScope, aiController.getInsights);
+router.post('/ai/build-po',       authenticate, hasPermission('MANAGE_INVENTORY'), aiController.buildPO);
+router.post('/ai/autofill-item',  authenticate, hasPermission('MANAGE_INVENTORY'), aiController.autofillItem);
 
 module.exports = router;

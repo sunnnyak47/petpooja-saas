@@ -81,7 +81,11 @@ const { inputSanitizer, validateUUIDs, additionalHeaders, payloadSizeGuard } = r
 app.use(additionalHeaders);
 app.use(inputSanitizer);
 app.use(validateUUIDs);
-app.use('/api/', payloadSizeGuard(2 * 1024 * 1024));
+app.use('/api/', (req, res, next) => {
+  // AI menu scan accepts images up to 10MB; all other routes stay at 2MB
+  const limit = req.path === '/menu/ai/scan-menu' ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+  return payloadSizeGuard(limit)(req, res, next);
+});
 
 /* ------------------------------------------------------------------
    STATIC FILES (uploads & frontend built assets)
