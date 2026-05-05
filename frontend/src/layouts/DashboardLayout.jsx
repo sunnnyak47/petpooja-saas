@@ -11,8 +11,9 @@ import {
   Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
-  CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft,
+  CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
 } from 'lucide-react';
+import ImpersonationBanner from '../components/ImpersonationBanner';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
 import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
@@ -22,6 +23,7 @@ const superAdminNav = [
   { path: '/',                 label: 'Analytics',          icon: BarChart3 },
   { path: '/super-admin',      label: 'Restaurant Chains',  icon: ShieldCheck },
   { path: '/feature-access',   label: 'Feature Access',     icon: ToggleLeft },
+  { path: '/announcements',    label: 'Announcements',      icon: Megaphone },
   { section: 'System' },
   { path: '/audit-log',        label: 'System Logs',        icon: ClipboardList },
   { path: '/billing',          label: 'SaaS Revenue',       icon: ShoppingCart },
@@ -162,6 +164,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <ImpersonationBanner />
       <DunningBanner user={user} />
 
       {updateProgress !== null && (

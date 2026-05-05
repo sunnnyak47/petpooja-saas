@@ -832,6 +832,287 @@ const superadminService = {
       features: updated.metadata.features,
     };
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SUSPEND / ACTIVATE CHAIN
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Toggle chain active status
+   * @param {string} headOfficeId
+   * @param {'suspend'|'activate'|'trial'} action
+   * @param {string} adminId
+   * @param {string} [reason]
+   */
+  async toggleChainStatus(headOfficeId, action, adminId, reason) {
+    const ho = await prisma.headOffice.findUnique({ where: { id: headOfficeId } });
+    if (!ho) throw new Error('Chain not found');
+
+    const isActive = action === 'activate';
+    const auditAction = action === 'suspend' ? 'CHAIN_SUSPENDED' : 'CHAIN_ACTIVATED';
+
+    const existingMeta = ho.metadata || {};
+    const metaUpdate = isActive
+      ? { ...existingMeta, suspension_reason: null, suspended_at: null, activated_at: new Date().toISOString() }
+      : { ...existingMeta, suspension_reason: reason || 'Suspended by admin', suspended_at: new Date().toISOString() };
+
+    const updated = await prisma.headOffice.update({
+      where: { id: headOfficeId },
+      data: {
+        is_active: isActive,
+        ...(action === 'trial' ? { plan: 'TRIAL' } : {}),
+        metadata: metaUpdate,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
+        action: auditAction,
+        entity_type: 'restaurant',
+        entity_id: headOfficeId,
+        new_values: { action, reason: reason || null, name: ho.name },
+      },
+    }).catch(() => null);
+
+    return updated;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CHAIN INTERNAL NOTES
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Save internal notes on a chain (superadmin-only)
+   */
+  async updateChainNotes(headOfficeId, notes, adminId) {
+    const ho = await prisma.headOffice.findUnique({ where: { id: headOfficeId } });
+    if (!ho) throw new Error('Chain not found');
+
+    const existingMeta = ho.metadata || {};
+    const updated = await prisma.headOffice.update({
+      where: { id: headOfficeId },
+      data: { metadata: { ...existingMeta, internal_notes: notes } },
+    });
+    return updated;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GLOBAL LIVE STATS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Live platform-wide stats for the superadmin dashboard
+   */
+  async getGlobalLiveStats() {
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    try {
+      const [
+        todayOrderCount,
+        todayRevAgg,
+        activeChainCount,
+        monthOrderCount,
+      ] = await Promise.all([
+        prisma.order.count({ where: { created_at: { gte: todayMidnight } } }),
+        prisma.order.aggregate({
+          where: { created_at: { gte: todayMidnight }, status: 'paid' },
+          _sum: { total_amount: true },
+        }),
+        prisma.headOffice.count({ where: { is_active: true, is_deleted: false } }),
+        prisma.order.count({ where: { created_at: { gte: startOfMonth } } }),
+      ]);
+
+      // Top 5 chains by orders this month
+      const topChainsRaw = await prisma.order.groupBy({
+        by: ['outlet_id'],
+        where: { created_at: { gte: startOfMonth } },
+        _count: { id: true },
+        _sum: { total_amount: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 20,
+      });
+
+      // Enrich with outlet -> head_office info
+      const outletIds = topChainsRaw.map(r => r.outlet_id);
+      const outlets = await prisma.outlet.findMany({
+        where: { id: { in: outletIds } },
+        select: { id: true, head_office_id: true, head_office: { select: { id: true, name: true } } },
+      });
+      const outletMap = {};
+      outlets.forEach(o => { outletMap[o.id] = o; });
+
+      // Aggregate by chain
+      const chainMap = {};
+      for (const row of topChainsRaw) {
+        const outlet = outletMap[row.outlet_id];
+        if (!outlet) continue;
+        const chainId = outlet.head_office_id;
+        if (!chainMap[chainId]) {
+          chainMap[chainId] = { chain_id: chainId, chain_name: outlet.head_office?.name || 'Unknown', order_count: 0, revenue: 0 };
+        }
+        chainMap[chainId].order_count += row._count.id;
+        chainMap[chainId].revenue += Number(row._sum.total_amount || 0);
+      }
+      const topChains = Object.values(chainMap).sort((a, b) => b.order_count - a.order_count).slice(0, 5);
+
+      // Recent 10 orders across all chains
+      const recentOrders = await prisma.order.findMany({
+        orderBy: { created_at: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          order_number: true,
+          total_amount: true,
+          status: true,
+          created_at: true,
+          outlet: { select: { name: true, head_office: { select: { name: true } } } },
+        },
+      });
+
+      return {
+        today: {
+          orders: todayOrderCount,
+          revenue: Number(todayRevAgg._sum?.total_amount || 0),
+        },
+        this_month: {
+          orders: monthOrderCount,
+        },
+        active_chains: activeChainCount,
+        top_chains_this_month: topChains,
+        recent_orders: recentOrders.map(o => ({
+          id: o.id,
+          order_number: o.order_number,
+          total_amount: Number(o.total_amount || 0),
+          status: o.status,
+          created_at: o.created_at,
+          outlet_name: o.outlet?.name || 'Unknown',
+          chain_name: o.outlet?.head_office?.name || 'Unknown',
+        })),
+      };
+    } catch (error) {
+      console.error('getGlobalLiveStats Error:', error.message);
+      return { today: { orders: 0, revenue: 0 }, this_month: { orders: 0 }, active_chains: 0, top_chains_this_month: [], recent_orders: [] };
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ANNOUNCEMENTS (stored in SystemConfig as JSON array)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /** Load announcements array from SystemConfig */
+  async _loadAnnouncements() {
+    const record = await prisma.systemConfig.findUnique({ where: { key: 'platform_announcements' } }).catch(() => null);
+    if (!record) return [];
+    try { return JSON.parse(record.value); } catch { return []; }
+  },
+
+  /** Save announcements array to SystemConfig */
+  async _saveAnnouncements(announcements) {
+    await prisma.systemConfig.upsert({
+      where: { key: 'platform_announcements' },
+      update: { value: JSON.stringify(announcements) },
+      create: { key: 'platform_announcements', value: JSON.stringify(announcements) },
+    });
+  },
+
+  /**
+   * Create a new platform announcement
+   */
+  async createAnnouncement({ title, message, type = 'info', target_chain_ids = [], expires_at, adminId }) {
+    const list = await superadminService._loadAnnouncements();
+    const { v4: uuidv4 } = require('uuid');
+    const announcement = {
+      id: uuidv4(),
+      title,
+      message,
+      type,
+      target_chain_ids: target_chain_ids || [],
+      expires_at: expires_at || null,
+      created_at: new Date().toISOString(),
+      created_by: adminId || 'sa_root',
+      is_active: true,
+    };
+    list.push(announcement);
+    await superadminService._saveAnnouncements(list);
+    return announcement;
+  },
+
+  /** Get all announcements */
+  async getAnnouncements() {
+    return superadminService._loadAnnouncements();
+  },
+
+  /** Update an announcement by id */
+  async updateAnnouncement(id, data) {
+    const list = await superadminService._loadAnnouncements();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx === -1) throw new Error('Announcement not found');
+    list[idx] = { ...list[idx], ...data, id };
+    await superadminService._saveAnnouncements(list);
+    return list[idx];
+  },
+
+  /** Delete an announcement by id */
+  async deleteAnnouncement(id) {
+    const list = await superadminService._loadAnnouncements();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx === -1) throw new Error('Announcement not found');
+    list.splice(idx, 1);
+    await superadminService._saveAnnouncements(list);
+    return { deleted: true };
+  },
+
+  /** Get active announcements relevant to a specific chain */
+  async getActiveAnnouncementsForChain(headOfficeId) {
+    const list = await superadminService._loadAnnouncements();
+    const now = new Date();
+    return list.filter(a => {
+      if (!a.is_active) return false;
+      if (a.expires_at && new Date(a.expires_at) < now) return false;
+      if (!a.target_chain_ids || a.target_chain_ids.length === 0) return true;
+      return a.target_chain_ids.includes(headOfficeId);
+    });
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PLAN MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  PLANS: ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'],
+
+  /** Get all available plans */
+  async getPlans() {
+    return superadminService.PLANS.map(name => ({
+      name,
+      label: name.charAt(0) + name.slice(1).toLowerCase(),
+    }));
+  },
+
+  /** Assign a plan to a chain */
+  async assignPlan(headOfficeId, planName, adminId) {
+    const plan = planName.toUpperCase();
+    if (!superadminService.PLANS.includes(plan)) throw new Error(`Invalid plan. Use one of: ${superadminService.PLANS.join(', ')}`);
+
+    const updated = await prisma.headOffice.update({
+      where: { id: headOfficeId },
+      data: { plan },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
+        action: 'PLAN_ASSIGNED',
+        entity_type: 'restaurant',
+        entity_id: headOfficeId,
+        new_values: { plan, previous_plan: updated.plan, name: updated.name },
+      },
+    }).catch(() => null);
+
+    return updated;
+  },
 };
 
 module.exports = superadminService;

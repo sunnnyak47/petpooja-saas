@@ -9,6 +9,7 @@ const appConfig = require('../config/app');
 const { getRedisClient } = require('../config/redis');
 const { UnauthorizedError } = require('../utils/errors');
 const logger = require('../config/logger');
+const prisma = require('../config/database').getDbClient();
 
 /**
  * Express middleware that verifies JWT access token.
@@ -60,6 +61,24 @@ async function authenticate(req, res, next) {
     };
 
     req.token = token;
+
+    // Block suspended chains (non-superadmin only)
+    if (req.user.head_office_id && req.user.role !== 'super_admin') {
+      try {
+        const ho = await prisma.headOffice.findUnique({
+          where: { id: req.user.head_office_id },
+          select: { is_active: true },
+        });
+        if (ho && ho.is_active === false) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your account has been suspended. Contact support.',
+          });
+        }
+      } catch (_) {
+        // DB unreachable — allow through to avoid blocking valid sessions
+      }
+    }
 
     next();
   } catch (error) {

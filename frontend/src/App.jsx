@@ -26,6 +26,7 @@ import AggregatorPage from './pages/AggregatorPage';
 import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
 import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import BillingPage from './pages/BillingPage';
 import FeatureAccessPage from './pages/FeatureAccessPage';
 import FeatureGate from './components/FeatureGate';
@@ -135,6 +136,7 @@ export default function App() {
         <Route path="super-admin" element={<SuperAdminPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="feature-access" element={<FeatureAccessPage />} />
+        <Route path="announcements" element={<AnnouncementsPage />} />
       </Route>
       
       {/* Catch All */}

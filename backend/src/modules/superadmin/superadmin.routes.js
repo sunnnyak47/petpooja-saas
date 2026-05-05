@@ -47,4 +47,23 @@ router.patch('/chains/:id/region', superadminController.switchRegion);
 router.get('/chains/:id/features', superadminController.getFeatures);
 router.patch('/chains/:id/features', superadminController.updateFeatures);
 
+/** PATCH /api/superadmin/chains/:id/status — suspend / activate */
+router.patch('/chains/:id/status', superadminController.toggleStatus);
+
+/** PATCH /api/superadmin/chains/:id/notes — internal notes */
+router.patch('/chains/:id/notes', superadminController.updateNotes);
+
+/** PATCH /api/superadmin/chains/:id/plan — assign plan */
+router.patch('/chains/:id/plan', superadminController.assignPlan);
+
+/** GET /api/superadmin/live-stats — global live stats */
+router.get('/live-stats', superadminController.getLiveStats);
+
+/** Announcements — NOTE: for-chain route must come before /:id to avoid param collision */
+router.get('/announcements/for-chain/:headOfficeId', superadminController.getChainAnnouncements);
+router.get('/announcements', superadminController.getAnnouncements);
+router.post('/announcements', superadminController.createAnnouncement);
+router.patch('/announcements/:id', superadminController.updateAnnouncement);
+router.delete('/announcements/:id', superadminController.deleteAnnouncement);
+
 module.exports = router;

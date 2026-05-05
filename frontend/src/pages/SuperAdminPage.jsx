@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   Building2, Plus, Users, Utensils, DollarSign, Globe,
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
+  LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
+  TrendingUp, BarChart3,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -24,13 +27,25 @@ const REGIONS = {
   },
 };
 
+const PLAN_COLORS = {
+  TRIAL:      { bg: '#FEF3C7', color: '#D97706', border: '#FCD34D' },
+  STARTER:    { bg: '#DBEAFE', color: '#1D4ED8', border: '#93C5FD' },
+  PRO:        { bg: '#EDE9FE', color: '#7C3AED', border: '#C4B5FD' },
+  ENTERPRISE: { bg: '#D1FAE5', color: '#065F46', border: '#6EE7B7' },
+};
+
+const PLANS = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
+
 export default function SuperAdminPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [showOnboard, setShowOnboard]   = useState(false);
-  const [regionModal, setRegionModal]   = useState(null); // { chain, targetRegion, abn, acn }
+  const [regionModal, setRegionModal]   = useState(null);
   const [filterRegion, setFilterRegion] = useState('ALL');
   const [searchQ, setSearchQ]           = useState('');
   const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN' });
+  const [notesModal, setNotesModal]     = useState(null); // { chain, text }
+  const [planDropdown, setPlanDropdown] = useState(null); // chain.id
 
   const { data: chains = [], isLoading } = useQuery({
     queryKey: ['admin-chains'],
@@ -40,6 +55,12 @@ export default function SuperAdminPage() {
   const { data: regionTemplates } = useQuery({
     queryKey: ['region-templates'],
     queryFn: () => api.get('/superadmin/region-templates').then(r => r.data),
+  });
+
+  const { data: liveStats } = useQuery({
+    queryKey: ['live-stats'],
+    queryFn: () => api.get('/superadmin/live-stats').then(r => r.data),
+    refetchInterval: 30000,
   });
 
   const onboardMutation = useMutation({
@@ -70,6 +91,71 @@ export default function SuperAdminPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const impersonateMutation = useMutation({
+    mutationFn: (head_office_id) => api.post('/superadmin/impersonate', { head_office_id }),
+    onSuccess: (res, head_office_id) => {
+      const { token, user: impUser } = res.data;
+      const chainName = chains.find(c => c.id === head_office_id)?.name || 'chain';
+      const adminToken = localStorage.getItem('accessToken');
+      const adminUser = localStorage.getItem('user');
+      // Save admin session for restore
+      localStorage.setItem('impersonate_token', token);
+      localStorage.setItem('admin_restore_token', adminToken);
+      localStorage.setItem('admin_restore_user', adminUser || '');
+      // Decode impersonated token to get user payload
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        const impersonatedUser = {
+          ...(impUser || {}),
+          id: payload.id,
+          email: payload.email,
+          role: payload.role || 'owner',
+          full_name: impUser?.full_name || payload.full_name || 'Owner',
+          head_office_id: payload.head_office_id,
+          impersonated: true,
+        };
+        localStorage.setItem('accessToken', token);
+        localStorage.setItem('user', JSON.stringify(impersonatedUser));
+      } catch {
+        localStorage.setItem('accessToken', token);
+      }
+      toast.success(`👁 Viewing as ${chainName}`);
+      window.location.href = window.location.origin + window.location.pathname + '#/';
+      window.location.reload();
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Impersonation failed'),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, action }) =>
+      api.patch(`/superadmin/chains/${id}/status`, { action, reason: '' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-chains']);
+      toast.success('Chain status updated');
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Status update failed'),
+  });
+
+  const planMutation = useMutation({
+    mutationFn: ({ id, plan }) => api.patch(`/superadmin/chains/${id}/plan`, { plan }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-chains']);
+      toast.success('Plan updated');
+      setPlanDropdown(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Plan update failed'),
+  });
+
+  const notesMutation = useMutation({
+    mutationFn: ({ id, notes }) => api.patch(`/superadmin/chains/${id}/notes`, { notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-chains']);
+      toast.success('Notes saved');
+      setNotesModal(null);
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Save failed'),
+  });
+
   const filteredChains = chains.filter(c => {
     const r = c.region || 'IN';
     if (filterRegion !== 'ALL' && r !== filterRegion) return false;
@@ -90,8 +176,10 @@ export default function SuperAdminPage() {
     </div>
   );
 
+  const sym = liveStats?.currency_symbol || '₹';
+
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-6 animate-fade-in pb-10" onClick={() => setPlanDropdown(null)}>
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -115,6 +203,45 @@ export default function SuperAdminPage() {
             style={{ background: 'var(--accent)' }}>
             <Plus className="w-4 h-4" /> Onboard Chain
           </button>
+        </div>
+      </div>
+
+      {/* ── Live Stats Bar ── */}
+      <div className="rounded-xl border p-4" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+            Live Platform Stats · refreshes every 30s
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <LiveStatCard
+            icon={<ShoppingCart className="w-4 h-4" />}
+            label="Orders Today"
+            value={liveStats?.orders_today ?? '—'}
+            color="#10B981"
+          />
+          <LiveStatCard
+            icon={<TrendingUp className="w-4 h-4" />}
+            label="Revenue Today"
+            value={liveStats?.revenue_today != null ? `${sym}${Number(liveStats.revenue_today).toLocaleString()}` : '—'}
+            color="#3B82F6"
+          />
+          <LiveStatCard
+            icon={<Building2 className="w-4 h-4" />}
+            label="Active Chains"
+            value={liveStats?.active_chains ?? chains.filter(c => c.is_active !== false).length}
+            color="#8B5CF6"
+          />
+          <LiveStatCard
+            icon={<BarChart3 className="w-4 h-4" />}
+            label="Orders This Month"
+            value={liveStats?.orders_this_month ?? '—'}
+            color="#F97316"
+          />
         </div>
       </div>
 
@@ -145,7 +272,6 @@ export default function SuperAdminPage() {
         </div>
 
         <div className="p-5">
-          {/* Region cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
             {['IN', 'AU'].map(rKey => {
               const r = REGIONS[rKey];
@@ -215,12 +341,10 @@ export default function SuperAdminPage() {
           </div>
         </div>
 
-        {/* Section label */}
         <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
           Chains
         </p>
 
-        {/* Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredChains.map(chain => {
             const curRegion = chain.region || 'IN';
@@ -229,11 +353,27 @@ export default function SuperAdminPage() {
             const sub = chain.subscriptions?.[0];
             const status = sub?.status || 'trial';
             const statusColor = status === 'active' ? '#10B981' : status === 'trial' ? '#F59E0B' : '#EF4444';
+            const suspended = chain.is_active === false;
+            const currentPlan = (chain.plan || sub?.plan_name || 'TRIAL').toUpperCase();
+            const planStyle = PLAN_COLORS[currentPlan] || PLAN_COLORS.TRIAL;
 
             return (
-              <div key={chain.id} className="rounded-xl border transition-shadow hover:shadow-sm"
-                style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-                <div className="p-5">
+              <div key={chain.id}
+                className="rounded-xl border transition-shadow hover:shadow-sm relative overflow-hidden"
+                style={{
+                  background: 'var(--bg-primary)',
+                  borderColor: suspended ? '#EF4444' : 'var(--border)',
+                }}>
+
+                {/* Suspended overlay banner */}
+                {suspended && (
+                  <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1"
+                    style={{ background: '#EF4444' }}>
+                    <span className="text-white text-[11px] font-bold tracking-widest uppercase">Suspended</span>
+                  </div>
+                )}
+
+                <div className={`p-5 ${suspended ? 'opacity-50 pt-8' : ''}`}>
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"
                       style={{ background: chain.primary_color || r.color }}>
@@ -247,6 +387,11 @@ export default function SuperAdminPage() {
                           style={{ background: `${statusColor}14`, color: statusColor }}>
                           {status}
                         </span>
+                        {/* Plan badge */}
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold border"
+                          style={{ background: planStyle.bg, color: planStyle.color, borderColor: planStyle.border }}>
+                          {currentPlan}
+                        </span>
                       </div>
                       <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                         {chain.contact_email}
@@ -258,7 +403,6 @@ export default function SuperAdminPage() {
                         <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--text-secondary)' }}>GSTIN: {chain.gstin}</p>
                       )}
 
-                      {/* Stats row with dividers */}
                       <div className="flex items-center gap-0 mt-3">
                         <Stat label="Outlets" value={chain._count?.outlets || 0} />
                         <div className="w-px h-8 mx-4" style={{ background: 'var(--border)' }} />
@@ -271,18 +415,98 @@ export default function SuperAdminPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-3 border-t flex items-center justify-between gap-3"
+                <div className={`px-5 py-3 border-t space-y-2 ${suspended ? 'opacity-50' : ''}`}
                   style={{ borderColor: 'var(--border)' }}>
-                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    {r.flag} {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
-                  </span>
-                  <button
-                    onClick={() => setRegionModal({ chain, targetRegion: curRegion === 'AU' ? 'IN' : 'AU', abn: chain.abn || '', acn: chain.acn || '' })}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-primary)' }}>
-                    <ArrowLeftRight className="w-3 h-3" />
-                    Switch to {target.flag} {target.label}
-                  </button>
+
+                  {/* Region + switch row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {r.flag} {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
+                    </span>
+                    <button
+                      onClick={() => setRegionModal({ chain, targetRegion: curRegion === 'AU' ? 'IN' : 'AU', abn: chain.abn || '', acn: chain.acn || '' })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-primary)' }}>
+                      <ArrowLeftRight className="w-3 h-3" />
+                      Switch to {target.flag} {target.label}
+                    </button>
+                  </div>
+
+                  {/* Action buttons row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+
+                    {/* Impersonate */}
+                    <button
+                      onClick={() => impersonateMutation.mutate(chain.id)}
+                      disabled={impersonateMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: '#6366F130', background: '#6366F108', color: '#6366F1' }}>
+                      <LogIn className="w-3 h-3" />
+                      Login As
+                    </button>
+
+                    {/* Suspend / Activate */}
+                    {suspended ? (
+                      <button
+                        onClick={() => statusMutation.mutate({ id: chain.id, action: 'activate' })}
+                        disabled={statusMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                        style={{ borderColor: '#10B98130', background: '#10B98108', color: '#10B981' }}>
+                        <PlayCircle className="w-3 h-3" />
+                        Activate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => statusMutation.mutate({ id: chain.id, action: 'suspend' })}
+                        disabled={statusMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                        style={{ borderColor: '#EF444430', background: '#EF444408', color: '#EF4444' }}>
+                        <PauseCircle className="w-3 h-3" />
+                        Suspend
+                      </button>
+                    )}
+
+                    {/* Plan change */}
+                    <div className="relative" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setPlanDropdown(planDropdown === chain.id ? null : chain.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-80"
+                        style={{ background: planStyle.bg, color: planStyle.color, borderColor: planStyle.border }}>
+                        {currentPlan} ▾
+                      </button>
+                      {planDropdown === chain.id && (
+                        <div className="absolute bottom-full mb-1 left-0 z-20 rounded-lg border shadow-lg overflow-hidden"
+                          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', minWidth: 130 }}>
+                          {PLANS.map(p => {
+                            const ps = PLAN_COLORS[p];
+                            return (
+                              <button key={p}
+                                onClick={() => planMutation.mutate({ id: chain.id, plan: p })}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium hover:opacity-80 transition-colors"
+                                style={{ background: p === currentPlan ? ps.bg : 'transparent', color: ps.color }}>
+                                <span className="w-2 h-2 rounded-full" style={{ background: ps.color }} />
+                                {p}
+                                {p === currentPlan && <CheckCircle className="w-3 h-3 ml-auto" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes */}
+                    <button
+                      onClick={() => setNotesModal({ chain, text: chain.metadata?.internal_notes || '' })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
+                      title="Internal notes">
+                      <StickyNote className="w-3 h-3" />
+                      Notes
+                      {chain.metadata?.internal_notes && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-0.5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -300,12 +524,59 @@ export default function SuperAdminPage() {
         </div>
       </div>
 
+      {/* ── Notes Modal ── */}
+      {notesModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-md overflow-hidden shadow-xl border"
+            style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+              <div>
+                <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Internal Notes</h3>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{notesModal.chain.name}</p>
+              </div>
+              <button onClick={() => setNotesModal(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center hover:opacity-70"
+                style={{ color: 'var(--text-secondary)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <textarea
+                rows={5}
+                placeholder="Add internal notes about this chain..."
+                value={notesModal.text}
+                onChange={e => setNotesModal(p => ({ ...p, text: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2 resize-none"
+                style={{
+                  background: 'var(--bg-secondary)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-primary)',
+                  '--tw-ring-color': 'var(--accent)',
+                }} />
+              <div className="flex gap-3">
+                <button onClick={() => setNotesModal(null)}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-primary)' }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => notesMutation.mutate({ id: notesModal.chain.id, notes: notesModal.text })}
+                  disabled={notesMutation.isPending}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60 transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+                  style={{ background: 'var(--accent)' }}>
+                  {notesMutation.isPending ? <><RefreshCw className="w-4 h-4 animate-spin" /> Saving...</> : 'Save Notes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Region Switch Modal ── */}
       {regionModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
           <div className="rounded-xl w-full max-w-md overflow-hidden shadow-xl border"
             style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
-            {/* Modal header */}
             <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
               <div>
                 <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
@@ -321,7 +592,6 @@ export default function SuperAdminPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* What changes */}
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--text-secondary)' }}>
                   Changes that will apply
@@ -343,7 +613,6 @@ export default function SuperAdminPage() {
                 </div>
               </div>
 
-              {/* ABN / ACN fields for AU */}
               {regionModal.targetRegion === 'AU' && (
                 <div className="space-y-3">
                   <div>
@@ -355,29 +624,18 @@ export default function SuperAdminPage() {
                       value={regionModal.abn}
                       onChange={e => setRegionModal(p => ({ ...p, abn: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"
-                      style={{
-                        background: 'var(--bg-secondary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text-primary)',
-                        '--tw-ring-color': 'var(--accent)',
-                      }} />
+                      style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }} />
                   </div>
                   <div>
                     <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                      ACN (Australian Company Number)
-                      <span className="ml-1 opacity-60">optional</span>
+                      ACN (Australian Company Number) <span className="ml-1 opacity-60">optional</span>
                     </label>
                     <input
                       placeholder="e.g. 123 456 789"
                       value={regionModal.acn}
                       onChange={e => setRegionModal(p => ({ ...p, acn: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"
-                      style={{
-                        background: 'var(--bg-secondary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text-primary)',
-                        '--tw-ring-color': 'var(--accent)',
-                      }} />
+                      style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }} />
                   </div>
                 </div>
               )}
@@ -437,19 +695,11 @@ export default function SuperAdminPage() {
                   value={formData[f.key]}
                   onChange={e => setFormData(p => ({ ...p, [f.key]: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"
-                  style={{
-                    background: 'var(--bg-secondary)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--text-primary)',
-                    '--tw-ring-color': 'var(--accent)',
-                  }} />
+                  style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }} />
               ))}
 
-              {/* Region selector */}
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  Region
-                </p>
+                <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>Region</p>
                 <div className="grid grid-cols-2 gap-3">
                   {['IN', 'AU'].map(r => (
                     <button key={r} onClick={() => setFormData(p => ({ ...p, region: r }))}
@@ -485,6 +735,22 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function LiveStatCard({ icon, label, value, color }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border"
+      style={{ background: `${color}08`, borderColor: `${color}20` }}>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ background: `${color}15`, color }}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-base font-bold leading-tight" style={{ color }}>{value}</p>
+        <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      </div>
     </div>
   );
 }

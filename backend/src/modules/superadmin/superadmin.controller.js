@@ -170,6 +170,89 @@ const superadminController = {
       sendSuccess(res, result, 'Chain features updated successfully');
     } catch (err) { next(err); }
   },
+
+  /** PATCH /api/superadmin/chains/:id/status */
+  async toggleStatus(req, res, next) {
+    try {
+      const { action, reason } = req.body;
+      if (!['suspend', 'activate', 'trial'].includes(action)) {
+        return sendError(res, 400, "action must be one of: suspend, activate, trial");
+      }
+      const result = await superadminService.toggleChainStatus(req.params.id, action, req.user?.id, reason);
+      sendSuccess(res, result, `Chain ${action}d successfully`);
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/chains/:id/notes */
+  async updateNotes(req, res, next) {
+    try {
+      const { notes } = req.body;
+      const result = await superadminService.updateChainNotes(req.params.id, notes, req.user?.id);
+      sendSuccess(res, result, 'Chain notes updated');
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/chains/:id/plan */
+  async assignPlan(req, res, next) {
+    try {
+      const { plan } = req.body;
+      if (!plan) return sendError(res, 400, 'plan is required');
+      const result = await superadminService.assignPlan(req.params.id, plan, req.user?.id);
+      sendSuccess(res, result, 'Plan assigned successfully');
+    } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/live-stats */
+  async getLiveStats(req, res, next) {
+    try {
+      const stats = await superadminService.getGlobalLiveStats();
+      sendSuccess(res, stats, 'Global live stats retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/announcements */
+  async getAnnouncements(req, res, next) {
+    try {
+      const list = await superadminService.getAnnouncements();
+      sendSuccess(res, list, 'Announcements retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/superadmin/announcements */
+  async createAnnouncement(req, res, next) {
+    try {
+      const { title, message, type, target_chain_ids, expires_at } = req.body;
+      if (!title || !message) return sendError(res, 400, 'title and message are required');
+      const result = await superadminService.createAnnouncement({
+        title, message, type, target_chain_ids, expires_at, adminId: req.user?.id
+      });
+      sendSuccess(res, result, 'Announcement created');
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/announcements/:id */
+  async updateAnnouncement(req, res, next) {
+    try {
+      const result = await superadminService.updateAnnouncement(req.params.id, req.body);
+      sendSuccess(res, result, 'Announcement updated');
+    } catch (err) { next(err); }
+  },
+
+  /** DELETE /api/superadmin/announcements/:id */
+  async deleteAnnouncement(req, res, next) {
+    try {
+      const result = await superadminService.deleteAnnouncement(req.params.id);
+      sendSuccess(res, result, 'Announcement deleted');
+    } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/announcements/for-chain/:headOfficeId */
+  async getChainAnnouncements(req, res, next) {
+    try {
+      const list = await superadminService.getActiveAnnouncementsForChain(req.params.headOfficeId);
+      sendSuccess(res, list, 'Chain announcements retrieved');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;
