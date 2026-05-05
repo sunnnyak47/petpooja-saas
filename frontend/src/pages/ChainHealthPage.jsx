@@ -229,17 +229,19 @@ export default function ChainHealthPage() {
   const [planFilter, setPlanFilter]   = useState('ALL');
   const [expandedId, setExpandedId]   = useState(null);
 
-  const { data: chains = [], isLoading, refetch, isFetching } = useQuery({
+  const { data: chains = [], isLoading, refetch: refetchChains, isFetching } = useQuery({
     queryKey: ['chain-health'],
     queryFn: () => api.get('/superadmin/chain-health').then(r => r.data),
     staleTime: 60_000,
   });
 
-  const { data: summary } = useQuery({
+  const { data: summary, refetch: refetchSummary } = useQuery({
     queryKey: ['health-summary'],
     queryFn: () => api.get('/superadmin/health-summary').then(r => r.data),
     staleTime: 60_000,
   });
+
+  const refetch = () => { refetchChains(); refetchSummary(); };
 
   // ── Filtering ────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
