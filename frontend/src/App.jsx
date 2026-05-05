@@ -31,6 +31,11 @@ import ChainDetailPage from './pages/ChainDetailPage';
 import RevenueAnalyticsPage from './pages/RevenueAnalyticsPage';
 import InvoicingPage from './pages/InvoicingPage';
 import TaxProfilesPage from './pages/TaxProfilesPage';
+import PlatformSettingsPage from './pages/PlatformSettingsPage';
+import SupportTicketsPage from './pages/SupportTicketsPage';
+import BroadcastPage from './pages/BroadcastPage';
+import AllUsersPage from './pages/AllUsersPage';
+import PromoCodesPage from './pages/PromoCodesPage';
 import BillingPage from './pages/BillingPage';
 import FeatureAccessPage from './pages/FeatureAccessPage';
 import FeatureGate from './components/FeatureGate';
@@ -145,6 +150,11 @@ export default function App() {
         <Route path="revenue-analytics" element={<RevenueAnalyticsPage />} />
         <Route path="invoicing" element={<InvoicingPage />} />
         <Route path="tax-profiles" element={<TaxProfilesPage />} />
+        <Route path="platform-settings" element={<PlatformSettingsPage />} />
+        <Route path="support-tickets" element={<SupportTicketsPage />} />
+        <Route path="broadcasts" element={<BroadcastPage />} />
+        <Route path="all-users" element={<AllUsersPage />} />
+        <Route path="promo-codes" element={<PromoCodesPage />} />
       </Route>
       
       {/* Catch All */}

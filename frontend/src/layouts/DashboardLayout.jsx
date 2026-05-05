@@ -12,7 +12,7 @@ import {
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
-  TrendingUp, FileText, Receipt,
+  TrendingUp, FileText, Receipt, Radio, MessageSquare, Users, Tag, Sliders,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
@@ -23,15 +23,21 @@ const superAdminNav = [
   { section: 'Platform' },
   { path: '/',                    label: 'Analytics',          icon: BarChart3 },
   { path: '/super-admin',         label: 'Restaurant Chains',  icon: ShieldCheck },
+  { path: '/all-users',           label: 'All Users',          icon: Users },
   { path: '/feature-access',      label: 'Feature Access',     icon: ToggleLeft },
   { path: '/announcements',       label: 'Announcements',      icon: Megaphone },
+  { path: '/broadcasts',          label: 'Broadcast Center',   icon: Radio },
   { section: 'Finance' },
   { path: '/revenue-analytics',   label: 'Revenue Analytics',  icon: TrendingUp },
   { path: '/invoicing',           label: 'Invoicing',          icon: FileText },
   { path: '/tax-profiles',        label: 'Tax Profiles',       icon: Receipt },
+  { path: '/promo-codes',         label: 'Promo Codes',        icon: Tag },
+  { section: 'Support' },
+  { path: '/support-tickets',     label: 'Support Tickets',    icon: MessageSquare },
   { section: 'System' },
   { path: '/audit-log',           label: 'System Logs',        icon: ClipboardList },
   { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart },
+  { path: '/platform-settings',   label: 'Platform Settings',  icon: Sliders },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 

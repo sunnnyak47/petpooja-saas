@@ -81,4 +81,31 @@ router.post('/announcements', superadminController.createAnnouncement);
 router.patch('/announcements/:id', superadminController.updateAnnouncement);
 router.delete('/announcements/:id', superadminController.deleteAnnouncement);
 
+/** P2: Platform Settings */
+router.get('/platform-settings', superadminController.getPlatformSettings);
+router.put('/platform-settings', superadminController.savePlatformSettings);
+
+/** P2: Support Tickets */
+router.get('/support-tickets', superadminController.getTickets);
+router.post('/support-tickets', superadminController.createTicket);
+router.patch('/support-tickets/:id', superadminController.updateTicket);
+router.post('/support-tickets/:id/reply', superadminController.replyToTicket);
+
+/** P2: Broadcast Center */
+router.get('/broadcasts', superadminController.getBroadcasts);
+router.post('/broadcasts', superadminController.sendBroadcast);
+
+/** P2: All Users */
+router.get('/users', superadminController.getAllUsers);
+
+/** P2: Promo Codes */
+router.get('/promo-codes', superadminController.getPromoCodes);
+router.post('/promo-codes', superadminController.createPromoCode);
+router.patch('/promo-codes/:id', superadminController.updatePromoCode);
+router.delete('/promo-codes/:id', superadminController.deletePromoCode);
+router.post('/promo-codes/validate', superadminController.validatePromoCode);
+
+/** P2: Chain Profile Edit */
+router.patch('/chains/:id/profile', superadminController.updateChainProfile);
+
 module.exports = router;

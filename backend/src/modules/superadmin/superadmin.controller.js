@@ -324,6 +324,121 @@ const superadminController = {
       sendSuccess(res, result, 'Tax profiles saved');
     } catch (err) { next(err); }
   },
+
+  // ─── P2: Platform Settings ────────────────────────────────────────────────
+  async getPlatformSettings(req, res, next) {
+    try {
+      const settings = await superadminService.getPlatformSettings();
+      sendSuccess(res, settings, 'Platform settings retrieved');
+    } catch (err) { next(err); }
+  },
+
+  async savePlatformSettings(req, res, next) {
+    try {
+      const result = await superadminService.savePlatformSettings(req.body);
+      sendSuccess(res, result, 'Platform settings saved');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P2: Support Tickets ─────────────────────────────────────────────────
+  async getTickets(req, res, next) {
+    try {
+      const { status, priority, search } = req.query;
+      const tickets = await superadminService.getTickets({ status, priority, search });
+      sendSuccess(res, tickets, 'Tickets retrieved');
+    } catch (err) { next(err); }
+  },
+
+  async createTicket(req, res, next) {
+    try {
+      const ticket = await superadminService.createTicket(req.body);
+      sendSuccess(res, ticket, 'Ticket created');
+    } catch (err) { next(err); }
+  },
+
+  async updateTicket(req, res, next) {
+    try {
+      const result = await superadminService.updateTicket(req.params.id, req.body);
+      sendSuccess(res, result, 'Ticket updated');
+    } catch (err) { next(err); }
+  },
+
+  async replyToTicket(req, res, next) {
+    try {
+      const result = await superadminService.replyToTicket(req.params.id, req.body);
+      sendSuccess(res, result, 'Reply added');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P2: Broadcast Center ────────────────────────────────────────────────
+  async getBroadcasts(req, res, next) {
+    try {
+      const broadcasts = await superadminService.getBroadcasts();
+      sendSuccess(res, broadcasts, 'Broadcasts retrieved');
+    } catch (err) { next(err); }
+  },
+
+  async sendBroadcast(req, res, next) {
+    try {
+      const sent_by = req.user?.email || 'admin@petpooja.com';
+      const result = await superadminService.sendBroadcast({ ...req.body, sent_by });
+      sendSuccess(res, result, 'Broadcast sent');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P2: All Users ───────────────────────────────────────────────────────
+  async getAllUsers(req, res, next) {
+    try {
+      const { search, role, plan } = req.query;
+      const users = await superadminService.getAllUsers({ search, role, plan });
+      sendSuccess(res, users, 'Users retrieved');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P2: Promo Codes ─────────────────────────────────────────────────────
+  async getPromoCodes(req, res, next) {
+    try {
+      const promos = await superadminService.getPromoCodes();
+      sendSuccess(res, promos, 'Promo codes retrieved');
+    } catch (err) { next(err); }
+  },
+
+  async createPromoCode(req, res, next) {
+    try {
+      const promo = await superadminService.createPromoCode(req.body);
+      sendSuccess(res, promo, 'Promo code created');
+    } catch (err) { next(err); }
+  },
+
+  async updatePromoCode(req, res, next) {
+    try {
+      const result = await superadminService.updatePromoCode(req.params.id, req.body);
+      sendSuccess(res, result, 'Promo code updated');
+    } catch (err) { next(err); }
+  },
+
+  async deletePromoCode(req, res, next) {
+    try {
+      await superadminService.deletePromoCode(req.params.id);
+      sendSuccess(res, { deleted: true }, 'Promo code deleted');
+    } catch (err) { next(err); }
+  },
+
+  async validatePromoCode(req, res, next) {
+    try {
+      const { code, plan } = req.body;
+      const promo = await superadminService.validatePromoCode(code, plan);
+      sendSuccess(res, promo, 'Valid promo code');
+    } catch (err) { next(err); }
+  },
+
+  // ─── P2: Chain Profile Edit ──────────────────────────────────────────────
+  async updateChainProfile(req, res, next) {
+    try {
+      const result = await superadminService.updateChainProfile(req.params.id, req.body);
+      sendSuccess(res, result, 'Chain profile updated');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

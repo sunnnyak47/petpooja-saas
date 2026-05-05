@@ -1325,6 +1325,300 @@ const superadminService = {
 
     return updated;
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: PLATFORM SETTINGS
+  // ─────────────────────────────────────────────────────────────────────────────
+  PLATFORM_SETTINGS_KEY: 'platform_settings',
+
+  _defaultPlatformSettings() {
+    return {
+      maintenance_mode: false,
+      registration_open: true,
+      platform_name: 'PetPooja SaaS',
+      support_email: 'support@petpooja.com',
+      default_trial_days: 14,
+      plan_pricing: { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 },
+      max_outlets_per_plan: { TRIAL: 1, STARTER: 3, PRO: 10, ENTERPRISE: 50 },
+      allow_impersonation: true,
+      onboarding_required: true,
+      min_password_length: 8,
+      session_timeout_hours: 24,
+      updated_at: new Date().toISOString(),
+    };
+  },
+
+  async getPlatformSettings() {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.PLATFORM_SETTINGS_KEY } });
+    if (!cfg) return superadminService._defaultPlatformSettings();
+    try { return JSON.parse(cfg.value); } catch { return superadminService._defaultPlatformSettings(); }
+  },
+
+  async savePlatformSettings(settings) {
+    const merged = { ...superadminService._defaultPlatformSettings(), ...settings, updated_at: new Date().toISOString() };
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.PLATFORM_SETTINGS_KEY },
+      update: { value: JSON.stringify(merged) },
+      create: { key: superadminService.PLATFORM_SETTINGS_KEY, value: JSON.stringify(merged) },
+    });
+    return merged;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: SUPPORT TICKETS
+  // ─────────────────────────────────────────────────────────────────────────────
+  TICKETS_KEY: 'support_tickets',
+
+  async _loadTickets() {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.TICKETS_KEY } });
+    if (!cfg) return [];
+    try { return JSON.parse(cfg.value); } catch { return []; }
+  },
+
+  async _saveTickets(tickets) {
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.TICKETS_KEY },
+      update: { value: JSON.stringify(tickets) },
+      create: { key: superadminService.TICKETS_KEY, value: JSON.stringify(tickets) },
+    });
+  },
+
+  async getTickets({ status, priority, search } = {}) {
+    let tickets = await superadminService._loadTickets();
+    if (status && status !== 'ALL') tickets = tickets.filter(t => t.status === status);
+    if (priority && priority !== 'ALL') tickets = tickets.filter(t => t.priority === priority);
+    if (search) {
+      const q = search.toLowerCase();
+      tickets = tickets.filter(t => t.chain_name?.toLowerCase().includes(q) || t.subject?.toLowerCase().includes(q) || t.id?.toLowerCase().includes(q));
+    }
+    return tickets.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+
+  async createTicket({ chain_id, chain_name, subject, body, priority = 'MEDIUM', email }) {
+    const tickets = await superadminService._loadTickets();
+    const ticket = {
+      id: `TKT-${Date.now().toString(36).toUpperCase()}`,
+      chain_id, chain_name, subject, body, priority, email,
+      status: 'OPEN',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resolved_at: null,
+      replies: [],
+    };
+    await superadminService._saveTickets([ticket, ...tickets]);
+    return ticket;
+  },
+
+  async updateTicket(id, { status, priority, notes }) {
+    const tickets = await superadminService._loadTickets();
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) throw new Error('Ticket not found');
+    tickets[idx] = {
+      ...tickets[idx],
+      ...(status && { status }),
+      ...(priority && { priority }),
+      ...(notes !== undefined && { internal_notes: notes }),
+      updated_at: new Date().toISOString(),
+      ...(status === 'RESOLVED' && !tickets[idx].resolved_at ? { resolved_at: new Date().toISOString() } : {}),
+    };
+    await superadminService._saveTickets(tickets);
+    return tickets[idx];
+  },
+
+  async replyToTicket(id, { from, body }) {
+    const tickets = await superadminService._loadTickets();
+    const idx = tickets.findIndex(t => t.id === id);
+    if (idx === -1) throw new Error('Ticket not found');
+    const reply = { id: `RPL-${Date.now()}`, from, body, created_at: new Date().toISOString() };
+    tickets[idx].replies = [...(tickets[idx].replies || []), reply];
+    tickets[idx].updated_at = new Date().toISOString();
+    if (from === 'admin' && tickets[idx].status === 'OPEN') tickets[idx].status = 'IN_PROGRESS';
+    await superadminService._saveTickets(tickets);
+    return tickets[idx];
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: BROADCAST CENTER
+  // ─────────────────────────────────────────────────────────────────────────────
+  BROADCASTS_KEY: 'broadcast_history',
+
+  async _loadBroadcasts() {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.BROADCASTS_KEY } });
+    if (!cfg) return [];
+    try { return JSON.parse(cfg.value); } catch { return []; }
+  },
+
+  async getBroadcasts() {
+    const list = await superadminService._loadBroadcasts();
+    return list.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+  },
+
+  async sendBroadcast({ title, body, type, target, sent_by }) {
+    const broadcasts = await superadminService._loadBroadcasts();
+
+    // Count recipients
+    const where = { is_deleted: false, is_active: true };
+    if (target !== 'ALL') where.plan = target;
+    const recipientCount = await prisma.headOffice.count({ where });
+
+    const broadcast = {
+      id: `BRD-${Date.now().toString(36).toUpperCase()}`,
+      title, body, type, target, sent_by,
+      sent_at: new Date().toISOString(),
+      recipient_count: recipientCount,
+      status: 'SENT',
+    };
+
+    // Also create a platform-wide announcement for the chains
+    await superadminService.createAnnouncement({
+      title,
+      body,
+      type: type === 'MAINTENANCE' ? 'warning' : type === 'PROMO' ? 'success' : 'info',
+      target_audience: target === 'ALL' ? 'all' : 'custom',
+      target_plans: target !== 'ALL' ? [target] : [],
+      published: true,
+      expires_at: null,
+    }).catch(() => null);
+
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.BROADCASTS_KEY },
+      update: { value: JSON.stringify([broadcast, ...broadcasts]) },
+      create: { key: superadminService.BROADCASTS_KEY, value: JSON.stringify([broadcast, ...broadcasts]) },
+    });
+    return broadcast;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: ALL USERS
+  // ─────────────────────────────────────────────────────────────────────────────
+  async getAllUsers({ search, role, plan } = {}) {
+    const headOffices = await prisma.headOffice.findMany({
+      where: { is_deleted: false },
+      select: { id: true, name: true, plan: true, is_active: true, country_code: true,
+        outlets: {
+          where: { is_deleted: false },
+          select: {
+            id: true, name: true,
+            users: {
+              where: { is_deleted: false },
+              select: {
+                id: true, name: true, email: true, phone: true, role: true,
+                is_active: true, created_at: true, last_login_at: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const users = [];
+    for (const ho of headOffices) {
+      for (const outlet of ho.outlets) {
+        for (const u of outlet.users) {
+          if (role && role !== 'ALL' && u.role !== role) continue;
+          if (plan && plan !== 'ALL' && ho.plan !== plan) continue;
+          if (search) {
+            const q = search.toLowerCase();
+            if (!u.name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q) && !ho.name?.toLowerCase().includes(q)) continue;
+          }
+          users.push({
+            ...u,
+            outlet_name: outlet.name,
+            outlet_id: outlet.id,
+            chain_name: ho.name,
+            chain_id: ho.id,
+            chain_plan: ho.plan,
+            chain_active: ho.is_active,
+          });
+        }
+      }
+    }
+    return users.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: PROMO CODES
+  // ─────────────────────────────────────────────────────────────────────────────
+  PROMOS_KEY: 'promo_codes',
+
+  async _loadPromos() {
+    const cfg = await prisma.systemConfig.findUnique({ where: { key: superadminService.PROMOS_KEY } });
+    if (!cfg) return [];
+    try { return JSON.parse(cfg.value); } catch { return []; }
+  },
+
+  async _savePromos(promos) {
+    await prisma.systemConfig.upsert({
+      where: { key: superadminService.PROMOS_KEY },
+      update: { value: JSON.stringify(promos) },
+      create: { key: superadminService.PROMOS_KEY, value: JSON.stringify(promos) },
+    });
+  },
+
+  async getPromoCodes() {
+    return (await superadminService._loadPromos()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+
+  async createPromoCode({ code, discount_type, discount_value, applicable_plans, max_uses, valid_from, valid_until, description }) {
+    const promos = await superadminService._loadPromos();
+    if (promos.find(p => p.code === code.toUpperCase())) throw new Error('Promo code already exists');
+    const promo = {
+      id: `PROMO-${Date.now().toString(36).toUpperCase()}`,
+      code: code.toUpperCase(), discount_type, discount_value,
+      applicable_plans: applicable_plans || ['STARTER', 'PRO', 'ENTERPRISE'],
+      max_uses: max_uses || null,
+      used_count: 0,
+      valid_from: valid_from || new Date().toISOString(),
+      valid_until: valid_until || null,
+      description: description || '',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    await superadminService._savePromos([promo, ...promos]);
+    return promo;
+  },
+
+  async updatePromoCode(id, data) {
+    const promos = await superadminService._loadPromos();
+    const idx = promos.findIndex(p => p.id === id);
+    if (idx === -1) throw new Error('Promo code not found');
+    promos[idx] = { ...promos[idx], ...data, id, updated_at: new Date().toISOString() };
+    await superadminService._savePromos(promos);
+    return promos[idx];
+  },
+
+  async deletePromoCode(id) {
+    const promos = await superadminService._loadPromos();
+    await superadminService._savePromos(promos.filter(p => p.id !== id));
+    return { deleted: true };
+  },
+
+  async validatePromoCode(code, plan) {
+    const promos = await superadminService._loadPromos();
+    const promo = promos.find(p => p.code === code.toUpperCase() && p.is_active);
+    if (!promo) throw new Error('Invalid or expired promo code');
+    if (promo.valid_until && new Date(promo.valid_until) < new Date()) throw new Error('Promo code has expired');
+    if (promo.max_uses && promo.used_count >= promo.max_uses) throw new Error('Promo code usage limit reached');
+    if (plan && !promo.applicable_plans.includes(plan)) throw new Error(`This promo code is not applicable for ${plan} plan`);
+    return promo;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: CHAIN PROFILE EDIT
+  // ─────────────────────────────────────────────────────────────────────────────
+  async updateChainProfile(headOfficeId, { name, contact_email, phone, address, city, state, gstin, website }) {
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (contact_email !== undefined) data.contact_email = contact_email;
+    if (phone !== undefined) data.phone = phone;
+    if (address !== undefined) data.address = address;
+    if (city !== undefined) data.city = city;
+    if (state !== undefined) data.state = state;
+    if (gstin !== undefined) data.gstin = gstin;
+    if (website !== undefined) data.website = website;
+
+    return await prisma.headOffice.update({ where: { id: headOfficeId }, data });
+  },
 };
 
 module.exports = superadminService;
