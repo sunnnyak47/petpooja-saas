@@ -115,8 +115,8 @@ export default function LoginPage() {
           <div className="mt-5 pt-5 border-t border-slate-100">
             <p className="text-xs font-medium text-slate-500 mb-2">Demo Credentials</p>
             <div className="text-xs text-slate-400 font-mono space-y-1">
-              <p>Email: admin@demo.com</p>
-              <p>Password: Admin@12345</p>
+              <p>Email: admin@petpooja.com</p>
+              <p>Password: Petpooja@2026</p>
             </div>
           </div>
         </div>
