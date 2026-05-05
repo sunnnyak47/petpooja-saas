@@ -1,36 +1,36 @@
 /**
- * @fileoverview Voice POS routes — speech-to-cart parsing.
- * @module modules/voice-pos/voice-pos.routes
+ * Voice POS routes — conversational LLM-powered order parsing
  */
-
 const express = require('express');
 const router = express.Router();
-const { parseTranscript, getSupportedLanguages } = require('./voice-pos.service');
+const { conversationalParse, getSupportedLanguages } = require('./voice-pos.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { sendSuccess } = require('../../utils/response');
 
 /**
- * POST /api/voice-pos/parse
- * Body: { transcript: string, outlet_id?: string }
- * Returns matched cart items + unmatched segments.
+ * POST /api/voice-pos/converse
+ * Multi-turn conversational order parsing via Groq LLM
+ * Body: { transcript, conversation_history, current_cart, outlet_id? }
  */
-router.post('/parse', authenticate, async (req, res, next) => {
+router.post('/converse', authenticate, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    const { transcript } = req.body;
+    const { transcript, conversation_history = [], current_cart = [] } = req.body;
 
-    if (!transcript || !transcript.trim()) {
+    if (!transcript?.trim()) {
       return res.status(400).json({ success: false, message: 'Transcript is required' });
     }
+    if (!outletId) {
+      return res.status(400).json({ success: false, message: 'Outlet ID required' });
+    }
 
-    const result = await parseTranscript(outletId, transcript.trim());
-    sendSuccess(res, result, 'Transcript parsed');
+    const result = await conversationalParse(outletId, transcript.trim(), conversation_history, current_cart);
+    sendSuccess(res, result, 'Conversation turn processed');
   } catch (e) { next(e); }
 });
 
 /**
  * GET /api/voice-pos/languages
- * Returns supported speech recognition languages.
  */
 router.get('/languages', authenticate, (req, res) => {
   sendSuccess(res, getSupportedLanguages(), 'Supported languages');
