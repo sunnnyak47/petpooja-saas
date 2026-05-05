@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
-  ToggleLeft, ToggleRight, ShoppingCart, ClipboardList, UtensilsCrossed,
+  ShoppingCart, ClipboardList, UtensilsCrossed,
   LayoutGrid, Users, UserCog, CreditCard, Tag, ChefHat, Clock, QrCode,
   Package, ShoppingBag, Warehouse, Globe2, Truck, Network, Heart,
   BarChart3, FileText, Timer, ShieldAlert, Zap, Sparkles, CalendarDays,
@@ -24,50 +24,63 @@ const FEATURE_ICONS = {
 };
 
 const CATEGORY_COLORS = {
-  Core:       { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/20' },
-  Operations: { bg: 'bg-green-500/10',  text: 'text-green-400',  border: 'border-green-500/20' },
-  Growth:     { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-  Analytics:  { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
-  Advanced:   { bg: 'bg-pink-500/10',   text: 'text-pink-400',   border: 'border-pink-500/20' },
+  Core:       { accent: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  text: 'text-blue-400' },
+  Operations: { accent: '#22c55e', bg: 'rgba(34,197,94,0.08)',   text: 'text-green-400' },
+  Growth:     { accent: '#a855f7', bg: 'rgba(168,85,247,0.08)',  text: 'text-purple-400' },
+  Analytics:  { accent: '#f97316', bg: 'rgba(249,115,22,0.08)',  text: 'text-orange-400' },
+  Advanced:   { accent: '#ec4899', bg: 'rgba(236,72,153,0.08)',  text: 'text-pink-400' },
 };
 
-function FeatureToggle({ feature, enabled, onChange, saving }) {
+function ToggleSwitch({ enabled, onChange, disabled }) {
+  return (
+    <button
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${enabled ? 'bg-green-500' : 'bg-gray-600'} ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      role="switch"
+      aria-checked={enabled}
+    >
+      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
+function FeatureCard({ feature, enabled, onChange, saving }) {
   const Icon = FEATURE_ICONS[feature.key] || Layers;
   const catColor = CATEGORY_COLORS[feature.category] || CATEGORY_COLORS.Core;
 
   return (
     <div
-      className={`rounded-xl p-4 border transition-all duration-200 ${
-        enabled
-          ? `${catColor.bg} ${catColor.border}`
-          : 'bg-white/2 border-white/5 opacity-60'
-      }`}
-      style={{ background: enabled ? undefined : 'var(--bg-tertiary, rgba(255,255,255,0.02))' }}
+      className="rounded-lg p-3.5 transition-all duration-200"
+      style={{
+        background: enabled ? catColor.bg : 'var(--bg-tertiary, rgba(255,255,255,0.02))',
+        border: '1px solid var(--border)',
+        borderLeft: enabled ? `3px solid ${catColor.accent}` : '1px solid var(--border)',
+        opacity: enabled ? 1 : 0.65,
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${enabled ? catColor.bg : 'bg-white/5'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ background: enabled ? catColor.bg : 'rgba(255,255,255,0.04)' }}
+          >
             <Icon className={`w-4 h-4 ${enabled ? catColor.text : 'text-gray-500'}`} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold truncate" style={{ color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+            <p className="text-sm font-medium truncate" style={{ color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
               {feature.label}
             </p>
-            <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
               {feature.description}
             </p>
           </div>
         </div>
-        <button
-          onClick={() => onChange(feature.key, !enabled)}
+        <ToggleSwitch
+          enabled={enabled}
+          onChange={() => onChange(feature.key, !enabled)}
           disabled={saving}
-          className="flex-shrink-0 transition-opacity disabled:opacity-40"
-          title={enabled ? 'Click to disable' : 'Click to enable'}
-        >
-          {enabled
-            ? <ToggleRight className={`w-8 h-8 ${catColor.text}`} />
-            : <ToggleLeft className="w-8 h-8 text-gray-500" />}
-        </button>
+        />
       </div>
     </div>
   );
@@ -167,12 +180,14 @@ export default function FeatureAccessPage() {
   const selectedChain = chains.find(c => c.id === selectedChainId);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-5 pb-24">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Feature Access Control</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Feature Access
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Enable or disable platform features per restaurant chain
           </p>
         </div>
@@ -180,91 +195,91 @@ export default function FeatureAccessPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-60"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-60"
             style={{ background: 'var(--accent)' }}
           >
-            {saving ? 'Saving…' : '💾 Save Changes'}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         )}
       </div>
 
-      {/* Chain Selector */}
-      <div className="rounded-2xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+      {/* Chain Selector Card */}
+      <div className="rounded-xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
           <div className="flex-1">
-            <label className="text-xs font-black uppercase tracking-wide block mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Select Restaurant Chain
+            <label className="text-xs font-medium uppercase tracking-wide block mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Restaurant Chain
             </label>
             <div className="relative">
               <select
                 value={selectedChainId}
                 onChange={e => { setSelectedChainId(e.target.value); setDirty(false); }}
-                className="w-full rounded-xl px-4 py-3 text-sm font-bold appearance-none pr-10 cursor-pointer"
+                className="w-full rounded-lg px-3 py-2 text-sm font-medium appearance-none pr-9 cursor-pointer focus:outline-none focus:ring-1 focus:ring-white/10"
                 style={{ background: 'var(--bg-tertiary, var(--bg-primary))', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
               >
                 {chains.map(c => (
                   <option key={c.id} value={c.id}>
-                    {c.name} — {c.region === 'AU' ? '🇦🇺 Australia' : '🇮🇳 India'}
+                    {c.name} — {c.region === 'AU' ? 'Australia' : 'India'}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-secondary)' }} />
+              <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-secondary)' }} />
             </div>
           </div>
 
           {selectedChain && (
-            <div className="flex gap-3">
-              {/* Stats pills */}
-              <div className="rounded-xl px-4 py-2.5 text-center" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-                <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Enabled</p>
-                <p className="text-xl font-black text-green-400">{enabledCount}</p>
-              </div>
-              <div className="rounded-xl px-4 py-2.5 text-center" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-                <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Disabled</p>
-                <p className="text-xl font-black text-red-400">{featureDefs.length - enabledCount}</p>
-              </div>
-              <div className="rounded-xl px-4 py-2.5 text-center" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-                <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Total</p>
-                <p className="text-xl font-black" style={{ color: 'var(--text-primary)' }}>{featureDefs.length}</p>
-              </div>
+            <div className="flex items-center gap-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'rgba(34,197,94,0.08)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <span className="text-green-400">{enabledCount}</span>
+                <span>enabled</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'rgba(239,68,68,0.06)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                <span className="text-red-400">{featureDefs.length - enabledCount}</span>
+                <span>disabled</span>
+              </span>
+              <span style={{ color: 'var(--text-secondary)' }}>
+                of {featureDefs.length} total
+              </span>
             </div>
           )}
         </div>
 
-        {/* Bulk actions + search */}
+        {/* Search + bulk actions */}
         {selectedChain && !isLoading && (
-          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <div className="flex flex-col sm:flex-row gap-2.5 mt-4">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-secondary)' }} />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-secondary)' }} />
               <input
                 type="text"
-                placeholder="Search features…"
+                placeholder="Search features..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm"
-                style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                className="w-full pl-8 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-white/10"
+                style={{ background: 'var(--bg-tertiary, var(--bg-primary))', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
               />
             </div>
             <button
               onClick={handleEnableAll}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-green-400 hover:bg-green-500/10 transition-colors"
-              style={{ border: '1px solid rgba(34,197,94,0.3)' }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-white/5"
+              style={{ color: 'var(--text-secondary)' }}
             >
-              <CheckCircle2 className="w-4 h-4" /> Enable All
+              <CheckCircle2 className="w-3.5 h-3.5" /> Enable All
             </button>
             <button
               onClick={handleDisableAll}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/10 transition-colors"
-              style={{ border: '1px solid rgba(239,68,68,0.3)' }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-white/5"
+              style={{ color: 'var(--text-secondary)' }}
             >
-              <XCircle className="w-4 h-4" /> Disable All
+              <XCircle className="w-3.5 h-3.5" /> Disable All
             </button>
           </div>
         )}
 
         {/* Category filter pills */}
         {selectedChain && !isLoading && featureDefs.length > 0 && (
-          <div className="flex gap-2 mt-3 flex-wrap">
+          <div className="flex gap-1.5 mt-3 flex-wrap">
             {categories.map(cat => {
               const col = CATEGORY_COLORS[cat];
               const isActive = activeCategory === cat;
@@ -272,12 +287,15 @@ export default function FeatureAccessPage() {
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                     isActive
-                      ? `${col?.bg || 'bg-white/10'} ${col?.text || 'text-white'}`
+                      ? 'text-white'
                       : 'hover:bg-white/5'
                   }`}
-                  style={{ color: isActive ? undefined : 'var(--text-secondary)', border: `1px solid ${isActive ? 'transparent' : 'var(--border)'}` }}
+                  style={{
+                    background: isActive ? (col?.accent || 'rgba(255,255,255,0.15)') : 'transparent',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                  }}
                 >
                   {cat}
                 </button>
@@ -289,14 +307,14 @@ export default function FeatureAccessPage() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading features…</p>
+        <div className="rounded-xl p-12 text-center" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading features...</p>
         </div>
       )}
 
       {/* Feature grids by category */}
       {!isLoading && featureDefs.length > 0 && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {Object.entries(grouped).map(([category, features]) => {
             if (features.length === 0) return null;
             const col = CATEGORY_COLORS[category] || CATEGORY_COLORS.Core;
@@ -304,23 +322,27 @@ export default function FeatureAccessPage() {
             return (
               <div key={category}>
                 {/* Category header */}
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wide ${col.bg} ${col.text}`}>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-xs font-medium ${col.text}`}
+                      style={{ background: col.bg }}
+                    >
                       {category}
                     </span>
                     <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {catEnabled}/{features.length} enabled
+                      {catEnabled}/{features.length}
                     </span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => {
                         const upd = { ...localFeatures };
                         features.forEach(f => { upd[f.key] = true; });
                         setLocalFeatures(upd); setDirty(true);
                       }}
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${col.bg} ${col.text} hover:opacity-80`}
+                      className="text-xs font-medium transition-colors hover:opacity-80"
+                      style={{ color: col.accent }}
                     >
                       All On
                     </button>
@@ -330,16 +352,16 @@ export default function FeatureAccessPage() {
                         features.forEach(f => { upd[f.key] = false; });
                         setLocalFeatures(upd); setDirty(true);
                       }}
-                      className="text-xs font-bold px-2.5 py-1 rounded-lg transition-colors bg-white/5 hover:bg-white/10"
+                      className="text-xs font-medium transition-colors hover:opacity-80"
                       style={{ color: 'var(--text-secondary)' }}
                     >
                       All Off
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
                   {features.map(feature => (
-                    <FeatureToggle
+                    <FeatureCard
                       key={feature.key}
                       feature={feature}
                       enabled={!!localFeatures[feature.key]}
@@ -354,21 +376,24 @@ export default function FeatureAccessPage() {
         </div>
       )}
 
-      {/* Unsaved changes footer bar */}
+      {/* Unsaved changes bar */}
       {dirty && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 rounded-2xl shadow-2xl z-50"
-          style={{ background: 'var(--accent)', color: '#fff' }}>
-          <span className="text-sm font-bold">You have unsaved changes</span>
+        <div
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-3 rounded-xl shadow-2xl z-50 backdrop-blur-xl"
+          style={{ background: 'rgba(0,0,0,0.8)', color: '#fff' }}
+        >
+          <span className="text-sm font-medium">Unsaved changes</span>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-xl text-sm font-black transition-colors disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-50"
+            style={{ background: 'var(--accent)' }}
           >
-            {saving ? 'Saving…' : 'Save Now'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
           <button
             onClick={() => { setLocalFeatures(savedFeatures); setDirty(false); }}
-            className="text-white/60 hover:text-white text-sm font-bold transition-colors"
+            className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
           >
             Discard
           </button>
