@@ -139,15 +139,17 @@ export default function DashboardLayout() {
   }, []);
 
   // On mount, refresh user (so latest feature flags are picked up after superadmin changes)
+  // Skip for super_admin — their token already has the correct role and auth/me uses the DB role
   useEffect(() => {
     if (!token) return;
+    if (user?.role === 'super_admin' || user?.is_super_admin) return;
     api.get('/auth/me')
       .then(r => {
         const fresh = r?.data?.user;
         if (fresh) dispatch(updateUser(fresh));
       })
       .catch(() => {/* ignore — keep cached user */});
-  }, [token, dispatch]);
+  }, [token, dispatch, user?.role]);
 
   useEffect(() => {
     if (user?.primary_color) {

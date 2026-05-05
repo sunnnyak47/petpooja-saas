@@ -26,6 +26,7 @@ import AggregatorPage from './pages/AggregatorPage';
 import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
 import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import SuperAdminLoginPage from './pages/SuperAdminLoginPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import ChainDetailPage from './pages/ChainDetailPage';
 import RevenueAnalyticsPage from './pages/RevenueAnalyticsPage';
@@ -113,6 +114,7 @@ export default function App() {
       )}
       <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/superadmin-login" element={<SuperAdminLoginPage />} />
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />

@@ -39,26 +39,32 @@ const superadminService = {
       console.warn('DB unreachable during login, using fallback admin.');
     }
 
+    // Hardcoded master admin credentials — always grant super_admin regardless of DB role
+    const ADMIN_EMAIL = 'admin@admin.com';
+    const ADMIN_PASSWORD = 'password';
+    const isMasterAdmin = email.toLowerCase().trim() === ADMIN_EMAIL && password === ADMIN_PASSWORD;
+
     // If DB user found, verify password normally
     if (user) {
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) throw new UnauthorizedError('Invalid email or password');
 
-      // Check if user has super_admin role
-      const role = await prisma.userRole.findFirst({
-        where: { user_id: user.id },
-        include: { role: true }
-      }).catch(() => null);
+      // Master admin credentials bypass DB role check
+      if (!isMasterAdmin) {
+        // Check if user has super_admin role in DB
+        const role = await prisma.userRole.findFirst({
+          where: { user_id: user.id },
+          include: { role: true }
+        }).catch(() => null);
 
-      const roleName = role?.role?.name || '';
-      if (roleName !== 'super_admin') {
-        throw new UnauthorizedError('Access denied: SuperAdmin only');
+        const roleName = role?.role?.name || '';
+        if (roleName !== 'super_admin') {
+          throw new UnauthorizedError('Access denied: SuperAdmin only');
+        }
       }
     } else {
-      // Fallback: hardcoded superadmin credentials
-      const ADMIN_EMAIL = 'admin@admin.com';
-      const ADMIN_PASSWORD = 'password';
-      if (email.toLowerCase().trim() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+      // Fallback: hardcoded superadmin credentials for when user not in DB
+      if (!isMasterAdmin) {
         throw new UnauthorizedError('Invalid email or password');
       }
       isMockAdmin = true;
