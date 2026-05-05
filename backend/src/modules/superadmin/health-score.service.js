@@ -83,7 +83,7 @@ async function computeOutletScore(outletId) {
         created_at: { gte: day30 },
         is_deleted: false,
       },
-      select: { payment_method: true, amount: true },
+      select: { method: true, amount: true },
     }),
     // Customer return rate last 30d
     prisma.customer.findMany({
@@ -177,7 +177,7 @@ async function computeOutletScore(outletId) {
   }
 
   // ── 6. Payment Diversity (10 pts) ─────────────────────────────────────────
-  const methods = new Set(payments30d.map(p => (p.payment_method || '').toLowerCase()));
+  const methods = new Set(payments30d.map(p => (p.method || '').toLowerCase()));
   const hasCash = methods.has('cash');
   const hasCard = methods.has('card');
   const hasUpi  = methods.has('upi');
