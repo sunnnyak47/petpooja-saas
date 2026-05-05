@@ -104,7 +104,7 @@ function StatRow({ label, value, sub, highlight }) {
 }
 
 /* ─── Payment method card ────────────────────────────────────────── */
-function PayCard({ label, icon: Icon, amount, pctVal, color }) {
+function PayCard({ label, icon: Icon, amount, pctVal, color, fmt }) {
   return (
     <div className="card p-4" style={{ borderLeft: `3px solid ${color}` }}>
       <div className="flex items-center gap-2 mb-2">
@@ -121,7 +121,7 @@ function PayCard({ label, icon: Icon, amount, pctVal, color }) {
 }
 
 /* ─── Denomination row ───────────────────────────────────────────── */
-function DenomRow({ denom, count, onChange }) {
+function DenomRow({ denom, count, onChange, fmt }) {
   const subtotal = denom.value * (Number(count) || 0);
   return (
     <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
@@ -145,7 +145,7 @@ function DenomRow({ denom, count, onChange }) {
 }
 
 /* ─── Print preview ──────────────────────────────────────────────── */
-function PrintPreview({ report, snap, outletName, user }) {
+function PrintPreview({ report, snap, outletName, user, fmt }) {
   const printRef = useRef();
   const handlePrint = () => {
     const win = window.open('', '_blank');
@@ -500,10 +500,10 @@ export default function EODReportPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <PayCard label="Cash"  icon={Coins}       amount={snap?.cash_system}  pctVal={pct(snap?.cash_system,  totalRevenue)} color="#22c55e"/>
-                <PayCard label="Card"  icon={CreditCard}  amount={snap?.card_system}  pctVal={pct(snap?.card_system,  totalRevenue)} color="#3b82f6"/>
-                <PayCard label="UPI"   icon={Smartphone}  amount={snap?.upi_system}   pctVal={pct(snap?.upi_system,   totalRevenue)} color="#a855f7"/>
-                <PayCard label="Other" icon={DollarSign}  amount={snap?.other_system} pctVal={pct(snap?.other_system, totalRevenue)} color="#f59e0b"/>
+                <PayCard label="Cash"  icon={Coins}       amount={snap?.cash_system}  pctVal={pct(snap?.cash_system,  totalRevenue)} color="#22c55e" fmt={fmt}/>
+                <PayCard label="Card"  icon={CreditCard}  amount={snap?.card_system}  pctVal={pct(snap?.card_system,  totalRevenue)} color="#3b82f6" fmt={fmt}/>
+                <PayCard label="UPI"   icon={Smartphone}  amount={snap?.upi_system}   pctVal={pct(snap?.upi_system,   totalRevenue)} color="#a855f7" fmt={fmt}/>
+                <PayCard label="Other" icon={DollarSign}  amount={snap?.other_system} pctVal={pct(snap?.other_system, totalRevenue)} color="#f59e0b" fmt={fmt}/>
               </div>
 
               <div className="card p-5">
@@ -548,7 +548,8 @@ export default function EODReportPage() {
                     <DenomRow key={d.value} denom={d}
                       count={denomCounts[d.value] || ''}
                       onChange={updateDenom}
-                      disabled={isLocked}/>
+                      disabled={isLocked}
+                      fmt={fmt}/>
                   ))}
                 </div>
               </div>
@@ -678,7 +679,8 @@ export default function EODReportPage() {
                   report={savedReport?.id ? savedReport : null}
                   snap={snap}
                   outletName={user?.outlet_name || user?.name}
-                  user={user}/>
+                  user={user}
+                  fmt={fmt}/>
               </div>
 
               {/* Final actions */}
