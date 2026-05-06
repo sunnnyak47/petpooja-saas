@@ -562,8 +562,8 @@ export default function VoicePOS({ onClose }) {
   /* ── Render ── */
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md" style={{ background: 'rgba(15,15,20,0.92)' }}>
-      <div className="bg-background rounded-2xl shadow-2xl border border-border/50 w-full max-w-3xl flex flex-col overflow-hidden relative"
-        style={{ height: '85vh', maxHeight: 680 }}>
+      <div className="rounded-2xl shadow-2xl border border-border/50 w-full max-w-3xl flex flex-col overflow-hidden relative"
+        style={{ height: '85vh', maxHeight: 680, background: 'var(--bg-primary, #ffffff)' }}>
 
         {/* Order Confirmation Overlay */}
         {placedOrder && (

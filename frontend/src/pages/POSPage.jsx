@@ -20,7 +20,7 @@ import {
   Phone, ChevronDown,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
-import VoicePOS from '../components/POS/VoicePOS';
+import useVoiceOrder from '../hooks/useVoiceOrder';
 import Modal from '../components/Modal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
@@ -53,7 +53,7 @@ export default function POSPage() {
   const [showEbill, setShowEbill] = useState(false);
   const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [showBillPreview, setShowBillPreview] = useState(false);
-  const [showVoicePOS, setShowVoicePOS] = useState(false);
+  const voice = useVoiceOrder();
   const [billedOrder, setBilledOrder] = useState(null);
   const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
 
@@ -543,7 +543,7 @@ export default function POSPage() {
         {/* Search + Controls */}
         <div className="flex flex-col gap-2 mb-4">
           {/* Row 1: Search (full width) + voice + shortcode */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
               <input
@@ -562,14 +562,30 @@ export default function POSPage() {
               onChange={(e) => setShortCodeSearch(e.target.value)}
             />
             <button
-              onClick={() => setShowVoicePOS(true)}
-              title="Voice Order (Hindi/Tamil/Punjabi/English…)"
-              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold shadow shrink-0 transition-all"
-              style={{ background: 'var(--accent)', color: '#fff' }}
+              onClick={voice.toggleListening}
+              disabled={voice.isThinking}
+              title={voice.isListening ? 'Tap to stop listening' : 'Tap to start voice order'}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold shadow shrink-0 transition-all ${
+                voice.isListening
+                  ? 'ring-2 ring-red-400 animate-pulse'
+                  : voice.isThinking
+                  ? 'opacity-60 cursor-wait'
+                  : ''
+              }`}
+              style={{
+                background: voice.isListening ? '#ef4444' : voice.isThinking ? '#6b7280' : 'var(--accent)',
+                color: '#fff'
+              }}
             >
               <Mic className="w-4 h-4" />
-              <span>Voice</span>
+              <span>{voice.isListening ? 'Listening…' : voice.isThinking ? 'Processing…' : 'Voice'}</span>
             </button>
+            {voice.transcript && (
+              <div className="absolute top-full left-0 right-0 mt-1 mx-4 px-3 py-2 rounded-lg text-xs z-50 shadow-lg border"
+                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+                🎤 {voice.transcript}
+              </div>
+            )}
             {/* View mode toggle */}
             <div className="flex rounded-xl p-1 gap-1 border shrink-0" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
               <button onClick={() => setViewMode('menu')} title="Menu View"
@@ -1089,8 +1105,7 @@ export default function POSPage() {
         />
       )}
 
-      {/* Voice POS Modal */}
-      {showVoicePOS && <VoicePOS onClose={() => setShowVoicePOS(false)} />}
+      {/* Voice POS is now inline — no modal needed */}
     </div>
   );
 }
