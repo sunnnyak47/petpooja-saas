@@ -1,5 +1,5 @@
 /**
- * WelcomePage — Professional landing page for PetPooja ERP.
+ * WelcomePage — Professional landing page for MS-RM System.
  * Route: /welcome  (public, no auth required)
  * Buttons → /login  (ProtectedRoute guards handle post-login redirect)
  */
@@ -101,7 +101,7 @@ function HeroMockUI() {
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e' }} />
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8, fontWeight: 600, letterSpacing: '0.04em' }}>
-          PetPooja ERP — Restaurant Dashboard
+          MS-RM System — Restaurant Dashboard
         </span>
       </div>
 
@@ -295,7 +295,7 @@ export default function WelcomePage() {
             <ChefHat size={17} color="#fff" />
           </div>
           <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '-0.02em', color: '#0f172a' }}>
-            PetPooja ERP
+            MS-RM System
           </span>
         </div>
 
@@ -438,7 +438,7 @@ export default function WelcomePage() {
             Everything your restaurant needs, built in.
           </h2>
           <p style={{ fontSize: 15, color: '#64748b', maxWidth: 480, margin: '0 auto' }}>
-            No patchwork of third-party apps. PetPooja handles the full operation from first order to end-of-day lock.
+            No patchwork of third-party apps. MS-RM handles the full operation from first order to end-of-day lock.
           </p>
         </div>
 
@@ -484,7 +484,7 @@ export default function WelcomePage() {
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center',
         }}>
           <div>
-            <Tag color="#f59e0b">Why operators choose PetPooja</Tag>
+            <Tag color="#f59e0b">Why operators choose MS-RM</Tag>
             <h2 style={{
               fontSize: 'clamp(22px, 3vw, 32px)', fontWeight: 800,
               letterSpacing: '-0.02em', margin: '16px 0 20px', color: '#0f172a',
@@ -555,7 +555,7 @@ export default function WelcomePage() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }}
         >
-          Launch PetPooja ERP <ArrowRight size={17} />
+          Launch MS-RM System <ArrowRight size={17} />
         </button>
       </section>
 
@@ -575,7 +575,7 @@ export default function WelcomePage() {
             <ChefHat size={13} color="#fff" />
           </div>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.04em' }}>
-            PETPOOJA ERP
+            MS-RM SYSTEM
           </span>
         </div>
         <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)' }}>

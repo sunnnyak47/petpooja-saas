@@ -475,7 +475,7 @@ function Step4({ data, onChange }) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Build Your Team</h2>
-        <p className="text-gray-500 mt-1">Add staff members who will use PetPooja POS.</p>
+        <p className="text-gray-500 mt-1">Add staff members who will use MS-RM POS.</p>
       </div>
 
       <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
@@ -721,7 +721,7 @@ function Step7({ wizardData, completedSteps, onComplete, saving }) {
 
         <div>
           <h2 className="text-3xl font-bold text-gray-900">You're All Set! 🎉</h2>
-          <p className="text-gray-500 mt-2">Your restaurant is ready to launch on PetPooja.</p>
+          <p className="text-gray-500 mt-2">Your restaurant is ready to launch on MS-RM.</p>
         </div>
 
         <div className="w-full max-w-sm space-y-2 text-left">
@@ -873,16 +873,16 @@ export default function OnboardingPage() {
     setSaving(true);
     try {
       await api.post('/onboarding/complete');
-      localStorage.setItem('petpooja_onboarding_complete', 'true');
+      localStorage.setItem('msrm_onboarding_complete', 'true');
       try {
-        const raw = localStorage.getItem('petpooja_user');
+        const raw = localStorage.getItem('msrm_user');
         if (raw) {
           const u = JSON.parse(raw);
           if (u?.head_office) u.head_office.setup_completed = true;
-          localStorage.setItem('petpooja_user', JSON.stringify(u));
+          localStorage.setItem('msrm_user', JSON.stringify(u));
         }
       } catch { /* ignore */ }
-      toast.success("Welcome to PetPooja! Let's build something great 🚀");
+      toast.success("Welcome to MS-RM! Let's build something great 🚀");
       window.location.href = '/';
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -984,7 +984,7 @@ export default function OnboardingPage() {
 
           {/* Footer note */}
           <p className="text-center text-slate-400 text-sm mt-4 pb-4">
-            PetPooja ERP &mdash; You can change these settings anytime from the dashboard.
+            MS-RM System &mdash; You can change these settings anytime from the dashboard.
           </p>
         </div>
       </div>

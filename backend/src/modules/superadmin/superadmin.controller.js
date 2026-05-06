@@ -381,7 +381,7 @@ const superadminController = {
 
   async sendBroadcast(req, res, next) {
     try {
-      const sent_by = req.user?.email || 'admin@petpooja.com';
+      const sent_by = req.user?.email || 'admin@madsundigital.com';
       const result = await superadminService.sendBroadcast({ ...req.body, sent_by });
       sendSuccess(res, result, 'Broadcast sent');
     } catch (err) { next(err); }

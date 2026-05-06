@@ -38,7 +38,7 @@ if (process.env.NODE_ENV === 'production') {
     transports.push(
       new DailyRotateFile({
         dirname: logDir,
-        filename: 'petpooja-%DATE%.log',
+        filename: 'msrm-%DATE%.log',
         datePattern: 'YYYY-MM-DD',
         maxSize: '20m',
         maxFiles: '30d',
@@ -47,7 +47,7 @@ if (process.env.NODE_ENV === 'production') {
       }),
       new DailyRotateFile({
         dirname: logDir,
-        filename: 'petpooja-error-%DATE%.log',
+        filename: 'msrm-error-%DATE%.log',
         datePattern: 'YYYY-MM-DD',
         maxSize: '20m',
         maxFiles: '90d',
@@ -63,7 +63,7 @@ if (process.env.NODE_ENV === 'production') {
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: logFormat,
-  defaultMeta: { service: 'petpooja-api' },
+  defaultMeta: { service: 'msrm-api' },
   transports,
   exitOnError: false,
 });

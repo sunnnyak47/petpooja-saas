@@ -1,5 +1,5 @@
 -- ============================================
--- PETPOOJA ERP — SEED DATA
+-- MS-RM SYSTEM — SEED DATA
 -- Test data for development environment
 -- ============================================
 
@@ -68,34 +68,34 @@ ON CONFLICT DO NOTHING;
 
 -- Outlets
 INSERT INTO outlets (name, code, type, address_line1, city, state, pincode, phone, email, gstin, fssai_number, is_ac) VALUES
-('Petpooja Mumbai Central', 'MUM01', 'restaurant', '123 Marine Drive', 'Mumbai', 'Maharashtra', '400001', '9876543210', 'mumbai@petpooja.com', '27AABCU9603R1ZM', '11521999000001', true),
-('Petpooja Delhi Connaught', 'DEL01', 'restaurant', '45 Connaught Place', 'New Delhi', 'Delhi', '110001', '9876543211', 'delhi@petpooja.com', '07AABCU9603R1ZN', '07521999000002', false),
-('Petpooja Bangalore Indiranagar', 'BLR01', 'restaurant', '78 12th Main Indiranagar', 'Bangalore', 'Karnataka', '560038', '9876543212', 'bangalore@petpooja.com', '29AABCU9603R1ZP', '29521999000003', true)
+('MS-RM Mumbai Central', 'MUM01', 'restaurant', '123 Marine Drive', 'Mumbai', 'Maharashtra', '400001', '9876543210', 'mumbai@msrm.com', '27AABCU9603R1ZM', '11521999000001', true),
+('MS-RM Delhi Connaught', 'DEL01', 'restaurant', '45 Connaught Place', 'New Delhi', 'Delhi', '110001', '9876543211', 'delhi@msrm.com', '07AABCU9603R1ZN', '07521999000002', false),
+('MS-RM Bangalore Indiranagar', 'BLR01', 'restaurant', '78 12th Main Indiranagar', 'Bangalore', 'Karnataka', '560038', '9876543212', 'bangalore@msrm.com', '29AABCU9603R1ZP', '29521999000003', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Admin User (password: Admin@12345 — bcrypt 12 rounds)
 INSERT INTO users (full_name, email, phone, password_hash, is_active, is_email_verified, is_phone_verified) VALUES
-('Super Admin', 'admin@petpooja.com', '9999999999', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
-('Rahul Sharma', 'rahul@petpooja.com', '9876543210', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
-('Priya Manager', 'priya@petpooja.com', '9876543220', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
-('Amit Cashier', 'amit@petpooja.com', '9876543230', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true)
+('Super Admin', 'admin@msrm.com', '9999999999', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
+('Rahul Sharma', 'rahul@msrm.com', '9876543210', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
+('Priya Manager', 'priya@msrm.com', '9876543220', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true),
+('Amit Cashier', 'amit@msrm.com', '9876543230', '$2b$12$WEtHuXJQ1KP5LYqE9QjjfOoWYk8gccSbfb9vSOq7B7V6SahLTSwpK', true, true, true)
 ON CONFLICT (phone) DO NOTHING;
 
 -- User Roles
 INSERT INTO user_roles (user_id, role_id, outlet_id, is_primary)
-SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'admin@petpooja.com' AND r.name = 'super_admin' AND o.code = 'MUM01'
+SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'admin@msrm.com' AND r.name = 'super_admin' AND o.code = 'MUM01'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id, outlet_id, is_primary)
-SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'rahul@petpooja.com' AND r.name = 'owner' AND o.code = 'MUM01'
+SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'rahul@msrm.com' AND r.name = 'owner' AND o.code = 'MUM01'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id, outlet_id, is_primary)
-SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'priya@petpooja.com' AND r.name = 'manager' AND o.code = 'MUM01'
+SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'priya@msrm.com' AND r.name = 'manager' AND o.code = 'MUM01'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id, outlet_id, is_primary)
-SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'amit@petpooja.com' AND r.name = 'cashier' AND o.code = 'MUM01'
+SELECT u.id, r.id, o.id, true FROM users u, roles r, outlets o WHERE u.email = 'amit@msrm.com' AND r.name = 'cashier' AND o.code = 'MUM01'
 ON CONFLICT DO NOTHING;
 
 -- Table Areas & Tables for Mumbai outlet

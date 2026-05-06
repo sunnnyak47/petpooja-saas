@@ -309,9 +309,9 @@ const superadminService = {
     
     // Default values if not set
     const result = {
-      platform_name: 'Petpooja ERP',
+      platform_name: 'MS-RM System',
       support_whatsapp: '+91 9999999999',
-      support_email: 'support@petpooja.com',
+      support_email: 'support@madsundigital.com',
       restaurant_app_url: 'petpooja-saas.vercel.app'
     };
 
@@ -646,8 +646,8 @@ const superadminService = {
       where: { key: { in: keys } }
     });
     const res = {
-      platform_name: 'Petpooja ERP',
-      support_email: 'support@petpooja.com',
+      platform_name: 'MS-RM System',
+      support_email: 'support@madsundigital.com',
       restaurant_app_url: 'petpooja-saas.vercel.app'
     };
     configs.forEach(c => { res[c.key] = c.value; });
@@ -1329,8 +1329,8 @@ const superadminService = {
     return {
       maintenance_mode: false,
       registration_open: true,
-      platform_name: 'PetPooja SaaS',
-      support_email: 'support@petpooja.com',
+      platform_name: 'MS-RM System',
+      support_email: 'support@madsundigital.com',
       default_trial_days: 14,
       plan_pricing: { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 },
       max_outlets_per_plan: { TRIAL: 1, STARTER: 3, PRO: 10, ENTERPRISE: 50 },

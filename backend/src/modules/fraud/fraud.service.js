@@ -97,7 +97,7 @@ async function notifyOwnerWhatsApp(outletId, alert) {
 
     const emoji = { critical: '🚨', high: '⚠️', medium: '🔶', low: '🔵' }[alert.severity] || '⚠️';
     const msg = [
-      `${emoji} *PETPOOJA FRAUD ALERT* ${emoji}`,
+      `${emoji} *MS-RM FRAUD ALERT* ${emoji}`,
       `*${alert.title}*`,
       ``,
       alert.description,
@@ -106,7 +106,7 @@ async function notifyOwnerWhatsApp(outletId, alert) {
       `*Severity:* ${alert.severity.toUpperCase()}`,
       `*Time:* ${new Date().toLocaleString('en-IN', { timeZone: getTimezone(alert.region || 'IN') })}`,
       ``,
-      `_Review in your Petpooja dashboard → Staff → Fraud Alerts_`,
+      `_Review in your MS-RM dashboard → Staff → Fraud Alerts_`,
     ].join('\n');
 
     // WhatsApp Cloud API (Meta) — uses env vars

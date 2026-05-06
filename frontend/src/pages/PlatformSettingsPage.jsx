@@ -90,7 +90,7 @@ export default function PlatformSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Platform Settings</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Global configuration for the entire PetPooja SaaS platform
+            Global configuration for the entire MS-RM System platform
           </p>
         </div>
         <button
@@ -119,8 +119,8 @@ export default function PlatformSettingsPage() {
       <SectionCard title="Platform Identity" icon={Building2} color="#6366f1">
         <div className="grid grid-cols-2 gap-4">
           {[
-            { label: 'Platform Name', key: 'platform_name', placeholder: 'PetPooja SaaS' },
-            { label: 'Support Email', key: 'support_email', placeholder: 'support@petpooja.com' },
+            { label: 'Platform Name', key: 'platform_name', placeholder: 'MS-RM System' },
+            { label: 'Support Email', key: 'support_email', placeholder: 'support@madsundigital.com' },
           ].map(f => (
             <div key={f.key}>
               <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>{f.label}</label>

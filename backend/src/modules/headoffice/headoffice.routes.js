@@ -123,7 +123,7 @@ router.patch('/setup-complete', authenticate, hasRole('owner'), async (req, res,
         data: { primary_color, logo_url }
     });
 
-    sendSuccess(res, ho, 'Setup completed! Welcome to Petpooja ERP.');
+    sendSuccess(res, ho, 'Setup completed! Welcome to MS-RM System.');
   } catch (error) { next(error); }
 });
 

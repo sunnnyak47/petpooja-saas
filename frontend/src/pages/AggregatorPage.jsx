@@ -384,12 +384,12 @@ export default function AggregatorPage() {
           <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
             <h3 className="font-bold text-white mb-1">How Menu Sync Works</h3>
             <p className="text-sm text-surface-400 mb-4">
-              Every menu change in PetPooja (price, availability, new item) can be instantly pushed to all connected delivery platforms.
+              Every menu change in MS-RM (price, availability, new item) can be instantly pushed to all connected delivery platforms.
               No more manually updating each platform's tablet.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               {[
-                { icon: '1️⃣', title: 'Edit menu in PetPooja', desc: 'Change price, add item, mark sold-out' },
+                { icon: '1️⃣', title: 'Edit menu in MS-RM', desc: 'Change price, add item, mark sold-out' },
                 { icon: '2️⃣', title: 'Click Push Menu', desc: 'One click syncs to all platforms instantly' },
                 { icon: '3️⃣', title: 'Customers see updates', desc: 'Swiggy, Zomato, DoorDash all updated live' },
               ].map(s => (

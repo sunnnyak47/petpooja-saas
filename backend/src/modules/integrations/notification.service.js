@@ -75,7 +75,7 @@ async function sendSMS(phone, message, templateId) {
  * @returns {Promise<object>}
  */
 async function sendOTP(phone, otp) {
-  return sendSMS(phone, `Your Petpooja verification OTP is: ${otp}. Valid for 5 minutes.`, process.env.MSG91_OTP_TEMPLATE || '');
+  return sendSMS(phone, `Your MS-RM verification OTP is: ${otp}. Valid for 5 minutes.`, process.env.MSG91_OTP_TEMPLATE || '');
 }
 
 /**

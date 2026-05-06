@@ -1,5 +1,5 @@
 -- ============================================
--- PETPOOJA ERP — COMPLETE DATABASE SCHEMA
+-- MS-RM SYSTEM — COMPLETE DATABASE SCHEMA
 -- PostgreSQL 16 | Production-Ready
 -- ============================================
 

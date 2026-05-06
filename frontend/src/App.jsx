@@ -203,7 +203,7 @@ function HomeRedirect() {
   // New restaurant owners who haven't completed onboarding
   const onboardingComplete =
     user?.head_office?.setup_completed === true ||
-    localStorage.getItem('petpooja_onboarding_complete') === 'true';
+    localStorage.getItem('msrm_onboarding_complete') === 'true';
   if (!onboardingComplete && user?.role === 'owner') {
     return <Navigate to="/onboarding" replace />;
   }
@@ -212,13 +212,13 @@ function HomeRedirect() {
 
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(
-    localStorage.getItem('petpooja_setup_complete') === 'true'
+    localStorage.getItem('msrm_setup_complete') === 'true'
   );
 
   const handleSetupComplete = (config) => {
     window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
     window.electron.invoke('set-config', 'printerIp', config.printer_ip);
-    localStorage.setItem('petpooja_setup_complete', 'true');
+    localStorage.setItem('msrm_setup_complete', 'true');
     setSetupComplete(true);
   };
 

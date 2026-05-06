@@ -187,7 +187,7 @@ export default function DashboardLayout() {
     });
   })();
   const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
-  const outletName = user?.outlet?.name || 'PetPooja ERP';
+  const outletName = user?.outlet?.name || 'MS-RM System';
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -258,10 +258,10 @@ export default function DashboardLayout() {
                     transform: 'perspective(400px) rotateY(-3deg)',
                   }}
                 >
-                  P
+                  M
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-extrabold truncate leading-tight tracking-tight" style={{ color: 'var(--text-primary)' }}>PetPooja ERP</p>
+                  <p className="text-[13px] font-extrabold truncate leading-tight tracking-tight" style={{ color: 'var(--text-primary)' }}>MS-RM System</p>
                   <p className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Restaurant Management</p>
                 </div>
               </div>

@@ -53,7 +53,7 @@ export default function SubscriptionPage() {
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Subscription & Billing</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-          Manage your PetPooja plan and billing history
+          Manage your MS-RM plan and billing history
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export default function SubscriptionPage() {
                 </div>
               )}
               <p className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
-                Contact support@petpooja.com to upgrade
+                Contact support@madsundigital.com to upgrade
               </p>
             </div>
           </div>

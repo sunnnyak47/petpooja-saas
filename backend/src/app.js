@@ -133,7 +133,7 @@ app.get('/health', async (req, res) => {
       database: dbStatus,
       timestamp: new Date().toISOString(),
     },
-    message: dbStatus === 'healthy' ? 'Petpooja API running' : 'Database connection issues',
+    message: dbStatus === 'healthy' ? 'MS-RM API running' : 'Database connection issues',
   });
 });
 
@@ -178,7 +178,7 @@ app.get('/api', (req, res) => {
         discounts: '/api/discounts',
       },
     },
-    message: 'Petpooja ERP API — Welcome',
+    message: 'MS-RM Restaurant Management API — Welcome',
   });
 });
 

@@ -184,7 +184,7 @@ export default function BroadcastPage() {
                   <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{form.title}</p>
                   <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{form.body}</p>
                   <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
-                    Sending to: {TARGET_CFG[form.target]?.label} • From: PetPooja Support
+                    Sending to: {TARGET_CFG[form.target]?.label} • From: MS-RM Support
                   </p>
                 </div>
               </div>

@@ -6,7 +6,7 @@
 
 const appConfig = {
   /** Application name */
-  name: process.env.APP_NAME || 'Petpooja ERP',
+  name: process.env.APP_NAME || 'MS-RM System',
 
   /** Server port */
   port: parseInt(process.env.PORT, 10) || 5000,

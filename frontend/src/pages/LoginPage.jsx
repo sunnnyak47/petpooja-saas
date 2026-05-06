@@ -41,10 +41,10 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px]">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 text-white font-bold text-lg" style={{ background: '#6366f1' }}>
-            P
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 text-white font-bold text-lg" style={{ background: '#2563eb' }}>
+            M
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">PetPooja ERP</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">MS-RM System</h1>
           <p className="text-sm text-slate-500 mt-1">Restaurant Management System</p>
         </div>
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-center mt-6 space-y-1">
-          <p className="text-xs text-slate-400">© 2026 PetPooja ERP. All rights reserved.</p>
+          <p className="text-xs text-slate-400">© 2026 MS-RM System. All rights reserved.</p>
           <p className="text-xs text-slate-400">
             Created by{' '}
             <span className="font-medium text-slate-500">Madsun Digital Marketing &amp; Media Agency</span>

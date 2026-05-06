@@ -13,7 +13,7 @@ const logger = require('../config/logger');
  * @param {string} platformName - Current platform branding name
  * @returns {Promise<void>}
  */
-async function sendPasswordResetEmail(email, resetLink, platformName = 'Petpooja ERP') {
+async function sendPasswordResetEmail(email, resetLink, platformName = 'MS-RM System') {
   try {
     // In production, this would use a transporter like Nodemailer with SendGrid/SMTP
     logger.info('📧 MOCK EMAIL SENT:', {

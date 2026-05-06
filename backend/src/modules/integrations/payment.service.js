@@ -45,7 +45,7 @@ async function createRazorpayOrder(amount, orderId, customerName, customerPhone)
         amount: Math.round(amount * 100),
         currency: 'INR',
         receipt: orderId,
-        notes: { order_id: orderId, source: 'petpooja_erp' },
+        notes: { order_id: orderId, source: 'msrm_erp' },
       }),
     });
 
@@ -131,7 +131,7 @@ async function initiateRazorpayRefund(paymentId, amount, reason) {
       headers: { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
       body: JSON.stringify({
         amount: Math.round(amount * 100),
-        notes: { reason, source: 'petpooja_erp' },
+        notes: { reason, source: 'msrm_erp' },
       }),
     });
 

@@ -1,5 +1,5 @@
 /**
- * Petpooja ERP — Offline-First Hybrid API Layer
+ * MS-RM System — Offline-First Hybrid API Layer
  *
  * This module is the single entry point for all POS data operations.
  * It decides at runtime whether to use the local SQLite database

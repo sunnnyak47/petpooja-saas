@@ -216,13 +216,13 @@ async function login(login, password, auditInfo = {}) {
 
     const accessToken = jwt.sign(tokenPayload, appConfig.jwt.secret, {
       expiresIn: appConfig.jwt.accessExpiry,
-      issuer: 'petpooja-erp',
+      issuer: 'msrm-erp',
     });
 
     const refreshToken = jwt.sign(
       { id: user.id, type: 'refresh', jti: uuidv4() },
       appConfig.jwt.refreshSecret,
-      { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'petpooja-erp' }
+      { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'msrm-erp' }
     );
 
     await prisma.user.update({
@@ -324,13 +324,13 @@ async function refreshTokens(refreshToken) {
     const newAccessToken = jwt.sign(
       { id: user.id, email: user.email, phone: user.phone, role: roleName, outlet_id: outletId, permissions },
       appConfig.jwt.secret,
-      { expiresIn: appConfig.jwt.accessExpiry, issuer: 'petpooja-erp' }
+      { expiresIn: appConfig.jwt.accessExpiry, issuer: 'msrm-erp' }
     );
 
     const newRefreshToken = jwt.sign(
       { id: user.id, type: 'refresh', jti: uuidv4() },
       appConfig.jwt.refreshSecret,
-      { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'petpooja-erp' }
+      { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'msrm-erp' }
     );
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };

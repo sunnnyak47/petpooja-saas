@@ -63,7 +63,7 @@ async function generateInvoice(subscription) {
       </head>
       <body>
         <div class="header">
-          <div class="logo">Petpooja ERP — Enterprise</div>
+          <div class="logo">MS-RM System — Enterprise</div>
           <div>
             <strong>Invoice #: ${invoiceNumber}</strong><br>
             Date: ${new Date().toLocaleDateString()}
@@ -78,7 +78,7 @@ async function generateInvoice(subscription) {
           </div>
           <div style="text-align: right">
             <h3>Payable To:</h3>
-            <strong>Petpooja SaaS Pvt Ltd</strong><br>
+            <strong>Madsun Digital Marketing &amp; Media Agency</strong><br>
             Mumbai, Maharashtra, India<br>
             GSTIN: 27PPJSAAS2026R1Z1
           </div>
@@ -103,7 +103,7 @@ async function generateInvoice(subscription) {
         </table>
         <div class="total">Total Due: ₹${Number(subscription.amount).toLocaleString()}</div>
         <div class="footer">
-          Thank you for being a Petpooja Partner. This is a computer-generated invoice.
+          Thank you for being a MS-RM Partner. This is a computer-generated invoice.
         </div>
       </body>
     </html>

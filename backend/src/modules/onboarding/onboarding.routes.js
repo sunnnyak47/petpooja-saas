@@ -47,7 +47,7 @@ router.post('/complete', async (req, res, next) => {
     const headOfficeId = req.user.head_office_id || req.user.head_office?.id;
     const outletId = req.user.outlet_id || req.user.outlets?.[0]?.id;
     const result = await onboardingService.completeWizard(headOfficeId, outletId);
-    sendSuccess(res, result, 'Onboarding complete! Welcome to PetPooja.');
+    sendSuccess(res, result, 'Onboarding complete! Welcome to MS-RM System.');
   } catch (error) { next(error); }
 });
 
