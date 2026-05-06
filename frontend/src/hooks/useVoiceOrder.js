@@ -43,13 +43,15 @@ export default function useVoiceOrder(langOverride) {
   const conversationHistory = useRef([]);
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
+  const safetyTimer = useRef(null);  // force-reset if stuck
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     setSupported(!!SR);
     return () => {
       clearTimeout(silenceTimer.current);
-      recognitionRef.current?.abort();
+      clearTimeout(safetyTimer.current);
+      try { recognitionRef.current?.abort(); } catch (_) {}
     };
   }, []);
 
@@ -155,16 +157,34 @@ export default function useVoiceOrder(langOverride) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast.error('Speech not supported. Use Chrome.'); return; }
 
+    // Abort any lingering previous instance
+    try { recognitionRef.current?.abort(); } catch (_) {}
+
     const recognition = new SR();
     recognitionRef.current = recognition;
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = false;   // false = auto-stops after silence, more reliable
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
+    let ended = false;  // guard against double onend/onerror
 
-    recognition.onstart = () => setIsListening(true);
+    const cleanup = (text) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(silenceTimer.current);
+      clearTimeout(safetyTimer.current);
+      recognitionRef.current = null;
+      setIsListening(false);
+      setTranscript('');
+      if (text) sendToLLM(text);
+    };
+
+    recognition.onstart = () => {
+      console.log('[Voice] Recognition started, lang:', lang);
+      setIsListening(true);
+    };
 
     recognition.onresult = (e) => {
       let interim = '';
@@ -174,34 +194,64 @@ export default function useVoiceOrder(langOverride) {
         else interim += t;
       }
       setTranscript(finalTranscript + interim);
+      console.log('[Voice] Transcript:', finalTranscript + interim);
 
-      // Auto-stop after 2.5s silence
+      // Auto-stop after 3s silence (safety net, continuous=false handles most cases)
       clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => recognition.stop(), 3000);
+      silenceTimer.current = setTimeout(() => {
+        try { recognition.stop(); } catch (_) {}
+      }, 3000);
     };
 
     recognition.onend = () => {
-      setIsListening(false);
-      const text = finalTranscript.trim();
-      setTranscript('');
-      if (text) sendToLLM(text);
+      console.log('[Voice] Recognition ended, transcript:', finalTranscript.trim());
+      cleanup(finalTranscript.trim());
     };
 
     recognition.onerror = (e) => {
-      setIsListening(false);
-      setTranscript('');
+      console.warn('[Voice] Recognition error:', e.error);
       if (e.error === 'not-allowed') {
         toast.error('Microphone not allowed. Check browser permissions.');
+      } else if (e.error === 'no-speech') {
+        toast('No speech detected. Try again.', { icon: '🎤', duration: 2000 });
+      } else if (e.error === 'audio-capture') {
+        toast.error('No microphone found. Check your device.');
+      } else if (e.error === 'network') {
+        toast.error('Network error during speech recognition.');
       }
+      // onerror is usually followed by onend, but force cleanup as safety
+      cleanup('');
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+      // Safety: force-reset after 15s if somehow stuck
+      clearTimeout(safetyTimer.current);
+      safetyTimer.current = setTimeout(() => {
+        if (!ended) {
+          console.warn('[Voice] Safety timeout — force stopping');
+          try { recognition.abort(); } catch (_) {}
+          cleanup('');
+        }
+      }, 15000);
+    } catch (err) {
+      console.error('[Voice] Failed to start recognition:', err);
+      toast.error('Could not start voice recognition.');
+      cleanup('');
+    }
   }, [isListening, isThinking, lang, sendToLLM]);
 
   /* ── Stop listening ── */
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
     clearTimeout(silenceTimer.current);
+    try {
+      recognitionRef.current?.stop();
+    } catch (_) {
+      // If stop fails, force reset
+      setIsListening(false);
+      setTranscript('');
+      recognitionRef.current = null;
+    }
   }, []);
 
   /* ── Toggle ── */
