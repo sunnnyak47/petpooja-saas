@@ -38,8 +38,11 @@ async function authenticate(req, res, next) {
     let isBlacklisted = false;
     try {
       isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
-    } catch (_) {
-      // Redis unavailable — skip blacklist check
+    } catch (redisErr) {
+      // Redis unavailable — log warning, allow through but track it
+      logger.warn('Redis unavailable for token blacklist check — skipping. Revoked tokens may be accepted.', {
+        error: redisErr.message,
+      });
     }
 
     if (isBlacklisted) {

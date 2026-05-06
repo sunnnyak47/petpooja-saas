@@ -24,7 +24,6 @@ const superadminService = {
    */
   async login(email, password) {
     let user = null;
-    let isMockAdmin = false;
 
     try {
       user = await prisma.user.findFirst({
@@ -35,46 +34,35 @@ const superadminService = {
         }
       });
     } catch (dbError) {
-      // DB unreachable — fall back to hardcoded admin check
-      console.warn('DB unreachable during login, using fallback admin.');
+      console.warn('DB unreachable during superadmin login:', dbError.message);
+      throw new UnauthorizedError('Service temporarily unavailable. Try again.');
     }
-
-    // Hardcoded master admin credentials — always grant super_admin regardless of DB role
-    const ADMIN_EMAIL = 'admin@admin.com';
-    const ADMIN_PASSWORD = 'password';
-    const isMasterAdmin = email.toLowerCase().trim() === ADMIN_EMAIL && password === ADMIN_PASSWORD;
 
     // If DB user found, verify password normally
     if (user) {
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) throw new UnauthorizedError('Invalid email or password');
 
-      // Master admin credentials bypass DB role check
-      if (!isMasterAdmin) {
-        // Check if user has super_admin role in DB
-        const role = await prisma.userRole.findFirst({
-          where: { user_id: user.id },
-          include: { role: true }
-        }).catch(() => null);
+      // Check if user has super_admin role in DB
+      const role = await prisma.userRole.findFirst({
+        where: { user_id: user.id },
+        include: { role: true }
+      }).catch(() => null);
 
-        const roleName = role?.role?.name || '';
-        if (roleName !== 'super_admin') {
-          throw new UnauthorizedError('Access denied: SuperAdmin only');
-        }
+      const roleName = role?.role?.name || '';
+      if (roleName !== 'super_admin') {
+        throw new UnauthorizedError('Access denied: SuperAdmin only');
       }
     } else {
-      // Fallback: hardcoded superadmin credentials for when user not in DB
-      if (!isMasterAdmin) {
-        throw new UnauthorizedError('Invalid email or password');
-      }
-      isMockAdmin = true;
+      // No hardcoded credentials — user must exist in DB
+      throw new UnauthorizedError('Invalid email or password');
     }
 
     const tokenPayload = {
-      id: user?.id || 'sa_root',
-      email: user?.email || 'admin@admin.com',
+      id: user.id,
+      email: user.email,
       role: 'super_admin',
-      full_name: user?.full_name || 'Software Owner',
+      full_name: user.full_name || 'Super Admin',
     };
 
     const token = jwt.sign(tokenPayload, appConfig.jwt.secret, { expiresIn: '24h' });

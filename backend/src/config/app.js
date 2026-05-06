@@ -25,10 +25,24 @@ const appConfig = {
   /** Kitchen display URL */
   kitchenUrl: process.env.KITCHEN_URL || 'http://localhost:3002',
 
-  /** JWT configuration */
+  /** JWT configuration — secrets MUST be set via env vars in production */
   jwt: {
-    secret: process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'default_dev_secret_change_in_production',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'default_dev_refresh_secret_change_in_production',
+    secret: (() => {
+      const s = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+      if (!s && process.env.NODE_ENV === 'production') {
+        console.error('FATAL: JWT_ACCESS_SECRET or JWT_SECRET must be set in production');
+        process.exit(1);
+      }
+      return s || 'dev_only_secret_' + require('crypto').randomBytes(16).toString('hex');
+    })(),
+    refreshSecret: (() => {
+      const s = process.env.JWT_REFRESH_SECRET;
+      if (!s && process.env.NODE_ENV === 'production') {
+        console.error('FATAL: JWT_REFRESH_SECRET must be set in production');
+        process.exit(1);
+      }
+      return s || 'dev_only_refresh_' + require('crypto').randomBytes(16).toString('hex');
+    })(),
     accessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
   },

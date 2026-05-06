@@ -20,7 +20,7 @@ const { generalLimiter } = require('./middleware/rateLimit.middleware');
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
 const { initializeSocket } = require('./socket/index');
 const { disconnectDb } = require('./config/database');
-const { disconnectRedis } = require('./config/redis');
+const { disconnectRedis, getRedisClient } = require('./config/redis');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,8 +41,8 @@ app.use(cors({
     // Always allow requests with no origin (mobile apps, curl, Electron)
     if (!origin) return callback(null, true);
 
-    // Allow any Vercel preview/production URL for this project
-    const isVercel = origin.includes('.vercel.app');
+    // Allow only this project's Vercel URLs (production + preview deploys)
+    const isVercel = /^https:\/\/petpooja[-\w]*\.vercel\.app$/.test(origin);
     // Allow any localhost port for dev
     const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
     // Allow explicitly whitelisted origins
@@ -77,8 +77,13 @@ app.use('/api/', generalLimiter);
 /* ------------------------------------------------------------------
    PHASE 7: SECURITY HARDENING
    ------------------------------------------------------------------ */
-const { inputSanitizer, validateUUIDs, additionalHeaders, payloadSizeGuard } = require('./middleware/security.middleware');
+const { inputSanitizer, validateUUIDs, additionalHeaders, payloadSizeGuard, strictTransportSecurity, contentSecurityPolicy } = require('./middleware/security.middleware');
 app.use(additionalHeaders);
+// HSTS: enforce HTTPS in production
+if (appConfig.env === 'production') {
+  app.use(strictTransportSecurity);
+  app.use(contentSecurityPolicy);
+}
 app.use(inputSanitizer);
 app.use(validateUUIDs);
 app.use('/api/', (req, res, next) => {
@@ -226,8 +231,13 @@ const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
 app.use('/api/whatsapp', whatsappRoutes);
 const reservationRoutes = require('./modules/reservations/reservations.routes');
 app.use('/api/reservations', reservationRoutes);
-app.use('/mock', mockRoutes);
-app.use('/test', mockTestRoutes);
+// Mock & test routes — NEVER expose in production
+if (appConfig.env !== 'production') {
+  app.use('/mock', mockRoutes);
+  app.use('/test', mockTestRoutes);
+} else {
+  logger.info('Mock/test routes disabled in production.');
+}
 
 // Initialize Billing & Subscriptions
 try {

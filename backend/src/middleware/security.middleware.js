@@ -19,7 +19,7 @@ function contentSecurityPolicy(req, res, next) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: https:; " +
-    "connect-src 'self' wss: https://api.razorpay.com; " +
+    "connect-src 'self' wss: https://api.razorpay.com https://petpooja-saas.onrender.com https://*.vercel.app; " +
     "frame-src https://api.razorpay.com; " +
     "object-src 'none'; " +
     "base-uri 'self';"
@@ -135,7 +135,7 @@ function additionalHeaders(req, res, next) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), payment=(self)');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(self), payment=(self)');
   res.removeHeader('X-Powered-By');
   next();
 }

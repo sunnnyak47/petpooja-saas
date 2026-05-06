@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState, Component } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import DashboardLayout from './layouts/DashboardLayout';
 import LoginPage from './pages/LoginPage';
@@ -68,6 +68,125 @@ import ReservationsPage from './pages/ReservationsPage';
 import ChainHealthPage from './pages/ChainHealthPage';
 import OnboardingPage from './pages/OnboardingPage';
 
+/* ── Error Boundary ─────────────────────────────────────────────────────────── */
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[ErrorBoundary] Caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#f8fafc', fontFamily: 'Inter, -apple-system, sans-serif',
+        }}>
+          <div style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>😵</div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              Something went wrong
+            </h1>
+            <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+              The app hit an unexpected error. This has been logged.
+              Try refreshing the page or going back to the dashboard.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: '10px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer',
+                }}
+              >
+                Refresh Page
+              </button>
+              <button
+                onClick={() => { window.location.hash = '#/'; this.setState({ hasError: false }); }}
+                style={{
+                  padding: '10px 24px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+                  background: '#fff', color: '#0f172a', border: '1px solid #e2e8f0', cursor: 'pointer',
+                }}
+              >
+                Go to Dashboard
+              </button>
+            </div>
+            {this.state.error && (
+              <pre style={{
+                marginTop: 24, padding: 16, background: '#1e293b', color: '#f87171',
+                borderRadius: 8, fontSize: 11, textAlign: 'left', overflow: 'auto', maxHeight: 120,
+              }}>
+                {this.state.error.toString()}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ── 404 Page ───────────────────────────────────────────────────────────────── */
+function NotFoundPage() {
+  const location = useLocation();
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#f8fafc', fontFamily: 'Inter, -apple-system, sans-serif',
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
+        <div style={{ fontSize: 72, fontWeight: 900, color: '#e2e8f0', marginBottom: 8 }}>404</div>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+          Page Not Found
+        </h1>
+        <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24 }}>
+          The page <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>{location.pathname}</code> doesn't exist.
+        </p>
+        <button
+          onClick={() => { window.location.hash = '#/'; }}
+          style={{
+            padding: '10px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+            background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer',
+          }}
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Role Guard ─────────────────────────────────────────────────────────────── */
+function RoleGuard({ allowed, children }) {
+  const { user } = useSelector((s) => s.auth);
+  if (!user || !allowed.includes(user.role)) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: 400, fontFamily: 'Inter, -apple-system, sans-serif',
+      }}>
+        <div style={{ textAlign: 'center', padding: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Access Denied</h2>
+          <p style={{ fontSize: 14, color: '#64748b' }}>
+            You don't have permission to view this page. Required role: {allowed.join(' or ')}.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return children;
+}
+
 // Simple check for access
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((s) => s.auth);
@@ -104,7 +223,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <ErrorBoundary>
     <OnlineStatusBar />
     <SyncStatusIndicator />
     <OfflineBanner />
@@ -118,10 +237,10 @@ export default function App() {
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      
+
       {/* PUBLIC: Customer ordering page — accessed via QR code scan */}
       <Route path="/order" element={<CustomerOrderPage />} />
-      
+
       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         {/* The Home page acts as an intelligent traffic officer */}
         <Route index element={<HomeRedirect />} />
@@ -159,25 +278,25 @@ export default function App() {
         <Route path="audit-log"       element={<FeatureGate feature="audit_log"><AuditLogPage /></FeatureGate>} />
         <Route path="qr-codes"        element={<FeatureGate feature="qr_codes"><QRCodesPage /></FeatureGate>} />
         <Route path="qr-orders"       element={<FeatureGate feature="qr_orders"><TableQROrdersPage /></FeatureGate>} />
-        
-        {/* The "Super Root" (Hidden for Owners via Sidebar) */}
-        <Route path="super-admin" element={<SuperAdminPage />} />
-        <Route path="billing" element={<BillingPage />} />
-        <Route path="feature-access" element={<FeatureAccessPage />} />
-        <Route path="announcements" element={<AnnouncementsPage />} />
-        <Route path="chain/:id" element={<ChainDetailPage />} />
-        <Route path="revenue-analytics" element={<RevenueAnalyticsPage />} />
-        <Route path="invoicing" element={<InvoicingPage />} />
-        <Route path="tax-profiles" element={<TaxProfilesPage />} />
-        <Route path="platform-settings" element={<PlatformSettingsPage />} />
-        <Route path="support-tickets" element={<SupportTicketsPage />} />
-        <Route path="broadcasts" element={<BroadcastPage />} />
-        <Route path="all-users" element={<AllUsersPage />} />
-        <Route path="promo-codes" element={<PromoCodesPage />} />
+
+        {/* The "Super Root" — guarded by RoleGuard for super_admin only */}
+        <Route path="super-admin" element={<RoleGuard allowed={['super_admin']}><SuperAdminPage /></RoleGuard>} />
+        <Route path="billing" element={<RoleGuard allowed={['super_admin']}><BillingPage /></RoleGuard>} />
+        <Route path="feature-access" element={<RoleGuard allowed={['super_admin']}><FeatureAccessPage /></RoleGuard>} />
+        <Route path="announcements" element={<RoleGuard allowed={['super_admin']}><AnnouncementsPage /></RoleGuard>} />
+        <Route path="chain/:id" element={<RoleGuard allowed={['super_admin']}><ChainDetailPage /></RoleGuard>} />
+        <Route path="revenue-analytics" element={<RoleGuard allowed={['super_admin']}><RevenueAnalyticsPage /></RoleGuard>} />
+        <Route path="invoicing" element={<RoleGuard allowed={['super_admin']}><InvoicingPage /></RoleGuard>} />
+        <Route path="tax-profiles" element={<RoleGuard allowed={['super_admin']}><TaxProfilesPage /></RoleGuard>} />
+        <Route path="platform-settings" element={<RoleGuard allowed={['super_admin']}><PlatformSettingsPage /></RoleGuard>} />
+        <Route path="support-tickets" element={<RoleGuard allowed={['super_admin']}><SupportTicketsPage /></RoleGuard>} />
+        <Route path="broadcasts" element={<RoleGuard allowed={['super_admin']}><BroadcastPage /></RoleGuard>} />
+        <Route path="all-users" element={<RoleGuard allowed={['super_admin']}><AllUsersPage /></RoleGuard>} />
+        <Route path="promo-codes" element={<RoleGuard allowed={['super_admin']}><PromoCodesPage /></RoleGuard>} />
 
         {/* P3 Routes */}
-        <Route path="platform-health"    element={<PlatformHealthPage />} />
-        <Route path="impersonation-log"  element={<ImpersonationLogPage />} />
+        <Route path="platform-health"    element={<RoleGuard allowed={['super_admin']}><PlatformHealthPage /></RoleGuard>} />
+        <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="reservations"       element={<ReservationsPage />} />
 
@@ -190,9 +309,9 @@ export default function App() {
         <Route path="live"               element={<LiveDashboardPage />} />
       </Route>
 
-      {/* Catch All */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 Catch All */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
-    </>
+    </ErrorBoundary>
   );
 }

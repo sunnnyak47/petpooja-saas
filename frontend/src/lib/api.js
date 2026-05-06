@@ -34,6 +34,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ── Concurrent refresh lock ──────────────────────────────────────────────────
+// Prevents multiple 401 responses from triggering parallel refresh calls.
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function onRefreshed(newToken) {
+  refreshSubscribers.forEach(cb => cb(newToken));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function handleLogout() {
+  store.dispatch(logout());
+  // Use proper hash-based routing — navigate within the SPA, don't full-reload
+  if (window.location.hash !== '#/login') {
+    window.location.hash = '#/login';
+  }
+}
+
 api.interceptors.response.use(
   (response) => response.data,
   async (error) => {
@@ -43,21 +65,42 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refreshToken');
 
-      if (refreshToken) {
-        try {
-          const { data } = await axios.post(`${BASE_URL}/auth/refresh-token`, { refresh_token: refreshToken });
-          localStorage.setItem('accessToken', data.data.accessToken);
-          localStorage.setItem('refreshToken', data.data.refreshToken);
-          originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
-          return api(originalRequest);
-        } catch (refreshError) {
-          store.dispatch(logout());
-          window.location.hash = '#/login';
-          return Promise.reject(refreshError);
-        }
-      } else {
-        store.dispatch(logout());
-        window.location.hash = '#/login';
+      if (!refreshToken) {
+        handleLogout();
+        return Promise.reject(error);
+      }
+
+      // If already refreshing, queue this request to retry after refresh completes
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          addRefreshSubscriber((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(originalRequest));
+          });
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        const { data } = await axios.post(`${BASE_URL}/auth/refresh-token`, { refresh_token: refreshToken });
+        const newAccessToken = data.data.accessToken;
+        const newRefreshToken = data.data.refreshToken;
+
+        localStorage.setItem('accessToken', newAccessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
+
+        // Notify all queued requests
+        onRefreshed(newAccessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        refreshSubscribers = [];
+        handleLogout();
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
