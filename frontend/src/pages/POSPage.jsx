@@ -17,7 +17,7 @@ import {
   Leaf, Drumstick, Egg, Star, X, ClipboardList, Users, Pause, UserPlus,
   SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine,
   LayoutGrid, Utensils, Mic, Printer, AlertCircle, Package, Bike, UtensilsCrossed,
-  Phone, ChevronDown,
+  Phone, ChevronDown, Keyboard,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
 import useVoiceOrder from '../hooks/useVoiceOrder';
@@ -42,6 +42,8 @@ export default function POSPage() {
   const [shortCodeSearch, setShortCodeSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState(null);
   const [viewMode, setViewMode] = useState('menu'); // 'menu' or 'tables'
+  const [voiceText, setVoiceText] = useState('');
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   
   // UI states
@@ -580,6 +582,15 @@ export default function POSPage() {
               <Mic className="w-4 h-4" />
               <span>{voice.isListening ? 'Listening…' : voice.isThinking ? 'Processing…' : 'Voice'}</span>
             </button>
+            {/* Toggle text input for voice commands (keyboard icon) */}
+            <button
+              onClick={() => setShowVoiceInput(v => !v)}
+              title="Type a voice command"
+              className={`p-2.5 rounded-xl border shrink-0 transition-all ${showVoiceInput ? 'border-accent text-accent' : ''}`}
+              style={{ background: 'var(--bg-secondary)', borderColor: showVoiceInput ? 'var(--accent)' : 'var(--border)', color: showVoiceInput ? 'var(--accent)' : 'var(--text-secondary)' }}
+            >
+              <Keyboard className="w-4 h-4" />
+            </button>
             {voice.transcript && (
               <div className="absolute top-full left-0 right-0 mt-1 mx-4 px-3 py-2 rounded-lg text-xs z-50 shadow-lg border"
                 style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
@@ -598,6 +609,42 @@ export default function POSPage() {
               </button>
             </div>
           </div>
+
+          {/* Voice text input row */}
+          {showVoiceInput && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Mic className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                <input
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm border outline-none"
+                  style={{ background: 'var(--bg-secondary)', borderColor: 'var(--accent)', color: 'var(--text-primary)' }}
+                  placeholder='Type order… e.g. "2 butter chicken aur 1 naan"'
+                  value={voiceText}
+                  onChange={(e) => setVoiceText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && voiceText.trim() && !voice.isThinking) {
+                      voice.sendToLLM(voiceText.trim());
+                      setVoiceText('');
+                    }
+                  }}
+                  autoFocus
+                  disabled={voice.isThinking}
+                />
+              </div>
+              <button
+                onClick={() => { if (voiceText.trim()) { voice.sendToLLM(voiceText.trim()); setVoiceText(''); } }}
+                disabled={!voiceText.trim() || voice.isThinking}
+                className="px-4 py-2.5 rounded-xl text-sm font-bold shrink-0 transition-all flex items-center gap-1.5"
+                style={{
+                  background: voiceText.trim() && !voice.isThinking ? 'var(--accent)' : 'var(--bg-hover)',
+                  color: voiceText.trim() && !voice.isThinking ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
+                <Send className="w-4 h-4" />
+                Send
+              </button>
+            </div>
+          )}
 
           {/* Row 2: Order type selector — prominent, always visible */}
           <div className="flex items-center gap-2">
