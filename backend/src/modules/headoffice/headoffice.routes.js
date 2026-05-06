@@ -69,25 +69,14 @@ router.post('/register', authenticate, hasRole('super_admin'), async (req, res, 
     sendCreated(res, result, 'New restaurant chain onboarded');
   } catch (error) {
     const { ConflictError } = require('../../utils/errors');
-    try {
-      logger.error('ho/register failed', {
-        message: error.message,
-        code: error.code,
-        meta: error.meta,
-        stack: error.stack?.split('\n').slice(0, 4).join(' | '),
-      });
-    } catch (_) { /* logger unavailable — swallow so response still sends */ }
-
-    if (error.code === 'P2002' || error.message?.includes('already exists') || error.message?.includes('Use a different')) {
+    if (
+      error.code === 'P2002' ||
+      error.message?.includes('already exists') ||
+      error.message?.includes('Use a different')
+    ) {
       return next(new ConflictError(error.message));
     }
-    // Surface real Prisma error for diagnosis
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Registration failed',
-      code: error.code || null,
-      meta: error.meta || null,
-    });
+    next(error);
   }
 });
 

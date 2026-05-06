@@ -68,11 +68,13 @@ export default function SuperAdminPage() {
     mutationFn: (data) => api.post('/ho/register', data),
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-chains']);
+      queryClient.invalidateQueries(['live-stats']);
+      queryClient.invalidateQueries(['onboarding-overview']);
       toast.success('Restaurant chain onboarded!');
       setShowOnboard(false);
       setFormData({ name: '', email: '', phone: '', password: '', region: 'IN' });
     },
-    onError: (e) => toast.error(e.message || 'Onboarding failed'),
+    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Onboarding failed'),
   });
 
   const switchRegionMutation = useMutation({
