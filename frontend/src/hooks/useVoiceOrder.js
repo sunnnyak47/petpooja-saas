@@ -38,14 +38,13 @@ export default function useVoiceOrder() {
 
   /* ── Convert LLM cart items → Redux addToCart dispatches ── */
   const syncCartToRedux = useCallback((llmCart, action) => {
-    if (action === 'cleared') {
+    if (action === 'cleared' && (!llmCart || !llmCart.length)) {
       dispatch(clearCart());
       return;
     }
     if (!llmCart || !llmCart.length) return;
 
-    // Clear existing cart and add all items from LLM response
-    // This ensures the LLM's cart (which tracks quantities) stays in sync
+    // Clear existing cart and replace with LLM's updated cart
     dispatch(clearCart());
     llmCart.forEach(item => {
       dispatch(addToCart({
