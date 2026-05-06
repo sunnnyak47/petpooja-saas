@@ -10,6 +10,7 @@ const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../utils/errors');
 const { calculateGST, generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
 const customerService = require('../customers/customer.service');
+const { sendOrderReadySms } = require('../../utils/sms.service');
 
 /**
  * Generates the next invoice number for an outlet by incrementing its sequence.
@@ -923,7 +924,10 @@ async function voidOrder(orderId, managerPin, reason, staffId) {
 async function updateOrderStatus(orderId, newStatus, staffId) {
   const prisma = getDbClient();
   try {
-    const order = await prisma.order.findFirst({ where: { id: orderId, is_deleted: false } });
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, is_deleted: false },
+      include: { outlet: { select: { name: true } } },
+    });
     if (!order) throw new NotFoundError('Order not found');
 
     await prisma.$transaction(async (tx) => {
@@ -938,6 +942,12 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
       io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
         order_id: orderId, status: newStatus,
       });
+    }
+
+    // Notify customer via SMS when food is ready
+    if (newStatus === 'ready' && order.customer_phone) {
+      const outletName = order.outlet?.name || 'our kitchen';
+      sendOrderReadySms(order.customer_phone, order.order_number, outletName).catch(() => {});
     }
 
     return await getOrderById(orderId);

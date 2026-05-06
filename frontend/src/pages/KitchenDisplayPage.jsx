@@ -288,9 +288,26 @@ export default function KitchenDisplayPage() {
   /* ── socket ── */
   useEffect(() => {
     if (!outletId) return;
-    const socket = io(`${SOCKET_URL}/kitchen`, { transports: ['websocket'], withCredentials: true });
-    socket.emit('join_outlet', outletId);
+    const socket = io(`${SOCKET_URL}/kitchen`, {
+      transports: ['websocket'],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+
+    // Join outlet room on every connect + reconnect
+    socket.on('connect', () => {
+      socket.emit('join_outlet', outletId);
+    });
+
+    // Refresh KOT list on reconnect — may have missed events while offline
+    socket.io.on('reconnect', () => {
+      refresh();
+    });
 
     socket.on('new_kot', () => {
       refresh();
