@@ -181,4 +181,19 @@ router.get('/bas-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOu
   } catch (error) { next(error); }
 });
 
+/**
+ * GET /api/reports/forecast
+ * AI demand forecast for tomorrow — predicted revenue, orders, top items.
+ * Uses weighted moving average on DailySummary + OrderItem history.
+ */
+router.get('/forecast', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { getDemandForecast } = require('./forecast.service');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    if (!outletId) return res.status(400).json({ success: false, message: 'Outlet ID required' });
+    const data = await getDemandForecast(outletId);
+    sendSuccess(res, data, 'Demand forecast');
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
