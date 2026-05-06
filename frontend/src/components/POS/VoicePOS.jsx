@@ -4,6 +4,7 @@
  * Uses Groq + Llama 3.3 70B via /api/voice-pos/converse
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '../../store/slices/posSlice';
 import api from '../../lib/api';
@@ -559,10 +560,10 @@ export default function VoicePOS({ onClose }) {
     isSpeaking ? '🔊 Speaking...' : null;
 
   /* ── Render ── */
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
-      <div className="bg-background rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden relative"
-        style={{ height: '90vh', maxHeight: 720 }}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.75)' }}>
+      <div className="bg-background rounded-2xl shadow-2xl border border-border/50 w-full max-w-3xl flex flex-col overflow-hidden relative"
+        style={{ height: '85vh', maxHeight: 680 }}>
 
         {/* Order Confirmation Overlay */}
         {placedOrder && (
@@ -905,6 +906,7 @@ export default function VoicePOS({ onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
