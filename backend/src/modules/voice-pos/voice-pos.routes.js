@@ -27,9 +27,7 @@ router.post('/converse', authenticate, async (req, res, next) => {
 
     const result = await conversationalParse(outletId, transcript.trim(), conversation_history, current_cart);
     sendSuccess(res, result, 'Conversation turn processed');
-  } catch (e) {
-    return res.status(500).json({ success: false, message: e.message, stack: e.stack?.split('\n').slice(0,4).join(' | ') });
-  }
+  } catch (e) { next(e); }
 });
 
 /**

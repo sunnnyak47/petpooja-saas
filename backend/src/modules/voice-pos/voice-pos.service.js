@@ -58,7 +58,7 @@ async function getMenuItems(outletId) {
       description: true,
       variants: {
         where: { is_deleted: false },
-        select: { id: true, name: true, price: true },
+        select: { id: true, name: true, price_addition: true },
       },
     },
     take: 200,
@@ -71,7 +71,7 @@ function buildSystemPrompt(menuItems) {
   const menuText = menuItems.map(item => {
     let line = `- ID:${item.id} | "${item.name}" | ₹${item.base_price} | ${item.food_type}`;
     if (item.variants?.length > 0) {
-      const vars = item.variants.map(v => `${v.name}(₹${v.price})`).join(', ');
+      const vars = item.variants.map(v => `${v.name}(₹${Number(item.base_price) + Number(v.price_addition)})`).join(', ');
       line += ` | variants: [${vars}]`;
     }
     return line;
@@ -164,7 +164,9 @@ async function conversationalParse(outletId, transcript, conversationHistory, cu
           : null;
         return {
           ...cartItem,
-          unit_price: variant ? Number(variant.price) : Number(menuItem.base_price),
+          unit_price: variant
+            ? Number(menuItem.base_price) + Number(variant.price_addition)
+            : Number(menuItem.base_price),
           food_type: cartItem.food_type || menuItem.food_type,
         };
       }
