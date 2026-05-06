@@ -1,7 +1,8 @@
 /**
- * Dashboard — MS RM Owner
- * Bloomberg Terminal × Premium Fintech
- * Expo SDK 54 · React Native 0.81 · Reanimated 3 · RNGH 2 · react-native-svg
+ * Dashboard — MS-RM Owner
+ * Web-compatible (expo start --web) · Mobile-first 390px viewport
+ * No Gesture.Pan / GestureHandlerRootView — uses TouchableOpacity press effects
+ * Reanimated: useSharedValue, useAnimatedStyle, withTiming, withSpring only
  */
 
 import React, {
@@ -28,821 +29,576 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withSpring,
-  withRepeat,
-  withSequence,
-  withDelay,
-  interpolate,
-  runOnJS,
-  Easing,
-  cancelAnimation,
-  useAnimatedReaction,
 } from 'react-native-reanimated';
-import {
-  Gesture,
-  GestureDetector,
-} from 'react-native-gesture-handler';
 import Svg, {
   Circle,
   Rect,
   Defs,
   LinearGradient as SvgGrad,
   Stop,
-  Polyline,
   Path,
   G,
   Text as SvgText,
 } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
-import {
-  useDashboard,
-  useOrders,
-  useUpdateOrderStatus,
-} from '../../src/hooks/useApi';
+import { useDashboard } from '../../src/hooks/useApi';
 import { Colors } from '../../src/constants/colors';
-import { T } from '../../src/constants/typography';
+import SkeletonBox from '../../src/components/SkeletonBox';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_PAD = 16;
-const HERO_W = SCREEN_W - CARD_PAD * 2;
+const CONTENT_W = Math.min(SCREEN_W, 480); // cap for web at tablet width
+const HERO_W = CONTENT_W - CARD_PAD * 2;
 
-// ─── Utility: format currency ─────────────────────────────────────────────────
+// ─── Mock fallback data ───────────────────────────────────────────────────────
+const MOCK = {
+  todayRevenue: 124500,
+  totalOrders: 47,
+  pendingOrders: 8,
+  preparingOrders: 12,
+  readyOrders: 5,
+  completedOrders: 22,
+  avgOrderValue: 2648,
+  topItems: [
+    { name: 'Butter Chicken', count: 18, revenue: 32400 },
+    { name: 'Dal Makhani', count: 15, revenue: 18750 },
+    { name: 'Paneer Tikka', count: 12, revenue: 21600 },
+  ],
+  hourlyRevenue: [8000, 12000, 18000, 22000, 19000, 24000, 21500],
+  revenueGrowth: 12.4,
+};
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
 function fmt(v) {
-  if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-  if (v >= 1000) return `₹${(v / 1000).toFixed(1)}k`;
-  return `₹${Math.round(v)}`;
+  const n = parseFloat(v);
+  if (!n || isNaN(n)) return '—';
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
+  return `₹${Math.round(n)}`;
 }
 
-// ─── Animated counter ─────────────────────────────────────────────────────────
-function useAnimatedCounter(target, duration = 1200) {
-  const [display, setDisplay] = useState(0);
-  const progress = useSharedValue(0);
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
-  useAnimatedReaction(
-    () => progress.value,
-    (val) => {
-      const current = Math.round(val * target);
-      runOnJS(setDisplay)(current);
-    }
-  );
+function formatDate() {
+  return new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+// ─── Animated Counter (JS-side, no runOnJS needed) ───────────────────────────
+function useCounter(target, duration = 1200) {
+  const [display, setDisplay] = useState(0);
+  const startRef = useRef(null);
+  const startValRef = useRef(0);
+  const rafRef = useRef(null);
 
   useEffect(() => {
-    progress.value = 0;
-    progress.value = withTiming(1, {
-      duration,
-      easing: Easing.out(Easing.cubic),
-    });
+    startValRef.current = display;
+    startRef.current = null;
+    const diff = target - startValRef.current;
+
+    function step(ts) {
+      if (!startRef.current) startRef.current = ts;
+      const elapsed = ts - startRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(startValRef.current + diff * eased));
+      if (progress < 1) rafRef.current = requestAnimationFrame(step);
+    }
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [target]);
 
   return display;
 }
 
-// ─── Skeleton pulse ───────────────────────────────────────────────────────────
-function Skeleton({ w, h, radius = 8, style }) {
-  const opacity = useSharedValue(0.25);
+// ─── Pressable scale card (replaces Gesture.Pan tilt) ────────────────────────
+function PressCard({ children, style, onPress }) {
+  const scale = useSharedValue(1);
 
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: 750, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.25, { duration: 750, easing: Easing.inOut(Easing.sine) })
-      ),
-      -1,
-      false
-    );
-    return () => cancelAnimation(opacity);
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          width: w,
-          height: h,
-          borderRadius: radius,
-          backgroundColor: Colors.surface2,
-        },
-        animStyle,
-        style,
-      ]}
-    />
-  );
-}
-
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-function Spark({ data = [], color = Colors.gold, w = 80, h = 30 }) {
-  if (!data || data.length < 2) return null;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data);
-  const rng = max - min || 1;
-
-  const pts = data
-    .map(
-      (v, i) =>
-        `${(i / (data.length - 1)) * w},${h - ((v - min) / rng) * (h - 4) - 2}`
-    )
-    .join(' ');
-
-  // Area fill path
-  const first = `0,${h}`;
-  const last = `${w},${h}`;
-  const areaPts = `${first} ${pts} ${last}`;
-
-  return (
-    <Svg width={w} height={h}>
-      <Defs>
-        <SvgGrad id={`sg-${color.replace('#', '')}`} x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={color} stopOpacity="0.2" />
-          <Stop offset="1" stopColor={color} stopOpacity="0.9" />
-        </SvgGrad>
-        <SvgGrad id={`area-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0.25" />
-          <Stop offset="1" stopColor={color} stopOpacity="0" />
-        </SvgGrad>
-      </Defs>
-      <Path
-        d={`M ${areaPts} Z`}
-        fill={`url(#area-${color.replace('#', '')})`}
-      />
-      <Polyline
-        points={pts}
-        fill="none"
-        stroke={`url(#sg-${color.replace('#', '')})`}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-// ─── Animated Ring Gauge ──────────────────────────────────────────────────────
-function RingGauge({ pct = 0, size = 76, stroke = 6, color = Colors.indigo, value, label }) {
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const progress = useSharedValue(0);
-  const glowOpacity = useSharedValue(0.4);
-
-  // Animated SVG stroke via JS-driven state
-  const [dashVal, setDashVal] = useState(0);
-  const [dotPos, setDotPos] = useState({ x: size / 2, y: stroke / 2 });
-
-  useEffect(() => {
-    progress.value = 0;
-    progress.value = withTiming(Math.min(pct, 1), {
-      duration: 1400,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    glowOpacity.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.3, { duration: 900, easing: Easing.inOut(Easing.sine) })
-      ),
-      -1,
-      false
-    );
-    return () => {
-      cancelAnimation(progress);
-      cancelAnimation(glowOpacity);
-    };
-  }, [pct]);
-
-  useAnimatedReaction(
-    () => progress.value,
-    (val) => {
-      const dash = circ * val;
-      runOnJS(setDashVal)(dash);
-
-      // Compute tip dot position (arc starts at top, goes clockwise)
-      const angle = -Math.PI / 2 + 2 * Math.PI * val;
-      const cx = size / 2 + r * Math.cos(angle);
-      const cy = size / 2 + r * Math.sin(angle);
-      runOnJS(setDotPos)({ x: cx, y: cy });
-    }
-  );
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
   }));
 
   return (
-    <View style={{ alignItems: 'center', flex: 1 }}>
-      <View style={{ width: size, height: size }}>
-        <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-          {/* Track */}
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={color + '20'}
-            strokeWidth={stroke}
-            fill="none"
-          />
-          {/* Filled arc */}
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={color}
-            strokeWidth={stroke}
-            fill="none"
-            strokeDasharray={`${dashVal} ${circ}`}
-            strokeLinecap="round"
-            rotation="-90"
-            origin={`${size / 2},${size / 2}`}
-          />
-          {/* Glow dot at tip */}
-          {dashVal > 2 && (
-            <Circle
-              cx={dotPos.x}
-              cy={dotPos.y}
-              r={stroke / 2 + 1.5}
-              fill={color}
-              opacity={0.9}
-            />
-          )}
-        </Svg>
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={onPress}
+      onPressIn={() => {
+        scale.value = withSpring(0.975, { damping: 20, stiffness: 300 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 18, stiffness: 250 });
+      }}
+    >
+      <Animated.View style={[style, animStyle]}>{children}</Animated.View>
+    </TouchableOpacity>
+  );
+}
 
-        {/* Glow halo around tip */}
-        {dashVal > 2 && (
-          <Animated.View
-            style={[
-              {
-                position: 'absolute',
-                left: dotPos.x - (stroke + 6),
-                top: dotPos.y - (stroke + 6),
-                width: (stroke + 6) * 2,
-                height: (stroke + 6) * 2,
-                borderRadius: stroke + 6,
-                backgroundColor: color,
-              },
-              glowStyle,
-            ]}
-          />
-        )}
+// ─── Hero Revenue Card ────────────────────────────────────────────────────────
+function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, hourlyRevenue }) {
+  const displayRevenue = useCounter(revenue, 1400);
+  const displayOrders = useCounter(totalOrders, 1000);
+  const displayAvg = useCounter(Math.round(avgOrderValue), 1200);
 
-        {/* Center label */}
-        <View style={styles.ringCenter}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color, lineHeight: 16 }}>
-            {value}
+  const isPositive = revenueGrowth >= 0;
+  const growthColor = isPositive ? Colors.success : Colors.error;
+
+  return (
+    <PressCard style={styles.heroCard}>
+      {/* Base gradient */}
+      <LinearGradient
+        colors={['#1C2E50', '#0D1F3C', '#080F1E']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Gold shimmer overlay */}
+      <LinearGradient
+        colors={[Colors.gold + '08', 'transparent', Colors.gold + '05']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+      />
+
+      {/* Subtle grid lines */}
+      <View style={styles.heroGrid} pointerEvents="none">
+        {[0, 1, 2, 3].map((i) => (
+          <View key={i} style={styles.heroGridLine} />
+        ))}
+      </View>
+
+      {/* Eyebrow */}
+      <Text style={styles.heroEyebrow}>TODAY'S REVENUE</Text>
+
+      {/* Big revenue number */}
+      <View style={styles.heroRevenueRow}>
+        <Text style={styles.heroRevenue}>
+          ₹{displayRevenue.toLocaleString('en-IN')}
+        </Text>
+        <View style={[styles.growthBadge, { backgroundColor: growthColor + '22', borderColor: growthColor + '44' }]}>
+          <Text style={[styles.growthText, { color: growthColor }]}>
+            {isPositive ? '+' : ''}{revenueGrowth.toFixed(1)}% vs yesterday
           </Text>
         </View>
       </View>
-      <Text style={[styles.ringLabel, { color: Colors.text3 }]}>{label}</Text>
+
+      {/* Hourly bar mini-chart */}
+      <HourlyMiniChart data={hourlyRevenue} />
+
+      {/* Stats row */}
+      <View style={styles.heroStats}>
+        <View style={styles.heroStatItem}>
+          <Text style={styles.heroStatValue}>{displayOrders}</Text>
+          <Text style={styles.heroStatLabel}>Orders</Text>
+        </View>
+        <View style={styles.heroStatDivider} />
+        <View style={styles.heroStatItem}>
+          <Text style={styles.heroStatValue}>₹{displayAvg.toLocaleString('en-IN')}</Text>
+          <Text style={styles.heroStatLabel}>Avg Value</Text>
+        </View>
+        <View style={styles.heroStatDivider} />
+        <View style={styles.heroStatItem}>
+          <Text style={[styles.heroStatValue, { color: Colors.success }]}>
+            {isPositive ? '+' : ''}{revenueGrowth.toFixed(1)}%
+          </Text>
+          <Text style={styles.heroStatLabel}>Growth</Text>
+        </View>
+      </View>
+
+      {/* Glassmorphism border highlights */}
+      <View style={styles.glassBorderTop} />
+      <View style={styles.glassBorderLeft} />
+    </PressCard>
+  );
+}
+
+// ─── Hourly Mini Bar Chart (inside hero card) ─────────────────────────────────
+function HourlyMiniChart({ data = [] }) {
+  const HOURS = ['10', '11', '12', '13', '14', '15', '16'];
+  const max = Math.max(...data, 1);
+  const barH = 32;
+  const chartW = HERO_W - 40;
+  const n = Math.min(data.length, 7);
+  const gap = chartW / n;
+  const barW = Math.max(gap * 0.55, 8);
+
+  return (
+    <View style={{ marginTop: 14, marginBottom: 14 }}>
+      <Svg width={chartW} height={barH + 18}>
+        <Defs>
+          <SvgGrad id="heroBar" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={Colors.gold} stopOpacity="0.9" />
+            <Stop offset="1" stopColor={Colors.goldDim} stopOpacity="0.3" />
+          </SvgGrad>
+          <SvgGrad id="heroBarDim" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={Colors.gold} stopOpacity="0.35" />
+            <Stop offset="1" stopColor={Colors.gold} stopOpacity="0.08" />
+          </SvgGrad>
+        </Defs>
+        {data.slice(0, n).map((v, i) => {
+          const bh = Math.max((v / max) * barH, 3);
+          const x = i * gap + (gap - barW) / 2;
+          const isLast = i === n - 1;
+          return (
+            <G key={i}>
+              <Rect
+                x={x}
+                y={barH - bh}
+                width={barW}
+                height={bh}
+                rx={3}
+                fill={isLast ? 'url(#heroBar)' : 'url(#heroBarDim)'}
+              />
+              <SvgText
+                x={x + barW / 2}
+                y={barH + 14}
+                textAnchor="middle"
+                fontSize={9}
+                fill={isLast ? Colors.gold : Colors.text3}
+                fontWeight={isLast ? '700' : '400'}
+              >
+                {HOURS[i] || ''}
+              </SvgText>
+            </G>
+          );
+        })}
+      </Svg>
     </View>
   );
 }
 
-// ─── Animated 3D Hero Revenue Card ───────────────────────────────────────────
-function HeroRevenueCard({ revenue, orders, avgOrder, revenuePct, weekData }) {
-  const rotateX = useSharedValue(0);
-  const rotateY = useSharedValue(0);
+// ─── Stats Row (4 horizontal scroll pills) ───────────────────────────────────
+function StatsRow({ totalOrders, pendingOrders, avgOrderValue, completedOrders }) {
+  const pills = [
+    { label: 'Orders', value: String(totalOrders), color: Colors.indigo },
+    { label: 'Pending', value: String(pendingOrders), color: Colors.warning },
+    { label: 'Avg Value', value: fmt(avgOrderValue), color: Colors.gold },
+    { label: 'Covers', value: String(completedOrders), color: Colors.success },
+  ];
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.statsRowContent}
+    >
+      {pills.map((p, i) => (
+        <StatPill key={i} {...p} />
+      ))}
+    </ScrollView>
+  );
+}
+
+function StatPill({ label, value, color }) {
   const scale = useSharedValue(1);
-
-  const displayRevenue = useAnimatedCounter(revenue, 1400);
-  const displayOrders = useAnimatedCounter(orders, 1000);
-  const displayAvg = useAnimatedCounter(Math.round(avgOrder), 1200);
-
-  const tiltGesture = Gesture.Pan()
-    .onBegin(() => {
-      scale.value = withSpring(1.01, { damping: 20 });
-    })
-    .onUpdate((e) => {
-      rotateY.value = interpolate(
-        e.translationX,
-        [-HERO_W / 2, HERO_W / 2],
-        [-12, 12]
-      );
-      rotateX.value = interpolate(
-        e.translationY,
-        [-80, 80],
-        [8, -8]
-      );
-    })
-    .onEnd(() => {
-      rotateX.value = withSpring(0, { damping: 15, stiffness: 120 });
-      rotateY.value = withSpring(0, { damping: 15, stiffness: 120 });
-      scale.value = withSpring(1, { damping: 20 });
-    });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 900 },
-      { rotateX: `${rotateX.value}deg` },
-      { rotateY: `${rotateY.value}deg` },
-      { scale: scale.value },
-    ],
-  }));
-
-  const pctDisplay = Math.round(revenuePct * 100);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <GestureDetector gesture={tiltGesture}>
-      <Animated.View style={[styles.heroCard3d, cardStyle]}>
-        {/* Base gradient */}
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => { scale.value = withSpring(0.94, { damping: 20 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 18 }); }}
+    >
+      <Animated.View style={[styles.statPill, { borderColor: color + '35' }, animStyle]}>
         <LinearGradient
-          colors={['#1C2E50', '#0D1F3C', '#080F1E']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
+          colors={[color + '18', color + '06']}
+          style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
         />
-        {/* Gold shimmer overlay */}
-        <LinearGradient
-          colors={[Colors.gold + '08', 'transparent', Colors.gold + '05']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
-        />
-
-        {/* Header row */}
-        <View style={styles.heroTopRow}>
-          <View>
-            <Text style={styles.heroEyebrow}>TODAY'S REVENUE</Text>
-            <Text style={styles.heroRevenue}>
-              {fmt(displayRevenue)}
-            </Text>
-          </View>
-          <View style={styles.targetBadge}>
-            <Text style={styles.targetBadgeText}>{pctDisplay}% target</Text>
-          </View>
+        <View style={[styles.statPillDot, { backgroundColor: color }]} />
+        <View>
+          <Text style={[styles.statPillLabel]}>{label}</Text>
+          <Text style={[styles.statPillValue, { color }]}>{value}</Text>
         </View>
-
-        {/* Sparkline */}
-        <View style={{ marginTop: 8, marginBottom: 12 }}>
-          <Spark data={weekData} color={Colors.gold} w={HERO_W - 40} h={44} />
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <LinearGradient
-            colors={[Colors.goldDim, Colors.gold, Colors.goldBright]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.progressFill, { width: `${pctDisplay}%` }]}
-          />
-        </View>
-
-        {/* Mini stats row */}
-        <View style={styles.heroStats}>
-          <View style={styles.heroStatItem}>
-            <Text style={styles.heroStatValue}>{displayOrders}</Text>
-            <Text style={styles.heroStatLabel}>Orders</Text>
-          </View>
-          <View style={styles.heroStatDivider} />
-          <View style={styles.heroStatItem}>
-            <Text style={styles.heroStatValue}>₹{displayAvg}</Text>
-            <Text style={styles.heroStatLabel}>Avg Value</Text>
-          </View>
-          <View style={styles.heroStatDivider} />
-          <View style={styles.heroStatItem}>
-            <Text style={[styles.heroStatValue, { color: Colors.success }]}>
-              {pctDisplay}%
-            </Text>
-            <Text style={styles.heroStatLabel}>vs Target</Text>
-          </View>
-        </View>
-
-        {/* Glassmorphism border glow */}
-        <View style={styles.glassBorderTop} />
-        <View style={styles.glassBorderLeft} />
       </Animated.View>
-    </GestureDetector>
+    </TouchableOpacity>
   );
 }
 
-// ─── Floating Stat Pill ───────────────────────────────────────────────────────
-function StatPill({ label, value, color, sparkData, index }) {
-  const translateY = useSharedValue(20);
-  const opacity = useSharedValue(0);
+// ─── Order Status Donut Ring ──────────────────────────────────────────────────
+function OrderStatusRing({ pending, preparing, ready, completed }) {
+  const total = pending + preparing + ready + completed || 1;
 
-  useEffect(() => {
-    const delay = index * 120;
-    opacity.value = withDelay(
-      delay,
-      withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) })
-    );
-    translateY.value = withDelay(
-      delay,
-      withSpring(0, { damping: 18, stiffness: 180 })
-    );
-  }, []);
+  const segments = [
+    { label: 'Pending', count: pending, color: Colors.warning },
+    { label: 'Preparing', count: preparing, color: Colors.indigo },
+    { label: 'Ready', count: ready, color: Colors.success },
+    { label: 'Done', count: completed, color: Colors.text3 },
+  ];
 
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }],
-  }));
+  const SIZE = 140;
+  const STROKE = 18;
+  const r = (SIZE - STROKE) / 2;
+  const circ = 2 * Math.PI * r;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+
+  // Build arc segments
+  let offset = 0;
+  const arcs = segments.map((s) => {
+    const pct = s.count / total;
+    const dash = circ * pct;
+    const arc = { ...s, pct, dash, offset };
+    offset += dash;
+    return arc;
+  });
 
   return (
-    <Animated.View style={[styles.statPill, { borderColor: color + '30' }, animStyle]}>
-      <LinearGradient
-        colors={[color + '15', color + '05']}
-        style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
-      />
-      <View style={[styles.statPillDot, { backgroundColor: color }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.statPillLabel, { color: Colors.text3 }]}>{label}</Text>
-        <Text style={[styles.statPillValue, { color }]}>{value}</Text>
+    <View style={styles.donutRow}>
+      {/* Donut SVG */}
+      <View style={{ width: SIZE, height: SIZE }}>
+        <Svg width={SIZE} height={SIZE}>
+          {/* Track */}
+          <Circle
+            cx={cx} cy={cy} r={r}
+            stroke={Colors.surface2}
+            strokeWidth={STROKE}
+            fill="none"
+          />
+          {/* Segments */}
+          {arcs.map((arc, i) => (
+            arc.count > 0 && (
+              <Circle
+                key={i}
+                cx={cx} cy={cy} r={r}
+                stroke={arc.color}
+                strokeWidth={STROKE - 2}
+                fill="none"
+                strokeDasharray={`${arc.dash - 2} ${circ - (arc.dash - 2)}`}
+                strokeDashoffset={-(arc.offset)}
+                rotation="-90"
+                origin={`${cx},${cy}`}
+                strokeLinecap="round"
+              />
+            )
+          ))}
+        </Svg>
+        {/* Center label */}
+        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: Colors.text1 }}>{pending + preparing + ready}</Text>
+          <Text style={{ fontSize: 10, color: Colors.text3, fontWeight: '600' }}>Active</Text>
+        </View>
       </View>
-      <Spark data={sparkData} color={color} w={44} h={22} />
-    </Animated.View>
+
+      {/* Legend */}
+      <View style={styles.donutLegend}>
+        {segments.map((s, i) => (
+          <View key={i} style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+            <Text style={styles.legendLabel}>{s.label}</Text>
+            <Text style={[styles.legendCount, { color: s.color }]}>{s.count}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
-// ─── Animated Weekly Bar Chart ────────────────────────────────────────────────
-function WeeklyBars({ data = [] }) {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// ─── Revenue Bar Chart (7 bars, hourly) ───────────────────────────────────────
+function RevenueBarChart({ data = [] }) {
+  const HOURS = ['10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
   const max = Math.max(...data, 1);
   const CHART_H = 100;
-  const CHART_W = SCREEN_W - CARD_PAD * 2 - 32;
-  const barW = 26;
-  const totalBars = Math.min(data.length, 7);
-  const gap = CHART_W / totalBars;
+  const chartW = HERO_W;
+  const n = Math.min(data.length, 7);
+  const gap = chartW / n;
+  const barW = Math.max(gap * 0.5, 12);
 
-  const [activeBar, setActiveBar] = useState(data.length - 1);
-  const [barHeights, setBarHeights] = useState(new Array(totalBars).fill(0));
-
-  useEffect(() => {
-    // Staggered bar growth
-    data.slice(0, totalBars).forEach((v, i) => {
-      setTimeout(() => {
-        const bh = Math.max((v / max) * CHART_H, 4);
-        setBarHeights((prev) => {
-          const next = [...prev];
-          next[i] = bh;
-          return next;
-        });
-      }, i * 80);
-    });
-  }, [data.join(',')]);
-
-  const todayVal = data[data.length - 1] || 0;
+  const [activeIdx, setActiveIdx] = useState(n - 1);
 
   return (
     <View>
-      <Svg width={CHART_W} height={CHART_H + 40}>
+      <Svg width={chartW} height={CHART_H + 28}>
         <Defs>
-          {data.slice(0, totalBars).map((_, i) => (
-            <SvgGrad key={i} id={`bar${i}`} x1="0" y1="0" x2="0" y2="1">
+          {data.slice(0, n).map((_, i) => (
+            <SvgGrad key={i} id={`b${i}`} x1="0" y1="0" x2="0" y2="1">
               <Stop
                 offset="0"
-                stopColor={i === activeBar ? Colors.gold : Colors.indigo}
-                stopOpacity="1"
+                stopColor={i === activeIdx ? Colors.gold : Colors.indigo}
+                stopOpacity={i === activeIdx ? '1' : '0.6'}
               />
               <Stop
                 offset="1"
-                stopColor={i === activeBar ? Colors.goldDim : Colors.indigoDim}
-                stopOpacity="0.3"
+                stopColor={i === activeIdx ? Colors.goldDim : Colors.indigoDim}
+                stopOpacity="0.2"
               />
             </SvgGrad>
           ))}
         </Defs>
 
-        {data.slice(0, totalBars).map((v, i) => {
-          const bh = barHeights[i];
+        {data.slice(0, n).map((v, i) => {
+          const bh = Math.max((v / max) * CHART_H, 4);
           const x = i * gap + (gap - barW) / 2;
-          const isActive = i === activeBar;
+          const isActive = i === activeIdx;
           return (
             <G key={i}>
-              {/* Bar shadow */}
               {isActive && (
                 <Rect
-                  x={x + 2}
-                  y={CHART_H - bh + 4}
-                  width={barW}
-                  height={bh}
-                  rx={6}
-                  fill={Colors.gold}
-                  opacity={0.2}
+                  x={x + 2} y={CHART_H - bh + 4}
+                  width={barW} height={bh}
+                  rx={6} fill={Colors.gold} opacity="0.15"
                 />
               )}
-              {/* Bar */}
               <Rect
-                x={x}
-                y={CHART_H - bh}
-                width={barW}
-                height={bh}
+                x={x} y={CHART_H - bh}
+                width={barW} height={bh}
                 rx={6}
-                fill={`url(#bar${i})`}
-                onPress={() => setActiveBar(i)}
+                fill={`url(#b${i})`}
+                onPress={() => setActiveIdx(i)}
               />
-              {/* Day label */}
               <SvgText
-                x={x + barW / 2}
-                y={CHART_H + 18}
+                x={x + barW / 2} y={CHART_H + 18}
                 textAnchor="middle"
-                fontSize={10}
+                fontSize={9}
                 fill={isActive ? Colors.gold : Colors.text3}
                 fontWeight={isActive ? '700' : '400'}
               >
-                {days[i] || `D${i + 1}`}
+                {HOURS[i] || ''}
               </SvgText>
             </G>
           );
         })}
       </Svg>
 
-      {/* Tooltip for active bar */}
-      {activeBar !== null && data[activeBar] !== undefined && (
+      {/* Active bar value tooltip */}
+      {activeIdx !== null && data[activeIdx] !== undefined && (
         <View
           style={[
             styles.barTooltip,
             {
-              left:
-                activeBar * (CHART_W / totalBars) +
-                (CHART_W / totalBars - barW) / 2 -
-                16,
+              left: activeIdx * gap + (gap - barW) / 2 - 12,
             },
           ]}
         >
-          <LinearGradient
-            colors={[Colors.surface2, Colors.surface]}
-            style={[StyleSheet.absoluteFill, { borderRadius: 8 }]}
-          />
-          <Text style={styles.tooltipText}>{fmt(data[activeBar])}</Text>
+          <Text style={styles.tooltipText}>{fmt(data[activeIdx])}</Text>
         </View>
       )}
     </View>
   );
 }
 
-// ─── Stat bar (channel mix) ───────────────────────────────────────────────────
-function StatBar({ label, pct = 0, color, delay = 0 }) {
-  const [width, setWidth] = useState(0);
+// ─── Top Dishes List ──────────────────────────────────────────────────────────
+const RANK_COLORS = [Colors.gold, Colors.text2, Colors.warning];
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setWidth(Math.round(pct * 100));
-    }, delay + 200);
-    return () => clearTimeout(t);
-  }, [pct]);
+function DishItem({ item, index }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <View style={{ marginBottom: 14 }}>
-      <View style={styles.statBarRow}>
-        <Text style={[styles.statBarLabel, { color: Colors.text2 }]}>{label}</Text>
-        <Text style={[styles.statBarPct, { color }]}>{Math.round(pct * 100)}%</Text>
-      </View>
-      <View style={styles.statTrack}>
-        <LinearGradient
-          colors={[color + 'aa', color]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.statFill, { width: `${width}%` }]}
-        />
-      </View>
-    </View>
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => { scale.value = withSpring(0.97, { damping: 20 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 18 }); }}
+    >
+      <Animated.View style={[styles.dishRow, animStyle]}>
+        <View style={[styles.rankBadge, { borderColor: (RANK_COLORS[index] || Colors.text3) + '50' }]}>
+          <Text style={[styles.rankText, { color: RANK_COLORS[index] || Colors.text3 }]}>
+            #{index + 1}
+          </Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.dishName}>{item.name}</Text>
+          <Text style={styles.dishCount}>{item.count ?? item.total_quantity ?? item.order_count ?? 0} orders</Text>
+        </View>
+        <Text style={styles.dishRevenue}>{fmt(item.revenue ?? item.total_revenue ?? item.amount)}</Text>
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
-// ─── Order Card with slide-in + swipe gesture ─────────────────────────────────
-const STATUS_COLORS = {
-  pending: Colors.warning,
-  preparing: Colors.indigo,
-  ready: Colors.success,
-  delivered: Colors.text3,
-  cancelled: Colors.error,
-};
+// ─── Quick Actions grid ───────────────────────────────────────────────────────
+const QUICK_ACTIONS = [
+  { label: 'View Orders', icon: '📋', color: Colors.indigo },
+  { label: 'Add Item', icon: '➕', color: Colors.success },
+  { label: 'Print Report', icon: '🖨️', color: Colors.gold },
+  { label: 'Live Monitor', icon: '📡', color: Colors.warning },
+];
 
-const STATUS_NEXT = {
-  pending: 'preparing',
-  preparing: 'ready',
-  ready: 'delivered',
-  delivered: 'delivered',
-  cancelled: 'cancelled',
-};
-
-function OrderCard({ item: o, onStatusChange, index }) {
-  const translateX = useSharedValue(SCREEN_W);
-  const swipeX = useSharedValue(0);
-  const swipeScale = useSharedValue(1);
-  const swipeOpacity = useSharedValue(0);
-
-  const status = (o.status || 'pending').toLowerCase();
-  const statusColor = STATUS_COLORS[status] || Colors.text3;
-  const nextStatus = STATUS_NEXT[status];
-  const canAdvance = nextStatus !== status;
-
-  useEffect(() => {
-    translateX.value = withDelay(
-      index * 60,
-      withSpring(0, { damping: 20, stiffness: 200 })
-    );
-  }, []);
-
-  const swipeGesture = Gesture.Pan()
-    .activeOffsetX([10, SCREEN_W])
-    .onUpdate((e) => {
-      if (!canAdvance) return;
-      swipeX.value = Math.max(0, Math.min(e.translationX, 80));
-      swipeOpacity.value = interpolate(swipeX.value, [0, 60], [0, 1]);
-    })
-    .onEnd((e) => {
-      if (!canAdvance) {
-        swipeX.value = withSpring(0);
-        return;
-      }
-      if (e.translationX > 55) {
-        swipeX.value = withSpring(0);
-        swipeOpacity.value = withTiming(0);
-        runOnJS(onStatusChange)(o.id || o._id, status);
-      } else {
-        swipeX.value = withSpring(0);
-        swipeOpacity.value = withTiming(0);
-      }
-    });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateX: swipeX.value * 0.4 },
-    ],
-  }));
-
-  const actionStyle = useAnimatedStyle(() => ({
-    opacity: swipeOpacity.value,
-    transform: [{ scale: interpolate(swipeOpacity.value, [0, 1], [0.8, 1]) }],
-  }));
-
-  const total = Number(o.total_amount || o.total || 0);
-  const orderId = String(o.id || o._id || '').slice(-6);
-  const itemCount = o.items_count ?? o.items?.length ?? '–';
-  const tableOrType = o.table_number ? `Table ${o.table_number}` : o.order_type || 'Dine-in';
+function QuickAction({ label, icon, color, onPress }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <GestureDetector gesture={swipeGesture}>
-      <Animated.View style={[styles.orderCardWrap, cardStyle]}>
-        {/* Swipe action indicator */}
-        <Animated.View style={[styles.swipeAction, actionStyle]}>
-          <LinearGradient
-            colors={[STATUS_COLORS[nextStatus] + '30', STATUS_COLORS[nextStatus] + '10']}
-            style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
-          />
-          <Text style={[styles.swipeActionText, { color: STATUS_COLORS[nextStatus] }]}>
-            → {nextStatus}
-          </Text>
-        </Animated.View>
-
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => { scale.value = withSpring(0.93, { damping: 20 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 16 }); }}
+      onPress={onPress}
+      style={{ flex: 1 }}
+    >
+      <Animated.View style={[styles.quickAction, { borderColor: color + '30' }, animStyle]}>
         <LinearGradient
-          colors={[Colors.surface, Colors.surface + 'F0']}
+          colors={[color + '18', color + '06']}
           style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
         />
-
-        <View style={styles.orderCard}>
-          {/* Status dot */}
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.orderTitle}>{tableOrType}</Text>
-            <Text style={styles.orderSub}>
-              #{orderId} · {itemCount} items
-            </Text>
-          </View>
-
-          <View style={{ alignItems: 'flex-end', gap: 5 }}>
-            <Text style={styles.orderAmount}>₹{total.toFixed(0)}</Text>
-            <TouchableOpacity
-              onPress={() => onStatusChange(o.id || o._id, status)}
-              style={[
-                styles.statusPill,
-                {
-                  borderColor: statusColor + '50',
-                  backgroundColor: statusColor + '18',
-                },
-              ]}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.statusPillDot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusPillText, { color: statusColor }]}>
-                {status}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Text style={styles.quickActionIcon}>{icon}</Text>
+        <Text style={[styles.quickActionLabel, { color }]}>{label}</Text>
       </Animated.View>
-    </GestureDetector>
-  );
-}
-OrderCard.displayName = 'OrderCard';
-const MemoOrderCard = React.memo(OrderCard);
-
-// ─── Spinning logo for pull-to-refresh ───────────────────────────────────────
-function RefreshLogo({ refreshing }) {
-  const rotation = useSharedValue(0);
-
-  useEffect(() => {
-    if (refreshing) {
-      rotation.value = withRepeat(
-        withTiming(360, { duration: 800, easing: Easing.linear }),
-        -1,
-        false
-      );
-    } else {
-      cancelAnimation(rotation);
-      rotation.value = withTiming(0, { duration: 200 });
-    }
-  }, [refreshing]);
-
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
-
-  return (
-    <Animated.View style={[styles.refreshLogo, spinStyle]}>
-      <LinearGradient
-        colors={[Colors.gold, Colors.goldBright]}
-        style={styles.refreshLogoInner}
-      >
-        <Text style={styles.refreshLogoText}>M</Text>
-      </LinearGradient>
-    </Animated.View>
+    </TouchableOpacity>
   );
 }
 
-// ─── Dashboard skeleton ───────────────────────────────────────────────────────
+// ─── Skeleton loading layout ──────────────────────────────────────────────────
 function DashboardSkeleton({ insets }) {
   return (
     <ScrollView
       contentContainerStyle={{
         padding: CARD_PAD,
-        gap: 12,
-        paddingTop: insets.top + 80,
+        gap: 14,
+        paddingTop: insets.top + 76,
+        paddingBottom: 40,
       }}
       showsVerticalScrollIndicator={false}
     >
-      <Skeleton w="100%" h={200} radius={20} />
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} w={(SCREEN_W - 48) / 3} h={72} radius={14} />
+      {/* Header skeleton */}
+      <SkeletonBox width="60%" height={22} borderRadius={6} />
+      <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginTop: -6 }} />
+
+      {/* Hero card */}
+      <SkeletonBox width="100%" height={200} borderRadius={20} />
+
+      {/* Stats pills row */}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <SkeletonBox key={i} width={74} height={64} borderRadius={14} />
         ))}
       </View>
-      <Skeleton w="100%" h={160} radius={14} style={{ marginTop: 8 }} />
-      <Skeleton w="100%" h={130} radius={14} />
-      {[0, 1, 2, 3].map((i) => (
-        <Skeleton key={i} w="100%" h={68} radius={14} />
+
+      {/* Order status ring */}
+      <SkeletonBox width="100%" height={160} borderRadius={16} />
+
+      {/* Bar chart */}
+      <SkeletonBox width="100%" height={148} borderRadius={16} />
+
+      {/* Top dishes */}
+      {[0, 1, 2].map((i) => (
+        <SkeletonBox key={i} width="100%" height={60} borderRadius={12} />
       ))}
+
+      {/* Quick actions */}
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <SkeletonBox width="48%" height={80} borderRadius={14} />
+        <SkeletonBox width="48%" height={80} borderRadius={14} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <SkeletonBox width="48%" height={80} borderRadius={14} />
+        <SkeletonBox width="48%" height={80} borderRadius={14} />
+      </View>
     </ScrollView>
-  );
-}
-
-// ─── LIVE indicator ───────────────────────────────────────────────────────────
-function LiveDot() {
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.6, { duration: 600, easing: Easing.out(Easing.quad) }),
-        withTiming(1, { duration: 600, easing: Easing.in(Easing.quad) })
-      ),
-      -1,
-      false
-    );
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 600 }),
-        withTiming(1, { duration: 600 })
-      ),
-      -1,
-      false
-    );
-    return () => {
-      cancelAnimation(scale);
-      cancelAnimation(opacity);
-    };
-  }, []);
-
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <View style={{ width: 10, height: 10, alignItems: 'center', justifyContent: 'center' }}>
-      <View
-        style={{
-          position: 'absolute',
-          width: 10,
-          height: 10,
-          borderRadius: 5,
-          backgroundColor: Colors.success + '40',
-        }}
-      />
-      <Animated.View
-        style={[
-          {
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: Colors.success,
-          },
-          dotStyle,
-        ]}
-      />
-    </View>
   );
 }
 
@@ -851,273 +607,209 @@ function SectionHeader({ title, subtitle }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {subtitle ? (
-        <Text style={styles.sectionSubtitle}>{subtitle}</Text>
-      ) : null}
+      {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
     </View>
+  );
+}
+
+// ─── Notification Bell ────────────────────────────────────────────────────────
+function NotifBell({ count = 0 }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPressIn={() => { scale.value = withSpring(0.88, { damping: 15 }); }}
+      onPressOut={() => { scale.value = withSpring(1, { damping: 12 }); }}
+      style={styles.bellBtn}
+    >
+      <Animated.View style={animStyle}>
+        <Text style={{ fontSize: 20 }}>🔔</Text>
+        {count > 0 && (
+          <View style={styles.bellBadge}>
+            <Text style={styles.bellBadgeText}>{count > 9 ? '9+' : count}</Text>
+          </View>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
-  const scrollRef = useRef(null);
+  const { user } = useAuth();
 
   const {
-    data: dashData,
-    isLoading: dashLoading,
-    refetch: refetchDash,
+    data: rawData,
+    isLoading,
+    refetch,
     isRefetching,
   } = useDashboard();
 
-  const {
-    data: ordersData,
-    isLoading: ordersLoading,
-    refetch: refetchOrders,
-  } = useOrders({ limit: 30, status: 'active' });
+  const onRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
-  const { mutate: updateStatus } = useUpdateOrderStatus();
+  // Resolve data — use API response if valid, else MOCK
+  const d = useMemo(() => {
+    const api = rawData?.data || rawData || {};
+    // If API returned meaningful data, prefer it; otherwise fall through to MOCK
+    const hasData =
+      api.todayRevenue != null ||
+      api.today_revenue != null ||
+      api.totalOrders != null ||
+      api.total_orders != null;
+    if (!hasData) return MOCK;
+    return {
+      todayRevenue: Number(api.todayRevenue ?? api.today_revenue ?? MOCK.todayRevenue),
+      totalOrders: Number(api.totalOrders ?? api.total_orders ?? MOCK.totalOrders),
+      pendingOrders: Number(api.pendingOrders ?? api.pending_orders ?? MOCK.pendingOrders),
+      preparingOrders: Number(api.preparingOrders ?? api.preparing_orders ?? MOCK.preparingOrders),
+      readyOrders: Number(api.readyOrders ?? api.ready_orders ?? MOCK.readyOrders),
+      completedOrders: Number(api.completedOrders ?? api.completed_orders ?? MOCK.completedOrders),
+      avgOrderValue: Number(api.avgOrderValue ?? api.avg_order_value ?? MOCK.avgOrderValue),
+      topItems: api.topItems ?? api.top_items ?? MOCK.topItems,
+      hourlyRevenue: api.hourlyRevenue ?? api.hourly_revenue ?? MOCK.hourlyRevenue,
+      revenueGrowth: Number(api.revenueGrowth ?? api.revenue_growth ?? MOCK.revenueGrowth),
+    };
+  }, [rawData]);
 
-  const onRefresh = useCallback(async () => {
-    await Promise.all([refetchDash(), refetchOrders()]);
-  }, [refetchDash, refetchOrders]);
+  const notifCount = d.pendingOrders;
 
-  const handleStatusChange = useCallback(
-    (orderId, currentStatus) => {
-      const next = STATUS_NEXT[currentStatus.toLowerCase()] || 'pending';
-      updateStatus({ orderId, status: next });
-    },
-    [updateStatus]
-  );
-
-  // ── Extract data ──────────────────────────────────────────────────────────
-  const d = useMemo(() => dashData?.data || dashData || {}, [dashData]);
-
-  const revenue = Number(d.today_revenue || d.revenue || 0);
-  const orders = Number(d.total_orders || d.orders_count || 0);
-  const avgOrder = orders > 0 ? revenue / orders : 0;
-  const activeOrders = Number(d.active_orders || d.pending_orders || 0);
-  const revenueTarget = Number(d.revenue_target || 50000);
-  const revenuePct = Math.min(revenue / revenueTarget, 1);
-
-  const weekData = useMemo(
-    () => d.weekly_revenue || [4200, 5800, 3900, 7100, 6300, 8200, revenue || 5000],
-    [d.weekly_revenue, revenue]
-  );
-
-  const orderList = useMemo(
-    () => ordersData?.data || ordersData?.orders || ordersData || [],
-    [ordersData]
-  );
-
-  const satisfaction = Number(d.satisfaction || 0.88);
-  const tableTurn = Number(d.table_turn || 0.72);
-  const dineInPct = Number(d.dine_in_pct || 0.55);
-  const takeawayPct = Number(d.takeaway_pct || 0.28);
-  const deliveryPct = Number(d.delivery_pct || 0.17);
-
-  // Mini sparklines for stat pills
-  const weekMini = weekData.slice(-5);
-  const orderMini = weekData.map((v) => v * 0.08);
-  const avgMini = weekData.map((v) => v * 0.012);
-
-  if (dashLoading && !d.today_revenue) {
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.bg }}>
+      <View style={styles.root}>
         <DashboardSkeleton insets={insets} />
       </View>
     );
   }
 
-  const renderOrderItem = ({ item, index }) => (
-    <MemoOrderCard
-      item={item}
-      onStatusChange={handleStatusChange}
-      index={index}
-    />
-  );
-
-  const renderSeparator = () => <View style={{ height: 8 }} />;
-
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.bg }}>
-        {/* ── Fixed Header ─────────────────────────────────────────────── */}
-        <LinearGradient
-          colors={['#0D1F3C', '#0A1628', Colors.bg + 'F8']}
-          style={[styles.header, { paddingTop: insets.top + 8 }]}
-        >
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.brandLabel}>MS RM OWNER</Text>
-              <Text style={styles.restaurantName}>
-                {user?.name || user?.restaurant_name || 'Dashboard'}
-              </Text>
-            </View>
-            <View style={styles.headerRight}>
-              <View style={styles.liveChip}>
-                <LiveDot />
-                <Text style={styles.liveText}>LIVE</Text>
-              </View>
-              <TouchableOpacity onPress={logout} style={styles.exitBtn} activeOpacity={0.7}>
-                <Text style={styles.exitText}>Exit</Text>
-              </TouchableOpacity>
-            </View>
+    <View style={styles.root}>
+      {/* ── Fixed Header ───────────────────────────────────────────────────── */}
+      <LinearGradient
+        colors={['#0D1F3C', '#0A1628', Colors.bg + 'F8']}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerGreeting}>
+              {getGreeting()}, Owner 👋
+            </Text>
+            <Text style={styles.headerDate}>{formatDate()}</Text>
           </View>
-        </LinearGradient>
+          <NotifBell count={notifCount} />
+        </View>
+      </LinearGradient>
 
-        {/* ── Scrollable Body ──────────────────────────────────────────── */}
-        <ScrollView
-          ref={scrollRef}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={onRefresh}
-              tintColor="transparent"
-              title=""
-              progressViewOffset={insets.top + 56}
-            />
-          }
-          contentContainerStyle={{
-            paddingTop: 8,
-            paddingBottom: insets.bottom + 90,
-          }}
-        >
-          {/* Pull indicator */}
-          {isRefetching && (
-            <View style={styles.refreshRow}>
-              <RefreshLogo refreshing={isRefetching} />
-            </View>
-          )}
+      {/* ── Scrollable Body ────────────────────────────────────────────────── */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+            progressViewOffset={insets.top + 60}
+          />
+        }
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 96 },
+        ]}
+      >
+        {/* 1. Hero Revenue Card */}
+        <View style={styles.section}>
+          <HeroRevenueCard
+            revenue={d.todayRevenue}
+            totalOrders={d.totalOrders}
+            avgOrderValue={d.avgOrderValue}
+            revenueGrowth={d.revenueGrowth}
+            hourlyRevenue={d.hourlyRevenue}
+          />
+        </View>
 
-          {/* ── Floating Stat Pills ───────────────────────────────────── */}
-          <View style={styles.pillsRow}>
-            <StatPill
-              label="Revenue"
-              value={fmt(revenue)}
-              color={Colors.gold}
-              sparkData={weekMini}
-              index={0}
-            />
-            <StatPill
-              label="Orders"
-              value={String(orders)}
-              color={Colors.indigo}
-              sparkData={orderMini}
-              index={1}
-            />
-            <StatPill
-              label="Avg Order"
-              value={`₹${Math.round(avgOrder)}`}
-              color={Colors.success}
-              sparkData={avgMini}
-              index={2}
+        {/* 2. Stats Row — 4 pills */}
+        <View style={{ marginTop: 16 }}>
+          <StatsRow
+            totalOrders={d.totalOrders}
+            pendingOrders={d.pendingOrders}
+            avgOrderValue={d.avgOrderValue}
+            completedOrders={d.completedOrders}
+          />
+        </View>
+
+        {/* 3. Order Status Ring */}
+        <View style={styles.section}>
+          <SectionHeader title="Order Status" subtitle="Live breakdown" />
+          <View style={styles.card}>
+            <OrderStatusRing
+              pending={d.pendingOrders}
+              preparing={d.preparingOrders}
+              ready={d.readyOrders}
+              completed={d.completedOrders}
             />
           </View>
+        </View>
 
-          {/* ── 3D Hero Revenue Card ──────────────────────────────────── */}
-          <View style={styles.section}>
-            <HeroRevenueCard
-              revenue={revenue}
-              orders={orders}
-              avgOrder={avgOrder}
-              revenuePct={revenuePct}
-              weekData={weekData}
+        {/* 4. Revenue Bar Chart */}
+        <View style={styles.section}>
+          <SectionHeader title="Hourly Revenue" subtitle="Tap a bar for value" />
+          <View style={styles.card}>
+            <RevenueBarChart data={d.hourlyRevenue} />
+          </View>
+        </View>
+
+        {/* 5. Top Dishes */}
+        <View style={styles.section}>
+          <SectionHeader title="Top Dishes" subtitle="Today's bestsellers" />
+          <View style={styles.card}>
+            <FlashList
+              data={d.topItems}
+              estimatedItemSize={64}
+              keyExtractor={(item, i) => item.name + i}
+              renderItem={({ item, index }) => (
+                <DishItem item={item} index={index} />
+              )}
+              ItemSeparatorComponent={() => (
+                <View style={{ height: 1, backgroundColor: Colors.border, marginVertical: 4 }} />
+              )}
+              scrollEnabled={false}
             />
           </View>
+        </View>
 
-          {/* ── Ring Gauges ───────────────────────────────────────────── */}
-          <View style={styles.section}>
-            <SectionHeader title="Performance" subtitle="Live metrics" />
-            <View style={styles.card}>
-              <View style={styles.ringsRow}>
-                <RingGauge
-                  pct={revenuePct}
-                  value={`${Math.round(revenuePct * 100)}%`}
-                  label="Revenue"
-                  color={Colors.gold}
-                />
-                <RingGauge
-                  pct={Math.min(orders / 100, 1)}
-                  value={String(orders)}
-                  label="Orders"
-                  color={Colors.indigo}
-                />
-                <RingGauge
-                  pct={satisfaction}
-                  value={`${Math.round(satisfaction * 100)}%`}
-                  label="Rating"
-                  color={Colors.success}
-                />
-                <RingGauge
-                  pct={tableTurn}
-                  value={`${Math.round(tableTurn * 100)}%`}
-                  label="Tables"
-                  color={Colors.warning}
-                />
-              </View>
+        {/* 6. Quick Actions 2×2 grid */}
+        <View style={styles.section}>
+          <SectionHeader title="Quick Actions" />
+          <View style={styles.quickActionsGrid}>
+            <View style={styles.quickActionsRow}>
+              {QUICK_ACTIONS.slice(0, 2).map((a, i) => (
+                <QuickAction key={i} {...a} onPress={() => {}} />
+              ))}
+            </View>
+            <View style={styles.quickActionsRow}>
+              {QUICK_ACTIONS.slice(2, 4).map((a, i) => (
+                <QuickAction key={i} {...a} onPress={() => {}} />
+              ))}
             </View>
           </View>
-
-          {/* ── Weekly Bar Chart ──────────────────────────────────────── */}
-          <View style={styles.section}>
-            <SectionHeader title="Weekly Revenue" subtitle="Tap a bar for details" />
-            <View style={styles.card}>
-              <WeeklyBars data={weekData} />
-            </View>
-          </View>
-
-          {/* ── Channel Mix ───────────────────────────────────────────── */}
-          <View style={styles.section}>
-            <SectionHeader title="Channel Mix" />
-            <View style={styles.card}>
-              <StatBar label="Dine-in" pct={dineInPct} color={Colors.indigo} delay={0} />
-              <StatBar label="Takeaway" pct={takeawayPct} color={Colors.gold} delay={150} />
-              <StatBar label="Delivery" pct={deliveryPct} color={Colors.success} delay={300} />
-            </View>
-          </View>
-
-          {/* ── Live Orders ───────────────────────────────────────────── */}
-          <View style={styles.section}>
-            <SectionHeader
-              title="Live Orders"
-              subtitle={
-                activeOrders > 0
-                  ? `${activeOrders} active · swipe right to advance`
-                  : 'Swipe right to advance status'
-              }
-            />
-            {ordersLoading ? (
-              <View style={{ gap: 8 }}>
-                {[0, 1, 2, 3].map((i) => (
-                  <Skeleton key={i} w="100%" h={68} radius={14} />
-                ))}
-              </View>
-            ) : orderList.length === 0 ? (
-              <View style={[styles.card, styles.emptyCard]}>
-                <Text style={styles.emptyIcon}>🍽</Text>
-                <Text style={styles.emptyText}>No active orders right now</Text>
-                <Text style={styles.emptySubtext}>New orders will appear here in real-time</Text>
-              </View>
-            ) : (
-              <FlashList
-                data={orderList}
-                estimatedItemSize={76}
-                keyExtractor={(o) => String(o.id || o._id || Math.random())}
-                renderItem={renderOrderItem}
-                ItemSeparatorComponent={renderSeparator}
-                scrollEnabled={false}
-              />
-            )}
-          </View>
-        </ScrollView>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+  },
+
   // Header
   header: {
     paddingHorizontal: CARD_PAD,
@@ -1126,115 +818,54 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
   },
-  brandLabel: {
-    fontSize: 10,
+  headerGreeting: {
+    fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 2,
-    color: Colors.gold,
-    marginBottom: 2,
-  },
-  restaurantName: {
-    fontSize: 20,
-    fontWeight: '800',
     color: Colors.text1,
     letterSpacing: -0.3,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  headerDate: {
+    fontSize: 12,
+    color: Colors.text3,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  liveChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.successBg,
+
+  // Notification bell
+  bellBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: Colors.success + '30',
-  },
-  liveText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: Colors.success,
-    letterSpacing: 1.2,
-  },
-  exitBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
     backgroundColor: Colors.surface2,
     borderWidth: 1,
     borderColor: Colors.border,
-  },
-  exitText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.text3,
-  },
-
-  // Pull to refresh
-  refreshRow: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  refreshLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  refreshLogoInner: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  refreshLogoText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.primary,
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: Colors.error,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.textWhite,
   },
 
-  // Stat pills row
-  pillsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: CARD_PAD,
-    marginBottom: 4,
-    marginTop: 4,
-  },
-  statPill: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    overflow: 'hidden',
-    minHeight: 64,
-  },
-  statPillDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statPillLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  statPillValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: -0.2,
+  // Scroll
+  scrollContent: {
+    paddingTop: 8,
   },
 
   // Layout
@@ -1270,63 +901,63 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 3D Hero card
-  heroCard3d: {
+  // Hero Card
+  heroCard: {
     width: HERO_W,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
     borderColor: Colors.goldDim + '50',
     overflow: 'hidden',
-    // Shadow
     shadowColor: Colors.gold,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 12,
   },
-  heroTopRow: {
+  heroGrid: {
+    position: 'absolute',
+    inset: 0,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    justifyContent: 'space-around',
+    opacity: 0.06,
+  },
+  heroGridLine: {
+    width: 1,
+    flex: 1,
+    backgroundColor: Colors.gold,
+    marginHorizontal: 20,
   },
   heroEyebrow: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 2,
     color: Colors.text3,
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  heroRevenueRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   heroRevenue: {
-    fontSize: 40,
+    fontSize: 38,
     fontWeight: '900',
     color: Colors.gold,
     letterSpacing: -1.5,
     lineHeight: 44,
   },
-  targetBadge: {
-    backgroundColor: Colors.goldDim + '30',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  growthBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.goldDim + '50',
+    marginBottom: 4,
   },
-  targetBadgeText: {
+  growthText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.gold,
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: Colors.surface2,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
   },
   heroStats: {
     flexDirection: 'row',
@@ -1340,10 +971,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroStatValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: Colors.text1,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   heroStatLabel: {
     fontSize: 10,
@@ -1354,10 +985,9 @@ const styles = StyleSheet.create({
   },
   heroStatDivider: {
     width: 1,
-    height: 32,
+    height: 28,
     backgroundColor: Colors.border,
   },
-  // Glassmorphism edges
   glassBorderTop: {
     position: 'absolute',
     top: 0,
@@ -1377,35 +1007,83 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
 
-  // Ring gauges
-  ringsRow: {
+  // Stats pills
+  statsRowContent: {
+    paddingHorizontal: CARD_PAD,
+    gap: 8,
+  },
+  statPill: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 6,
-  },
-  ringCenter: {
-    position: 'absolute',
-    inset: 0,
-    justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
+    overflow: 'hidden',
+    minWidth: 90,
+    minHeight: 64,
   },
-  ringLabel: {
-    fontSize: 10,
+  statPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statPillLabel: {
+    fontSize: 9,
     fontWeight: '600',
-    marginTop: 6,
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: Colors.text3,
+    marginBottom: 2,
+  },
+  statPillValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+
+  // Donut chart
+  donutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  donutLegend: {
+    flex: 1,
+    gap: 10,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.text2,
+  },
+  legendCount: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
 
   // Bar chart tooltip
   barTooltip: {
     position: 'absolute',
-    top: -32,
+    top: -28,
+    backgroundColor: Colors.surface2,
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border,
-    overflow: 'hidden',
   },
   tooltipText: {
     fontSize: 11,
@@ -1413,131 +1091,70 @@ const styles = StyleSheet.create({
     color: Colors.gold,
   },
 
-  // Stat bars
-  statBarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  statBarLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  statBarPct: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  statTrack: {
-    height: 6,
-    backgroundColor: Colors.surface2,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  statFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-
-  // Order cards
-  orderCardWrap: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  swipeAction: {
-    position: 'absolute',
-    inset: 0,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    paddingLeft: 20,
-    borderRadius: 14,
-    overflow: 'hidden',
-    zIndex: 0,
-  },
-  swipeActionText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  orderCard: {
+  // Top dishes
+  dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    zIndex: 1,
+    paddingVertical: 10,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
-    elevation: 2,
+  rankBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface2,
   },
-  orderTitle: {
+  rankText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  dishName: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.text1,
     letterSpacing: -0.1,
   },
-  orderSub: {
+  dishCount: {
     fontSize: 11,
     color: Colors.text3,
-    marginTop: 2,
     fontWeight: '500',
+    marginTop: 1,
   },
-  orderAmount: {
-    fontSize: 16,
+  dishRevenue: {
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.gold,
     letterSpacing: -0.3,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  statusPillDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
 
-  // Empty state
-  emptyCard: {
+  // Quick actions
+  quickActionsGrid: {
+    gap: 10,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickAction: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
     alignItems: 'center',
-    paddingVertical: 32,
-    gap: 8,
+    gap: 6,
+    overflow: 'hidden',
+    minHeight: 80,
+    justifyContent: 'center',
   },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 4,
+  quickActionIcon: {
+    fontSize: 22,
   },
-  emptyText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text2,
-  },
-  emptySubtext: {
+  quickActionLabel: {
     fontSize: 12,
-    color: Colors.text3,
+    fontWeight: '700',
+    letterSpacing: -0.1,
     textAlign: 'center',
   },
 });

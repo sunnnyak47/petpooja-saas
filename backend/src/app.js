@@ -176,6 +176,7 @@ app.get('/api', (req, res) => {
         headoffice: '/api/ho',
         superadmin: '/api/superadmin',
         discounts: '/api/discounts',
+        dashboard: '/api/dashboard',
       },
     },
     message: 'MS-RM Restaurant Management API — Welcome',
@@ -231,6 +232,8 @@ const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
 app.use('/api/whatsapp', whatsappRoutes);
 const reservationRoutes = require('./modules/reservations/reservations.routes');
 app.use('/api/reservations', reservationRoutes);
+const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
+app.use('/api/dashboard', dashboardRoutes);
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);
@@ -318,6 +321,66 @@ async function startApp() {
   } catch (err) {
     logger.error('Failed to initialize Socket.io:', err.message);
   }
+
+  // ── Native WebSocket server (wss://.../ws?token=JWT) ────────────────────
+  try {
+    const { WebSocketServer } = require('ws');
+    const jwt = require('jsonwebtoken');
+
+    const wss = new WebSocketServer({ server, path: '/ws' });
+
+    wss.on('connection', (ws, req) => {
+      try {
+        const url = new URL(req.url, 'http://localhost');
+        const token = url.searchParams.get('token');
+        if (!token) { ws.close(4001, 'Missing token'); return; }
+
+        const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+        const decoded = jwt.verify(token, secret);
+        ws.userId = decoded.id || decoded.sub;
+        ws.outletId = decoded.outlet_id;
+        ws.restaurantId = decoded.restaurant_id || decoded.headOfficeId;
+      } catch (err) {
+        ws.close(4003, 'Invalid token');
+        return;
+      }
+
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
+      ws.on('close', () => { /* connection removed automatically from wss.clients */ });
+      ws.on('error', (err) => logger.warn('WS client error:', err.message));
+
+      ws.send(JSON.stringify({ type: 'CONNECTED', timestamp: Date.now() }));
+      logger.info(`WS connected: user=${ws.userId} outlet=${ws.outletId}`);
+    });
+
+    // Heartbeat — terminate stale connections every 30 s
+    const heartbeat = setInterval(() => {
+      wss.clients.forEach((ws) => {
+        if (!ws.isAlive) return ws.terminate();
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, 30000);
+
+    wss.on('close', () => clearInterval(heartbeat));
+
+    // Global broadcaster — available to controllers via global.broadcastOrderUpdate(order)
+    global.broadcastOrderUpdate = (order) => {
+      const payload = JSON.stringify({ type: 'ORDER_UPDATE', data: order });
+      wss.clients.forEach((ws) => {
+        // Scope broadcast to the same outlet if possible
+        if (ws.readyState === 1 && (!ws.outletId || ws.outletId === order.outlet_id)) {
+          ws.send(payload);
+        }
+      });
+    };
+
+    logger.info('Native WebSocket server initialised at /ws');
+  } catch (err) {
+    logger.error('Failed to initialise WebSocket server:', err.message);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   server.listen(appConfig.port, () => {
     logger.info(`🚀 ${appConfig.name} API running on port ${appConfig.port} [${appConfig.env}]`);
