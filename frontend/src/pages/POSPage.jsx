@@ -17,10 +17,10 @@ import {
   Leaf, Drumstick, Egg, Star, X, ClipboardList, Users, Pause, UserPlus,
   SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine,
   LayoutGrid, Utensils, Mic, Printer, AlertCircle, Package, Bike, UtensilsCrossed,
-  Phone, ChevronDown, Keyboard,
+  Phone, ChevronDown, Keyboard, Globe,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
-import useVoiceOrder from '../hooks/useVoiceOrder';
+import useVoiceOrder, { VOICE_LANGUAGES } from '../hooks/useVoiceOrder';
 import Modal from '../components/Modal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
@@ -44,6 +44,7 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState('menu'); // 'menu' or 'tables'
   const [voiceText, setVoiceText] = useState('');
   const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [voiceLang, setVoiceLang] = useState('en-IN');
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   
   // UI states
@@ -55,7 +56,7 @@ export default function POSPage() {
   const [showEbill, setShowEbill] = useState(false);
   const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [showBillPreview, setShowBillPreview] = useState(false);
-  const voice = useVoiceOrder();
+  const voice = useVoiceOrder(voiceLang);
   const [billedOrder, setBilledOrder] = useState(null);
   const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
 
@@ -582,6 +583,20 @@ export default function POSPage() {
               <Mic className="w-4 h-4" />
               <span>{voice.isListening ? 'Listening…' : voice.isThinking ? 'Processing…' : 'Voice'}</span>
             </button>
+            {/* Language selector for voice */}
+            <div className="relative shrink-0" title="Voice language">
+              <Globe className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: 'var(--text-secondary)' }} />
+              <select
+                value={voiceLang}
+                onChange={(e) => setVoiceLang(e.target.value)}
+                className="pl-7 pr-2 py-2.5 rounded-xl text-xs font-medium border outline-none appearance-none cursor-pointer"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', minWidth: '70px' }}
+              >
+                {VOICE_LANGUAGES.map(l => (
+                  <option key={l.code} value={l.code}>{l.short}</option>
+                ))}
+              </select>
+            </div>
             {/* Toggle text input for voice commands (keyboard icon) */}
             <button
               onClick={() => setShowVoiceInput(v => !v)}

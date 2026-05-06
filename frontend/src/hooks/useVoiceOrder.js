@@ -9,7 +9,24 @@ import { addToCart, clearCart, setOrderType as setReduxOrderType, setSelectedTab
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
-export default function useVoiceOrder() {
+// Supported languages for voice recognition
+export const VOICE_LANGUAGES = [
+  { code: 'en-IN',  label: 'English (India)',  short: 'EN-IN' },
+  { code: 'hi-IN',  label: 'Hindi',            short: 'हिंदी' },
+  { code: 'en-US',  label: 'English (US)',      short: 'EN-US' },
+  { code: 'pa-IN',  label: 'Punjabi',           short: 'ਪੰਜਾਬੀ' },
+  { code: 'ta-IN',  label: 'Tamil',             short: 'தமிழ்' },
+  { code: 'te-IN',  label: 'Telugu',            short: 'తెలుగు' },
+  { code: 'kn-IN',  label: 'Kannada',           short: 'ಕನ್ನಡ' },
+  { code: 'ml-IN',  label: 'Malayalam',          short: 'മലയാളം' },
+  { code: 'mr-IN',  label: 'Marathi',           short: 'मराठी' },
+  { code: 'gu-IN',  label: 'Gujarati',          short: 'ગુજરાતી' },
+  { code: 'bn-IN',  label: 'Bengali',           short: 'বাংলা' },
+  { code: 'ur-IN',  label: 'Urdu',              short: 'اردو' },
+  { code: 'ar-SA',  label: 'Arabic',            short: 'عربي' },
+];
+
+export default function useVoiceOrder(langOverride) {
   const dispatch = useDispatch();
   const { user } = useSelector(s => s.auth);
   const cart = useSelector(s => s.pos.cart);
@@ -19,7 +36,7 @@ export default function useVoiceOrder() {
   const [isThinking, setIsThinking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState('');
-  const [lang] = useState('hi-IN');
+  const lang = langOverride || 'en-IN';
   const [supported, setSupported] = useState(true);
 
   // Conversation history for multi-turn
@@ -116,7 +133,7 @@ export default function useVoiceOrder() {
       if (response && window.speechSynthesis) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(response);
-        utter.lang = 'hi-IN';
+        utter.lang = lang;
         utter.rate = 1.1;
         window.speechSynthesis.speak(utter);
       }
@@ -160,7 +177,7 @@ export default function useVoiceOrder() {
 
       // Auto-stop after 2.5s silence
       clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => recognition.stop(), 2500);
+      silenceTimer.current = setTimeout(() => recognition.stop(), 3000);
     };
 
     recognition.onend = () => {
@@ -206,6 +223,7 @@ export default function useVoiceOrder() {
     transcript,
     lastResponse,
     supported,
+    lang,
     toggleListening,
     resetConversation,
     sendToLLM,  // for text input fallback
