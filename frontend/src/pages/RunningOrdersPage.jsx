@@ -60,6 +60,7 @@ function ElapsedTimer({ createdAt }) {
 /** Order card component */
 function OrderCard({ order, onAction }) {
   const [expanded, setExpanded] = useState(false);
+  const { format } = useCurrency();
   const StatusConf = STATUS_MAP[order.status] || STATUS_MAP.created;
   const Icon = TYPE_ICONS[order.order_type] || ShoppingBag;
   const hasKOTs = (order._count?.kots || 0) > 0;
