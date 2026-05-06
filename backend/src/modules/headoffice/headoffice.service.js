@@ -197,6 +197,21 @@ async function syncMenu(sourceOutletId, targetOutletIds, options = {}) {
       include: { category: true, variants: { where: { is_deleted: false } } },
     });
 
+    // If no targets specified, push to ALL other outlets in the same head office
+    if (!targetOutletIds || targetOutletIds.length === 0) {
+      const sourceOutlet = await prisma.outlet.findUnique({
+        where: { id: sourceOutletId },
+        select: { head_office_id: true },
+      });
+      if (sourceOutlet?.head_office_id) {
+        const allOutlets = await prisma.outlet.findMany({
+          where: { head_office_id: sourceOutlet.head_office_id, is_deleted: false, id: { not: sourceOutletId } },
+          select: { id: true },
+        });
+        targetOutletIds = allOutlets.map(o => o.id);
+      }
+    }
+
     let synced = 0;
 
     for (const targetId of targetOutletIds) {

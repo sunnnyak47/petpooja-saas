@@ -199,6 +199,7 @@ model Outlet {
   user_roles             UserRole[]
   wastage_logs           WastageLog[]
   aggregator_sync_logs   AggregatorSyncLog[]
+  analytics_cache        AnalyticsCache[]
   item_presets           ItemPreset[]
   whatsapp_send_logs     WhatsAppSendLog[]
 
@@ -1843,4 +1844,19 @@ model AggregatorSyncLog {
 
   @@index([outlet_id, platform])
   @@map("aggregator_sync_logs")
+}
+
+model AnalyticsCache {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String   @db.Uuid
+  cache_key  String   @db.VarChar(200)
+  data       Json
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  outlet     Outlet   @relation(fields: [outlet_id], references: [id])
+
+  @@unique([outlet_id, cache_key])
+  @@index([outlet_id, expires_at])
+  @@map("analytics_cache")
 }
