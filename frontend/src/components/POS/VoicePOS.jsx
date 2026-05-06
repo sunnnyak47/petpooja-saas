@@ -175,7 +175,7 @@ function OrderConfirmScreen({ order, onClose }) {
           </div>
           <div className="flex justify-between border-t border-border pt-2">
             <span className="text-secondary">Total</span>
-            <span className="font-bold text-accent">₹{Number(order.subtotal || 0).toFixed(0)}</span>
+            <span className="font-bold text-accent">₹{Number(order.grand_total || order.net_amount || order.subtotal || 0).toFixed(0)}</span>
           </div>
         </div>
         <p className="text-xs text-green-600 font-medium">✓ KOT sent to kitchen</p>
@@ -241,7 +241,7 @@ export default function VoicePOS({ onClose }) {
     setSupported(!!SR);
     setMessages([{
       role: 'assistant',
-      content: '🎙️ Voice POS ready! Say your order in any language — e.g. "Do butter chicken aur table 3 pe". I\'ll detect the table automatically!',
+      content: 'Ready! Tap the mic and say your order — like "Do butter chicken aur ek naan". I understand Hindi, English, Tamil, and more.',
     }]);
 
     // Fetch available tables
@@ -419,7 +419,7 @@ export default function VoicePOS({ onClose }) {
     }
   }, [conversationHistory, cart, outletId, tables, speak, isThinking, handlePlaceOrder]);
 
-  /* ── Start / Stop listening ── */
+  /* ── Start / Stop listening (tap-to-toggle) ── */
   const startListening = useCallback(() => {
     if (isThinking || isListening) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -429,7 +429,7 @@ export default function VoicePOS({ onClose }) {
     recognitionRef.current = recognition;
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;  // keep listening until tapped again or silence
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
@@ -448,8 +448,9 @@ export default function VoicePOS({ onClose }) {
         else interim += t;
       }
       setInterimText(interim);
+      // Auto-stop after 2.5s silence (gives time for natural pauses)
       clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => recognition.stop(), 1800);
+      silenceTimer.current = setTimeout(() => recognition.stop(), 2500);
     };
 
     recognition.onend = () => {
@@ -463,7 +464,7 @@ export default function VoicePOS({ onClose }) {
       setIsListening(false);
       setInterimText('');
       if (e.error === 'not-allowed') {
-        toast.error('Microphone permission denied. Use text mode instead.');
+        toast.error('Microphone not allowed. Please use text mode.');
         setInputMode('text');
       }
     };
@@ -475,6 +476,27 @@ export default function VoicePOS({ onClose }) {
     recognitionRef.current?.stop();
     clearTimeout(silenceTimer.current);
   }, []);
+
+  /* ── Toggle mic (tap to start / tap to stop) ── */
+  const toggleListening = useCallback(() => {
+    if (isListening) stopListening();
+    else startListening();
+  }, [isListening, startListening, stopListening]);
+
+  /* ── Keyboard shortcuts: Escape to close, Space for mic ── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      // Spacebar toggles mic (only when not typing in an input)
+      if (e.code === 'Space' && inputMode === 'voice' && !isThinking
+          && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        toggleListening();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose, inputMode, isThinking, toggleListening]);
 
   /* ── Cleanup ── */
   useEffect(() => () => {
@@ -523,7 +545,7 @@ export default function VoicePOS({ onClose }) {
     setDetectedTableNum(null);
     setSelectedTableId(null);
     setCustomerName('');
-    setMessages([{ role: 'assistant', content: '🔄 Reset! Start a new order.' }]);
+    setMessages([{ role: 'assistant', content: 'Ready for a new order! Tap the mic to start.' }]);
   }, []);
 
   /* ── Computed ── */
@@ -557,7 +579,7 @@ export default function VoicePOS({ onClose }) {
           </div>
           <div className="flex-1">
             <h2 className="font-bold text-base leading-none">Voice POS</h2>
-            <p className="text-xs text-secondary mt-0.5">AI-powered · Groq Llama 3.3 · Multi-turn · Auto table detect</p>
+            <p className="text-xs text-secondary mt-0.5">Speak your order in any language</p>
           </div>
 
           {statusText && (
@@ -757,22 +779,19 @@ export default function VoicePOS({ onClose }) {
               {inputMode === 'voice' && (
                 <div className="flex items-center justify-center gap-4 py-1">
                   {!supported ? (
-                    <p className="text-xs text-amber-600">⚠ Speech API not supported. Use text mode or Chrome.</p>
+                    <p className="text-xs text-amber-600">Speech not supported in this browser. Use text mode or open in Chrome.</p>
                   ) : (
                     <>
                       <MicWave active={isListening} thinking={isThinking} />
                       <button
-                        onMouseDown={startListening}
-                        onMouseUp={stopListening}
-                        onTouchStart={startListening}
-                        onTouchEnd={stopListening}
+                        onClick={toggleListening}
                         disabled={isThinking}
                         className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all
                           ${isListening
-                            ? 'bg-red-500 text-white scale-110 shadow-red-300'
+                            ? 'bg-red-500 text-white scale-110 shadow-red-500/30 ring-4 ring-red-500/20'
                             : isThinking
                             ? 'bg-surface text-secondary cursor-not-allowed'
-                            : 'bg-accent text-white hover:scale-105 active:scale-95'}`}
+                            : 'bg-accent text-white hover:scale-105 active:scale-95 shadow-accent/30'}`}
                       >
                         {isThinking ? <Loader2 size={22} className="animate-spin" /> :
                           isListening ? <MicOff size={22} /> : <Mic size={22} />}
@@ -803,7 +822,7 @@ export default function VoicePOS({ onClose }) {
               )}
 
               <p className="text-center text-xs text-secondary">
-                {isListening ? 'Release to stop · Speak clearly' : 'Hold mic to speak · Say "table 3" to assign table'}
+                {isListening ? 'Tap mic to stop · Speak clearly' : 'Tap mic or press Space · Say "table 3" to set table'}
               </p>
             </div>
           </div>
@@ -874,12 +893,12 @@ export default function VoicePOS({ onClose }) {
                   }
                 </button>
 
-                {/* Add to Cart (classic flow) */}
+                {/* Send to POS Cart instead of placing directly */}
                 <button
                   onClick={() => handleAddToCart()}
-                  className="w-full py-1.5 text-xs flex items-center justify-center gap-1.5 text-secondary hover:text-primary border border-border rounded-lg hover:border-accent transition-colors"
+                  className="w-full py-1 text-xs text-center text-secondary hover:text-accent transition-colors"
                 >
-                  <ShoppingCart size={12} /> Add to POS Cart
+                  or send to POS cart →
                 </button>
               </div>
             )}
