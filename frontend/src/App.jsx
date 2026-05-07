@@ -67,6 +67,7 @@ import AdvancedReportsPage from './pages/AdvancedReportsPage';
 import ReservationsPage from './pages/ReservationsPage';
 import ChainHealthPage from './pages/ChainHealthPage';
 import OnboardingPage from './pages/OnboardingPage';
+import GSTCompliancePage from './pages/GSTCompliancePage';
 
 /* ── Error Boundary ─────────────────────────────────────────────────────────── */
 class ErrorBoundary extends Component {
@@ -212,13 +213,15 @@ function HomeRedirect() {
 
 export default function App() {
   const [setupComplete, setSetupComplete] = useState(
-    localStorage.getItem('msrm_setup_complete') === 'true'
+    localStorage.getItem('msrm_setup_completed') === 'true'
   );
 
-  const handleSetupComplete = (config) => {
-    window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
-    window.electron.invoke('set-config', 'printerIp', config.printer_ip);
-    localStorage.setItem('msrm_setup_complete', 'true');
+  const handleSetupComplete = async (config) => {
+    if (window.electron) {
+      await window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
+      await window.electron.invoke('set-config', 'printerIp', config.printer_ip);
+    }
+    localStorage.setItem('msrm_setup_completed', 'true');
     setSetupComplete(true);
   };
 
@@ -234,6 +237,7 @@ export default function App() {
       <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/superadmin-login" element={<SuperAdminLoginPage />} />
+      {/* TODO: Signup route is a placeholder — LoginPage does not use isSignup prop yet */}
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -278,6 +282,7 @@ export default function App() {
         <Route path="audit-log"       element={<FeatureGate feature="audit_log"><AuditLogPage /></FeatureGate>} />
         <Route path="qr-codes"        element={<FeatureGate feature="qr_codes"><QRCodesPage /></FeatureGate>} />
         <Route path="qr-orders"       element={<FeatureGate feature="qr_orders"><TableQROrdersPage /></FeatureGate>} />
+        <Route path="gst-compliance"  element={<ProtectedRoute><GSTCompliancePage /></ProtectedRoute>} />
 
         {/* The "Super Root" — guarded by RoleGuard for super_admin only */}
         <Route path="super-admin" element={<RoleGuard allowed={['super_admin']}><SuperAdminPage /></RoleGuard>} />

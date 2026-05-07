@@ -220,7 +220,11 @@ export default function POSPage() {
       const addonsTotal = (c.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
       return sum + (itemBase + addonsTotal) * c.quantity;
     }, 0);
-    const tax = isCompMode ? 0 : subtotal * 0.05;
+    const tax = isCompMode ? 0 : cart.reduce((sum, item) => {
+      const itemBase = Number(item.base_price) + (item.variant_price || 0);
+      const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
+      return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || 5) / 100);
+    }, 0);
     return { 
       subtotal: isCompMode ? 0 : subtotal, 
       tax, 
@@ -235,10 +239,12 @@ export default function POSPage() {
       transports: ['websocket'],
       withCredentials: true
     });
-    
-    // Join outlet room
-    socket.emit('join_outlet', outletId);
-    
+
+    // Join outlet room only after connection is established
+    socket.on('connect', () => {
+      socket.emit('join_outlet', outletId);
+    });
+
     // Listen for table status changes
     socket.on('table_status_change', (data) => {
       queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
@@ -793,7 +799,7 @@ export default function POSPage() {
                  <div className="w-6 h-6 bg-brand-500 text-white rounded-full flex items-center justify-center font-bold shadow">{selectedCustomer.full_name.charAt(0)}</div>
                  <div>
                     <span className="text-white font-medium block">{selectedCustomer.full_name}</span>
-                    <span className="text-brand-400">Loyalty: 450 pts</span>
+                    <span className="text-brand-400">Loyalty: {selectedCustomer?.loyalty_points?.current_balance ?? 0} pts</span>
                  </div>
                </div>
                <button onClick={() => dispatch(setSelectedCustomer(null))}><X className="w-4 h-4 text-surface-400 hover:text-red-400" /></button>
@@ -1129,8 +1135,9 @@ export default function POSPage() {
             orderId = order.id;
             await api.post(`/orders/${orderId}/kot`).catch(() => {});
           }
+          const METHOD_MAP = { cash: 'cash', upi: 'upi_razorpay', card: 'card_pine_labs', part: 'split', due: 'due' };
           await api.post(`/orders/${orderId}/payment`, {
-            method,
+            method: METHOD_MAP[method] || method,
             amount: paidAmount,
             razorpay_payment_id: razorpayId || undefined,
           });

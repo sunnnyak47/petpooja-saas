@@ -107,10 +107,10 @@ export default function OrdersPage() {
       setIsVoidOpen(false);
       setManagerPin('');
     },
-    onError: (e) => toast.error(e.response?.data?.message || 'Failed to void order'),
+    onError: (e) => toast.error(e.message || 'Failed to void order'),
   });
 
-  const orders = data?.items || data || [];
+  const orders = data?.data || data?.items || [];
 
   return (
     <div className="space-y-4 animate-fade-in relative">

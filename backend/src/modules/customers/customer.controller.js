@@ -13,7 +13,8 @@ async function createCustomer(req, res, next) {
 
 async function listCustomers(req, res, next) {
   try {
-    const { customers, total, page, limit } = await customerService.listCustomers(req.query);
+    const outletId = req.query.outlet_id || req.user?.outlet_id;
+    const { customers, total, page, limit } = await customerService.listCustomers(outletId, req.query);
     sendPaginated(res, customers, total, page, limit, 'Customers retrieved');
   } catch (e) { next(e); }
 }

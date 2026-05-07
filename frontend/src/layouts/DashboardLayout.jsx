@@ -145,7 +145,7 @@ export default function DashboardLayout() {
     if (user?.role === 'super_admin' || user?.is_super_admin) return;
     api.get('/auth/me')
       .then(r => {
-        const fresh = r?.data?.user;
+        const fresh = r?.data?.user || r?.user;
         if (fresh) dispatch(updateUser(fresh));
       })
       .catch(() => {/* ignore — keep cached user */});
@@ -186,7 +186,7 @@ export default function DashboardLayout() {
       return next && !next.section;
     });
   })();
-  const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_complete ?? user?.head_office?.setup_completed);
+  const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_completed);
   const outletName = user?.outlet?.name || 'MS-RM System';
 
   return (

@@ -149,6 +149,7 @@ async function login(login, password, auditInfo = {}) {
             role: {
               include: {
                 role_permissions: {
+                  where: { is_deleted: false },
                   include: { permission: true },
                 },
               },

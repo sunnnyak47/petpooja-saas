@@ -199,18 +199,15 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/kitchen', kotRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
 
-// Legacy KDS support removed — duplicate mount breaks baseUrl; use /api/kitchen only
-// TODO: remove once all frontend builds reference /api/kitchen
-const procurementRoutes = require('./modules/inventory/procurement.routes');
 
 app.use('/api/inventory', inventoryRoutes);
 // Procurement routes handle: /api/purchase-orders/*, /api/suppliers/*, /api/presets/*
 app.use('/api', require('./modules/inventory/procurement.routes'));
 app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
-app.use('/api/reports', reportsRoutes);
 const eodRoutes = require('./modules/reports/eod.routes');
 app.use('/api/reports/eod', eodRoutes);
+app.use('/api/reports', reportsRoutes);
 app.use('/api/integrations', integrationRoutes);
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
@@ -335,7 +332,7 @@ async function startApp() {
         const token = url.searchParams.get('token');
         if (!token) { ws.close(4001, 'Missing token'); return; }
 
-        const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+        const secret = require('./config/app').jwt.secret;
         const decoded = jwt.verify(token, secret);
         ws.userId = decoded.id || decoded.sub;
         ws.outletId = decoded.outlet_id;

@@ -127,7 +127,7 @@ export default function SettingsPage() {
       } catch {}
       toast.success('Settings saved successfully');
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Failed to save settings'),
+    onError: (e) => toast.error(e.message || 'Failed to save settings'),
   });
 
   const ToggleSwitch = ({ checked, onChange, label, description }) => (

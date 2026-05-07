@@ -182,7 +182,7 @@ export default function useVoiceOrder(langOverride) {
     };
 
     recognition.onstart = () => {
-      console.log('[Voice] Recognition started, lang:', lang);
+      if (import.meta.env.DEV) console.log('[Voice] Recognition started, lang:', lang);
       setIsListening(true);
     };
 
@@ -194,7 +194,7 @@ export default function useVoiceOrder(langOverride) {
         else interim += t;
       }
       setTranscript(finalTranscript + interim);
-      console.log('[Voice] Transcript:', finalTranscript + interim);
+      if (import.meta.env.DEV) console.log('[Voice] Transcript:', finalTranscript + interim);
 
       // Auto-stop after 3s silence (safety net, continuous=false handles most cases)
       clearTimeout(silenceTimer.current);
@@ -204,12 +204,12 @@ export default function useVoiceOrder(langOverride) {
     };
 
     recognition.onend = () => {
-      console.log('[Voice] Recognition ended, transcript:', finalTranscript.trim());
+      if (import.meta.env.DEV) console.log('[Voice] Recognition ended, transcript:', finalTranscript.trim());
       cleanup(finalTranscript.trim());
     };
 
     recognition.onerror = (e) => {
-      console.warn('[Voice] Recognition error:', e.error);
+      if (import.meta.env.DEV) console.warn('[Voice] Recognition error:', e.error);
       if (e.error === 'not-allowed') {
         toast.error('Microphone not allowed. Check browser permissions.');
       } else if (e.error === 'no-speech') {
@@ -229,13 +229,13 @@ export default function useVoiceOrder(langOverride) {
       clearTimeout(safetyTimer.current);
       safetyTimer.current = setTimeout(() => {
         if (!ended) {
-          console.warn('[Voice] Safety timeout — force stopping');
+          if (import.meta.env.DEV) console.warn('[Voice] Safety timeout — force stopping');
           try { recognition.abort(); } catch (_) {}
           cleanup('');
         }
       }, 15000);
     } catch (err) {
-      console.error('[Voice] Failed to start recognition:', err);
+      if (import.meta.env.DEV) console.error('[Voice] Failed to start recognition:', err);
       toast.error('Could not start voice recognition.');
       cleanup('');
     }

@@ -3,8 +3,7 @@
  * Generates Tally-compatible XML for Sales and Receipt vouchers.
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getDbClient } = require('../../../config/database');
 const logger = require('../../../config/logger');
 
 /**

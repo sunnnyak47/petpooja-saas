@@ -126,7 +126,10 @@ async function createOrder(data, staffId) {
       });
     }
 
-    const isSameState = true;
+    const isSameState = !data.delivery_address_state ||
+      (outlet.state && data.delivery_address_state &&
+       outlet.state.toLowerCase() === data.delivery_address_state.toLowerCase()) ||
+      true; // default to same-state if no address info
     let totalCgst = 0;
     let totalSgst = 0;
     let totalIgst = 0;
@@ -277,7 +280,9 @@ async function getOrderById(orderId) {
 async function listOrders(outletId, query = {}) {
   const prisma = getDbClient();
   try {
-    const { page, limit, offset, sort, order: sortOrder } = parsePagination(query);
+    const { page, limit, offset, sort: rawSort, order: sortOrder } = parsePagination(query);
+    const ALLOWED_SORTS = ['created_at', 'grand_total', 'status', 'order_number', 'updated_at', 'order_type'];
+    const sort = ALLOWED_SORTS.includes(rawSort) ? rawSort : 'created_at';
     const where = { outlet_id: outletId, is_deleted: false };
 
     if (query.status) {
@@ -465,8 +470,7 @@ async function generateKOT(orderId) {
     const kots = [];
     await prisma.$transaction(async (tx) => {
       for (const [station, items] of Object.entries(stationGroups)) {
-        const kotCount = await tx.kOT.count({ where: { outlet_id: order.outlet_id } });
-        const kotNumber = `KOT-${kotCount + 1}`;
+        const kotNumber = `KOT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`;
 
         const kot = await tx.kOT.create({
           data: {
@@ -957,8 +961,90 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
   }
 }
 
+async function refundOrder(orderId, data, userId) {
+  const prisma = getDbClient();
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { payments: true } });
+  if (!order) throw new NotFoundError('Order not found');
+  if (order.status !== 'paid') throw new BadRequestError('Can only refund paid orders');
+
+  const payment = order.payments.find(p => p.status === 'completed');
+  if (!payment) throw new BadRequestError('No completed payment found');
+
+  const refund = await prisma.payment.create({
+    data: {
+      order_id: orderId, outlet_id: order.outlet_id,
+      method: payment.method, amount: -(data.refund_amount || order.grand_total),
+      status: 'refunded', transaction_id: `RFND-${Date.now()}`,
+    },
+  });
+  await prisma.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
+  logger.info('Order refunded', { orderId, refundAmount: data.refund_amount, userId });
+  return refund;
+}
+
+async function transferTable(orderId, targetTableId, userId) {
+  const prisma = getDbClient();
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw new NotFoundError('Order not found');
+  if (!targetTableId) throw new BadRequestError('Target table ID required');
+
+  return prisma.$transaction(async (tx) => {
+    // Free old table
+    if (order.table_id) {
+      await tx.table.update({ where: { id: order.table_id }, data: { status: 'available', current_order_id: null } });
+    }
+    // Move order to new table
+    await tx.order.update({ where: { id: orderId }, data: { table_id: targetTableId } });
+    await tx.table.update({ where: { id: targetTableId }, data: { status: 'occupied', current_order_id: orderId } });
+    logger.info('Table transferred', { orderId, from: order.table_id, to: targetTableId, userId });
+    return { success: true, orderId, newTableId: targetTableId };
+  });
+}
+
+async function mergeOrder(sourceOrderId, targetOrderId, userId) {
+  const prisma = getDbClient();
+  if (!targetOrderId || targetOrderId === 'auto') throw new BadRequestError('Valid target order ID required');
+  const [source, target] = await Promise.all([
+    prisma.order.findUnique({ where: { id: sourceOrderId }, include: { items: true } }),
+    prisma.order.findUnique({ where: { id: targetOrderId } }),
+  ]);
+  if (!source || !target) throw new NotFoundError('Source or target order not found');
+
+  return prisma.$transaction(async (tx) => {
+    // Move items from source to target
+    await tx.orderItem.updateMany({ where: { order_id: sourceOrderId }, data: { order_id: targetOrderId } });
+    // Recalculate target totals
+    const items = await tx.orderItem.findMany({ where: { order_id: targetOrderId } });
+    const subtotal = items.reduce((s, i) => s + Number(i.item_total), 0);
+    await tx.order.update({ where: { id: targetOrderId }, data: { subtotal, grand_total: subtotal } });
+    // Cancel source order
+    await tx.order.update({ where: { id: sourceOrderId }, data: { status: 'cancelled', notes: `Merged into ${targetOrderId}` } });
+    if (source.table_id) {
+      await tx.table.update({ where: { id: source.table_id }, data: { status: 'available', current_order_id: null } });
+    }
+    logger.info('Orders merged', { source: sourceOrderId, target: targetOrderId, userId });
+    return { success: true, targetOrderId };
+  });
+}
+
+async function syncOfflineOrders(orders, userId) {
+  const prisma = getDbClient();
+  const results = [];
+  for (const orderData of orders) {
+    try {
+      const existing = orderData.id ? await prisma.order.findUnique({ where: { id: orderData.id } }) : null;
+      if (existing) { results.push({ id: orderData.id, status: 'exists' }); continue; }
+      const order = await createOrder(orderData, userId);
+      results.push({ id: order.id, status: 'synced' });
+    } catch (err) {
+      results.push({ id: orderData.id, status: 'failed', error: err.message });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
   generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
-  generateInvoiceNumber,
+  generateInvoiceNumber, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
 };

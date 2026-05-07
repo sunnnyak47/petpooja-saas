@@ -115,8 +115,12 @@ async function optionalAuth(req, res, next) {
     if (!token) return next();
 
     const redis = getRedisClient();
-    const isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
-    if (isBlacklisted) return next();
+    try {
+      const isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
+      if (isBlacklisted) { return next(); }
+    } catch (redisErr) {
+      logger.warn('Redis error in optionalAuth, passing through', { error: redisErr.message });
+    }
 
     const decoded = jwt.verify(token, appConfig.jwt.secret);
     req.user = {

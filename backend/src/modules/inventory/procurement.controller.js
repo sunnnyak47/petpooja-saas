@@ -27,7 +27,7 @@ async function createSupplier(req, res, next) {
 
 async function updateSupplier(req, res, next) {
   try {
-    const supplier = await procurementService.updateSupplier(req.params.id, req.body);
+    const supplier = await procurementService.updateSupplier(req.params.id, req.user.outlet_id, req.body);
     sendSuccess(res, supplier, 'Supplier updated');
   } catch (error) { next(error); }
 }
@@ -77,7 +77,7 @@ async function listPurchaseOrders(req, res, next) {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const result = await procurementService.listPurchaseOrders(outletId, req.query);
-    sendPaginated(res, result.items, result.total, 'Purchase orders retrieved');
+    sendPaginated(res, result.items, result.total, result.page || 1, result.limit || 20, 'Purchase orders retrieved');
   } catch (error) { next(error); }
 }
 

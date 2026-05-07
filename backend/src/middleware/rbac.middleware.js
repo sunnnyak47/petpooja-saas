@@ -26,6 +26,10 @@ function hasRole(...allowedRoles) {
         throw new ForbiddenError('No role assigned to user');
       }
 
+      if (!VALID_ROLES.includes(req.user.role)) {
+        return res.status(403).json({ success: false, message: 'Invalid role' });
+      }
+
       if (!allowedRoles.includes(req.user.role)) {
         throw new ForbiddenError(
           `Role '${req.user.role}' does not have access. Required: ${allowedRoles.join(', ')}`
@@ -134,7 +138,7 @@ function checkLicense(req, res, next) {
         }
         
         const activeSub = ho.subscriptions[0];
-        const isTrialValid = ho.trial_ends_at && new Date(ho.trial_ends_at) > new Date();
+        const isTrialValid = ho.plan === 'TRIAL' || (ho.subscription_status === 'active');
         
         if (!activeSub && !isTrialValid) {
             return res.status(403).json({ 

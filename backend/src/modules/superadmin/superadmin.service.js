@@ -5,7 +5,8 @@ const prisma = require('../../config/database').getDbClient();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const appConfig = require('../../config/app');
-const { UnauthorizedError } = require('../../utils/errors');
+const logger = require('../../config/logger');
+const { UnauthorizedError, NotFoundError } = require('../../utils/errors');
 
 /**
  * Hardcoded mock stats used as fallback when DB is unreachable
@@ -228,7 +229,7 @@ const superadminService = {
           new_this_week: newThisWeek,
           trial_count: trialRestaurants,
           total_users: totalUsers,
-          active_sessions: activeSessions || 143 // fallback if redis empty
+          active_sessions: activeSessions ?? 0
         },
         growth: {
           this_month_revenue: Number(thisMonthRevenue._sum?.amount || 0),
@@ -447,7 +448,7 @@ const superadminService = {
       zomato_id, swiggy_id, razorpay_key, tally_enabled = false
     } = data;
 
-    console.log(`[ONBOARD] Attempting to onboard: ${name} (${contact_email})`);
+    logger.debug(`[ONBOARD] Attempting to onboard: ${name} (${contact_email})`);
     
     // 1. Validate Email/Phone uniqueness
     const existingUser = await prisma.user.findFirst({
@@ -463,7 +464,7 @@ const superadminService = {
     }
 
     const password_hash = await bcrypt.hash(password, 12);
-    console.log('[ONBOARD] Validation passed, starting transaction...');
+    logger.debug('[ONBOARD] Validation passed, starting transaction...');
 
     return await prisma.$transaction(async (tx) => {
       // 2. Create Head Office
@@ -499,7 +500,7 @@ const superadminService = {
           }
         }
       });
-      console.log(`[ONBOARD] HeadOffice created: ${headOffice.id}`);
+      logger.debug(`[ONBOARD] HeadOffice created: ${headOffice.id}`);
 
       // 3. Create Owner User
       const user = await tx.user.create({
@@ -512,7 +513,7 @@ const superadminService = {
           is_active: true
         }
       });
-      console.log(`[ONBOARD] Owner User created: ${user.id}`);
+      logger.debug(`[ONBOARD] Owner User created: ${user.id}`);
 
       // 4. Get/Create Owner Role
       let ownerRole = await tx.role.findFirst({ where: { name: 'owner' } });
@@ -520,7 +521,7 @@ const superadminService = {
           ownerRole = await tx.role.create({
           data: { name: 'owner', display_name: 'Restaurant Owner', is_system: true }
         });
-        console.log(`[ONBOARD] System 'owner' role created: ${ownerRole.id}`);
+        logger.debug(`[ONBOARD] System 'owner' role created: ${ownerRole.id}`);
       }
 
       // 5. Create Default Outlet
@@ -551,7 +552,7 @@ const superadminService = {
           }
         }
       });
-      console.log(`[ONBOARD] Default Outlet created: ${outlet.id} (${outletCode})`);
+      logger.debug(`[ONBOARD] Default Outlet created: ${outlet.id} (${outletCode})`);
 
       // 6. Assign Owner Role to User for this Outlet
       await tx.userRole.create({
@@ -572,7 +573,7 @@ const superadminService = {
 
       if (settingsToCreate.length > 0) {
         await tx.outletSetting.createMany({ data: settingsToCreate });
-        console.log(`[ONBOARD] Wired ${settingsToCreate.length} 3rd party connectors to OutletSetting.`);
+        logger.debug(`[ONBOARD] Wired ${settingsToCreate.length} 3rd party connectors to OutletSetting.`);
       }
 
       // 8. Create Initial Subscription
@@ -588,7 +589,7 @@ const superadminService = {
           billing_cycle: 'annual',
         }
       });
-      console.log(`[ONBOARD] Subscription initialized.`);
+      logger.debug(`[ONBOARD] Subscription initialized.`);
 
       // 8. Audit Log
       await tx.auditLog.create({
@@ -607,7 +608,7 @@ const superadminService = {
         }
       });
 
-      console.log(`[ONBOARD] SUCCESS: Restaurant ${name} (Enterprise) is live.`);
+      logger.debug(`[ONBOARD] SUCCESS: Restaurant ${name} (Enterprise) is live.`);
       return { headOffice, user, outlet, subscription_expiry: subExpiry };
     });
   },
@@ -1466,7 +1467,7 @@ const superadminService = {
     // Also create a platform-wide announcement for the chains
     await superadminService.createAnnouncement({
       title,
-      body,
+      message: body,
       type: type === 'MAINTENANCE' ? 'warning' : type === 'PROMO' ? 'success' : 'info',
       target_audience: target === 'ALL' ? 'all' : 'custom',
       target_plans: target !== 'ALL' ? [target] : [],
@@ -1652,9 +1653,9 @@ const superadminService = {
       prisma.headOffice.count({ where: { is_deleted: false, is_active: true } }),
       prisma.outlet.count({ where: { is_deleted: false } }),
       prisma.user.count({ where: { is_deleted: false } }),
-      prisma.order.count({ where: { created_at: { gte: last24h }, status: { not: 'CANCELLED' } } }),
-      prisma.order.count({ where: { created_at: { gte: last7d }, status: { not: 'CANCELLED' } } }),
-      prisma.order.aggregate({ where: { created_at: { gte: last24h }, status: { not: 'CANCELLED' } }, _sum: { total_amount: true } }),
+      prisma.order.count({ where: { created_at: { gte: last24h }, status: { not: 'cancelled' } } }),
+      prisma.order.count({ where: { created_at: { gte: last7d }, status: { not: 'cancelled' } } }),
+      prisma.order.aggregate({ where: { created_at: { gte: last24h }, status: { not: 'cancelled' } }, _sum: { total_amount: true } }),
       prisma.auditLog.count({ where: { created_at: { gte: last24h } } }).catch(() => 0),
       prisma.headOffice.count({ where: { is_deleted: false, plan: 'TRIAL' } }),
     ]);
@@ -1725,7 +1726,7 @@ const superadminService = {
   async getMenuAnalytics(outletId) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const orderItems = await prisma.orderItem.findMany({
-      where: { order: { outlet_id: outletId, created_at: { gte: thirtyDaysAgo }, status: { not: 'CANCELLED' } } },
+      where: { order: { outlet_id: outletId, created_at: { gte: thirtyDaysAgo }, status: { not: 'cancelled' } } },
       include: { menu_item: { select: { id: true, name: true, price: true, category_id: true, category: { select: { name: true } } } } },
     }).catch(() => []);
 
@@ -1736,7 +1737,7 @@ const superadminService = {
       const key = oi.menu_item.id;
       if (!itemMap[key]) {
         itemMap[key] = { id: key, name: oi.menu_item.name, category: oi.menu_item.category?.name || 'Uncategorized',
-          price: parseFloat(oi.menu_item.price || 0), qty: 0, revenue: 0, orders: new Set() };
+          price: parseFloat(oi.menu_item.base_price || 0), qty: 0, revenue: 0, orders: new Set() };
       }
       itemMap[key].qty     += oi.quantity || 1;
       itemMap[key].revenue += parseFloat(oi.total_price || oi.unit_price || 0);

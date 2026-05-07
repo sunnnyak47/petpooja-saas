@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import {
   CreditCard, CheckCircle2, ArrowUp, Download, Calendar,
   Store, Users, Zap, Star, Crown, Building2, Clock,
@@ -150,6 +151,7 @@ export default function SubscriptionPage() {
                 const npColor = PLAN_COLORS[np.plan] || '#94a3b8';
                 return (
                   <div key={np.plan} className="rounded-xl p-4 cursor-pointer transition-all hover:scale-[1.01]"
+                    onClick={() => toast('Contact support@madsundigital.com to upgrade your plan')}
                     style={{ background: 'var(--bg-secondary)', border: `1px solid ${npColor}40` }}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">

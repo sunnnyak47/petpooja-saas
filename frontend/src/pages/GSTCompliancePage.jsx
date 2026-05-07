@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -79,9 +80,14 @@ export default function GSTCompliancePage() {
   const dailyRegister = useMemo(() => gstData?.daily || [], [gstData]);
   const hsnData = useMemo(() => gstData?.hsn || [], [gstData]);
 
-  const handleExport = (type) => {
-    const url = `${import.meta.env.VITE_API_URL || '/api'}/reports/exportGst?outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&type=${type}`;
-    window.location.href = url;
+  const handleExport = async (type) => {
+    try {
+      const response = await api.get(`/reports/exportGst?outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&type=${type}`, { responseType: 'blob' });
+      const blob = new Blob([response.data || response], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `gst-${type}.csv`; a.click();
+      window.URL.revokeObjectURL(url);
+    } catch { toast.error('GST export failed'); }
   };
 
   const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

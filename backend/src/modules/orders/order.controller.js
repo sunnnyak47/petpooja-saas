@@ -51,6 +51,10 @@ async function generateKOT(req, res, next) {
 async function updateStatus(req, res, next) {
   try {
     const order = await orderService.updateOrderStatus(req.params.id, req.body.status, req.user.id);
+    // Broadcast real-time update to connected WebSocket clients in the same outlet
+    if (typeof global.broadcastOrderUpdate === 'function') {
+      global.broadcastOrderUpdate(order);
+    }
     sendSuccess(res, order, 'Order status updated');
   } catch (error) { next(error); }
 }
@@ -87,8 +91,40 @@ async function voidOrder(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { 
-  createOrder, listOrders, getOrder, addItems, 
-  generateKOT, generateBill, updateStatus, processPayment, 
-  cancelOrder, voidOrder 
+/** POST /api/orders/:id/refund */
+async function refundOrder(req, res, next) {
+  try {
+    const result = await orderService.refundOrder(req.params.id, req.body, req.user.id);
+    sendSuccess(res, result, 'Refund processed');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/orders/:id/transfer-table */
+async function transferTable(req, res, next) {
+  try {
+    const result = await orderService.transferTable(req.params.id, req.body.target_table_id, req.user.id);
+    sendSuccess(res, result, 'Table transferred');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/orders/:id/merge */
+async function mergeOrder(req, res, next) {
+  try {
+    const result = await orderService.mergeOrder(req.params.id, req.body.target_order_id, req.user.id);
+    sendSuccess(res, result, 'Orders merged');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/orders/sync */
+async function syncOfflineOrders(req, res, next) {
+  try {
+    const results = await orderService.syncOfflineOrders(req.body.orders || [req.body], req.user.id);
+    sendSuccess(res, results, 'Orders synced');
+  } catch (error) { next(error); }
+}
+
+module.exports = {
+  createOrder, listOrders, getOrder, addItems,
+  generateKOT, generateBill, updateStatus, processPayment,
+  cancelOrder, voidOrder, refundOrder, transferTable, mergeOrder, syncOfflineOrders
 };

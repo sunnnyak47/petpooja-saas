@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import {
   Tag, Plus, Trash2, Edit2, Copy, CheckCircle2, X,
   Percent, IndianRupee, Calendar, Users, ToggleLeft, ToggleRight, AlertCircle
@@ -153,18 +154,18 @@ export default function PromoCodesPage() {
 
   const createMutation = useMutation({
     mutationFn: (data) => api.post('/superadmin/promo-codes', data),
-    onSuccess: () => { qc.invalidateQueries(['promo-codes']); setShowForm(false); },
-    onError: (e) => alert(e?.response?.data?.message || 'Failed to create promo code'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['promo-codes'] }); setShowForm(false); },
+    onError: (e) => toast.error(e.message || 'Failed to create promo code'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => api.patch(`/superadmin/promo-codes/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries(['promo-codes']); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['promo-codes'] }); setEditing(null); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/superadmin/promo-codes/${id}`),
-    onSuccess: () => qc.invalidateQueries(['promo-codes']),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['promo-codes'] }),
   });
 
   const copyCode = (code) => {
@@ -265,6 +266,7 @@ export default function PromoCodesPage() {
                       style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
+                    {/* TODO: Replace window.confirm with a state-based confirmation dialog */}
                     <button onClick={() => { if (confirm('Delete this promo code?')) deleteMutation.mutate(p.id); }}
                       className="p-1.5 rounded-lg hover:opacity-80"
                       style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>

@@ -472,8 +472,13 @@ async function receivePurchaseOrder(outletId, poId, data, userId) {
   });
 }
 
+async function deleteSupplier(id) {
+  const prisma = getDbClient();
+  return prisma.supplier.update({ where: { id }, data: { is_deleted: true, updated_at: new Date() } });
+}
+
 module.exports = {
-  listSuppliers, createSupplier, updateSupplier,
+  listSuppliers, createSupplier, updateSupplier, deleteSupplier,
   listItemPresets, createItemPreset, updateItemPreset, deleteItemPreset,
   listPurchaseOrders, getPurchaseOrder, createPurchaseOrder,
   updatePurchaseOrder, approvePurchaseOrder, deletePurchaseOrder,

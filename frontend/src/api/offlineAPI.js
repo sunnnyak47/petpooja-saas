@@ -193,7 +193,7 @@ export const hybridAPI = {
     if (IS_ELECTRON) {
       return invoke('db-get-tables', outletId)
     }
-    const res = await api.get('/tables', { params: { outlet_id: outletId } })
+    const res = await api.get('/orders/tables', { params: { outlet_id: outletId } })
     return res.data?.data || []
   },
 
@@ -419,7 +419,7 @@ export const hybridAPI = {
     if (!IS_ELECTRON) return
 
     try {
-      const res = await api.get('/tables', { params: { outlet_id: outletId } })
+      const res = await api.get('/orders/tables', { params: { outlet_id: outletId } })
       await invoke('db-save-tables-sync', res.data?.data || [])
     } catch (err) {
       console.warn('[HybridAPI] Tables sync from cloud failed:', err.message)

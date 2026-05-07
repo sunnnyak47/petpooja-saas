@@ -47,7 +47,7 @@ export default function ReservationsPage() {
 
   const { data: reservations = [], isLoading } = useQuery({
     queryKey: ['reservations'],
-    queryFn: () => api.get('/reservations').then(r => r.data).catch(() => []),
+    queryFn: () => api.get('/reservations').then(r => r.data),
     staleTime: 30_000,
   });
 

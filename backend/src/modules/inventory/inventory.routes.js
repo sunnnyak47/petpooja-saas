@@ -12,6 +12,9 @@ const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.mid
 const { validate } = require('../../middleware/validate.middleware');
 const { adjustStockSchema, recordWastageSchema, createRecipeSchema, createInventoryItemSchema } = require('./inventory.validation');
 
+// Summary — must be registered before /:id-style routes to avoid collision
+router.get('/summary', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.getSummary);
+
 router.get('/items', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listItems);
 router.post('/items', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.createItem);
 router.patch('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), inventoryController.updateItem);

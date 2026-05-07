@@ -45,7 +45,7 @@ const applyDiscountSchema = Joi.object({
 });
 
 const processPaymentSchema = Joi.object({
-  method: Joi.string().valid('cash', 'card_pine_labs', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid').required(),
+  method: Joi.string().valid('cash', 'card', 'card_pine_labs', 'upi', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid', 'due').required(),
   amount: Joi.number().precision(2).min(0).required(),
   transaction_id: Joi.string().max(100).allow('', null),
   customer_phone: Joi.string().max(15).allow('', null),

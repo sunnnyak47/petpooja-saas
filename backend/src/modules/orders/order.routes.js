@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema } = require('./order.validation');
 
 router.post('/', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), orderController.createOrder);
 router.get('/', authenticate, checkLicense, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.listOrders);
@@ -21,5 +21,9 @@ router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PA
 router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.generateBill);
 router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(cancelOrderSchema), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), orderController.voidOrder);
+router.post('/:id/refund', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(refundOrderSchema), orderController.refundOrder);
+router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.transferTable);
+router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), orderController.mergeOrder);
+router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), orderController.syncOfflineOrders);
 
 module.exports = router;

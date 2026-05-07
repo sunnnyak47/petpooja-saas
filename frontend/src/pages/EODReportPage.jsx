@@ -4,7 +4,7 @@
  * Route: /eod-report
  */
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -264,19 +264,20 @@ export default function EODReportPage() {
     queryKey: ['eod-report', outletId, selectedDate],
     queryFn:  () => api.get(`/reports/eod/${selectedDate}?outlet_id=${outletId}`).then(r => r.data?.data || r.data),
     enabled:  !!outletId,
-    onSuccess: (d) => {
-      if (d?.id && d.status !== 'not_started') {
-        // Prefill wizard with saved data
-        setOpeningCash(String(d.opening_cash ?? ''));
-        const saved = d.denomination_count || {};
-        const c = {};
-        DENOMS.forEach(dn => { c[dn.value] = String(saved[dn.value] || ''); });
-        setDenomCounts(c);
-        setNotes(d.notes || '');
-        setDiscReason(d.discrepancy_reason || '');
-      }
-    },
   });
+
+  /* Prefill wizard when saved report loads */
+  useEffect(() => {
+    if (savedReport?.id && savedReport.status !== 'not_started') {
+      setOpeningCash(String(savedReport.opening_cash ?? ''));
+      const saved = savedReport.denomination_count || {};
+      const c = {};
+      DENOMS.forEach(dn => { c[dn.value] = String(saved[dn.value] || ''); });
+      setDenomCounts(c);
+      setNotes(savedReport.notes || '');
+      setDiscReason(savedReport.discrepancy_reason || '');
+    }
+  }, [savedReport]);
 
   /* ── EOD History ── */
   const { data: history = [] } = useQuery({
@@ -293,7 +294,7 @@ export default function EODReportPage() {
       qc.invalidateQueries(['eod-report', outletId, selectedDate]);
       qc.invalidateQueries(['eod-history', outletId]);
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Save failed'),
+    onError: (e) => toast.error(e.message || 'Save failed'),
   });
 
   /* ── Lock mutation ── */
@@ -304,7 +305,7 @@ export default function EODReportPage() {
       qc.invalidateQueries(['eod-report', outletId, selectedDate]);
       qc.invalidateQueries(['eod-history', outletId]);
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Lock failed'),
+    onError: (e) => toast.error(e.message || 'Lock failed'),
   });
 
   /* ── Derived values ── */

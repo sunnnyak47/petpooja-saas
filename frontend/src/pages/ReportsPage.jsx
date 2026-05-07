@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -153,8 +154,14 @@ export default function ReportsPage() {
     ].filter(d => d.value > 0);
   }, [kpis]);
 
-  const handleExport = (type) => {
-    window.location.href = `${import.meta.env.VITE_API_URL || '/api'}/reports/export?type=${type}&outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&format=csv`;
+  const handleExport = async (type) => {
+    try {
+      const response = await api.get(`/reports/export?type=${type}&outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&format=csv`, { responseType: 'blob' });
+      const blob = new Blob([response.data || response], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${type}-report.csv`; a.click();
+      window.URL.revokeObjectURL(url);
+    } catch { toast.error('Export failed'); }
   };
 
   const pieColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];

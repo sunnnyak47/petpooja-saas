@@ -201,8 +201,8 @@ router.get('/my-health-score', authenticate, hasRole('super_admin', 'owner', 'ma
  */
 router.get('/my-subscription', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    const { getDbClient } = require('../../config/database');
+    const prisma = getDbClient();
     const headOfficeId = req.user?.head_office_id;
     if (!headOfficeId) return res.status(400).json({ success: false, message: 'No head office linked to this account' });
 

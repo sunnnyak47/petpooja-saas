@@ -299,7 +299,9 @@ export default function RunningOrdersPage() {
     const socket = io(`${SOCKET_URL}/orders`, {
       transports: ['websocket'], withCredentials: true
     });
-    socket.emit('join_outlet', outletId);
+    socket.on('connect', () => {
+      socket.emit('join_outlet', outletId);
+    });
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['running-orders'] });
     socket.on('new_order', refresh);
     socket.on('order_status_change', refresh);

@@ -200,8 +200,8 @@ export default function OnlineOrdersPage() {
     });
     socketRef.current.on('new-online-order', (order) => {
       if (soundEnabled) notificationSound.current.play().catch(() => {});
-      queryClient.invalidateQueries(['agg-orders-active', outletId]);
-      queryClient.invalidateQueries(['agg-orders-stats', outletId]);
+      queryClient.invalidateQueries({ queryKey: ['agg-orders-active', outletId] });
+      queryClient.invalidateQueries({ queryKey: ['agg-orders-stats', outletId] });
       toast.success(`New ${order.platform || ''} order received!`, { duration: 5000 });
       if (autoAccept) {
         acceptMutation.mutate({ id: order.id, prepTime: 20 });

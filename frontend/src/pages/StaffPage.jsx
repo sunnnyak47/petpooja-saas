@@ -38,8 +38,8 @@ function OTPClockModal({ isOpen, onClose, outletId }) {
   const generateMutation = useMutation({
     mutationFn: () => api.post('/staff/otp/generate', { action, outlet_id: outletId }),
     onSuccess: (res) => {
-      setGeneratedOTP(res.data.data.otp);
-      setExpiresAt(res.data.data.expires_at);
+      setGeneratedOTP(res.data?.otp || res?.data?.data?.otp);
+      setExpiresAt(res.data?.expires_at || res?.data?.data?.expires_at);
       setStep('otp');
       toast.success('OTP generated');
     },
@@ -370,7 +370,7 @@ function SalaryTab({ outletId }) {
           {MONTHS.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
         </select>
         <select className="input w-24" value={year} onChange={e => setYear(Number(e.target.value))}>
-          {[2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
+          {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <button onClick={() => bulkCalc.mutate()} disabled={bulkCalc.isPending}
           className="btn-primary flex items-center gap-2">

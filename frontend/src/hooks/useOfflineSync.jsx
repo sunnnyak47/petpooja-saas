@@ -98,7 +98,7 @@ export default function useOfflineSync() {
         try {
           const token = localStorage.getItem('accessToken');
           const BASE = import.meta.env.VITE_API_URL || '';
-          const response = await fetch(`${BASE}/api${action.endpoint}`, {
+          const response = await fetch(`${BASE}${action.endpoint}`, {
             method: action.method || 'POST',
             headers: {
               'Content-Type': 'application/json',

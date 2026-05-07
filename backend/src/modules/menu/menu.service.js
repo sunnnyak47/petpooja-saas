@@ -192,7 +192,9 @@ async function createMenuItem(data) {
 async function listMenuItems(outletId, query = {}) {
   const prisma = getDbClient();
   try {
-    const { page, limit, offset, sort, order } = parsePagination(query);
+    const { page, limit, offset, sort: rawSort, order } = parsePagination(query);
+    const ALLOWED_MENU_SORTS = ['created_at', 'name', 'base_price', 'sort_order', 'category_id', 'updated_at'];
+    const sort = ALLOWED_MENU_SORTS.includes(rawSort) ? rawSort : 'created_at';
     const where = { outlet_id: outletId, is_deleted: false };
 
     if (query.category_id) where.category_id = query.category_id;

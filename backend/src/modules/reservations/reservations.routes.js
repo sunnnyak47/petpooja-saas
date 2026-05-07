@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
+const { getDbClient } = require('../../config/database');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { hasPermission } = require('../../middleware/rbac.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
-
-const prisma = new PrismaClient();
 
 router.use(authenticate);
 
@@ -19,7 +18,7 @@ router.get('/', async (req, res, next) => {
       const next = new Date(d); next.setDate(d.getDate() + 1);
       where.reservation_date = { gte: d, lt: next };
     }
-    const reservations = await prisma.tableReservation.findMany({
+    const reservations = await getDbClient().tableReservation.findMany({
       where,
       include: { table: { select: { id: true, table_number: true, capacity: true } } },
       orderBy: [{ reservation_date: 'asc' }, { reservation_time: 'asc' }],
@@ -30,7 +29,7 @@ router.get('/', async (req, res, next) => {
       reservation_time: r.reservation_time
         ? `${String(new Date(r.reservation_time).getUTCHours()).padStart(2,'0')}:${String(new Date(r.reservation_time).getUTCMinutes()).padStart(2,'0')}`
         : null,
-      customer_email: r.notes ? null : null, // notes field doubles as special_requests
+      customer_email: r.customer_email || null,
       special_requests: r.notes,
       table_preference: r.table?.table_number ? `Table ${r.table.table_number}` : null,
     })));
@@ -38,7 +37,7 @@ router.get('/', async (req, res, next) => {
 });
 
 /** POST /api/reservations */
-router.post('/', async (req, res, next) => {
+router.post('/', hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
     const { customer_name, customer_phone, party_size, reservation_date,
             reservation_time, special_requests, outlet_id, table_id } = req.body;
@@ -48,7 +47,7 @@ router.post('/', async (req, res, next) => {
     // Pick a table if not specified
     let tid = table_id;
     if (!tid) {
-      const anyTable = await prisma.table.findFirst({ where: { outlet_id, is_deleted: false } });
+      const anyTable = await getDbClient().table.findFirst({ where: { outlet_id, is_deleted: false } });
       if (!anyTable) return sendError(res, 400, 'No tables found for this outlet');
       tid = anyTable.id;
     }
@@ -57,7 +56,7 @@ router.post('/', async (req, res, next) => {
     const [hh = '12', mm = '00'] = (reservation_time || '12:00').split(':');
     const resTime = new Date(`1970-01-01T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00Z`);
 
-    const reservation = await prisma.tableReservation.create({
+    const reservation = await getDbClient().tableReservation.create({
       data: {
         outlet_id, table_id: tid,
         customer_name: customer_name || 'Guest',
@@ -74,7 +73,7 @@ router.post('/', async (req, res, next) => {
 });
 
 /** PATCH /api/reservations/:id */
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
     const { status, customer_name, customer_phone, party_size,
             reservation_date, reservation_time, special_requests } = req.body;
@@ -89,15 +88,15 @@ router.patch('/:id', async (req, res, next) => {
       data.reservation_time = new Date(`1970-01-01T${hh.padStart(2,'0')}:${mm.padStart(2,'0')}:00Z`);
     }
     if (special_requests !== undefined) data.notes = special_requests;
-    const updated = await prisma.tableReservation.update({ where: { id: req.params.id }, data });
+    const updated = await getDbClient().tableReservation.update({ where: { id: req.params.id }, data });
     sendSuccess(res, updated, 'Reservation updated');
   } catch (err) { next(err); }
 });
 
 /** DELETE /api/reservations/:id */
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
-    await prisma.tableReservation.update({ where: { id: req.params.id }, data: { is_deleted: true } });
+    await getDbClient().tableReservation.update({ where: { id: req.params.id }, data: { is_deleted: true } });
     sendSuccess(res, { deleted: true }, 'Reservation deleted');
   } catch (err) { next(err); }
 });

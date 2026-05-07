@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import {
   Receipt, Plus, Save, Trash2, Edit2, CheckCircle2, Globe,
   ChevronDown, AlertTriangle, X
@@ -230,9 +231,9 @@ export default function TaxProfilesPage() {
   };
 
   const handleAddNew = () => {
-    if (!newProfile.id || !newProfile.name) return alert('ID and name are required');
+    if (!newProfile.id || !newProfile.name) return toast.error('ID and name are required');
     const exists = profiles.find(p => p.id === newProfile.id);
-    if (exists) return alert('Profile ID already exists');
+    if (exists) return toast.error('Profile ID already exists');
     saveMutation.mutate([...profiles, newProfile]);
     setShowNewForm(false);
     setNewProfile({ id: '', region: 'IN', name: '', slabs: [], default_slab: 5, gst_type: 'REGULAR', inclusive: false });

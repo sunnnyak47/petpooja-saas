@@ -33,7 +33,7 @@ export default function ResetPasswordPage() {
         token, 
         new_password: password 
       });
-      toast.success(res.data.message || 'Password reset successfully!');
+      toast.success(res.message || res.data?.message || 'Password reset successful');
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (error) {

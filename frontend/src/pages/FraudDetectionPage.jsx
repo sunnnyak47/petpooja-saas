@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import {
   ShieldAlert, AlertTriangle, Eye, CheckCircle, X, RefreshCw,
@@ -10,10 +11,10 @@ import {
 
 /* ─── API ─────────────────────────────────────────────────── */
 const fraudApi = {
-  detect:   (outletId) => api.post('/fraud/detect', { outlet_id: outletId }).then(r => r.data.data),
-  alerts:   (outletId, params) => api.get('/fraud/alerts', { params: { outlet_id: outletId, ...params } }).then(r => r.data.data),
-  stats:    (outletId) => api.get('/fraud/stats', { params: { outlet_id: outletId } }).then(r => r.data.data),
-  risks:    (outletId) => api.get('/fraud/staff-risks', { params: { outlet_id: outletId } }).then(r => r.data.data),
+  detect:   (outletId) => api.post('/fraud/detect', { outlet_id: outletId }).then(r => r.data || r),
+  alerts:   (outletId, params) => api.get('/fraud/alerts', { params: { outlet_id: outletId, ...params } }).then(r => r.data || r),
+  stats:    (outletId) => api.get('/fraud/stats', { params: { outlet_id: outletId } }).then(r => r.data || r),
+  risks:    (outletId) => api.get('/fraud/staff-risks', { params: { outlet_id: outletId } }).then(r => r.data || r),
   markRead: (id, outletId) => api.patch(`/fraud/alerts/${id}/read`, { outlet_id: outletId }).then(r => r.data),
   readAll:  (outletId) => api.post('/fraud/alerts/read-all', { outlet_id: outletId }).then(r => r.data),
   dismiss:  (id, outletId) => api.patch(`/fraud/alerts/${id}/dismiss`, { outlet_id: outletId }).then(r => r.data),

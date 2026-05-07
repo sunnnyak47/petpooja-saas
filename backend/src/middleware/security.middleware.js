@@ -99,7 +99,7 @@ function inputSanitizer(req, res, next) {
  */
 function validateUUIDs(req, res, next) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const uuidParams = ['id', 'orderId', 'itemId', 'customerId', 'userId'];
+  const uuidParams = ['id', 'orderId', 'itemId', 'customerId', 'userId', 'kotId', 'menuItemId', 'headOfficeId', 'outletId', 'supplierId', 'tableId', 'categoryId', 'areaId'];
 
   for (const param of uuidParams) {
     if (req.params[param] && !uuidRegex.test(req.params[param])) {

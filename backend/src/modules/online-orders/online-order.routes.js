@@ -10,6 +10,8 @@ const { validate } = require('../../middleware/validate.middleware');
 const { createOrderSchema } = require('../orders/order.validation');
 
 const { authenticate, hasRole } = require('../../middleware/auth.middleware');
+const rateLimit = require('express-rate-limit');
+const publicOrderLimiter = rateLimit({ windowMs: 60000, max: 20, message: { success: false, message: 'Too many order attempts, please try again later' } });
 
 /**
  * These routes are PUBLIC as they are accessed by scanning a QR code.
@@ -18,8 +20,8 @@ const { authenticate, hasRole } = require('../../middleware/auth.middleware');
 // GET /api/online-orders/menu/:outlet_id
 router.get('/menu/:outlet_id', onlineOrderController.getPublicMenu);
 
-// POST /api/online-orders/place
-router.post('/place', validate(createOrderSchema), onlineOrderController.placeOrder);
+// POST /api/online-orders/place (rate-limited)
+router.post('/place', publicOrderLimiter, validate(createOrderSchema), onlineOrderController.placeOrder);
 
 /**
  * These routes are PROTECTED (Staff/POS actions).

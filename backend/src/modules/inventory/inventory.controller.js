@@ -165,10 +165,58 @@ async function listRecipes(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/**
+ * GET /api/inventory/summary
+ * Aggregated view: total items, low-stock count, out-of-stock count, categories.
+ */
+async function getSummary(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { getDbClient } = require('../../config/database');
+    const prisma = getDbClient();
+
+    const [allStock, lowStockItems, categories] = await Promise.all([
+      // All stock rows for this outlet
+      prisma.inventoryStock.findMany({
+        where: { outlet_id: outletId },
+        include: { item: { select: { name: true, unit: true, category: true, reorder_level: true } } },
+      }),
+      // Low-stock items (quantity <= reorder_level)
+      inventoryService.getLowStock(outletId),
+      // Distinct categories
+      prisma.inventoryItem.findMany({
+        where: { is_deleted: false },
+        distinct: ['category'],
+        select: { category: true },
+      }),
+    ]);
+
+    const outOfStock = allStock.filter((s) => Number(s.quantity) <= 0);
+
+    const summary = {
+      outlet_id: outletId,
+      total_items: allStock.length,
+      low_stock_count: lowStockItems.length,
+      out_of_stock_count: outOfStock.length,
+      categories: categories.map((c) => c.category).filter(Boolean),
+      low_stock_items: lowStockItems.slice(0, 20), // cap to keep payload small
+      out_of_stock_items: outOfStock.slice(0, 20).map((s) => ({
+        item_id: s.item_id,
+        name: s.item?.name,
+        unit: s.item?.unit,
+        quantity: Number(s.quantity),
+      })),
+    };
+
+    sendSuccess(res, summary, 'Inventory summary retrieved');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   getStock, adjustStock, recordWastage, createRecipe, getRecipeCost,
   listItems, createItem, updateItem, deleteItem,
   getLowStock, getWastageLogs, getConsumptionReport,
   triggerAutoOrder, restockOrder,
   listSuppliers, createSupplier, listRecipes,
+  getSummary,
 };

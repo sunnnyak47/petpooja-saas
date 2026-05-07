@@ -37,6 +37,7 @@ export default function SuperAdminLoginPage() {
 
       dispatch(loginSuccess({
         accessToken: payload.token || payload.accessToken,
+        refreshToken: payload.refreshToken || payload.token || payload.accessToken,
         user: { ...(payload.user || {}), role: 'super_admin', is_super_admin: true },
       }));
 

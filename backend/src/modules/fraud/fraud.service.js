@@ -67,8 +67,20 @@ function dayStart()   { return hoursAgo(24); }
 
 async function getStaffName(prisma, staffId) {
   if (!staffId) return 'Unknown';
-  const u = await prisma.user.findUnique({ where: { id: staffId }, select: { name: true } });
-  return u?.name || 'Unknown';
+  const u = await prisma.user.findUnique({ where: { id: staffId }, select: { full_name: true } });
+  return u?.full_name || 'Unknown';
+}
+
+async function batchGetStaffNames(prisma, staffIds) {
+  const uniqueIds = [...new Set(staffIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+  const users = await prisma.user.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true, full_name: true },
+  });
+  const map = new Map();
+  for (const u of users) map.set(u.id, u.full_name || 'Unknown');
+  return map;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -77,19 +89,19 @@ async function getStaffName(prisma, staffId) {
 async function notifyOwnerWhatsApp(outletId, alert) {
   try {
     const prisma = getDbClient();
-    // Get outlet + owner phone
+    // Get outlet + owner phone via UserRole join table
     const outlet = await prisma.outlet.findUnique({
       where: { id: outletId },
-      include: {
-        users: {
-          where: { role: { in: ['owner', 'admin'] }, is_active: true },
-          select: { phone: true, name: true },
-          take: 1,
-        },
-      },
+      select: { id: true, name: true },
     });
 
-    const owner = outlet?.users?.[0];
+    const ownerRoles = await prisma.userRole.findMany({
+      where: { outlet_id: outletId, role: { name: { in: ['owner', 'admin'] } } },
+      include: { user: { select: { full_name: true, phone: true } } },
+      take: 1,
+    });
+
+    const owner = ownerRoles[0]?.user;
     if (!owner?.phone) {
       logger.warn('Fraud WA: no owner phone found', { outletId });
       return false;
@@ -138,6 +150,7 @@ async function notifyOwnerWhatsApp(outletId, alert) {
     logger.info('FRAUD_ALERT_WA_STUB', {
       to: owner.phone,
       outlet: outlet?.name,
+      owner_name: owner.full_name,
       alert_type: alert.alert_type,
       severity: alert.severity,
       message: msg,
@@ -210,6 +223,10 @@ async function detectExcessiveCancellations(prisma, outletId, t) {
     _count: { id: true },
   });
 
+  // Batch resolve staff names
+  const cancelStaffIds = cancelled.filter(r => r._count.id >= t.cancellation_count_per_shift).map(r => r.cancelled_by);
+  const cancelNameMap = await batchGetStaffNames(prisma, cancelStaffIds);
+
   for (const row of cancelled) {
     const staffId = row.cancelled_by;
     const count   = row._count.id;
@@ -224,7 +241,7 @@ async function detectExcessiveCancellations(prisma, outletId, t) {
     if (pct < t.cancellation_pct_of_orders && count < t.cancellation_count_per_shift + 2) continue;
 
     const score = Math.min(95, 50 + count * 5 + Math.round(pct * 30));
-    const name  = await getStaffName(prisma, staffId);
+    const name  = cancelNameMap.get(staffId) || 'Unknown';
 
     alerts.push(await saveAlert(prisma, outletId, staffId, {
       alert_type:  'EXCESSIVE_CANCELLATIONS',
@@ -559,11 +576,22 @@ async function runDetection(outletId, customThresholds = {}) {
 async function getStaffRiskProfiles(outletId) {
   const prisma = getDbClient();
 
-  const [staffList, alerts30d] = await Promise.all([
-    prisma.user.findMany({
-      where: { outlet_id: outletId, is_active: true, role: { in: ['waiter', 'cashier', 'captain', 'manager'] } },
-      select: { id: true, name: true, role: true, phone: true },
-    }),
+  const staffUserRoles = await prisma.userRole.findMany({
+    where: {
+      outlet_id: outletId,
+      role: { name: { in: ['waiter', 'cashier', 'captain', 'manager'] } },
+    },
+    include: {
+      user: { select: { id: true, full_name: true, phone: true, is_active: true } },
+      role: { select: { name: true } },
+    },
+  });
+  const staffList = staffUserRoles
+    .filter(ur => ur.user?.is_active)
+    .map(ur => ({ id: ur.user.id, full_name: ur.user.full_name, role: ur.role.name, phone: ur.user.phone }));
+
+  const [, alerts30d] = await Promise.all([
+    Promise.resolve(),
     prisma.fraudAlert.findMany({
       where: { outlet_id: outletId, created_at: { gte: hoursAgo(720) }, is_dismissed: false },
       select: { staff_id: true, alert_type: true, severity: true, risk_score: true, created_at: true, is_resolved: true },
@@ -608,7 +636,7 @@ async function listAlerts(outletId, { page = 1, limit = 20, severity: sev, alert
   const [items, total] = await Promise.all([
     prisma.fraudAlert.findMany({
       where,
-      include: { staff: { select: { id: true, name: true, role: true } } },
+      include: { staff: { select: { id: true, full_name: true } } },
       orderBy: [{ severity: 'desc' }, { created_at: 'desc' }],
       skip:  (page - 1) * limit,
       take:  limit,

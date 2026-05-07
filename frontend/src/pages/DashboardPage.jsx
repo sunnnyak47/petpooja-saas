@@ -70,7 +70,7 @@ export default function DashboardPage() {
   const { from, to } = todayRange();
 
   /* dashboard KPIs */
-  const { data: dashboard, isLoading } = useQuery({
+  const { data: dashboard, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard', outletId],
     queryFn:  () => api.get(`/reports/dashboard?outlet_id=${outletId}`).then((r) => r.data),
     enabled:  !!outletId,
@@ -141,6 +141,15 @@ export default function DashboardPage() {
       accent: 'var(--accent)',
     },
   ];
+
+  if (isError) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-500 text-lg mb-4">Failed to load dashboard data</p>
+        <button onClick={() => refetch()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Retry</button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -359,7 +368,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-bold" style={{ color: 'var(--accent)' }}>
                     {item.count} <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>sold</span>
                   </p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>₹{Number(item.revenue || 0).toLocaleString()}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{format(Number(item.revenue || 0))}</p>
                 </div>
               </div>
             ))}

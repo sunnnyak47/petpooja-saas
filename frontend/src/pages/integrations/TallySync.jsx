@@ -1,24 +1,20 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
-import { 
-  Globe, Save, Download, RefreshCw, 
+import api from '../../lib/api';
+import {
+  Globe, Save, Download, RefreshCw,
   CheckCircle2, AlertCircle, Calendar,
   ArrowRight, FileText, CreditCard, ShoppingBag
 } from 'lucide-react';
 
 const fetchMappings = async (outletId) => {
-    const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/integrations/accounting/tally/mappings?outlet_id=${outletId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    return data.data;
+    const data = await api.get(`/integrations/accounting/tally/mappings?outlet_id=${outletId}`);
+    return data.data?.data || data.data;
 };
 
 const updateMapping = async (mapping) => {
-    const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/integrations/accounting/tally/mappings`, mapping, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    return data.data;
+    const data = await api.post(`/integrations/accounting/tally/mappings`, mapping);
+    return data.data?.data || data.data;
 };
 
 export default function TallySync() {

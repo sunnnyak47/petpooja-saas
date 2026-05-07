@@ -37,10 +37,13 @@ async function createCustomer(data) {
   return customer;
 }
 
-async function listCustomers(query = {}) {
+async function listCustomers(outletId, query = {}) {
   const prisma = getDbClient();
   const { page, limit, offset } = parsePagination(query);
   const where = { is_deleted: false };
+  if (outletId) {
+    where.orders = { some: { outlet_id: outletId, is_deleted: false } };
+  }
   if (query.segment) where.segment = query.segment;
   if (query.dietary_preference) where.dietary_preference = query.dietary_preference;
   if (query.search) {
@@ -152,16 +155,16 @@ async function getCRMDashboard(outletId) {
     recentTransactions,
     loyaltyStats,
   ] = await Promise.all([
-    prisma.customer.count({ where: { is_deleted: false } }),
+    prisma.customer.count({ where: { is_deleted: false, ...(outletId ? { orders: { some: { outlet_id: outletId } } } : {}) } }),
 
     prisma.customer.groupBy({
       by: ['segment'],
-      where: { is_deleted: false },
+      where: { is_deleted: false, ...(outletId ? { orders: { some: { outlet_id: outletId } } } : {}) },
       _count: { id: true },
     }),
 
     prisma.customer.findMany({
-      where: { is_deleted: false },
+      where: { is_deleted: false, ...(outletId ? { orders: { some: { outlet_id: outletId } } } : {}) },
       orderBy: { total_spend: 'desc' },
       take: 10,
       select: {
@@ -233,9 +236,12 @@ async function getBirthdayCustomers(daysAhead = 7) {
     FROM customers
     WHERE is_deleted = false
       AND date_of_birth IS NOT NULL
-      AND TO_CHAR(date_of_birth, 'MM-DD') BETWEEN
-          TO_CHAR(CURRENT_DATE, 'MM-DD') AND
-          TO_CHAR(CURRENT_DATE + (${daysAhead} || ' days')::INTERVAL, 'MM-DD')
+      AND (
+        CASE WHEN TO_CHAR(CURRENT_DATE + (${daysAhead} || ' days')::INTERVAL, 'MM-DD') >= TO_CHAR(CURRENT_DATE, 'MM-DD')
+        THEN TO_CHAR(date_of_birth, 'MM-DD') BETWEEN TO_CHAR(CURRENT_DATE, 'MM-DD') AND TO_CHAR(CURRENT_DATE + (${daysAhead} || ' days')::INTERVAL, 'MM-DD')
+        ELSE (TO_CHAR(date_of_birth, 'MM-DD') >= TO_CHAR(CURRENT_DATE, 'MM-DD') OR TO_CHAR(date_of_birth, 'MM-DD') <= TO_CHAR(CURRENT_DATE + (${daysAhead} || ' days')::INTERVAL, 'MM-DD'))
+        END
+      )
     ORDER BY TO_CHAR(date_of_birth, 'MM-DD')
     LIMIT 50
   `;

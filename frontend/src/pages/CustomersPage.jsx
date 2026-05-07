@@ -65,6 +65,7 @@ export default function CustomersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, segFilter],
     queryFn: () => api.get(`/customers?limit=100${search ? `&search=${search}` : ''}${segFilter ? `&segment=${segFilter}` : ''}`).then(r => r.data),
+    enabled: !!outletId,
   });
 
   const { data: customerDetail } = useQuery({

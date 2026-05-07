@@ -26,6 +26,7 @@ export default function CustomerOrderPage() {
   const [orderInfo, setOrderInfo] = useState({ name: '', phone: '' });
   const [placingOrder, setPlacingOrder] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
+  const [orderError, setOrderError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -110,11 +111,12 @@ export default function CustomerOrderPage() {
         setStep('success');
         setCart([]);
         setIsCartOpen(false);
+        setOrderError('');
       } else {
-        alert(data.message || 'Order failed. Please try again.');
+        setOrderError(data.message || 'Order failed. Please try again.');
       }
     } catch (err) {
-      alert('Network error. Please try again.');
+      setOrderError('Network error. Please try again.');
     } finally {
       setPlacingOrder(false);
     }
@@ -366,6 +368,7 @@ export default function CustomerOrderPage() {
                   onChange={e => setOrderInfo(p => ({ ...p, phone: e.target.value }))}
                   className="rounded-xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
+              {orderError && <p className="text-red-500 text-center mt-2">{orderError}</p>}
               <button onClick={placeOrder} disabled={placingOrder}
                 className="w-full rounded-2xl bg-orange-500 py-4 font-bold text-white shadow-xl shadow-orange-200 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-base">
                 {placingOrder ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> :

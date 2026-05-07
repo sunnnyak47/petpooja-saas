@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   Calendar, Plus, Users, Clock, Award, AlertTriangle, ChevronLeft,
   ChevronRight, X, Check, Trash2, Edit2, Shield, Star, RefreshCw,
@@ -45,7 +46,7 @@ export default function RosteringPage() {
   const { user } = useSelector(s => s.auth);
   const qc = useQueryClient();
   const outletId = user?.outlet_id;
-  const currency = user?.outlet?.currency || 'AUD';
+  const { format: formatCurrency, currency } = useCurrency();
 
   const [activeTab, setActiveTab] = useState('roster'); // roster | availability | certifications
   const [weekBase, setWeekBase] = useState(new Date());
