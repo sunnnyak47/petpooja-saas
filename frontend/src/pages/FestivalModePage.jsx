@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSelector } from 'react-redux';
 import axios from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
 import {
@@ -11,14 +12,14 @@ import {
 
 /* ─── API helpers ─────────────────────────────────────────── */
 const festApi = {
-  detect:       (outletId, days) => axios.get(`/festival/detect?outlet_id=${outletId}&days_ahead=${days}`).then(r => r.data.data),
-  master:       (country)        => axios.get(`/festival/master?country=${country}`).then(r => r.data.data),
-  active:       (outletId)       => axios.get(`/festival/active?outlet_id=${outletId}`).then(r => r.data.data),
-  configs:      (outletId)       => axios.get(`/festival/configs?outlet_id=${outletId}`).then(r => r.data.data),
-  saveConfig:   (body)           => axios.post('/festival/configs', body).then(r => r.data.data),
-  toggle:       (id, outletId)   => axios.post(`/festival/configs/${id}/toggle`, { outlet_id: outletId }).then(r => r.data.data),
-  deleteConfig: (id, outletId)   => axios.delete(`/festival/configs/${id}?outlet_id=${outletId}`).then(r => r.data.data),
-  menuSuggestions: (key, outletId) => axios.get(`/festival/menu-suggestions/${key}?outlet_id=${outletId}`).then(r => r.data.data),
+  detect:       (outletId, days) => axios.get(`/festival/detect?outlet_id=${outletId}&days_ahead=${days}`).then(r => r.data),
+  master:       (country)        => axios.get(`/festival/master?country=${country}`).then(r => r.data),
+  active:       (outletId)       => axios.get(`/festival/active?outlet_id=${outletId}`).then(r => r.data),
+  configs:      (outletId)       => axios.get(`/festival/configs?outlet_id=${outletId}`).then(r => r.data),
+  saveConfig:   (body)           => axios.post('/festival/configs', body).then(r => r.data),
+  toggle:       (id, outletId)   => axios.post(`/festival/configs/${id}/toggle`, { outlet_id: outletId }).then(r => r.data),
+  deleteConfig: (id, outletId)   => axios.delete(`/festival/configs/${id}?outlet_id=${outletId}`).then(r => r.data),
+  menuSuggestions: (key, outletId) => axios.get(`/festival/menu-suggestions/${key}?outlet_id=${outletId}`).then(r => r.data),
 };
 
 /* ─── Constants ───────────────────────────────────────────── */
@@ -54,7 +55,7 @@ function SeasonIcon({ festival }) {
 }
 
 /* ─── Festival Card ───────────────────────────────────────── */
-function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onConfigure }) {
+function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onConfigure, locale }) {
   const isActive   = savedConfig?.is_active;
   const configured = !!savedConfig;
   const special    = festival.special_mode ? SPECIAL_MODE_INFO[festival.special_mode] : null;
@@ -418,7 +419,7 @@ function ConfigureModal({ festival, savedConfig, outletId, onClose, onSave }) {
 }
 
 /* ─── Active Mode Banner ──────────────────────────────────── */
-function ActiveModeBanner({ activeMode, outletId, onToggle }) {
+function ActiveModeBanner({ activeMode, outletId, onToggle, locale }) {
   if (!activeMode) return null;
   const theme = activeMode.theme || {};
 
@@ -462,7 +463,7 @@ function ActiveModeBanner({ activeMode, outletId, onToggle }) {
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function FestivalModePage() {
   const { locale, symbol } = useCurrency();
-  const outletId = localStorage.getItem('outlet_id') || '';
+  const outletId = useSelector(state => state.auth.user?.outlet_id) || '';
   const [tab, setTab]                         = useState('upcoming');
   const [search, setSearch]                   = useState('');
   const [countryFilter, setCountryFilter]     = useState('IN');
@@ -499,9 +500,9 @@ export default function FestivalModePage() {
   const saveMut = useMutation({
     mutationFn: festApi.saveConfig,
     onSuccess: () => {
-      qc.invalidateQueries(['festival-detect', outletId]);
-      qc.invalidateQueries(['festival-active', outletId]);
-      qc.invalidateQueries(['festival-configs', outletId]);
+      qc.invalidateQueries({ queryKey: ['festival-detect', outletId] });
+      qc.invalidateQueries({ queryKey: ['festival-active', outletId] });
+      qc.invalidateQueries({ queryKey: ['festival-configs', outletId] });
       setConfigModal(null);
     },
   });
@@ -509,15 +510,15 @@ export default function FestivalModePage() {
   const toggleMut = useMutation({
     mutationFn: (id) => festApi.toggle(id, outletId),
     onSuccess: () => {
-      qc.invalidateQueries(['festival-detect', outletId]);
-      qc.invalidateQueries(['festival-active', outletId]);
-      qc.invalidateQueries(['festival-configs', outletId]);
+      qc.invalidateQueries({ queryKey: ['festival-detect', outletId] });
+      qc.invalidateQueries({ queryKey: ['festival-active', outletId] });
+      qc.invalidateQueries({ queryKey: ['festival-configs', outletId] });
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => festApi.deleteConfig(id, outletId),
-    onSuccess: () => qc.invalidateQueries(['festival-configs', outletId]),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['festival-configs', outletId] }),
   });
 
   const savedMap = Object.fromEntries((savedConfigs || []).map(s => [s.festival_key, s]));
@@ -560,7 +561,7 @@ export default function FestivalModePage() {
       </div>
 
       {/* Active Mode Banner */}
-      <ActiveModeBanner activeMode={activeMode} outletId={outletId} onToggle={toggleMut.mutate} />
+      <ActiveModeBanner activeMode={activeMode} outletId={outletId} onToggle={toggleMut.mutate} locale={locale} />
 
       {/* Stats row */}
       {detected && (
@@ -629,7 +630,7 @@ export default function FestivalModePage() {
                     {upcomingFiltered.filter(f => f.is_ongoing).map(f => (
                       <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
                         outletId={outletId} onActivate={toggleMut.mutate}
-                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} />
+                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
                     ))}
                   </div>
                 </div>
@@ -643,7 +644,7 @@ export default function FestivalModePage() {
                     {upcomingFiltered.filter(f => !f.is_ongoing).map(f => (
                       <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
                         outletId={outletId} onActivate={toggleMut.mutate}
-                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} />
+                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
                     ))}
                   </div>
                 </div>
@@ -659,7 +660,7 @@ export default function FestivalModePage() {
           {calendarFiltered.map(f => (
             <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
               outletId={outletId} onActivate={toggleMut.mutate}
-              onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} />
+              onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
           ))}
         </div>
       )}
