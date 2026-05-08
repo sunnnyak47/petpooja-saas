@@ -9,6 +9,13 @@ import App from './App';
 import { store } from './store';
 import './index.css';
 
+// Mark <body> when running inside Electron so CSS can add traffic-light safe area
+if (typeof window !== 'undefined' &&
+    (window.electron || window.location?.protocol === 'app:' ||
+     window.location?.protocol === 'file:' || window.location?.hostname === '127.0.0.1')) {
+  document.body.classList.add('is-electron', 'is-mac-electron');
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30000, retry: 1, refetchOnWindowFocus: false },

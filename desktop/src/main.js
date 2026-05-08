@@ -189,12 +189,12 @@ function createWindow() {
     height,
     minWidth: 1024,
     minHeight: 768,
-    title: 'Petpooja ERP',
+    title: 'MS-RM System',
     icon: path.join(__dirname, '../assets/icon.png'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    // Move traffic lights down so they sit centred in the 56px sidebar header
-    // and never overlap the brand text or nav items.
-    trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 18 } : undefined,
+    // Position traffic lights inside the 52px sidebar header area,
+    // vertically centred and spaced from the left edge.
+    trafficLightPosition: process.platform === 'darwin' ? { x: 14, y: 18 } : undefined,
     backgroundColor: '#0f172a',
     webPreferences: {
       nodeIntegration: false,

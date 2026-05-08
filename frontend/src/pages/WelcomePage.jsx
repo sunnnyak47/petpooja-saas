@@ -5,7 +5,7 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   ArrowRight, CheckCircle, ChefHat, BarChart3, Users,
   Package, Monitor, Truck, ClipboardList, LayoutGrid,
@@ -258,6 +258,12 @@ export default function WelcomePage() {
 
   const goLogin = () => navigate('/login');
 
+  const isElectron = useMemo(() =>
+    typeof window !== 'undefined' &&
+    (window.electron || window.location?.protocol === 'app:' ||
+     window.location?.protocol === 'file:' || window.location?.hostname === '127.0.0.1'),
+  []);
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -283,10 +289,12 @@ export default function WelcomePage() {
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid rgba(15,23,42,0.08)',
         padding: '0 32px',
+        paddingLeft: isElectron ? 90 : 32,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: 60,
+        height: 52,
+        WebkitAppRegion: isElectron ? 'drag' : undefined,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, WebkitAppRegion: 'no-drag' }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
             background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
@@ -299,7 +307,7 @@ export default function WelcomePage() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
           <button
             onClick={goLogin}
             className="btn-ghost"

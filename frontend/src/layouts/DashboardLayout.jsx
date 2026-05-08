@@ -243,7 +243,8 @@ export default function DashboardLayout() {
               borderColor: 'var(--border)',
               WebkitAppRegion: 'drag',
               ...(typeof window !== 'undefined' && window.electron ? {
-                paddingLeft: collapsed ? 0 : 'calc(env(titlebar-area-x, 0px) + 78px)',
+                paddingLeft: collapsed ? 8 : 80,
+                paddingTop: 2,
               } : {}),
             }}
           >

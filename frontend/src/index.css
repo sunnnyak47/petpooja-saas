@@ -261,3 +261,15 @@ button[class*="bg-surface-7"]:hover,button[class*="bg-surface-8"]:hover {
 
 /* ── Animate fade in ── */
 .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+
+/* ── Electron macOS traffic-light safe area ── */
+/* When running inside Electron with hiddenInset title bar, add space for
+   the native close/minimize/fullscreen buttons (traffic lights). */
+body.is-electron {
+  --electron-traffic-light-width: 78px;   /* 3 buttons × 20px + padding */
+  --electron-traffic-light-height: 52px;  /* vertical safe zone */
+}
+
+/* Make the entire top bar draggable in Electron */
+body.is-electron .electron-drag { -webkit-app-region: drag; }
+body.is-electron .electron-no-drag { -webkit-app-region: no-drag; }
