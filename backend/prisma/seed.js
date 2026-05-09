@@ -27,7 +27,7 @@ async function main() {
   
   const admin = await prisma.user.upsert({
     where: { email: 'admin@petpooja.com' },
-    update: {},
+    update: { password_hash: passwordHash, failed_login_attempts: 0, locked_until: null },
     create: {
       full_name: 'Global Software Owner',
       email: 'admin@petpooja.com',
