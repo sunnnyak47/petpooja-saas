@@ -36,6 +36,27 @@ const ACTION_TYPES = {
 
 const FILTERS = ['All', 'Voids', 'Financial', 'Staff', 'System'];
 
+const LogItem = React.memo(({ log, colors }) => {
+  const act = ACTION_TYPES[log.action] || ACTION_TYPES.order;
+  return (
+    <View style={[s.logItem, { borderBottomColor: colors.borderLight }]}>
+      <View style={[s.iconCircle, { backgroundColor: act.color + '15' }]}>
+        <Ionicons name={act.icon} size={18} color={act.color} />
+      </View>
+      <View style={s.logContent}>
+        <View style={s.logTop}>
+          <Text style={[s.logUser, { color: colors.text }]}>{log.user}</Text>
+          <Text style={[s.logTime, { color: colors.textMuted }]}>{log.time}</Text>
+        </View>
+        <Text style={[s.logDesc, { color: colors.textSecondary }]}>{log.description}</Text>
+        <View style={[s.actionBadge, { backgroundColor: act.color + '15' }]}>
+          <Text style={[s.actionBadgeText, { color: act.color }]}>{act.label}</Text>
+        </View>
+      </View>
+    </View>
+  );
+});
+
 export default function ActivityLogScreen() {
   const { outletId } = useOutlet();
   const { colors } = useTheme();
@@ -138,26 +159,9 @@ export default function ActivityLogScreen() {
           grouped.map(([date, items]) => (
             <View key={date}>
               <Text style={[s.dateHeader, { color: colors.textMuted }]}>{date}</Text>
-              {items.map((log) => {
-                const act = ACTION_TYPES[log.action] || ACTION_TYPES.order;
-                return (
-                  <View key={log.id} style={[s.logItem, { borderBottomColor: colors.borderLight }]}>
-                    <View style={[s.iconCircle, { backgroundColor: act.color + '15' }]}>
-                      <Ionicons name={act.icon} size={18} color={act.color} />
-                    </View>
-                    <View style={s.logContent}>
-                      <View style={s.logTop}>
-                        <Text style={[s.logUser, { color: colors.text }]}>{log.user}</Text>
-                        <Text style={[s.logTime, { color: colors.textMuted }]}>{log.time}</Text>
-                      </View>
-                      <Text style={[s.logDesc, { color: colors.textSecondary }]}>{log.description}</Text>
-                      <View style={[s.actionBadge, { backgroundColor: act.color + '15' }]}>
-                        <Text style={[s.actionBadgeText, { color: act.color }]}>{act.label}</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
+              {items.map((log) => (
+                <LogItem key={log.id} log={log} colors={colors} />
+              ))}
             </View>
           ))
         )}

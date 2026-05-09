@@ -8,6 +8,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   RefreshControl,
   TouchableOpacity,
   TextInput,
@@ -22,6 +23,38 @@ import SkeletonBox from '../../src/components/SkeletonBox';
 import { useMenuOverview } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 
+
+const MENU_ITEM_HEIGHT = 62;
+
+const MenuItem = React.memo(({ item, colors }) => (
+  <PressCard style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.available && s.cardDisabled]}>
+    <View style={s.cardRow}>
+      {/* Veg/Non-veg indicator */}
+      <View style={[s.vegDot, { borderColor: item.veg ? '#00B341' : '#EE0000' }]}>
+        <View style={[s.vegDotInner, { backgroundColor: item.veg ? '#00B341' : '#EE0000' }]} />
+      </View>
+      <View style={s.cardInfo}>
+        <Text style={[s.itemName, { color: colors.text }, !item.available && { color: colors.textMuted }]}>{item.name}</Text>
+        <Text style={[s.itemCat, { color: colors.textMuted }]}>{item.category}</Text>
+      </View>
+      <View style={s.cardRight}>
+        <Text style={[s.itemPrice, { color: colors.text }]}>₹{item.price}</Text>
+        <View style={[s.availBadge, {
+          backgroundColor: item.available ? '#EDFBF3' : '#FFF0F0',
+        }]}>
+          <View style={[s.availDot, {
+            backgroundColor: item.available ? '#00B341' : '#EE0000',
+          }]} />
+          <Text style={[s.availText, {
+            color: item.available ? '#007A2E' : '#8B0000',
+          }]}>
+            {item.available ? 'Active' : 'Off'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  </PressCard>
+));
 
 export default function MenuOverviewScreen() {
   const { outletId } = useOutlet();
@@ -138,55 +171,44 @@ export default function MenuOverviewScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
-      >
-        {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
+      {isLoading ? (
+        <ScrollView contentContainerStyle={s.scroll}>
+          {Array.from({ length: 6 }).map((_, i) => (
             <View key={i} style={s.card}>
               <SkeletonBox width="50%" height={16} borderRadius={4} />
               <SkeletonBox width="30%" height={14} borderRadius={4} style={{ marginTop: 6 }} />
             </View>
-          ))
-        ) : filtered.length === 0 ? (
+          ))}
+        </ScrollView>
+      ) : filtered.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        >
           <View style={s.emptyState}>
             <Ionicons name="restaurant-outline" size={48} color="#DDD" />
             <Text style={s.emptyTitle}>No items found</Text>
           </View>
-        ) : (
-          filtered.map(item => (
-            <PressCard key={item.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.available && s.cardDisabled]}>
-              <View style={s.cardRow}>
-                {/* Veg/Non-veg indicator */}
-                <View style={[s.vegDot, { borderColor: item.veg ? '#00B341' : '#EE0000' }]}>
-                  <View style={[s.vegDotInner, { backgroundColor: item.veg ? '#00B341' : '#EE0000' }]} />
-                </View>
-                <View style={s.cardInfo}>
-                  <Text style={[s.itemName, { color: colors.text }, !item.available && { color: colors.textMuted }]}>{item.name}</Text>
-                  <Text style={[s.itemCat, { color: colors.textMuted }]}>{item.category}</Text>
-                </View>
-                <View style={s.cardRight}>
-                  <Text style={[s.itemPrice, { color: colors.text }]}>₹{item.price}</Text>
-                  <View style={[s.availBadge, {
-                    backgroundColor: item.available ? '#EDFBF3' : '#FFF0F0',
-                  }]}>
-                    <View style={[s.availDot, {
-                      backgroundColor: item.available ? '#00B341' : '#EE0000',
-                    }]} />
-                    <Text style={[s.availText, {
-                      color: item.available ? '#007A2E' : '#8B0000',
-                    }]}>
-                      {item.available ? 'Active' : 'Off'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </PressCard>
-          ))
-        )}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => <MenuItem item={item} colors={colors} />}
+          contentContainerStyle={s.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          getItemLayout={(data, index) => ({
+            length: MENU_ITEM_HEIGHT,
+            offset: MENU_ITEM_HEIGHT * index,
+            index,
+          })}
+          ListFooterComponent={<View style={{ height: 40 }} />}
+        />
+      )}
     </SafeAreaView>
   );
 }

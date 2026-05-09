@@ -118,6 +118,41 @@ const QUICK_ACTIONS = [
   { label: 'EOD Status', icon: 'cash-outline', route: '/(owner)/cash-recon', color: LC.warning },
 ];
 
+// ─── Memoized list-item components ─────────────────────────────────────────
+
+const TopItemRow = React.memo(({ item, idx, maxItemCount, colors }) => (
+  <View style={[s.topItemRow, { borderBottomColor: colors.border }]}>
+    <View style={s.topItemLeft}>
+      <Text style={[s.topItemRank, { color: colors.textMuted }]}>{idx + 1}</Text>
+      <View style={s.topItemInfo}>
+        <Text style={[s.topItemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+        <Text style={[s.topItemMeta, { color: colors.textMuted }]}>{item.count} sold  {fmt(item.revenue)}</Text>
+      </View>
+    </View>
+    <View style={[s.topItemBarWrap, { backgroundColor: colors.pillBg }]}>
+      <View
+        style={[
+          s.topItemBar,
+          {
+            width: `${(item.count / maxItemCount) * 100}%`,
+            backgroundColor: idx === 0 ? colors.warning : colors.accent,
+          },
+        ]}
+      />
+    </View>
+  </View>
+));
+
+const LowStockRow = React.memo(({ item, idx, colors }) => (
+  <View style={[s.stockRow, { borderBottomColor: colors.border }]}>
+    <View style={[s.stockDot, { backgroundColor: item.currentQty <= 1 ? colors.error : colors.warning }]} />
+    <Text style={[s.stockName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+    <Text style={[s.stockQty, { color: colors.error }]}>
+      {item.currentQty}<Text style={[s.stockMin, { color: colors.textMuted }]}> / {item.minQty}</Text>
+    </Text>
+  </View>
+));
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function OwnerHomeScreen() {
@@ -172,16 +207,16 @@ export default function OwnerHomeScreen() {
   const growth = d.revenueGrowth ?? 0;
   const growthPositive = growth >= 0;
 
-  // Hourly data for bar chart
-  const hourly = d.hourlyRevenue || [];
-  const maxHourly = Math.max(...hourly, 1);
+  // Hourly data for bar chart (memoized)
+  const hourly = useMemo(() => d.hourlyRevenue || [], [d.hourlyRevenue]);
+  const maxHourly = useMemo(() => Math.max(...hourly, 1), [hourly]);
 
-  // Top items
-  const topItems = (d.topItems || []).slice(0, 5);
-  const maxItemCount = Math.max(...topItems.map((i) => i.count), 1);
+  // Top items (memoized)
+  const topItems = useMemo(() => (d.topItems || []).slice(0, 5), [d.topItems]);
+  const maxItemCount = useMemo(() => Math.max(...topItems.map((i) => i.count), 1), [topItems]);
 
-  // Low stock (first 3)
-  const lowStockDisplay = lowStockItems.slice(0, 3);
+  // Low stock (first 3, memoized)
+  const lowStockDisplay = useMemo(() => lowStockItems.slice(0, 3), [lowStockItems]);
 
   // ── Loading Skeleton ───────────────────────────────────────────────────────
 
@@ -363,26 +398,7 @@ export default function OwnerHomeScreen() {
               </View>
             )}
             {topItems.map((item, idx) => (
-              <View key={idx} style={[s.topItemRow, { borderBottomColor: colors.border }]}>
-                <View style={s.topItemLeft}>
-                  <Text style={[s.topItemRank, { color: colors.textMuted }]}>{idx + 1}</Text>
-                  <View style={s.topItemInfo}>
-                    <Text style={[s.topItemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                    <Text style={[s.topItemMeta, { color: colors.textMuted }]}>{item.count} sold  {fmt(item.revenue)}</Text>
-                  </View>
-                </View>
-                <View style={[s.topItemBarWrap, { backgroundColor: colors.pillBg }]}>
-                  <View
-                    style={[
-                      s.topItemBar,
-                      {
-                        width: `${(item.count / maxItemCount) * 100}%`,
-                        backgroundColor: idx === 0 ? colors.warning : colors.accent,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
+              <TopItemRow key={idx} item={item} idx={idx} maxItemCount={maxItemCount} colors={colors} />
             ))}
           </View>
 
@@ -407,13 +423,7 @@ export default function OwnerHomeScreen() {
               </View>
             )}
             {lowStockDisplay.map((item, idx) => (
-              <View key={idx} style={[s.stockRow, { borderBottomColor: colors.border }]}>
-                <View style={[s.stockDot, { backgroundColor: item.currentQty <= 1 ? colors.error : colors.warning }]} />
-                <Text style={[s.stockName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                <Text style={[s.stockQty, { color: colors.error }]}>
-                  {item.currentQty}<Text style={[s.stockMin, { color: colors.textMuted }]}> / {item.minQty}</Text>
-                </Text>
-              </View>
+              <LowStockRow key={idx} item={item} idx={idx} colors={colors} />
             ))}
           </PressCard>
 

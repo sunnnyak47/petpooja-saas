@@ -221,13 +221,13 @@ export default function AlertsScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  // Stats bar pills
-  const statPills = [
+  // Stats bar pills (memoized to avoid re-creating array each render)
+  const statPills = useMemo(() => [
     { label: 'Total', count: badgeCounts.totalAlerts, color: LC.accent, bg: LC.accentLight, filterKey: 'all' },
     { label: 'Voids', count: badgeCounts.voids, color: LC.error, bg: LC.errorBg, filterKey: 'voids' },
     { label: 'Refunds', count: badgeCounts.refunds, color: LC.warning, bg: LC.warningBg, filterKey: null },
     { label: 'Low Stock', count: badgeCounts.lowStock, color: LC.error, bg: LC.errorBg, filterKey: 'stock' },
-  ];
+  ], [badgeCounts]);
 
   // ── Error State ─────────────────────────────────────────────────────────
   if (isError) {

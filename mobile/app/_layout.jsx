@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -9,10 +10,18 @@ import { OutletProvider } from '../src/context/OutletContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { queryClient, asyncStoragePersister } from '../src/lib/queryClient';
 import LockScreen from '../src/components/LockScreen';
+import { initSentry, setUser as setSentryUser } from '../src/lib/sentry';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
+
+initSentry();
 
 function RootContent() {
-  const { isLocked } = useAuth();
+  const { isLocked, user } = useAuth();
   const { isDark, colors } = useTheme();
+
+  useEffect(() => {
+    setSentryUser(user);
+  }, [user]);
 
   return (
     <AppModeProvider>
@@ -23,6 +32,7 @@ function RootContent() {
         >
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           <Stack.Screen name="mode-select" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(owner)" />
@@ -37,16 +47,18 @@ function RootContent() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
-      <ThemeProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{ persister: asyncStoragePersister, maxAge: 1000 * 60 * 60 * 24 }}
-        >
-          <AuthProvider>
-            <RootContent />
-          </AuthProvider>
-        </PersistQueryClientProvider>
-      </ThemeProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister: asyncStoragePersister, maxAge: 1000 * 60 * 60 * 24 }}
+          >
+            <AuthProvider>
+              <RootContent />
+            </AuthProvider>
+          </PersistQueryClientProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

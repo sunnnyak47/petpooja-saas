@@ -263,6 +263,86 @@ function StackedBar({ data, width }) {
   );
 }
 
+// ─── Memoized list-item components ──────────────────────────────────────────────
+
+const CategoryRow = React.memo(({ cat, index, colors }) => (
+  <View style={s.catRow}>
+    <View
+      style={[
+        s.catDot,
+        { backgroundColor: CHART_PALETTE[index % CHART_PALETTE.length] },
+      ]}
+    />
+    <Text style={[s.catName, { color: colors.text }]} numberOfLines={1}>
+      {cat.category}
+    </Text>
+    <Text style={[s.catRevenue, { color: colors.text }]}>{fmt(cat.revenue)}</Text>
+    <Text style={[s.catPct, { color: colors.textMuted }]}>{cat.percentage}%</Text>
+  </View>
+));
+
+const TopSellerRow = React.memo(({ item, index, maxItemRevenue, colors }) => (
+  <View style={s.topRow}>
+    <View style={[s.topRank, { backgroundColor: colors.pillBg }]}>
+      <Text style={[s.topRankText, { color: colors.textSecondary }]}>#{index + 1}</Text>
+    </View>
+    <View style={s.topInfo}>
+      <View style={s.topHeader}>
+        <Text style={[s.topName, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={[s.topRevenue, { color: colors.text }]}>{fmt(item.revenue)}</Text>
+      </View>
+      <View style={s.topMeta}>
+        <Text style={[s.topQty, { color: colors.textMuted }]}>{item.qty} sold</Text>
+      </View>
+      <View style={[s.topBarBg, { backgroundColor: colors.pillBg }]}>
+        <View
+          style={[
+            s.topBarFill,
+            {
+              width: `${(item.revenue / maxItemRevenue) * 100}%`,
+              backgroundColor:
+                index === 0 ? colors.accent : index === 1 ? colors.success : colors.pillBg,
+            },
+          ]}
+        />
+      </View>
+    </View>
+  </View>
+));
+
+const PaymentRow = React.memo(({ payment, colors }) => (
+  <View style={s.payRow}>
+    <View style={s.payLabelRow}>
+      <Ionicons
+        name={
+          payment.method === 'UPI'
+            ? 'phone-portrait-outline'
+            : payment.method === 'Cash'
+            ? 'cash-outline'
+            : payment.method === 'Card'
+            ? 'card-outline'
+            : 'globe-outline'
+        }
+        size={16}
+        color={colors.textMuted}
+      />
+      <Text style={[s.payMethod, { color: colors.text }]}>{payment.method}</Text>
+      <Text style={[s.payAmount, { color: colors.text }]}>{fmt(payment.amount)}</Text>
+      <Text style={[s.payPct, { color: colors.textMuted }]}>{payment.percentage}%</Text>
+    </View>
+    <View style={[s.payBarBg, { backgroundColor: colors.pillBg }]}>
+      <View
+        style={[
+          s.payBarFill,
+          { width: `${payment.percentage}%`, backgroundColor: colors.accent },
+        ]}
+      />
+    </View>
+  </View>
+));
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function ReportsScreen() {
@@ -512,19 +592,7 @@ export default function ReportsScreen() {
 
             {/* Category list */}
             {categoryData.map((cat, i) => (
-              <View key={cat.category} style={s.catRow}>
-                <View
-                  style={[
-                    s.catDot,
-                    { backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length] },
-                  ]}
-                />
-                <Text style={[s.catName, { color: colors.text }]} numberOfLines={1}>
-                  {cat.category}
-                </Text>
-                <Text style={[s.catRevenue, { color: colors.text }]}>{fmt(cat.revenue)}</Text>
-                <Text style={[s.catPct, { color: colors.textMuted }]}>{cat.percentage}%</Text>
-              </View>
+              <CategoryRow key={cat.category} cat={cat} index={i} colors={colors} />
             ))}
           </View>
         )}
@@ -545,35 +613,7 @@ export default function ReportsScreen() {
             <Text style={[s.cardTitle, { color: colors.text }]}>Top Sellers</Text>
 
             {topItems.slice(0, 5).map((item, i) => (
-              <View key={item.name} style={s.topRow}>
-                <View style={[s.topRank, { backgroundColor: colors.pillBg }]}>
-                  <Text style={[s.topRankText, { color: colors.textSecondary }]}>#{i + 1}</Text>
-                </View>
-                <View style={s.topInfo}>
-                  <View style={s.topHeader}>
-                    <Text style={[s.topName, { color: colors.text }]} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={[s.topRevenue, { color: colors.text }]}>{fmt(item.revenue)}</Text>
-                  </View>
-                  <View style={s.topMeta}>
-                    <Text style={[s.topQty, { color: colors.textMuted }]}>{item.qty} sold</Text>
-                  </View>
-                  {/* Proportional bar */}
-                  <View style={[s.topBarBg, { backgroundColor: colors.pillBg }]}>
-                    <View
-                      style={[
-                        s.topBarFill,
-                        {
-                          width: `${(item.revenue / maxItemRevenue) * 100}%`,
-                          backgroundColor:
-                            i === 0 ? colors.accent : i === 1 ? colors.success : colors.pillBg,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              </View>
+              <TopSellerRow key={item.name} item={item} index={i} maxItemRevenue={maxItemRevenue} colors={colors} />
             ))}
           </View>
         )}
@@ -594,34 +634,7 @@ export default function ReportsScreen() {
             <Text style={[s.cardTitle, { color: colors.text }]}>Payment Split</Text>
 
             {payments.map((p) => (
-              <View key={p.method} style={s.payRow}>
-                <View style={s.payLabelRow}>
-                  <Ionicons
-                    name={
-                      p.method === 'UPI'
-                        ? 'phone-portrait-outline'
-                        : p.method === 'Cash'
-                        ? 'cash-outline'
-                        : p.method === 'Card'
-                        ? 'card-outline'
-                        : 'globe-outline'
-                    }
-                    size={16}
-                    color={colors.textMuted}
-                  />
-                  <Text style={[s.payMethod, { color: colors.text }]}>{p.method}</Text>
-                  <Text style={[s.payAmount, { color: colors.text }]}>{fmt(p.amount)}</Text>
-                  <Text style={[s.payPct, { color: colors.textMuted }]}>{p.percentage}%</Text>
-                </View>
-                <View style={[s.payBarBg, { backgroundColor: colors.pillBg }]}>
-                  <View
-                    style={[
-                      s.payBarFill,
-                      { width: `${p.percentage}%`, backgroundColor: colors.accent },
-                    ]}
-                  />
-                </View>
-              </View>
+              <PaymentRow key={p.method} payment={p} colors={colors} />
             ))}
           </View>
         )}

@@ -11,6 +11,7 @@ import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { useOutlet } from '../../src/context/OutletContext';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
+import { analytics } from '../../src/lib/analytics';
 
 // Safe haptics import — gracefully degrades when expo-haptics is absent
 let Haptics = null;
@@ -104,6 +105,9 @@ export default function OwnerLayout() {
     return () => { active = false; clearInterval(interval); };
   }, [user]);
 
+  // Flush any locally-stored analytics events on mount
+  useEffect(() => { analytics.flushStored(); }, []);
+
   if (!user) return null;
 
   // On phones with a home indicator / nav bar: add inset so labels never
@@ -117,6 +121,11 @@ export default function OwnerLayout() {
       <NotificationBridge />
       <OfflineBanner />
       <Tabs
+        screenListeners={{
+          focus: (e) => {
+            analytics.screenView(e.target?.split('-')[0] || 'unknown');
+          },
+        }}
         screenOptions={{
           headerShown: false,
           tabBarButton: (props) => <HapticTabButton {...props} />,

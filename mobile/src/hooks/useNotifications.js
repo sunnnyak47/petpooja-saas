@@ -25,12 +25,25 @@ if (Platform.OS !== 'web') {
 
 const PUSH_TOKEN_KEY = 'push_token';
 
-function resolveRoute(type) {
-  switch (type) {
-    case 'NEW_ORDER':  return '/(tabs)/orders';
-    case 'LOW_STOCK':  return '/(tabs)/inventory';
-    default:           return null;
-  }
+const DEEP_LINK_ROUTES = {
+  // Owner-app deep link targets
+  alert: '/(owner)/alerts',
+  approval: '/(owner)/approvals',
+  order: '/(owner)/home',
+  stock: '/(owner)/inventory',
+  eod: '/(owner)/cash-recon',
+  staff: '/(owner)/staff',
+  void: '/(owner)/alerts',
+  refund: '/(owner)/alerts',
+  // Legacy POS notification types (keep backward compat)
+  NEW_ORDER: '/(tabs)/orders',
+  LOW_STOCK: '/(tabs)/inventory',
+};
+
+function resolveRoute(data) {
+  const type = data?.type || data?.screen;
+  if (!type) return null;
+  return DEEP_LINK_ROUTES[type] || '/(owner)/home';
 }
 
 export function useNotifications() {
@@ -82,7 +95,7 @@ export function useNotifications() {
   const handleNotificationResponse = useCallback((response) => {
     try {
       const data = response?.notification?.request?.content?.data ?? {};
-      const route = resolveRoute(data.type);
+      const route = resolveRoute(data);
       if (route) setTimeout(() => router.push(route), 300);
     } catch (_) {}
   }, []);
