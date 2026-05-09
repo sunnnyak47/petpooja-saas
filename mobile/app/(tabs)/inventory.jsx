@@ -16,6 +16,9 @@ import {
   Platform,
   Dimensions,
   RefreshControl,
+  Modal,
+  Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -28,43 +31,52 @@ import Animated, {
   interpolate,
   Extrapolation,
   FadeIn,
-  FadeInDown,
-  SlideInRight,
-  runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useInventory, useUpdateInventory } from '../../src/hooks/useApi';
+import { useInventory, useUpdateInventory, useCreateInventoryItem } from '../../src/hooks/useApi';
+import { PressCard } from '../../src/components/PressCard';
+import { EmptyState } from '../../src/components/EmptyState';
+import SkeletonBox from '../../src/components/SkeletonBox';
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg: '#080F1E',
-  surface: '#0F1D35',
-  surface2: '#162840',
-  border: '#1E3A5F',
-  gold: '#C9A84C',
-  indigo: '#5B5EF4',
-  success: '#10C98A',
+  bg: '#F7F7F7',
+  surface: '#FFFFFF',
+  surface2: '#FAFAFA',
+  border: '#EAEAEA',
+  gold: '#F5A623',
+  indigo: '#0070F3',
+  success: '#00B341',
   warning: '#F5A623',
-  error: '#F05252',
-  text1: '#F0F4FF',
-  text2: '#A8B8D0',
-  text3: '#5A7090',
+  error: '#EE0000',
+  text1: '#000000',
+  text2: '#444444',
+  text3: '#888888',
 };
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Category Config ─────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { label: 'All', color: C.indigo },
+  { label: 'All', color: '#0070F3' },
   { label: 'Vegetables', color: '#4CAF82' },
-  { label: 'Grains', color: '#C9A84C' },
-  { label: 'Dairy', color: '#5BC0F4' },
+  { label: 'Grains', color: '#D4A027' },
+  { label: 'Dairy', color: '#2196F3' },
   { label: 'Spices', color: '#E07843' },
   { label: 'Beverages', color: '#9B59B6' },
-  { label: 'Others', color: C.text3 },
+  { label: 'Others', color: '#888888' },
+];
+
+const MOCK_INVENTORY = [
+  { id: '1', name: 'Tomatoes', category: 'Vegetables', current_stock: 2.5, unit: 'kg', reorder_point: 5, price: 40, status: 'low' },
+  { id: '2', name: 'Chicken', category: 'Proteins', current_stock: 15, unit: 'kg', reorder_point: 10, price: 280, status: 'ok' },
+  { id: '3', name: 'Basmati Rice', category: 'Grains', current_stock: 8, unit: 'kg', reorder_point: 5, price: 120, status: 'ok' },
+  { id: '4', name: 'Butter', category: 'Dairy', current_stock: 0.5, unit: 'kg', reorder_point: 2, price: 480, status: 'critical' },
+  { id: '5', name: 'Paneer', category: 'Dairy', current_stock: 3, unit: 'kg', reorder_point: 3, price: 320, status: 'ok' },
+  { id: '6', name: 'Onions', category: 'Vegetables', current_stock: 12, unit: 'kg', reorder_point: 8, price: 35, status: 'ok' },
 ];
 
 const CATEGORY_COLOR_MAP = Object.fromEntries(
@@ -76,36 +88,19 @@ function getCategoryColor(cat) {
   return CATEGORY_COLOR_MAP[cat.toLowerCase()] ?? C.text3;
 }
 
-// ─── Skeleton Row ─────────────────────────────────────────────────────────────
-function SkeletonRow({ index }) {
-  const shimmer = useSharedValue(0);
-
-  useEffect(() => {
-    shimmer.value = withDelay(
-      index * 80,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 800 }),
-          withTiming(0, { duration: 800 })
-        ),
-        -1
-      )
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(shimmer.value, [0, 1], [0.3, 0.65]),
-  }));
-
+// ─── Inventory Skeleton (Phase 3) ────────────────────────────────────────────
+function InventorySkeleton() {
   return (
-    <Animated.View style={[styles.skeletonRow, animStyle]}>
-      <View style={styles.skeletonDot} />
-      <View style={{ flex: 1, gap: 7 }}>
-        <View style={[styles.skeletonBar, { width: '55%' }]} />
-        <View style={[styles.skeletonBar, { width: '35%', height: 10 }]} />
+    <View style={{ padding: 16, gap: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        {[0, 1, 2].map((i) => (
+          <SkeletonBox key={i} width={80} height={36} borderRadius={999} color="#F0F0F0" />
+        ))}
       </View>
-      <View style={[styles.skeletonBar, { width: 48 }]} />
-    </Animated.View>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <SkeletonBox key={i} width="100%" height={88} borderRadius={16} color="#F0F0F0" />
+      ))}
+    </View>
   );
 }
 
@@ -147,7 +142,7 @@ function StockBar({ current, minQty, maxQty }) {
   const pct = Math.min(Math.max(current / max, 0), 1);
   const isLow = current <= minQty;
   const isCritical = current <= minQty * 0.5;
-  const barColor = isCritical ? C.error : isLow ? C.warning : C.success;
+  const barColor = isCritical ? '#EE0000' : isLow ? '#F5A623' : '#00B341';
 
   const width = useSharedValue(0);
   useEffect(() => {
@@ -167,16 +162,16 @@ function StockBar({ current, minQty, maxQty }) {
 }
 
 // ─── Inventory Row ────────────────────────────────────────────────────────────
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function InventoryRow({ item, index, onUpdate }) {
+function InventoryRow({ item, index, onUpdate, onEdit }) {
+  const isWeb = Platform.OS === 'web';
   const [expanded, setExpanded] = useState(false);
   const expandH = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const translateX = useSharedValue(30);
+  const opacity = useSharedValue(isWeb ? 1 : 0);
+  const translateX = useSharedValue(isWeb ? 0 : 30);
 
-  // Entrance animation
+  // Entrance animation (native only)
   useEffect(() => {
+    if (isWeb) return;
     const delay = Math.min(index * 40, 400);
     opacity.value = withDelay(delay, withTiming(1, { duration: 350 }));
     translateX.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 120 }));
@@ -216,17 +211,24 @@ function InventoryRow({ item, index, onUpdate }) {
   );
 
   return (
-    <Animated.View style={[rowAnim, styles.rowWrapper, isLow && styles.rowLowBorder]}>
-      <TouchableOpacity
+    <Animated.View style={[rowAnim, styles.rowWrapper, isCritical && styles.rowCriticalBorder, !isCritical && isLow && styles.rowLowBorder]}>
+      {/* Phase 2: PressCard wrapping the row inner */}
+      <PressCard
         style={styles.rowInner}
         onPress={toggleExpand}
-        activeOpacity={0.75}
+        scaleDown={0.98}
       >
+        {/* Long press handled separately via Pressable wrapping — kept as onLongPress on the PressCard via a wrapper */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onLongPress={() => onEdit && onEdit(item)}
+        />
+
         {/* Left: color dot */}
         <View style={[styles.catDot, { backgroundColor: catColor }]} />
 
         {/* Center: name + category tag + stock bar */}
-        <View style={{ flex: 1, marginHorizontal: 10 }}>
+        <View style={{ flex: 1, marginHorizontal: 14 }}>
           <View style={styles.rowNameRow}>
             <Text style={styles.rowName} numberOfLines={1}>
               {item.name}
@@ -248,8 +250,16 @@ function InventoryRow({ item, index, onUpdate }) {
                 </Text>
               </View>
             ) : null}
+            {isLow && (
+              <Text style={styles.lowStockLabel}>
+                {isCritical ? 'Critical' : 'Low stock'}
+              </Text>
+            )}
           </View>
           <StockBar current={current} minQty={minQty} maxQty={maxQty} />
+          {minQty > 0 && (
+            <Text style={styles.minStockLabel}>Min: {minQty} {item.unit ?? 'pcs'}</Text>
+          )}
         </View>
 
         {/* Right: qty + unit + price */}
@@ -262,7 +272,7 @@ function InventoryRow({ item, index, onUpdate }) {
             <Text style={styles.rowPrice}>₹{parseFloat(item.price).toFixed(0)}</Text>
           )}
         </View>
-      </TouchableOpacity>
+      </PressCard>
 
       {/* Expandable edit controls */}
       <Animated.View style={expandStyle}>
@@ -270,6 +280,7 @@ function InventoryRow({ item, index, onUpdate }) {
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => handleQtyChange(-1)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="remove" size={18} color={C.text1} />
           </TouchableOpacity>
@@ -279,6 +290,7 @@ function InventoryRow({ item, index, onUpdate }) {
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => handleQtyChange(1)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="add" size={18} color={C.text1} />
           </TouchableOpacity>
@@ -288,17 +300,219 @@ function InventoryRow({ item, index, onUpdate }) {
           >
             <Text style={styles.editReorderText}>Reorder</Text>
           </TouchableOpacity>
+          {/* Phase 2: Edit button uses PressCard scaleDown=0.95 */}
+          <PressCard
+            style={styles.editItemBtn}
+            onPress={() => onEdit && onEdit(item)}
+            scaleDown={0.95}
+          >
+            <Ionicons name="create-outline" size={15} color="#000" />
+            <Text style={styles.editItemText}>Edit</Text>
+          </PressCard>
         </View>
       </Animated.View>
     </Animated.View>
   );
 }
 
+// ─── Item Categories for Modal ───────────────────────────────────────────────
+const ITEM_CATEGORIES = ['Vegetables', 'Grains', 'Dairy', 'Proteins', 'Spices', 'Beverages', 'Oils', 'Others'];
+
+// ─── EditItemModal ────────────────────────────────────────────────────────────
+function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
+  const isEdit = !!item;
+
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [stock, setStock] = useState('');
+  const [unit, setUnit] = useState('');
+  const [reorderPoint, setReorderPoint] = useState('');
+  const [price, setPrice] = useState('');
+
+  // Populate fields when item changes (edit mode) or reset for add mode
+  useEffect(() => {
+    if (visible) {
+      if (item) {
+        setName(item.name ?? '');
+        setCategory(item.category ?? '');
+        setStock(String(item.current_stock ?? item.quantity ?? ''));
+        setUnit(item.unit ?? '');
+        setReorderPoint(String(item.reorder_point ?? item.min_quantity ?? ''));
+        setPrice(String(item.price ?? item.cost_per_unit ?? ''));
+      } else {
+        setName('');
+        setCategory('');
+        setStock('');
+        setUnit('');
+        setReorderPoint('');
+        setPrice('');
+      }
+    }
+  }, [visible, item]);
+
+  const handleSave = useCallback(() => {
+    if (!name.trim()) {
+      Alert.alert('Validation', 'Item name is required.');
+      return;
+    }
+    onSave({
+      name: name.trim(),
+      category,
+      current_stock: parseFloat(stock) || 0,
+      unit: unit.trim(),
+      reorder_point: parseFloat(reorderPoint) || 0,
+      price: parseFloat(price) || 0,
+    });
+  }, [name, category, stock, unit, reorderPoint, price, onSave]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={modalStyles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Backdrop */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+        {/* Sheet — Phase 1: borderTopLeftRadius/borderTopRightRadius → 24 */}
+        <View style={modalStyles.sheet}>
+          {/* Handle bar */}
+          <View style={modalStyles.handleBar} />
+
+          {/* Header */}
+          <View style={modalStyles.sheetHeader}>
+            <Text style={modalStyles.sheetTitle}>
+              {isEdit ? 'Edit Item' : 'New Item'}
+            </Text>
+            <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn} hitSlop={8}>
+              <Ionicons name="close" size={20} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={modalStyles.scrollContent}
+          >
+            {/* Item Name */}
+            <View style={modalStyles.fieldGroup}>
+              <Text style={modalStyles.fieldLabel}>Item Name</Text>
+              <TextInput
+                style={modalStyles.input}
+                placeholder="e.g. Basmati Rice"
+                placeholderTextColor="#AAAAAA"
+                value={name}
+                onChangeText={setName}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Category pills */}
+            <View style={modalStyles.fieldGroup}>
+              <Text style={modalStyles.fieldLabel}>Category</Text>
+              <View style={modalStyles.pillsRow}>
+                {ITEM_CATEGORIES.map((cat) => {
+                  const active = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[modalStyles.categoryPill, active && modalStyles.categoryPillActive]}
+                      onPress={() => setCategory(cat)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[modalStyles.categoryPillText, active && modalStyles.categoryPillTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Stock + Unit row */}
+            <View style={modalStyles.twoCol}>
+              <View style={[modalStyles.fieldGroup, { flex: 2 }]}>
+                <Text style={modalStyles.fieldLabel}>Current Stock</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  placeholder="0"
+                  placeholderTextColor="#AAAAAA"
+                  value={stock}
+                  onChangeText={setStock}
+                  keyboardType="decimal-pad"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[modalStyles.fieldGroup, { flex: 1 }]}>
+                <Text style={modalStyles.fieldLabel}>Unit</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  placeholder="kg"
+                  placeholderTextColor="#AAAAAA"
+                  value={unit}
+                  onChangeText={setUnit}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Reorder point + Price row */}
+            <View style={modalStyles.twoCol}>
+              <View style={[modalStyles.fieldGroup, { flex: 1 }]}>
+                <Text style={modalStyles.fieldLabel}>Min Stock</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  placeholder="0"
+                  placeholderTextColor="#AAAAAA"
+                  value={reorderPoint}
+                  onChangeText={setReorderPoint}
+                  keyboardType="decimal-pad"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[modalStyles.fieldGroup, { flex: 1 }]}>
+                <Text style={modalStyles.fieldLabel}>Price / Unit (₹)</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  placeholder="0"
+                  placeholderTextColor="#AAAAAA"
+                  value={price}
+                  onChangeText={setPrice}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+
+            {/* Save button */}
+            <TouchableOpacity
+              style={[modalStyles.saveBtn, isSaving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={isSaving}
+              activeOpacity={0.85}
+            >
+              <Text style={modalStyles.saveBtnText}>
+                {isSaving ? 'Saving…' : 'Save Item'}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 function FAB({ onPress, bottomOffset }) {
-  const scale = useSharedValue(0);
+  const scale = useSharedValue(Platform.OS === 'web' ? 1 : 0);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     scale.value = withDelay(300, withSpring(1, { damping: 10, stiffness: 160 }));
   }, []);
 
@@ -308,16 +522,12 @@ function FAB({ onPress, bottomOffset }) {
 
   return (
     <Animated.View style={[styles.fab, { bottom: 24 + bottomOffset }, fabStyle]}>
-      <TouchableOpacity onPress={onPress} style={styles.fabInner} activeOpacity={0.85}>
-        <LinearGradient
-          colors={['#D4A843', C.gold, '#A8862E']}
-          style={styles.fabGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Ionicons name="add" size={28} color="#000" />
-        </LinearGradient>
-      </TouchableOpacity>
+      {/* Phase 2: FAB uses PressCard scaleDown=0.90 */}
+      <PressCard onPress={onPress} style={styles.fabInner} scaleDown={0.90}>
+        <View style={styles.fabGradient}>
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </View>
+      </PressCard>
     </Animated.View>
   );
 }
@@ -334,15 +544,23 @@ export default function InventoryScreen() {
     width: interpolate(searchWidth.value, [0, 1], [40, SCREEN_W - 80], Extrapolation.CLAMP),
   }));
 
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // null = add mode
+
   const { data: rawData, isLoading, refetch, isRefetching } = useInventory();
-  const { mutate: updateInventory } = useUpdateInventory();
+  const { mutate: updateInventory, isPending: isPatching } = useUpdateInventory();
+  const { mutate: createInventoryItem, isPending: isCreating } = useCreateInventoryItem();
+  const isSaving = isCreating || isPatching;
 
   // Normalise API response — could be array or { data: [...] }
+  // Fall back to mock data when API returns empty (web dev / offline)
   const allItems = useMemo(() => {
-    if (!rawData) return [];
-    if (Array.isArray(rawData)) return rawData;
-    if (Array.isArray(rawData.data)) return rawData.data;
-    return [];
+    let items = [];
+    if (rawData) {
+      if (Array.isArray(rawData)) items = rawData;
+      else if (Array.isArray(rawData.data)) items = rawData.data;
+    }
+    return items.length > 0 ? items : MOCK_INVENTORY;
   }, [rawData]);
 
   const lowStockItems = useMemo(
@@ -354,6 +572,8 @@ export default function InventoryScreen() {
       ),
     [allItems]
   );
+
+  const lowStockCount = lowStockItems.length;
 
   const totalValue = useMemo(
     () =>
@@ -392,11 +612,51 @@ export default function InventoryScreen() {
     [updateInventory]
   );
 
+  const openAddModal = useCallback(() => {
+    setEditingItem(null);
+    setModalVisible(true);
+  }, []);
+
+  const openEditModal = useCallback((item) => {
+    setEditingItem(item);
+    setModalVisible(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
+    setEditingItem(null);
+  }, []);
+
+  const handleModalSave = useCallback(
+    (formData) => {
+      if (editingItem) {
+        const itemId = editingItem.id ?? editingItem._id;
+        updateInventory(
+          { itemId, data: formData },
+          {
+            onSuccess: closeModal,
+            onError: (err) => {
+              Alert.alert('Error', err?.message ?? 'Failed to update item.');
+            },
+          }
+        );
+      } else {
+        createInventoryItem(formData, {
+          onSuccess: closeModal,
+          onError: (err) => {
+            Alert.alert('Error', err?.message ?? 'Failed to create item.');
+          },
+        });
+      }
+    },
+    [editingItem, updateInventory, createInventoryItem, closeModal]
+  );
+
   const renderItem = useCallback(
     ({ item, index }) => (
-      <InventoryRow item={item} index={index} onUpdate={handleUpdate} />
+      <InventoryRow item={item} index={index} onUpdate={handleUpdate} onEdit={openEditModal} />
     ),
-    [handleUpdate]
+    [handleUpdate, openEditModal]
   );
 
   const keyExtractor = useCallback(
@@ -404,29 +664,35 @@ export default function InventoryScreen() {
     []
   );
 
+  // Phase 3: replace spinner with InventorySkeleton
+  if (isLoading) {
+    return (
+      <View style={styles.screen}>
+        <InventorySkeleton />
+      </View>
+    );
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.screen}>
-      {/* ── Gradient Header ───────────────────────────────────────────────── */}
-      <LinearGradient
-        colors={['#0D1F3C', '#0A1628', C.bg]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         {/* Title row */}
         <View style={styles.titleRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Inventory</Text>
-            {lowStockItems.length > 0 && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.alertBadge}>
+            {lowStockCount > 0 && (
+              <Animated.View entering={Platform.OS !== 'web' ? FadeIn.duration(400) : undefined} style={styles.alertBadge}>
                 <Ionicons name="warning" size={12} color={C.warning} />
                 <Text style={styles.alertText}>
-                  {lowStockItems.length} low stock
+                  {lowStockCount} low stock
                 </Text>
               </Animated.View>
             )}
           </View>
           <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh-outline" size={20} color={C.text2} />
+            <Ionicons name="refresh-outline" size={20} color={C.text3} />
           </TouchableOpacity>
         </View>
 
@@ -450,7 +716,7 @@ export default function InventoryScreen() {
           )}
         </View>
 
-        {/* Category pills */}
+        {/* Category pills — Phase 1: borderRadius → 999 */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -464,20 +730,17 @@ export default function InventoryScreen() {
                 style={[
                   styles.catPill,
                   isActive && {
-                    backgroundColor: cat.color + '28',
-                    borderColor: cat.color,
+                    backgroundColor: '#000000',
+                    borderColor: '#000000',
                   },
                 ]}
                 onPress={() => setActiveCategory(cat.label)}
                 activeOpacity={0.75}
               >
-                {isActive && (
-                  <View style={[styles.catActiveDot, { backgroundColor: cat.color }]} />
-                )}
                 <Text
                   style={[
                     styles.catPillText,
-                    isActive && { color: cat.color, fontWeight: '700' },
+                    isActive && { color: '#FFFFFF', fontWeight: '700' },
                   ]}
                 >
                   {cat.label}
@@ -486,7 +749,7 @@ export default function InventoryScreen() {
             );
           })}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       {/* ── Summary Cards ─────────────────────────────────────────────────── */}
       <View style={styles.summaryRow}>
@@ -499,10 +762,10 @@ export default function InventoryScreen() {
         />
         <SummaryCard
           label="Low Stock"
-          value={lowStockItems.length}
-          color={lowStockItems.length > 0 ? C.warning : C.text3}
+          value={lowStockCount}
+          color={lowStockCount > 0 ? C.warning : C.text3}
           icon="alert-circle-outline"
-          pulse={lowStockItems.length > 0}
+          pulse={lowStockCount > 0}
         />
         <SummaryCard
           label="Total Value"
@@ -513,50 +776,58 @@ export default function InventoryScreen() {
         />
       </View>
 
-      {/* ── List ──────────────────────────────────────────────────────────── */}
-      {isLoading ? (
-        <View style={styles.skeletonContainer}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonRow key={i} index={i} />
-          ))}
+      {/* ── Phase 3: Low-stock summary banner ─────────────────────────────── */}
+      {lowStockCount > 0 && (
+        <View style={styles.lowStockBanner}>
+          <Text style={styles.lowStockBannerText}>
+            ⚠️ {lowStockCount} item{lowStockCount > 1 ? 's' : ''} running low on stock
+          </Text>
         </View>
-      ) : (
-        <FlashList
-          data={filteredItems}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          estimatedItemSize={72}
-          contentContainerStyle={{
-            paddingHorizontal: 14,
-            paddingTop: 8,
-            paddingBottom: 100 + insets.bottom,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={C.gold}
-              colors={[C.gold]}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <Ionicons name="layers-outline" size={52} color={C.border} />
-              <Text style={styles.emptyTitle}>No items found</Text>
-              <Text style={styles.emptySubtitle}>
-                {search ? 'Try a different search term' : 'Add your first inventory item'}
-              </Text>
-            </View>
-          }
-        />
       )}
+
+      {/* ── List ──────────────────────────────────────────────────────────── */}
+      <FlashList
+        data={filteredItems}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        estimatedItemSize={72}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 14,
+          paddingBottom: 120 + insets.bottom,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={C.gold}
+            colors={[C.gold]}
+          />
+        }
+        ListEmptyComponent={
+          /* Phase 3: EmptyState component */
+          <EmptyState
+            icon="📦"
+            title="No items found"
+            subtitle="Add ingredients to track your stock levels"
+            action={{ label: 'Add Item', onPress: openAddModal }}
+          />
+        }
+      />
 
       {/* ── FAB ──────────────────────────────────────────────────────────── */}
       <FAB
-        onPress={() => {
-          // TODO: navigate to add item screen
-        }}
+        onPress={openAddModal}
         bottomOffset={insets.bottom}
+      />
+
+      {/* ── Add / Edit Item Modal ─────────────────────────────────────── */}
+      <EditItemModal
+        visible={modalVisible}
+        item={editingItem}
+        onClose={closeModal}
+        onSave={handleModalSave}
+        isSaving={isSaving}
       />
     </View>
   );
@@ -566,42 +837,50 @@ export default function InventoryScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: C.bg,
+    backgroundColor: '#F7F7F7',
   },
 
   // Header
   header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: '#EAEAEA',
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
-    color: C.text1,
+    color: '#000000',
     letterSpacing: 0.3,
   },
   alertBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 3,
+    marginTop: 4,
+    backgroundColor: '#FFF8EB',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
   },
   alertText: {
     fontSize: 12,
     fontWeight: '600',
-    color: C.warning,
+    color: '#F5A623',
   },
   refreshBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: C.surface2,
+    backgroundColor: '#F7F7F7',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
     marginTop: 2,
   },
 
@@ -609,18 +888,18 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface2,
-    borderRadius: 12,
+    backgroundColor: '#F7F7F7',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 12,
+    borderColor: '#EAEAEA',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: C.text1,
+    fontSize: 15,
+    color: '#000000',
     padding: 0,
   },
 
@@ -632,11 +911,12 @@ const styles = StyleSheet.create({
   catPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: '#EAEAEA',
+    backgroundColor: '#FFFFFF',
     gap: 5,
   },
   catActiveDot: {
@@ -645,231 +925,248 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   catPillText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: C.text2,
+    color: '#888888',
   },
 
   // Summary cards
   summaryRow: {
     flexDirection: 'row',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: C.surface,
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
-    padding: 12,
+    borderColor: '#EAEAEA',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   summaryRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 2,
-    backgroundColor: C.surface2,
+    backgroundColor: '#F7F7F7',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   summaryValue: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '800',
-    color: C.text1,
+    color: '#000000',
   },
   summaryLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    color: C.text3,
+    color: '#888888',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
 
-  // Skeleton
-  skeletonContainer: {
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    gap: 8,
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.surface,
+  // Phase 3: Low-stock banner
+  lowStockBanner: {
+    backgroundColor: '#FFF8E6',
     borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: C.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F5A623',
   },
-  skeletonDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: C.surface2,
-  },
-  skeletonBar: {
-    height: 13,
-    borderRadius: 6,
-    backgroundColor: C.surface2,
+  lowStockBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7A4F00',
   },
 
   // Inventory rows
   rowWrapper: {
-    backgroundColor: C.surface,
-    borderRadius: 12,
-    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: '#EAEAEA',
     overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   rowLowBorder: {
-    borderLeftWidth: 3,
-    borderLeftColor: C.warning,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F5A623',
+  },
+  rowCriticalBorder: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#EE0000',
   },
   rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    minHeight: 88,
   },
   catDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     flexShrink: 0,
   },
   rowNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 3,
+    marginBottom: 5,
   },
   rowName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-    color: C.text1,
+    color: '#000000',
+    letterSpacing: -0.2,
     flex: 1,
   },
   rowMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   catTag: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
   catTagText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     textTransform: 'capitalize',
   },
+  lowStockLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#E57300',
+  },
+  minStockLabel: {
+    fontSize: 12,
+    color: '#888888',
+    marginTop: 5,
+  },
   rowRight: {
     alignItems: 'flex-end',
-    minWidth: 52,
+    minWidth: 64,
+    marginLeft: 12,
   },
   rowQty: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '800',
-    color: C.text1,
+    color: '#000000',
+    letterSpacing: -0.5,
   },
   rowUnit: {
-    fontSize: 10,
-    color: C.text3,
-    fontWeight: '500',
-    marginTop: 1,
+    fontSize: 12,
+    color: '#888888',
+    marginTop: 2,
   },
   rowPrice: {
-    fontSize: 11,
-    color: C.gold,
+    fontSize: 12,
+    color: '#444444',
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 3,
   },
 
   // Stock bar
   stockBarBg: {
-    height: 3,
-    backgroundColor: C.surface2,
-    borderRadius: 2,
+    height: 5,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 3,
   },
   stockBarFill: {
-    height: 3,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
   },
 
   // Edit controls
   editBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: C.border,
-    backgroundColor: C.surface2,
+    borderTopColor: '#EAEAEA',
+    backgroundColor: '#FAFAFA',
     gap: 12,
   },
+  // Phase 4: icon buttons padding 10, hitSlop via TouchableOpacity prop
   qtyBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: C.border,
+    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 10,
   },
   editQtyLabel: {
     flex: 1,
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '700',
-    color: C.text1,
+    color: '#000000',
   },
   editReorderBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: C.indigo + '33',
+    backgroundColor: 'rgba(0,112,243,0.08)',
     borderWidth: 1,
-    borderColor: C.indigo,
+    borderColor: '#0070F3',
   },
   editReorderText: {
     fontSize: 12,
     fontWeight: '700',
-    color: C.indigo,
+    color: '#0070F3',
   },
-
-  // Empty state
-  emptyBox: {
+  editItemBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-    gap: 10,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
   },
-  emptyTitle: {
-    fontSize: 17,
+  editItemText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: C.text2,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: C.text3,
-    textAlign: 'center',
+    color: '#000000',
   },
 
-  // FAB
+  // FAB — Phase 1: borderRadius 28, Phase 4: width/height 56
   fab: {
     position: 'absolute',
     right: 20,
   },
   fabInner: {
-    shadowColor: C.gold,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 10,
   },
@@ -877,7 +1174,124 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+});
+
+// ─── Modal Styles ─────────────────────────────────────────────────────────────
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  // Phase 1: bottom sheet borderTopLeft/Right → 24
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#EAEAEA',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEAEA',
+  },
+  // Phase 4: section header
+  sheetTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    padding: 20,
+    gap: 16,
+    paddingBottom: 36,
+  },
+  fieldGroup: {
+    gap: 4,
+  },
+  // Phase 4: modal input labels
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#444444',
+    marginBottom: 4,
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: '#000000',
+    backgroundColor: '#FFFFFF',
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  // Phase 1: category pill borderRadius → 999
+  categoryPill: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    backgroundColor: '#FFFFFF',
+  },
+  categoryPillActive: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  categoryPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  categoryPillTextActive: {
+    color: '#FFFFFF',
+  },
+  twoCol: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  saveBtn: {
+    height: 48,
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  saveBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

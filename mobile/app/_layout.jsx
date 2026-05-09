@@ -11,13 +11,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <StatusBar style="light" backgroundColor="#080F1E" />
+          <StatusBar style="dark" backgroundColor="#FFFFFF" />
           <Stack
             screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="login" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="+not-found" />
           </Stack>
         </AuthProvider>
       </QueryClientProvider>

@@ -13,24 +13,26 @@ import {
 } from 'lucide-react';
 
 function LiveCounter({ value, label, color, icon: Icon, prefix = '' }) {
-  const [display, setDisplay] = useState(value || 0);
+  const target = value || 0;
+  const [display, setDisplay] = useState(target);
 
   useEffect(() => {
-    const target = value || 0;
+    // Snap immediately if the value hasn't changed or is the initial render
     if (display === target) return;
-    const step = (target - display) / 20;
-    const interval = setInterval(() => {
-      setDisplay(prev => {
-        const next = prev + step;
-        if ((step > 0 && next >= target) || (step < 0 && next <= target)) {
-          clearInterval(interval);
-          return target;
-        }
-        return Math.round(next * 100) / 100;
-      });
+    let frame = 0;
+    const totalFrames = 15;
+    const start = display;
+    const id = setInterval(() => {
+      frame++;
+      if (frame >= totalFrames) {
+        clearInterval(id);
+        setDisplay(target);
+      } else {
+        setDisplay(Math.round((start + (target - start) * (frame / totalFrames)) * 100) / 100);
+      }
     }, 30);
-    return () => clearInterval(interval);
-  }, [value]);
+    return () => clearInterval(id);
+  }, [target]);
 
   return (
     <div className="rounded-xl p-5 flex items-start gap-4"
@@ -180,10 +182,10 @@ export default function LiveDashboardPage() {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'In Queue',    value: orderBreakdown.PENDING  || 0, color: '#f59e0b' },
-              { label: 'Preparing',   value: orderBreakdown.PREPARING || 0, color: '#a78bfa' },
-              { label: 'Ready',       value: orderBreakdown.READY    || 0, color: '#22c55e' },
-              { label: 'Completed',   value: orderBreakdown.DELIVERED || 0, color: '#60a5fa' },
+              { label: 'In Queue',    value: d?.kitchen?.in_queue  || 0, color: '#f59e0b' },
+              { label: 'Preparing',   value: d?.kitchen?.preparing || 0, color: '#a78bfa' },
+              { label: 'Ready',       value: d?.kitchen?.ready     || 0, color: '#22c55e' },
+              { label: 'Completed',   value: d?.kitchen?.completed || 0, color: '#60a5fa' },
             ].map(k => (
               <div key={k.label} className="p-3 rounded-xl text-center"
                 style={{ background: 'var(--bg-primary)', border: `1px solid ${k.color}30` }}>

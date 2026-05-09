@@ -1,6 +1,5 @@
 import React, {
   useState,
-  useRef,
   useCallback,
   useMemo,
 } from 'react';
@@ -18,52 +17,52 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
   withDelay,
-  interpolate,
-  Extrapolation,
   FadeInDown,
   SlideInDown,
 } from 'react-native-reanimated';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../src/constants/colors';
 import {
   usePurchaseOrders,
   useCreatePurchaseOrder,
 } from '../../src/hooks/useApi';
 
-// ─── Theme constants ──────────────────────────────────────────────────────────
+// ─── Theme ────────────────────────────────────────────────────────────────────
 const T = {
-  bg:      '#080F1E',
-  surface: '#0F1D35',
-  surf2:   '#162840',
-  border:  '#1E3A5F',
-  gold:    '#C9A84C',
-  indigo:  '#5B5EF4',
-  success: '#10C98A',
-  warning: '#F5A623',
-  error:   '#F05252',
-  text1:   '#F0F4FF',
-  text2:   '#A8B8D0',
-  text3:   '#5A7090',
+  pageBg:   '#F7F7F7',
+  card:     '#FFFFFF',
+  border:   '#EAEAEA',
+  text1:    '#000000',
+  text2:    '#444444',
+  text3:    '#888888',
+
+  // Status colors
+  pendingColor: '#F5A623',
+  pendingBg:    '#FFF8EB',
+  orderedColor: '#0070F3',
+  orderedBg:    '#EBF4FF',
+  deliveredColor: '#00B341',
+  deliveredBg:  '#EDFBF3',
+  cancelledColor: '#EE0000',
+  cancelledBg:  '#FFF0F0',
 };
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS = {
-  pending:   { color: T.warning, border: T.warning, bg: '#3D280A', label: 'Pending' },
-  ordered:   { color: T.indigo,  border: T.indigo,  bg: '#1A1A50', label: 'Ordered' },
-  received:  { color: T.success, border: T.success, bg: '#0D3D2A', label: 'Received' },
-  cancelled: { color: T.error,   border: T.error,   bg: '#3D0D0D', label: 'Cancelled' },
-  // legacy map
-  draft:     { color: T.text2,   border: T.border,  bg: T.surf2,   label: 'Draft' },
-  sent:      { color: T.indigo,  border: T.indigo,  bg: '#1A1A50', label: 'Sent' },
-  approved:  { color: T.warning, border: T.warning, bg: '#3D280A', label: 'Approved' },
+  pending:   { color: T.pendingColor,   bg: T.pendingBg,    label: 'Pending' },
+  ordered:   { color: T.orderedColor,   bg: T.orderedBg,    label: 'Ordered' },
+  received:  { color: T.deliveredColor, bg: T.deliveredBg,  label: 'Received' },
+  delivered: { color: T.deliveredColor, bg: T.deliveredBg,  label: 'Delivered' },
+  cancelled: { color: T.cancelledColor, bg: T.cancelledBg,  label: 'Cancelled' },
+  draft:     { color: T.text3,          bg: T.border,        label: 'Draft' },
+  sent:      { color: T.orderedColor,   bg: T.orderedBg,    label: 'Sent' },
+  approved:  { color: T.pendingColor,   bg: T.pendingBg,    label: 'Approved' },
 };
 
 function statusCfg(status) {
@@ -72,39 +71,36 @@ function statusCfg(status) {
 
 // ─── Skeleton card ────────────────────────────────────────────────────────────
 function SkeletonCard() {
-  const opacity = useSharedValue(0.4);
-  React.useEffect(() => {
-    opacity.value = withSpring(1, { mass: 1, stiffness: 80, damping: 15 });
-  }, []);
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(opacity.value, [0.4, 1], [0.3, 0.7], Extrapolation.CLAMP),
-  }));
-
   return (
-    <Animated.View style={[styles.card, animStyle]}>
+    <View style={styles.card}>
       <View style={[styles.skeletonLine, { width: '40%', height: 14, marginBottom: 10 }]} />
       <View style={[styles.skeletonLine, { width: '65%', height: 12, marginBottom: 8 }]} />
       <View style={[styles.skeletonLine, { width: '80%', height: 11, marginBottom: 14 }]} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={[styles.skeletonLine, { width: 80, height: 30, borderRadius: 8 }]} />
-        <View style={[styles.skeletonLine, { width: 80, height: 30, borderRadius: 8 }]} />
+        <View style={[styles.skeletonLine, { width: 110, height: 32, borderRadius: 8 }]} />
+        <View style={[styles.skeletonLine, { width: 80, height: 32, borderRadius: 8 }]} />
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
-// ─── Summary stat card ────────────────────────────────────────────────────────
-function StatCard({ label, value, icon, accent }) {
+// ─── Stat card ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon, iconColor }) {
+  const Container = Platform.OS === 'web' ? View : Animated.View;
+  const enterProp = Platform.OS === 'web'
+    ? {}
+    : { entering: FadeInDown.delay(100).springify() };
+
   return (
-    <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.statCard, { borderTopColor: accent, borderTopWidth: 2 }]}>
-      <Ionicons name={icon} size={18} color={accent} style={{ marginBottom: 6 }} />
-      <Text style={[styles.statValue, { color: accent }]}>{value}</Text>
+    <Container {...enterProp} style={styles.statCard}>
+      <Ionicons name={icon} size={18} color={iconColor} style={{ marginBottom: 6 }} />
+      <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </Animated.View>
+    </Container>
   );
 }
 
-// ─── Purchase Order Card ──────────────────────────────────────────────────────
+// ─── PO Card ──────────────────────────────────────────────────────────────────
 function POCard({ po, index, onMarkReceived, onCancel }) {
   const cfg = statusCfg(po.status);
   const total = parseFloat(po.total_amount || 0);
@@ -116,12 +112,14 @@ function POCard({ po, index, onMarkReceived, onCancel }) {
   const canReceive = ['pending', 'ordered', 'sent', 'approved'].includes(po.status);
   const canCancel  = ['pending', 'ordered', 'draft', 'sent', 'approved'].includes(po.status);
 
+  const Container = Platform.OS === 'web' ? View : Animated.View;
+  const enterProp = Platform.OS === 'web'
+    ? {}
+    : { entering: SlideInDown.delay(index * 60).springify().damping(18) };
+
   return (
-    <Animated.View
-      entering={SlideInDown.delay(index * 60).springify().damping(18)}
-      style={[styles.card, { borderLeftColor: cfg.border, borderLeftWidth: 3 }]}
-    >
-      {/* Top row */}
+    <Container {...enterProp} style={styles.card}>
+      {/* Top row: PO number + status badge */}
       <View style={styles.cardRow}>
         <Text style={styles.poNum}>{po.po_number || `PO-${po.id}`}</Text>
         <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
@@ -134,7 +132,7 @@ function POCard({ po, index, onMarkReceived, onCancel }) {
         {po.supplier?.name || po.supplier_name || 'Unknown Supplier'}
       </Text>
 
-      {/* Items preview + date */}
+      {/* Items + amount + date */}
       <View style={[styles.cardRow, { marginTop: 6 }]}>
         <Text style={styles.itemPreview}>
           {itemCount > 0 ? `${itemCount} item${itemCount !== 1 ? 's' : ''}` : 'No items'}
@@ -148,38 +146,43 @@ function POCard({ po, index, onMarkReceived, onCancel }) {
         <View style={styles.actions}>
           {canReceive && (
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: '#0D3D2A' }]}
+              style={styles.btnReceive}
               onPress={() => onMarkReceived(po)}
               activeOpacity={0.75}
             >
-              <Ionicons name="checkmark-circle-outline" size={15} color={T.success} />
-              <Text style={[styles.actionText, { color: T.success }]}>Mark Received</Text>
+              <Ionicons name="checkmark-circle-outline" size={15} color="#FFFFFF" />
+              <Text style={styles.btnReceiveText}>Mark Received</Text>
             </TouchableOpacity>
           )}
           {canCancel && (
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: '#3D0D0D' }]}
+              style={styles.btnCancel}
               onPress={() => onCancel(po)}
               activeOpacity={0.75}
             >
-              <Ionicons name="close-circle-outline" size={15} color={T.error} />
-              <Text style={[styles.actionText, { color: T.error }]}>Cancel</Text>
+              <Ionicons name="close-circle-outline" size={15} color={T.cancelledColor} />
+              <Text style={styles.btnCancelText}>Cancel</Text>
             </TouchableOpacity>
           )}
         </View>
       )}
-    </Animated.View>
+    </Container>
   );
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 function EmptyState() {
+  const Container = Platform.OS === 'web' ? View : Animated.View;
+  const enterProp = Platform.OS === 'web'
+    ? {}
+    : { entering: FadeInDown.delay(200).springify() };
+
   return (
-    <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.emptyWrap}>
+    <Container {...enterProp} style={styles.emptyWrap}>
       <Ionicons name="cart-outline" size={52} color={T.text3} />
-      <Text style={styles.emptyTitle}>No Purchase Orders</Text>
-      <Text style={styles.emptySubtitle}>Tap the + button to create your first PO</Text>
-    </Animated.View>
+      <Text style={styles.emptyTitle}>No purchase orders</Text>
+      <Text style={styles.emptySubtitle}>Tap + to create your first PO</Text>
+    </Container>
   );
 }
 
@@ -192,12 +195,12 @@ function CreatePOModal({ visible, onClose, onCreate }) {
   const [items, setItems] = useState([EMPTY_ITEM()]);
   const [submitting, setSubmitting] = useState(false);
 
-  const slideY = useSharedValue(400);
+  const slideY = useSharedValue(500);
   React.useEffect(() => {
     if (visible) {
       slideY.value = withSpring(0, { mass: 1, stiffness: 120, damping: 18 });
     } else {
-      slideY.value = withTiming(400, { duration: 280 });
+      slideY.value = withTiming(500, { duration: 260 });
     }
   }, [visible]);
 
@@ -250,7 +253,6 @@ function CreatePOModal({ visible, onClose, onCreate }) {
         })),
         total_amount: total,
       });
-      // Reset
       setSupplier('');
       setItems([EMPTY_ITEM()]);
       onClose();
@@ -265,7 +267,6 @@ function CreatePOModal({ visible, onClose, onCreate }) {
 
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onClose}>
-      {/* Backdrop */}
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
 
       <KeyboardAvoidingView
@@ -273,7 +274,7 @@ function CreatePOModal({ visible, onClose, onCreate }) {
         style={styles.kvWrapper}
         pointerEvents="box-none"
       >
-        <Animated.View style={[styles.sheet, sheetStyle, { paddingBottom: insets.bottom + 16 }]}>
+        <Animated.View style={[styles.sheet, sheetStyle, { paddingBottom: insets.bottom + 20 }]}>
           {/* Handle */}
           <View style={styles.sheetHandle} />
 
@@ -319,14 +320,14 @@ function CreatePOModal({ visible, onClose, onCreate }) {
                 />
                 {items.length > 1 && (
                   <TouchableOpacity onPress={() => removeItem(idx)} style={styles.removeBtn}>
-                    <Ionicons name="close-circle" size={20} color={T.error} />
+                    <Ionicons name="close-circle" size={20} color={T.cancelledColor} />
                   </TouchableOpacity>
                 )}
               </View>
             ))}
 
             <TouchableOpacity style={styles.addItemBtn} onPress={addItem}>
-              <Ionicons name="add-circle-outline" size={18} color={T.gold} />
+              <Ionicons name="add-circle-outline" size={18} color={T.text1} />
               <Text style={styles.addItemText}>Add Item</Text>
             </TouchableOpacity>
 
@@ -340,21 +341,14 @@ function CreatePOModal({ visible, onClose, onCreate }) {
 
             {/* Submit */}
             <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
+              style={[styles.submitBtn, submitting && { opacity: 0.5 }]}
               onPress={handleSubmit}
               disabled={submitting}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <LinearGradient
-                colors={['#C9A84C', '#A07830']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.submitGradient}
-              >
-                <Text style={styles.submitText}>
-                  {submitting ? 'Creating…' : 'Create Purchase Order'}
-                </Text>
-              </LinearGradient>
+              <Text style={styles.submitText}>
+                {submitting ? 'Creating…' : 'Create Purchase Order'}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </Animated.View>
@@ -365,9 +359,11 @@ function CreatePOModal({ visible, onClose, onCreate }) {
 
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 function FAB({ onPress }) {
-  const scale = useSharedValue(0);
+  const scale = useSharedValue(Platform.OS === 'web' ? 1 : 0);
   React.useEffect(() => {
-    scale.value = withDelay(300, withSpring(1, { mass: 0.7, stiffness: 200, damping: 12 }));
+    if (Platform.OS !== 'web') {
+      scale.value = withDelay(300, withSpring(1, { mass: 0.7, stiffness: 200, damping: 12 }));
+    }
   }, []);
   const fabStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -375,15 +371,8 @@ function FAB({ onPress }) {
 
   return (
     <Animated.View style={[styles.fabWrap, fabStyle]}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.fabTouch}>
-        <LinearGradient
-          colors={['#D4B050', '#C9A84C', '#A07830']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.fab}
-        >
-          <Ionicons name="add" size={28} color="#080F1E" />
-        </LinearGradient>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.fab}>
+        <Ionicons name="add" size={28} color="#FFFFFF" />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -402,11 +391,10 @@ export default function PurchaseOrdersScreen() {
     return Array.isArray(list) ? list : [];
   }, [raw]);
 
-  // ── Summary stats ──────────────────────────────────────────────────────────
+  // Summary stats
   const stats = useMemo(() => {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
     let pendingCount = 0;
     let pendingDelivery = 0;
     let monthSpend = 0;
@@ -430,7 +418,7 @@ export default function PurchaseOrdersScreen() {
       .reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
   }, [pos]);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // Handlers
   const handleMarkReceived = useCallback((po) => {
     Alert.alert(
       'Mark as Received',
@@ -481,7 +469,6 @@ export default function PurchaseOrdersScreen() {
     await createPO.mutateAsync(data);
   }, [createPO]);
 
-  // ── Render helpers ─────────────────────────────────────────────────────────
   const renderItem = useCallback(({ item, index }) => (
     <POCard
       po={item}
@@ -491,7 +478,10 @@ export default function PurchaseOrdersScreen() {
     />
   ), [handleMarkReceived, handleCancel]);
 
-  const keyExtractor = useCallback((item) => String(item.id || item.po_number || Math.random()), []);
+  const keyExtractor = useCallback(
+    (item) => String(item.id || item.po_number || Math.random()),
+    []
+  );
 
   const ListHeader = useMemo(() => (
     <View style={styles.statsRow}>
@@ -499,7 +489,7 @@ export default function PurchaseOrdersScreen() {
         label="Pending POs"
         value={String(stats.pendingCount)}
         icon="time-outline"
-        accent={T.warning}
+        iconColor={T.pendingColor}
       />
       <StatCard
         label="Month Spend"
@@ -507,33 +497,28 @@ export default function PurchaseOrdersScreen() {
           ? (stats.monthSpend / 1000).toFixed(1) + 'K'
           : stats.monthSpend.toFixed(0)}`}
         icon="wallet-outline"
-        accent={T.gold}
+        iconColor={T.orderedColor}
       />
       <StatCard
-        label="Pending Delivery"
+        label="Awaiting"
         value={String(stats.pendingDelivery)}
         icon="cube-outline"
-        accent={T.indigo}
+        iconColor={T.deliveredColor}
       />
     </View>
   ), [stats]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <LinearGradient
-        colors={['#0F2040', '#0A1628', '#080F1E']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+      {/* Header */}
+      <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Purchase Orders</Text>
           <Text style={styles.headerSub}>Manage your supplier orders</Text>
         </View>
         {totalPending > 0 && (
           <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeLabel}>Pending</Text>
+            <Text style={styles.pendingBadgeLabel}>Pending Spend</Text>
             <Text style={styles.pendingBadgeAmount}>
               ₹{totalPending >= 1000
                 ? (totalPending / 1000).toFixed(1) + 'K'
@@ -541,9 +526,9 @@ export default function PurchaseOrdersScreen() {
             </Text>
           </View>
         )}
-      </LinearGradient>
+      </View>
 
-      {/* ── Content ────────────────────────────────────────────────────────── */}
+      {/* Content */}
       {isLoading ? (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 100 + insets.bottom }}
@@ -556,7 +541,7 @@ export default function PurchaseOrdersScreen() {
           data={pos}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          estimatedItemSize={140}
+          estimatedItemSize={145}
           ListHeaderComponent={ListHeader}
           ListEmptyComponent={<EmptyState />}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 + insets.bottom }}
@@ -564,18 +549,18 @@ export default function PurchaseOrdersScreen() {
             <RefreshControl
               refreshing={isFetching && !isLoading}
               onRefresh={refetch}
-              tintColor={T.gold}
-              colors={[T.gold]}
+              tintColor={T.text3}
+              colors={[T.text1]}
             />
           }
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* ── FAB ────────────────────────────────────────────────────────────── */}
+      {/* FAB */}
       <FAB onPress={() => setModalVisible(true)} />
 
-      {/* ── Create PO Modal ─────────────────────────────────────────────────── */}
+      {/* Create PO Modal */}
       <CreatePOModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
@@ -589,23 +574,26 @@ export default function PurchaseOrdersScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: T.bg,
+    backgroundColor: T.pageBg,
   },
 
-  // Header
+  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: T.card,
+    borderBottomWidth: 1,
+    borderBottomColor: T.border,
   },
   headerTitle: {
     color: T.text1,
     fontSize: 22,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   headerSub: {
     color: T.text3,
@@ -613,29 +601,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   pendingBadge: {
-    backgroundColor: '#3D280A',
-    borderRadius: 12,
+    backgroundColor: T.pendingBg,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: T.warning + '40',
   },
   pendingBadgeLabel: {
-    color: T.warning,
+    color: T.pendingColor,
     fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   pendingBadgeAmount: {
-    color: T.warning,
+    color: T.pendingColor,
     fontSize: 15,
     fontWeight: '800',
     marginTop: 1,
   },
 
-  // Summary stats
+  // ── Stat cards ───────────────────────────────────────────────────────────────
   statsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -643,7 +629,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: T.surface,
+    backgroundColor: T.card,
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
@@ -651,6 +637,7 @@ const styles = StyleSheet.create({
     borderColor: T.border,
   },
   statValue: {
+    color: T.text1,
     fontSize: 17,
     fontWeight: '800',
   },
@@ -662,14 +649,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Card
+  // ── PO card ──────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: T.surface,
-    borderRadius: 14,
+    backgroundColor: T.card,
+    borderRadius: 8,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: T.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardRow: {
     flexDirection: 'row',
@@ -680,28 +672,27 @@ const styles = StyleSheet.create({
   poNum: {
     color: T.text1,
     fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   badge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 20,
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   supplierName: {
     color: T.text2,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     marginBottom: 2,
   },
   itemPreview: {
     color: T.text3,
     fontSize: 12,
-    fontWeight: '500',
   },
   dateText: {
     color: T.text3,
@@ -713,35 +704,51 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexWrap: 'wrap',
   },
-  actionBtn: {
+  btnReceive: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 7,
+    backgroundColor: T.text1,
   },
-  actionText: {
+  btnReceiveText: {
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  btnCancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 7,
+    backgroundColor: T.cancelledBg,
+  },
+  btnCancelText: {
+    color: T.cancelledColor,
+    fontSize: 12,
+    fontWeight: '600',
   },
 
-  // Skeleton
+  // ── Skeleton ─────────────────────────────────────────────────────────────────
   skeletonLine: {
-    backgroundColor: T.surf2,
+    backgroundColor: T.border,
     borderRadius: 6,
   },
 
-  // Empty
+  // ── Empty ─────────────────────────────────────────────────────────────────────
   emptyWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 70,
+    paddingVertical: 72,
   },
   emptyTitle: {
-    color: T.text2,
+    color: T.text3,
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
     marginTop: 14,
   },
   emptySubtitle: {
@@ -752,45 +759,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 
-  // FAB
+  // ── FAB ───────────────────────────────────────────────────────────────────────
   fabWrap: {
     position: 'absolute',
     right: 20,
-    bottom: 24,
-    shadowColor: T.gold,
+    bottom: 28,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.18,
     shadowRadius: 10,
-    elevation: 12,
-  },
-  fabTouch: {
-    borderRadius: 28,
-    overflow: 'hidden',
+    elevation: 10,
   },
   fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: T.text1,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Modal / Sheet
+  // ── Modal / Sheet ─────────────────────────────────────────────────────────────
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   kvWrapper: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: T.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: T.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 12,
-    maxHeight: '90%',
+    maxHeight: '92%',
     borderTopWidth: 1,
     borderColor: T.border,
   },
@@ -809,18 +813,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // Form inputs
+  // ── Form inputs ───────────────────────────────────────────────────────────────
   inputLabel: {
     color: T.text2,
     fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: T.surf2,
-    borderRadius: 10,
+    backgroundColor: T.pageBg,
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 11,
     color: T.text1,
@@ -833,7 +837,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 0,
   },
   itemNameInput: {
     flex: 2,
@@ -857,9 +860,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   addItemText: {
-    color: T.gold,
+    color: T.text1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   totalRow: {
     flexDirection: 'row',
@@ -868,7 +871,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderTopWidth: 1,
     borderColor: T.border,
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 16,
   },
   totalLabel: {
@@ -877,24 +880,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   totalValue: {
-    color: T.gold,
+    color: T.text1,
     fontSize: 20,
     fontWeight: '800',
   },
   submitBtn: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  submitGradient: {
+    borderRadius: 10,
+    backgroundColor: T.text1,
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   submitText: {
-    color: '#080F1E',
+    color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

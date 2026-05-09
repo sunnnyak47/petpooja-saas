@@ -295,7 +295,17 @@ async function listOrders(outletId, query = {}) {
     if (query.order_type) where.order_type = query.order_type;
     if (query.source) where.source = query.source;
     if (query.from && query.to) {
-      where.created_at = { gte: new Date(query.from), lte: new Date(query.to) };
+      // Date-only strings like '2026-05-08' parse as UTC midnight.
+      // Always expand 'to' to end-of-day UTC so the window covers the full day.
+      const fromDate = new Date(query.from);
+      const toEnd = new Date(query.to);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(query.to)) {
+        toEnd.setUTCHours(23, 59, 59, 999);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(query.from)) {
+        fromDate.setUTCHours(0, 0, 0, 0);
+      }
+      where.created_at = { gte: fromDate, lte: toEnd };
     }
     if (query.table_id) where.table_id = query.table_id;
 
@@ -309,6 +319,7 @@ async function listOrders(outletId, query = {}) {
           table: { select: { table_number: true } },
           staff: { select: { full_name: true } },
           customer: { select: { full_name: true, phone: true } },
+          payments: { where: { is_deleted: false }, select: { id: true, method: true, amount: true, status: true, processed_at: true } },
           _count: { select: { order_items: true } },
         },
       }),
@@ -609,7 +620,56 @@ async function processPayment(orderId, paymentData, staffId) {
         data: { order_id: orderId, from_status: order.status, to_status: 'paid', changed_by: staffId },
       });
 
-      return { payment };
+      // --- Inventory deduction (atomic with payment) ---
+      const orderWithItems = await tx.order.findFirst({
+        where: { id: orderId, is_deleted: false },
+        include: { order_items: { where: { is_deleted: false } } },
+      });
+      const deductionAlerts = [];
+      if (orderWithItems) {
+        for (const orderItem of orderWithItems.order_items) {
+          const recipe = await tx.recipe.findFirst({
+            where: { menu_item_id: orderItem.menu_item_id, is_deleted: false },
+            include: { ingredients: { include: { inventory_item: true } } },
+          });
+          if (!recipe) continue;
+          for (const ingredient of recipe.ingredients) {
+            const consumeQty = Number(ingredient.quantity) * orderItem.quantity;
+            const stock = await tx.inventoryStock.upsert({
+              where: {
+                outlet_id_inventory_item_id: {
+                  outlet_id: order.outlet_id,
+                  inventory_item_id: ingredient.inventory_item_id,
+                },
+              },
+              create: {
+                outlet_id: order.outlet_id, inventory_item_id: ingredient.inventory_item_id,
+                current_stock: -consumeQty,
+              },
+              update: { current_stock: { decrement: consumeQty } },
+            });
+            await tx.stockTransaction.create({
+              data: {
+                outlet_id: order.outlet_id, inventory_item_id: ingredient.inventory_item_id,
+                transaction_type: 'consumption', quantity: -consumeQty,
+                reference_type: 'order', reference_id: orderId,
+              },
+            });
+            const newStock = Number(stock.current_stock);
+            const minThreshold = Number(ingredient.inventory_item.min_threshold);
+            if (newStock <= minThreshold) {
+              deductionAlerts.push({
+                item_name: ingredient.inventory_item.name,
+                current_stock: newStock,
+                min_threshold: minThreshold,
+                unit: ingredient.inventory_item.unit,
+              });
+            }
+          }
+        }
+      }
+
+      return { payment, deductionAlerts };
     });
 
     if (order.customer_id) {
@@ -631,12 +691,16 @@ async function processPayment(orderId, paymentData, staffId) {
     }
 
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
-    
-    // ASYNC: Trigger inventory deduction based on recipes
-    const inventoryService = require('../inventory/inventory.service');
-    inventoryService.deductByRecipe(orderId).catch(err => {
-      logger.error('Inventory deduction failed after payment', { orderId, error: err.message });
-    });
+
+    // Emit low-stock alerts from the atomic deduction that ran inside the transaction
+    if (result.deductionAlerts && result.deductionAlerts.length > 0) {
+      const ioRef = getIO();
+      if (ioRef) {
+        for (const alert of result.deductionAlerts) {
+          ioRef.of('/orders').to(`outlet:${order.outlet_id}`).emit('low_stock_alert', alert);
+        }
+      }
+    }
 
     return { payment: result.payment, order: await getOrderById(orderId) };
   } catch (error) {
@@ -935,7 +999,14 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
     if (!order) throw new NotFoundError('Order not found');
 
     await prisma.$transaction(async (tx) => {
-      await tx.order.update({ where: { id: orderId }, data: { status: newStatus } });
+      // If transitioning to 'paid' via status update, also set is_paid + paid_at
+      // so revenue calculations stay consistent with processPayment flow.
+      const updateData = { status: newStatus };
+      if (newStatus === 'paid' && !order.is_paid) {
+        updateData.is_paid = true;
+        updateData.paid_at = new Date();
+      }
+      await tx.order.update({ where: { id: orderId }, data: updateData });
       await tx.orderStatusHistory.create({
         data: { order_id: orderId, from_status: order.status, to_status: newStatus, changed_by: staffId },
       });

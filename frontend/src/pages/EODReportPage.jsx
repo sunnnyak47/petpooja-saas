@@ -213,7 +213,7 @@ function PrintPreview({ report, snap, outletName, user, fmt }) {
 
         <div className="text-xs text-secondary">
           <p>Status: {d.status === 'locked' ? '✓ LOCKED' : 'DRAFT'}</p>
-          {d.closer?.name && <p>Closed by: {d.closer.name}</p>}
+          {d.closer?.full_name && <p>Closed by: {d.closer.name}</p>}
           {d.closed_at && <p>Closed at: {new Date(d.closed_at).toLocaleString()}</p>}
           {d.notes && <p>Notes: {d.notes}</p>}
           {Number(d.cash_difference) !== 0 && d.discrepancy_reason && <p>Reason: {d.discrepancy_reason}</p>}
@@ -412,7 +412,7 @@ export default function EODReportPage() {
                           {r.status === 'locked' ? '✓ Locked' : 'Draft'}
                         </span>
                       </td>
-                      <td className="p-3 text-sm text-secondary">{r.closer?.name || '—'}</td>
+                      <td className="p-3 text-sm text-secondary">{r.closer?.full_name || '—'}</td>
                     </tr>
                   );
                 })}
@@ -428,7 +428,7 @@ export default function EODReportPage() {
           {isLocked && (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-green-800">
               <Shield size={20}/> <strong>This report is locked and finalised.</strong>
-              <span className="text-sm">Closed by {savedReport?.closer?.name || 'staff'} at {savedReport?.closed_at ? new Date(savedReport.closed_at).toLocaleString() : '—'}</span>
+              <span className="text-sm">Closed by {savedReport?.closer?.full_name || 'staff'} at {savedReport?.closed_at ? new Date(savedReport.closed_at).toLocaleString() : '—'}</span>
             </div>
           )}
 
@@ -713,7 +713,7 @@ export default function EODReportPage() {
                       <CheckCircle2 size={32} className="text-green-600 mx-auto mb-2"/>
                       <p className="font-bold text-green-800">Report is Locked</p>
                       <p className="text-sm text-green-700 mt-1">
-                        Closed by {savedReport?.closer?.name || '—'}<br/>
+                        Closed by {savedReport?.closer?.full_name || '—'}<br/>
                         {savedReport?.closed_at ? new Date(savedReport.closed_at).toLocaleString() : ''}
                       </p>
                     </div>

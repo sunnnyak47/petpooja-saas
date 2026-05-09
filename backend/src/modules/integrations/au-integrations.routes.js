@@ -116,7 +116,7 @@ router.post('/square/process-payment', authenticate, async (req, res, next) => {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { amount, order_id, source_id } = req.body;
     // In production: call Square Create Payment API
-    const squarePaymentId = `sq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const squarePaymentId = `sq_${Date.now()}_${require('crypto').randomBytes(4).toString('hex')}`;
     const cfg = await getIntegration(outletId, 'square');
     await saveIntegration(outletId, 'square', {
       ...cfg,
@@ -187,6 +187,7 @@ router.delete('/myob/disconnect', authenticate, async (req, res, next) => {
 });
 
 // ── GOOGLE REVIEWS ────────────────────────────────────────────────────────
+// NOTE: Demo data — replace with Google Business Profile API when API key is configured
 const MOCK_REVIEWS = [
   { id: 'r1', author: 'Sarah M.', rating: 5, text: 'Absolutely loved the Smashed Avo! Best in Melbourne. Service was impeccable.', date: '2026-04-20', replied: false, sentiment: 'positive' },
   { id: 'r2', author: 'James T.', rating: 4, text: 'Great atmosphere. The barramundi was perfectly cooked. Will definitely return.', date: '2026-04-18', replied: true, sentiment: 'positive' },
@@ -262,7 +263,12 @@ router.post('/pronto/sync', authenticate, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const cfg = await getIntegration(outletId, 'pronto');
-    const count = Math.floor(Math.random() * 15) + 5;
+    const lastSync = cfg?.last_sync ? new Date(cfg.last_sync) : new Date(0);
+    const newOrders = await prisma.order.findMany({
+      where: { outlet_id: outletId, is_deleted: false, is_paid: true, created_at: { gt: lastSync } },
+      select: { id: true },
+    });
+    const count = newOrders.length;
     await saveIntegration(outletId, 'pronto', { ...cfg, last_sync: new Date().toISOString(), orders_synced: (cfg?.orders_synced || 0) + count });
     sendSuccess(res, { orders_synced: count, last_sync: new Date().toISOString() }, 'Pronto sync complete');
   } catch (e) { next(e); }

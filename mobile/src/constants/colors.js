@@ -65,6 +65,51 @@ export const Gradients = {
   header:  ['#0A1628', '#0F2040'],
 };
 
+// ─── Light Theme (Vercel × Apple) ─────────────────────────────────────────────
+export const LC = {
+  // Backgrounds
+  bg:           '#FFFFFF',
+  bg2:          '#F7F7F7',
+  bg3:          '#F0F0F0',
+  card:         '#FFFFFF',
+  cardBorder:   '#EAEAEA',
+  cardShadow:   'rgba(0,0,0,0.06)',
+
+  // Text
+  text1:        '#000000',
+  text2:        '#444444',
+  text3:        '#888888',
+  text4:        '#BBBBBB',
+
+  // Accent (Vercel signature blue)
+  accent:       '#0070F3',
+  accentLight:  '#EBF4FF',
+  accentDark:   '#0051B5',
+
+  // Status
+  success:      '#00B341',
+  successBg:    '#EDFBF3',
+  successText:  '#007A2E',
+  warning:      '#F5A623',
+  warningBg:    '#FFF8EB',
+  warningText:  '#7A5010',
+  error:        '#EE0000',
+  errorBg:      '#FFF0F0',
+  errorText:    '#8B0000',
+  info:         '#0070F3',
+  infoBg:       '#EBF4FF',
+
+  // Tab bar
+  tabBg:        '#FFFFFF',
+  tabBorder:    '#EAEAEA',
+  tabActive:    '#000000',
+  tabInactive:  '#999999',
+
+  // Separator
+  separator:    '#EAEAEA',
+  overlay:      'rgba(0,0,0,0.04)',
+};
+
 // Glass effect helpers — rgba values for transparent/frosted UI layers
 export const Glass = {
   card:      'rgba(15, 29, 53, 0.72)',   // semi-transparent surface bg

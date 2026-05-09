@@ -1,5 +1,9 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+
+let Notifications = null;
+if (Platform.OS !== 'web') {
+  try { Notifications = require('expo-notifications'); } catch (_) {}
+}
 
 /**
  * Schedules a local notification to fire immediately (0-second trigger).

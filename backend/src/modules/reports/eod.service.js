@@ -39,7 +39,7 @@ async function generateSnapshot(outletId, date = new Date()) {
         paid_at:   range,
       },
       include: {
-        payments: { where: { is_deleted: false, status: { not: 'failed' } } },
+        payments: { where: { is_deleted: false, status: { not: 'failed' } }, include: { splits: true } },
         order_items: { where: { is_deleted: false } },
       },
     });
@@ -95,10 +95,32 @@ async function generateSnapshot(outletId, date = new Date()) {
       for (const p of order.payments) {
         const amt = toNum(p.amount) - toNum(p.refund_amount);
         const m   = (p.method || '').toLowerCase();
-        if (m === 'cash')        cashSystem  += amt;
-        else if (m === 'card' || m === 'credit_card' || m === 'debit_card') cardSystem += amt;
-        else if (m === 'upi' || m === 'gpay' || m === 'phonepe' || m === 'paytm') upiSystem += amt;
-        else                     otherSystem += amt;
+
+        if (m === 'split') {
+          // Break split payments into their per-method portions
+          const splits = (p.splits || []).filter(s => !s.is_deleted);
+          if (splits.length > 0) {
+            for (const s of splits) {
+              const sAmt = toNum(s.amount);
+              const sM   = (s.method || '').toLowerCase();
+              if (sM === 'cash')        cashSystem  += sAmt;
+              else if (sM === 'card' || sM === 'credit_card' || sM === 'debit_card') cardSystem += sAmt;
+              else if (sM === 'upi' || sM === 'gpay' || sM === 'phonepe' || sM === 'paytm') upiSystem += sAmt;
+              else                       otherSystem += sAmt;
+            }
+          } else {
+            // No split records found — fall back to otherSystem
+            otherSystem += amt;
+          }
+        } else if (m === 'cash') {
+          cashSystem  += amt;
+        } else if (m === 'card' || m === 'credit_card' || m === 'debit_card') {
+          cardSystem += amt;
+        } else if (m === 'upi' || m === 'gpay' || m === 'phonepe' || m === 'paytm') {
+          upiSystem += amt;
+        } else {
+          otherSystem += amt;
+        }
       }
 
       // Top items
@@ -128,10 +150,10 @@ async function generateSnapshot(outletId, date = new Date()) {
       void_amount:      Math.round(voidAmount     * 100) / 100,
       refund_count:     refunds.length,
       refund_amount:    Math.round(refundTotal    * 100) / 100,
-      dine_in_orders,   dine_in_revenue:  Math.round(dineInRevenue  * 100) / 100,
-      takeaway_orders,  takeaway_revenue: Math.round(takeawayRevenue * 100) / 100,
-      delivery_orders,  delivery_revenue: Math.round(deliveryRevenue * 100) / 100,
-      online_orders,    online_revenue:   Math.round(onlineRevenue   * 100) / 100,
+      dine_in_orders:   dineInOrders,    dine_in_revenue:  Math.round(dineInRevenue  * 100) / 100,
+      takeaway_orders:  takeawayOrders,  takeaway_revenue: Math.round(takeawayRevenue * 100) / 100,
+      delivery_orders:  deliveryOrders,  delivery_revenue: Math.round(deliveryRevenue * 100) / 100,
+      online_orders:    onlineOrders,    online_revenue:   Math.round(onlineRevenue   * 100) / 100,
       cash_system:      Math.round(cashSystem  * 100) / 100,
       card_system:      Math.round(cardSystem  * 100) / 100,
       upi_system:       Math.round(upiSystem   * 100) / 100,
@@ -263,7 +285,7 @@ async function lockEOD(outletId, reportId, userId) {
     return await prisma.eODReport.update({
       where: { id: reportId },
       data:  { status: 'locked', closed_by: userId, closed_at: new Date() },
-      include: { closer: { select: { name: true, email: true } } },
+      include: { closer: { select: { full_name: true, email: true } } },
     });
   } catch (err) {
     logger.error('EOD lockEOD failed', { error: err.message });
@@ -278,7 +300,7 @@ async function getReportByDate(outletId, date) {
   try {
     const existing = await prisma.eODReport.findFirst({
       where: { outlet_id: outletId, report_date: new Date(date) },
-      include: { closer: { select: { name: true, email: true } } },
+      include: { closer: { select: { full_name: true, email: true } } },
     });
     if (existing) return existing;
 
@@ -300,7 +322,7 @@ async function getHistory(outletId, limit = 30) {
       where:   { outlet_id: outletId },
       orderBy: { report_date: 'desc' },
       take:    limit,
-      include: { closer: { select: { name: true } } },
+      include: { closer: { select: { full_name: true } } },
     });
   } catch (err) {
     logger.error('EOD getHistory failed', { error: err.message });

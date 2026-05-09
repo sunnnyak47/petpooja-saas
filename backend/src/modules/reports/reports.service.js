@@ -218,8 +218,11 @@ async function getDashboard(outletId) {
       }),
     ]);
 
-    const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.grand_total), 0);
-    const yesterdayRevenue = yesterdayOrders.reduce((sum, o) => sum + Number(o.grand_total), 0);
+    // Revenue = only paid orders (matches EOD cash reconciliation)
+    const todayPaid = todayOrders.filter((o) => o.is_paid);
+    const todayRevenue = todayPaid.reduce((sum, o) => sum + Number(o.grand_total), 0);
+    const yesterdayPaid = yesterdayOrders.filter((o) => o.is_paid);
+    const yesterdayRevenue = yesterdayPaid.reduce((sum, o) => sum + Number(o.grand_total), 0);
     const revenueGrowth = yesterdayRevenue > 0
       ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 10000) / 100
       : 0;
@@ -232,10 +235,10 @@ async function getDashboard(outletId) {
       today: {
         orders: todayOrders.length,
         revenue: Math.round(todayRevenue * 100) / 100,
-        avg_order_value: todayOrders.length > 0
-          ? Math.round((todayRevenue / todayOrders.length) * 100) / 100
+        avg_order_value: todayPaid.length > 0
+          ? Math.round((todayRevenue / todayPaid.length) * 100) / 100
           : 0,
-        paid_orders: todayOrders.filter((o) => o.is_paid).length,
+        paid_orders: todayPaid.length,
         running_orders: todayOrders.filter((o) => !o.is_paid && o.status !== 'cancelled').length,
       },
       comparison: {
@@ -639,9 +642,9 @@ async function getFranchiseKPIs(outletId, from, to) {
   const toDate = new Date(to || from || new Date().toISOString().split('T')[0]);
   toDate.setHours(23, 59, 59, 999);
 
-  // Current period
+  // Current period — only paid orders for revenue
   const orders = await prisma.order.findMany({
-    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
+    where: { outlet_id: outletId, is_deleted: false, is_paid: true, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
     include: { order_items: true },
   });
 
@@ -656,7 +659,7 @@ async function getFranchiseKPIs(outletId, from, to) {
   const prevTo = new Date(fromDate - 1);
   const prevFrom = new Date(prevTo - duration);
   const prevOrders = await prisma.order.findMany({
-    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: prevFrom, lte: prevTo } },
+    where: { outlet_id: outletId, is_deleted: false, is_paid: true, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: prevFrom, lte: prevTo } },
   });
   const prevRevenue = prevOrders.reduce((s, o) => s + Number(o.grand_total), 0);
   const prevOrderCount = prevOrders.length;
@@ -748,7 +751,7 @@ async function getRevenueTrendRange(outletId, from, to) {
   toDate.setHours(23, 59, 59, 999);
 
   const orders = await prisma.order.findMany({
-    where: { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
+    where: { outlet_id: outletId, is_deleted: false, is_paid: true, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
     select: { grand_total: true, created_at: true, order_type: true },
   });
 
@@ -835,10 +838,227 @@ async function getBASReport(outletId, from, to) {
   };
 }
 
+/**
+ * Advanced Reports — comprehensive analytics with hourly heatmap,
+ * category breakdown, P&L statement, and daily revenue trend.
+ * @param {string} outletId
+ * @param {string} range - 'today' | 'week' | 'month' | 'quarter'
+ */
+async function getAdvancedReport(outletId, range = 'week') {
+  const prisma = getDbClient();
+  try {
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    // Compute date range from the range parameter
+    const now = new Date();
+    const to = new Date(now);
+    to.setHours(23, 59, 59, 999);
+    const from = new Date(now);
+    from.setHours(0, 0, 0, 0);
+
+    switch (range) {
+      case 'today':
+        break; // from is already today
+      case 'week':
+        from.setDate(from.getDate() - 7);
+        break;
+      case 'month':
+        from.setMonth(from.getMonth() - 1);
+        break;
+      case 'quarter':
+        from.setMonth(from.getMonth() - 3);
+        break;
+      default:
+        from.setDate(from.getDate() - 7);
+    }
+
+    // 1. Fetch all valid PAID orders in the range with items and payments
+    const orders = await prisma.order.findMany({
+      where: {
+        outlet_id: outletId,
+        is_deleted: false,
+        is_paid: true,
+        status: { notIn: ['cancelled', 'voided'] },
+        created_at: { gte: from, lte: to },
+      },
+      include: {
+        order_items: {
+          where: { is_deleted: false },
+          select: {
+            quantity: true,
+            item_total: true,
+            item_tax: true,
+            name: true,
+            menu_item: { select: { category: { select: { name: true } } } },
+          },
+        },
+        payments: {
+          where: { is_deleted: false, status: { not: 'failed' } },
+          select: { amount: true, refund_amount: true },
+        },
+      },
+    });
+
+    // 2. Cancelled/voided orders for refund/void stats
+    const voidedOrders = await prisma.order.findMany({
+      where: {
+        outlet_id: outletId,
+        is_deleted: false,
+        status: { in: ['cancelled', 'voided'] },
+        created_at: { gte: from, lte: to },
+      },
+      select: { grand_total: true },
+    });
+
+    // ── HOURLY HEATMAP (24h × 7 days) ──
+    // Build a grid of {hour: 0-23, day: 0-6 (Sun-Sat), count}
+    const heatmap = [];
+    const heatmapGrid = {};
+    for (const order of orders) {
+      const d = new Date(order.created_at);
+      const hour = d.getHours();
+      const day = d.getDay(); // 0=Sun, 6=Sat
+      const key = `${hour}-${day}`;
+      heatmapGrid[key] = (heatmapGrid[key] || 0) + 1;
+    }
+    for (let day = 0; day < 7; day++) {
+      for (let hour = 0; hour < 24; hour++) {
+        heatmap.push({ hour, day, count: heatmapGrid[`${hour}-${day}`] || 0 });
+      }
+    }
+
+    // ── CATEGORY BREAKDOWN ──
+    const categoryMap = {};
+    let totalItemRevenue = 0;
+    for (const order of orders) {
+      for (const oi of order.order_items) {
+        const catName = oi.menu_item?.category?.name || 'Uncategorised';
+        if (!categoryMap[catName]) {
+          categoryMap[catName] = { name: catName, revenue: 0, orders: 0 };
+        }
+        categoryMap[catName].revenue += Number(oi.item_total);
+        categoryMap[catName].orders += oi.quantity;
+        totalItemRevenue += Number(oi.item_total);
+      }
+    }
+    const category_breakdown = Object.values(categoryMap)
+      .sort((a, b) => b.revenue - a.revenue)
+      .map((c) => ({
+        ...c,
+        revenue: round2(c.revenue),
+        pct: totalItemRevenue > 0 ? round2((c.revenue / totalItemRevenue) * 100) : 0,
+      }));
+
+    // ── P&L STATEMENT ──
+    let grossRevenue = 0;
+    let totalDiscounts = 0;
+    let totalRefunds = 0;
+    let totalTax = 0;
+
+    for (const order of orders) {
+      grossRevenue += Number(order.subtotal || 0);
+      totalDiscounts += Number(order.discount_amount || 0) + Number(order.loyalty_discount || 0);
+      totalTax += Number(order.total_tax || 0);
+      for (const p of order.payments) {
+        totalRefunds += Number(p.refund_amount || 0);
+      }
+    }
+    // Add voided order amounts to refunds
+    totalRefunds += voidedOrders.reduce((s, o) => s + Number(o.grand_total || 0), 0);
+
+    const netRevenue = grossRevenue - totalDiscounts - totalRefunds;
+
+    // Estimate costs from inventory data (best-effort)
+    let foodCost = 0;
+    let staffCost = 0;
+    try {
+      const recipeDeductions = await prisma.stockAdjustment.findMany({
+        where: {
+          outlet_id: outletId,
+          reason: { contains: 'order', mode: 'insensitive' },
+          created_at: { gte: from, lte: to },
+          is_deleted: false,
+        },
+        include: { inventory_item: { select: { cost_per_unit: true } } },
+      });
+      foodCost = recipeDeductions.reduce(
+        (s, d) => s + Math.abs(Number(d.quantity)) * Number(d.inventory_item?.cost_per_unit || 0), 0
+      );
+    } catch (_) { /* inventory not linked yet */ }
+
+    // Staff cost estimate from StaffProfile.monthly_salary
+    try {
+      const staffProfiles = await prisma.staffProfile.findMany({
+        where: { outlet_id: outletId },
+        select: { monthly_salary: true },
+      });
+      const totalMonthlySalary = staffProfiles.reduce((s, sp) => s + Number(sp.monthly_salary || 0), 0);
+      // Prorate based on range
+      const rangeDays = Math.max(1, Math.ceil((to - from) / (1000 * 60 * 60 * 24)));
+      staffCost = round2((totalMonthlySalary / 30) * rangeDays);
+    } catch (_) { /* staff profile may not exist */ }
+
+    // Overheads — estimate at 15% of net revenue (standard restaurant benchmark)
+    const overheads = round2(netRevenue * 0.15);
+    const totalExpenses = round2(foodCost + staffCost + overheads);
+    const grossProfit = round2(netRevenue - foodCost);
+    const netProfit = round2(netRevenue - totalExpenses - totalTax);
+
+    const profit_loss = {
+      gross_revenue: round2(grossRevenue),
+      discounts: round2(totalDiscounts),
+      refunds: round2(totalRefunds),
+      net_revenue: round2(netRevenue),
+      food_cost: round2(foodCost),
+      staff_cost: round2(staffCost),
+      overheads,
+      total_expenses: totalExpenses,
+      gross_profit: grossProfit,
+      tax: round2(totalTax),
+      net_profit: netProfit,
+    };
+
+    // ── DAILY REVENUE (last 7 days, day-of-week labels) ──
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dailyMap = {};
+
+    // Initialize last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      dailyMap[key] = { day: dayNames[d.getDay()], v: 0 };
+    }
+
+    for (const order of orders) {
+      const key = new Date(order.created_at).toISOString().split('T')[0];
+      if (dailyMap[key]) {
+        dailyMap[key].v += Number(order.grand_total || 0);
+      }
+    }
+    const daily_revenue = Object.values(dailyMap).map((d) => ({
+      day: d.day,
+      v: round2(d.v),
+    }));
+
+    return {
+      hourly_heatmap: heatmap,
+      category_breakdown,
+      profit_loss,
+      daily_revenue,
+      total_orders: orders.length,
+      period: { from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0], range },
+    };
+  } catch (error) {
+    logger.error('Get advanced report failed', { error: error.message });
+    throw error;
+  }
+}
+
 module.exports = {
   getDailySales, getItemWiseSales, getRevenueTrend,
   getDashboard, getHourlyBreakdown, getCategoryWiseSales, getGstReport, getStaffPerformance,
   getTopSellingItems, getGstDetailedReport, exportGstCsv,
   getFranchiseKPIs, getInventoryValuation, getRevenueTrendRange,
-  getFinancialYearRange, getBASReport,
+  getFinancialYearRange, getBASReport, getAdvancedReport,
 };

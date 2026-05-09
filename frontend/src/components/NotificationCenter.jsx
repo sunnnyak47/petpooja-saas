@@ -53,13 +53,62 @@ export default function NotificationCenter() {
     staleTime: 30_000,
   });
 
-  const notifications = announcements.map(a => ({
+  // Fetch low-stock alerts
+  const { data: lowStockItems = [] } = useQuery({
+    queryKey: ['low-stock-notif'],
+    queryFn: () => api.get('/inventory/low-stock').then(r => r.data || []).catch(() => []),
+    enabled: !!user,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+
+  // Fetch pending KOTs (kitchen delays)
+  const { data: dashData } = useQuery({
+    queryKey: ['dashboard-notif'],
+    queryFn: () => api.get('/reports/dashboard').then(r => r.data).catch(() => null),
+    enabled: !!user,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  // Build merged notification list
+  const announcementNotifs = announcements.map(a => ({
     id: a.id,
     title: a.title,
     body: a.body || a.message || '',
     type: a.type || 'ANNOUNCEMENT',
     created_at: a.created_at || a.sent_at,
   }));
+
+  const stockNotifs = lowStockItems.slice(0, 5).map(item => ({
+    id: `stock-${item.id || item.inventory_item_id}`,
+    title: `Low Stock: ${item.name || item.item_name}`,
+    body: `${item.current_stock} ${item.unit || 'units'} remaining (min: ${item.min_threshold ?? item.minimum_stock ?? 0})`,
+    type: 'WARNING',
+    created_at: new Date().toISOString(),
+  }));
+
+  const operationalNotifs = [];
+  if (dashData?.live?.pending_kots > 0) {
+    operationalNotifs.push({
+      id: 'pending-kots',
+      title: `${dashData.live.pending_kots} Pending KOT${dashData.live.pending_kots > 1 ? 's' : ''}`,
+      body: 'Kitchen orders waiting to be prepared',
+      type: 'INFO',
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (dashData?.today?.running_orders > 0) {
+    operationalNotifs.push({
+      id: 'running-orders',
+      title: `${dashData.today.running_orders} Running Order${dashData.today.running_orders > 1 ? 's' : ''}`,
+      body: 'Orders in progress awaiting payment',
+      type: 'INFO',
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  const notifications = [...announcementNotifs, ...stockNotifs, ...operationalNotifs];
 
   const unread = notifications.filter(n => !readIds.has(n.id));
 

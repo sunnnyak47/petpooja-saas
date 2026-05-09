@@ -182,6 +182,19 @@ router.get('/bas-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOu
 });
 
 /**
+ * GET /api/reports/advanced?range=today|week|month|quarter
+ * Comprehensive analytics: hourly heatmap, category breakdown, P&L, daily revenue.
+ */
+router.get('/advanced', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const range = req.query.range || 'week';
+    const data = await reportsService.getAdvancedReport(outletId, range);
+    sendSuccess(res, data, 'Advanced report retrieved');
+  } catch (error) { next(error); }
+});
+
+/**
  * GET /api/reports/forecast
  * AI demand forecast for tomorrow — predicted revenue, orders, top items.
  * Uses weighted moving average on DailySummary + OrderItem history.
@@ -193,6 +206,63 @@ router.get('/forecast', authenticate, hasPermission('VIEW_REPORTS'), enforceOutl
     if (!outletId) return res.status(400).json({ success: false, message: 'Outlet ID required' });
     const data = await getDemandForecast(outletId);
     sendSuccess(res, data, 'Demand forecast');
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/reports/summary?range=7d
+ * Mobile app alias — aggregates revenue, orders and top items for the given range.
+ * Delegates to existing report services so no new DB queries are needed.
+ */
+router.get('/summary', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const range = req.query.range || '7d';
+
+    // Map range string to a day count used by the existing services
+    const rangeMap = { '1d': 1, '7d': 7, '30d': 30, '90d': 90 };
+    const days = rangeMap[range] || 7;
+
+    // Gather data from existing services (each has its own try/catch so a
+    // partial failure still returns a useful payload)
+    let dailyRevenue = [];
+    let topItems = [];
+    let totalRevenue = 0;
+    let totalOrders = 0;
+
+    try {
+      const to = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      const trend = await reportsService.getRevenueTrend(outletId, from, to);
+      if (Array.isArray(trend)) {
+        dailyRevenue = trend;
+        totalRevenue = trend.reduce((sum, d) => sum + (d.revenue || d.total || 0), 0);
+      }
+    } catch (_) { /* non-fatal */ }
+
+    try {
+      const top = await reportsService.getTopSellingItems(outletId, 5);
+      if (Array.isArray(top)) topItems = top;
+    } catch (_) { /* non-fatal */ }
+
+    try {
+      const dash = await reportsService.getDashboard(outletId);
+      if (dash && typeof dash === 'object') {
+        totalOrders = dash.total_orders || dash.orders || totalOrders;
+      }
+    } catch (_) { /* non-fatal */ }
+
+    const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+    sendSuccess(res, {
+      range,
+      total_revenue: totalRevenue,
+      total_orders: totalOrders,
+      avg_order_value: avgOrderValue,
+      top_items: topItems,
+      daily_revenue: dailyRevenue,
+    }, 'Reports summary retrieved');
   } catch (error) { next(error); }
 });
 

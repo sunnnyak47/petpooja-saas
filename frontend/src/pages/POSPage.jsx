@@ -364,7 +364,12 @@ export default function POSPage() {
       await api.post(`/orders/${orderId}/kot`);
       toast.success(`Punch Successful! Sent to Kitchen.`);
       dispatch(clearCart());
-      // We keep tempOrderId if it's a table order
+      // For dine-in table orders, keep tempOrderId so multi-round KOTs work.
+      // For takeaway/delivery/non-table orders, clear it so next punch creates a fresh order.
+      if (!selectedTable) {
+        setTempOrderId(null);
+        setCurrentOrder(null);
+      }
     } catch (err) { toast.error(err.message); }
   };
 

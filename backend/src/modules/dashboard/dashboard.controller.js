@@ -131,4 +131,169 @@ async function getSummary(req, res, next) {
   }
 }
 
-module.exports = { getSummary };
+/**
+ * GET /api/dashboard/live
+ * Real-time live dashboard stats — polled every 30s by the frontend.
+ * Returns today's orders, revenue, active tables, order pipeline, kitchen status,
+ * and performance indicators using REAL data from Order, Payment, Table, KOT, User.
+ */
+async function getLive(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const prisma = getDbClient();
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const baseWhere = {
+      outlet_id: outletId,
+      is_deleted: false,
+      created_at: { gte: todayStart, lte: todayEnd },
+    };
+
+    // Run all queries in parallel for speed
+    const [
+      paidAgg,
+      allOrders,
+      statusGroups,
+      activeTables,
+      totalTables,
+      kotStats,
+      onlineOrderCount,
+      activeStaffCount,
+    ] = await Promise.all([
+      // 1. Revenue from paid orders
+      prisma.order.aggregate({
+        where: { ...baseWhere, is_paid: true },
+        _sum: { grand_total: true },
+        _count: { id: true },
+      }),
+
+      // 2. All today's orders (for avg calc)
+      prisma.order.count({ where: baseWhere }),
+
+      // 3. Orders grouped by status
+      prisma.order.groupBy({
+        by: ['status'],
+        where: baseWhere,
+        _count: { id: true },
+      }),
+
+      // 4. Active (occupied) tables
+      prisma.table.count({
+        where: { outlet_id: outletId, status: 'occupied', is_deleted: false },
+      }),
+
+      // 5. Total tables
+      prisma.table.count({
+        where: { outlet_id: outletId, is_deleted: false },
+      }),
+
+      // 6. KOT status breakdown for kitchen stats
+      prisma.kOT.groupBy({
+        by: ['status'],
+        where: {
+          outlet_id: outletId,
+          is_deleted: false,
+          created_at: { gte: todayStart, lte: todayEnd },
+        },
+        _count: { id: true },
+      }),
+
+      // 7. Online / QR orders count
+      prisma.order.count({
+        where: {
+          ...baseWhere,
+          source: { in: ['online', 'qr', 'aggregator'] },
+        },
+      }),
+
+      // 8. Staff who created orders today (active staff)
+      prisma.order.findMany({
+        where: { ...baseWhere, staff_id: { not: null } },
+        select: { staff_id: true },
+        distinct: ['staff_id'],
+      }),
+    ]);
+
+    // Build order status map — frontend expects uppercase keys
+    const statusMap = {};
+    const statusKeyMap = {
+      created: 'PENDING', pending: 'PENDING',
+      confirmed: 'CONFIRMED',
+      cooking: 'PREPARING', preparing: 'PREPARING',
+      ready: 'READY',
+      served: 'DELIVERED', delivered: 'DELIVERED', completed: 'DELIVERED',
+      cancelled: 'CANCELLED', voided: 'CANCELLED',
+    };
+    for (const sg of statusGroups) {
+      const key = statusKeyMap[sg.status] || sg.status.toUpperCase();
+      statusMap[key] = (statusMap[key] || 0) + sg._count.id;
+    }
+    // Ensure all expected keys exist
+    for (const k of ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERED', 'CANCELLED']) {
+      statusMap[k] = statusMap[k] || 0;
+    }
+
+    // Build KOT-based kitchen stats
+    const kotMap = {};
+    for (const k of kotStats) {
+      kotMap[k.status] = k._count.id;
+    }
+
+    const totalRevenue = Number(paidAgg._sum.grand_total) || 0;
+    const paidOrderCount = paidAgg._count.id || 0;
+
+    // Compute average prep time from KOTs that have been completed
+    let avgPrepTime = 0;
+    try {
+      const completedKots = await prisma.kOT.findMany({
+        where: {
+          outlet_id: outletId,
+          is_deleted: false,
+          status: { in: ['completed', 'served', 'delivered'] },
+          created_at: { gte: todayStart, lte: todayEnd },
+          completed_at: { not: null },
+        },
+        select: { created_at: true, completed_at: true },
+      });
+      if (completedKots.length > 0) {
+        const totalMs = completedKots.reduce((sum, k) => {
+          return sum + (new Date(k.completed_at) - new Date(k.created_at));
+        }, 0);
+        avgPrepTime = Math.round(totalMs / completedKots.length / 60000); // minutes
+      }
+    } catch (_) {
+      // completed_at column may not exist on all setups — non-fatal
+    }
+
+    const liveData = {
+      orders_today: allOrders,
+      revenue_today: Math.round(totalRevenue * 100) / 100,
+      active_tables: activeTables,
+      total_tables: totalTables,
+      avg_order_value: paidOrderCount > 0
+        ? Math.round((totalRevenue / paidOrderCount) * 100) / 100
+        : 0,
+      orders_by_status: statusMap,
+      avg_prep_time: avgPrepTime,
+      online_orders: onlineOrderCount,
+      staff_count: activeStaffCount.length,
+      kitchen: {
+        in_queue: kotMap['pending'] || 0,
+        preparing: kotMap['preparing'] || kotMap['cooking'] || 0,
+        ready: kotMap['ready'] || 0,
+        completed: kotMap['completed'] || kotMap['served'] || 0,
+      },
+      last_updated: new Date().toISOString(),
+    };
+
+    sendSuccess(res, liveData, 'Live dashboard data retrieved');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { getSummary, getLive };

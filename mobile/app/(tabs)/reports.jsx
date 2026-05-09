@@ -18,6 +18,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,7 +59,21 @@ const CHART_W = SCREEN_W - 32; // card padding
 const RANGES = ['Today', '7D', '30D', '3M'];
 const RANGE_MAP = { Today: 'today', '7D': '7d', '30D': '30d', '3M': '3m' };
 
-const C = Colors;
+// Light theme palette (Vercel × Apple)
+const C = {
+  bg: '#F7F7F7',
+  surface: '#FFFFFF',
+  surface2: '#F7F7F7',
+  border: '#EAEAEA',
+  gold: '#F5A623',
+  indigo: '#0070F3',
+  success: '#00B341',
+  warning: '#F5A623',
+  error: '#EE0000',
+  text1: '#000000',
+  text2: '#444444',
+  text3: '#888888',
+};
 
 // ─── Mock / Fallback Data ─────────────────────────────────────────────────────
 
@@ -213,11 +228,13 @@ function RangeSelector({ selected, onChange }) {
 const rs = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    backgroundColor: C.surface2,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 4,
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
   },
   indicator: {
     position: 'absolute',
@@ -225,7 +242,9 @@ const rs = StyleSheet.create({
     left: 4,
     height: 32,
     borderRadius: 9,
-    backgroundColor: C.indigo,
+    backgroundColor: '#F7F7F7',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
   },
   pill: {
     height: 32,
@@ -233,8 +252,8 @@ const rs = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,
   },
-  pillText: { fontSize: 13, fontWeight: '600', color: C.text3 },
-  pillTextActive: { color: C.text1 },
+  pillText: { fontSize: 13, fontWeight: '600', color: '#888888' },
+  pillTextActive: { color: '#000000', fontWeight: '700' },
 });
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
@@ -284,14 +303,14 @@ function KpiCard({ label, value, change, index }) {
 const kpi = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: C.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: '#EAEAEA',
   },
-  label: { fontSize: 10, color: C.text3, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
-  value: { fontSize: 17, fontWeight: '800', color: C.text1, letterSpacing: -0.3 },
+  label: { fontSize: 10, color: '#888888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  value: { fontSize: 17, fontWeight: '800', color: '#000000', letterSpacing: -0.3 },
   trendRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4 },
   trendText: { fontSize: 11, fontWeight: '700' },
 });
@@ -362,14 +381,18 @@ function RevenueChart({ data, labels }) {
         width={w}
         height={h}
         onPress={handleTouch}
-        onResponderMove={(e) => handleTouch(e)}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
+        {...(Platform.OS !== 'web'
+          ? {
+              onResponderMove: (e) => handleTouch(e),
+              onStartShouldSetResponder: () => true,
+              onMoveShouldSetResponder: () => true,
+            }
+          : {})}
       >
         <Defs>
           <SvgLinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={C.indigo} stopOpacity="0.45" />
-            <Stop offset="100%" stopColor={C.indigo} stopOpacity="0" />
+            <Stop offset="0%" stopColor="#0070F3" stopOpacity="0.15" />
+            <Stop offset="100%" stopColor="#0070F3" stopOpacity="0" />
           </SvgLinearGradient>
         </Defs>
 
@@ -423,7 +446,7 @@ function RevenueChart({ data, labels }) {
           <Path
             d={meta.line}
             fill="none"
-            stroke={C.gold}
+            stroke="#0070F3"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -438,7 +461,7 @@ function RevenueChart({ data, labels }) {
               y1={CHART_PADDING_T}
               x2={tooltip.x}
               y2={CHART_PADDING_T + innerH}
-              stroke={C.gold}
+              stroke="#0070F3"
               strokeWidth="1"
               strokeDasharray="3 3"
               opacity="0.6"
@@ -447,8 +470,8 @@ function RevenueChart({ data, labels }) {
               cx={tooltip.x}
               cy={tooltip.y}
               r="5"
-              fill={C.gold}
-              stroke={C.surface}
+              fill="#0070F3"
+              stroke="#FFFFFF"
               strokeWidth="2"
             />
             {/* Tooltip box */}
@@ -458,8 +481,8 @@ function RevenueChart({ data, labels }) {
               width={68}
               height={28}
               rx="6"
-              fill={C.surface2}
-              stroke={C.border}
+              fill="#FFFFFF"
+              stroke="#EAEAEA"
               strokeWidth="1"
             />
             <SvgText
@@ -467,7 +490,7 @@ function RevenueChart({ data, labels }) {
               y={tooltip.y - 32}
               textAnchor="middle"
               fontSize="9"
-              fill={C.text3}
+              fill="#888888"
             >
               {tooltip.label}
             </SvgText>
@@ -477,7 +500,7 @@ function RevenueChart({ data, labels }) {
               textAnchor="middle"
               fontSize="11"
               fontWeight="700"
-              fill={C.gold}
+              fill="#0070F3"
             >
               {fmt(tooltip.val)}
             </SvgText>
@@ -547,7 +570,7 @@ function DonutChart({ segments, total }) {
           cy={CY}
           r={RADIUS}
           fill="none"
-          stroke={C.surface2}
+          stroke="#EAEAEA"
           strokeWidth={STROKE}
         />
         {/* Segments */}
@@ -568,7 +591,7 @@ function DonutChart({ segments, total }) {
           textAnchor="middle"
           fontSize="22"
           fontWeight="800"
-          fill={C.text1}
+          fill="#000000"
         >
           {total}
         </SvgText>
@@ -577,7 +600,7 @@ function DonutChart({ segments, total }) {
           y={CY + 10}
           textAnchor="middle"
           fontSize="10"
-          fill={C.text3}
+          fill="#888888"
         >
           orders
         </SvgText>
@@ -602,8 +625,8 @@ const dn = StyleSheet.create({
   legend: { flex: 1, gap: 10 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { flex: 1, fontSize: 13, color: C.text2, fontWeight: '500' },
-  legendVal: { fontSize: 13, fontWeight: '700', color: C.text1 },
+  legendLabel: { flex: 1, fontSize: 13, color: '#444444', fontWeight: '500' },
+  legendVal: { fontSize: 13, fontWeight: '700', color: '#000000' },
 });
 
 // ─── Top Item Row (for FlashList) ─────────────────────────────────────────────
@@ -623,8 +646,8 @@ function TopItemRow({ item, index, maxRevenue }) {
     width: `${barProgress.value * 100}%`,
   }));
 
-  const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const rankColor = index < 3 ? rankColors[index] : C.text3;
+  const rankColors = ['#000000', '#888888', '#AAAAAA'];
+  const rankColor = index < 3 ? rankColors[index] : '#CCCCCC';
 
   return (
     <View style={ti.row}>
@@ -655,11 +678,11 @@ const ti = StyleSheet.create({
   rank: { fontSize: 13, fontWeight: '800' },
   info: { flex: 1 },
   nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
-  name: { flex: 1, fontSize: 13, fontWeight: '600', color: C.text1, marginRight: 8 },
-  revenue: { fontSize: 13, fontWeight: '700', color: C.gold },
-  barTrack: { height: 4, backgroundColor: C.surface2, borderRadius: 2, overflow: 'hidden' },
-  barFill: { height: 4, backgroundColor: C.indigo, borderRadius: 2 },
-  qty: { fontSize: 11, color: C.text3, marginTop: 3 },
+  name: { flex: 1, fontSize: 13, fontWeight: '600', color: '#000000', marginRight: 8 },
+  revenue: { fontSize: 13, fontWeight: '700', color: '#0070F3' },
+  barTrack: { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: 4, backgroundColor: '#0070F3', borderRadius: 2 },
+  qty: { fontSize: 11, color: '#888888', marginTop: 3 },
 });
 
 // ─── Peak Hours Heatmap ────────────────────────────────────────────────────────
@@ -675,11 +698,9 @@ function PeakHeatmap({ data }) {
   const svgH = CELL_H * 7 + 20 + 4; // 7 day rows + hour header + gap
 
   function heatColor(val) {
-    // 0 → dark navy, 1 → gold
-    const r = Math.round(interpolateNum(val, 0x08, 0xC9));
-    const g = Math.round(interpolateNum(val, 0x1E, 0xA8));
-    const b = Math.round(interpolateNum(val, 0x3D, 0x4C));
-    return `rgb(${r},${g},${b})`;
+    // 0 → very light blue, 1 → #0070F3
+    const opacity = 0.05 + Math.pow(val, 0.6) * 0.85;
+    return `rgba(0,112,243,${opacity.toFixed(2)})`;
   }
 
   function interpolateNum(t, from, to) {
@@ -748,7 +769,7 @@ function PeakHeatmap({ data }) {
           y={20 + i * CELL_H + CELL_H / 2 + 4}
           textAnchor="end"
           fontSize="9"
-          fill={i >= 5 ? C.gold : C.text3}
+          fill={i >= 5 ? '#0070F3' : '#888888'}
           fontWeight={i >= 5 ? '700' : '400'}
         >
           {d}
@@ -774,9 +795,9 @@ function SectionHeader({ title, subtitle }) {
 
 const sh = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  accent: { width: 3, height: 18, borderRadius: 2, backgroundColor: C.gold },
-  title: { fontSize: 13, fontWeight: '800', color: C.text1, textTransform: 'uppercase', letterSpacing: 0.6 },
-  sub: { fontSize: 11, color: C.text3, marginTop: 1 },
+  accent: { width: 3, height: 18, borderRadius: 2, backgroundColor: '#000000' },
+  title: { fontSize: 13, fontWeight: '800', color: '#000000', textTransform: 'uppercase', letterSpacing: 0.6 },
+  sub: { fontSize: 11, color: '#888888', marginTop: 1 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -824,17 +845,14 @@ export default function ReportsScreen() {
   return (
     <View style={s.root}>
       {/* Header */}
-      <LinearGradient
-        colors={['#0A1628', '#080F1E']}
-        style={[s.header, { paddingTop: insets.top + 10 }]}
-      >
+      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <Animated.View style={[s.headerContent, headerStyle]}>
           <View>
             <Text style={s.headerEye}>MS RM OWNER</Text>
             <Text style={s.headerTitle}>Analytics</Text>
           </View>
           <TouchableOpacity onPress={handleRefresh} style={s.refreshBtn}>
-            <Ionicons name="refresh-outline" size={18} color={C.gold} />
+            <Ionicons name="refresh-outline" size={18} color="#888888" />
           </TouchableOpacity>
         </Animated.View>
 
@@ -842,7 +860,7 @@ export default function ReportsScreen() {
         <View style={s.rangeWrap}>
           <RangeSelector selected={range} onChange={setRange} />
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         ref={scrollRef}
@@ -859,7 +877,7 @@ export default function ReportsScreen() {
         }
       >
         {/* ── KPI Cards ─────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+        <Animated.View entering={Platform.OS !== 'web' ? FadeInDown.delay(100).duration(400) : undefined}>
           <View style={s.kpiRow}>
             <KpiCard
               index={0}
@@ -891,7 +909,7 @@ export default function ReportsScreen() {
         {/* ── Revenue Chart ──────────────────────────────────── */}
         <Animated.View
           style={s.card}
-          entering={FadeInDown.delay(150).duration(400)}
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(150).duration(400) : undefined}
         >
           <SectionHeader
             title="Revenue"
@@ -907,7 +925,7 @@ export default function ReportsScreen() {
         {/* ── Order Type Donut ───────────────────────────────── */}
         <Animated.View
           style={s.card}
-          entering={FadeInDown.delay(200).duration(400)}
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(200).duration(400) : undefined}
         >
           <SectionHeader title="Order Mix" subtitle="by type" />
           <DonutChart
@@ -920,7 +938,7 @@ export default function ReportsScreen() {
         {/* ── Top Items ──────────────────────────────────────── */}
         <Animated.View
           style={[s.card, s.cardNoPad]}
-          entering={FadeInDown.delay(250).duration(400)}
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(250).duration(400) : undefined}
         >
           <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
             <SectionHeader title="Top Dishes" subtitle={`ranked by revenue`} />
@@ -940,7 +958,7 @@ export default function ReportsScreen() {
         {/* ── Peak Hours Heatmap ─────────────────────────────── */}
         <Animated.View
           style={[s.card, { overflow: 'hidden' }]}
-          entering={FadeInDown.delay(300).duration(400)}
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(300).duration(400) : undefined}
         >
           <SectionHeader title="Peak Hours" subtitle="Mon–Sun · 8am–10pm" />
           <PeakHeatmap
@@ -951,7 +969,7 @@ export default function ReportsScreen() {
           <View style={s.heatLegend}>
             <Text style={s.heatLegendText}>Low</Text>
             <LinearGradient
-              colors={['#081E3D', '#2D3888', '#C9A84C']}
+              colors={['rgba(0,112,243,0.05)', 'rgba(0,112,243,0.4)', '#0070F3']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={s.heatGradBar}
@@ -972,13 +990,14 @@ export default function ReportsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1, backgroundColor: '#F7F7F7' },
 
   header: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: '#EAEAEA',
   },
   headerContent: {
     flexDirection: 'row',
@@ -989,23 +1008,23 @@ const s = StyleSheet.create({
   headerEye: {
     fontSize: 10,
     fontWeight: '700',
-    color: C.gold,
+    color: '#888888',
     letterSpacing: 1.5,
     marginBottom: 2,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: C.text1,
+    color: '#000000',
     letterSpacing: -0.5,
   },
   refreshBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: C.surface2,
+    backgroundColor: '#F7F7F7',
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: '#EAEAEA',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1017,20 +1036,19 @@ const s = StyleSheet.create({
   kpiRow: { flexDirection: 'row', gap: 8 },
 
   card: {
-    backgroundColor: C.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: '#EAEAEA',
     overflow: 'hidden',
   },
   cardNoPad: { padding: 0 },
 
   divider: {
     height: 1,
-    backgroundColor: C.border,
+    backgroundColor: '#F0F0F0',
     marginHorizontal: 16,
-    opacity: 0.5,
   },
 
   heatLegend: {
@@ -1039,7 +1057,7 @@ const s = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-  heatLegendText: { fontSize: 10, color: C.text3 },
+  heatLegendText: { fontSize: 10, color: '#888888' },
   heatGradBar: {
     flex: 1,
     height: 6,
@@ -1048,7 +1066,7 @@ const s = StyleSheet.create({
 
   stamp: {
     fontSize: 11,
-    color: C.text3,
+    color: '#888888',
     textAlign: 'center',
     marginTop: 4,
     letterSpacing: 0.3,

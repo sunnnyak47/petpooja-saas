@@ -4,9 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   Pressable,
+  TextInput,
+  ScrollView,
+  RefreshControl,
   Platform,
+  StatusBar,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -17,156 +20,167 @@ import Animated, {
   withSequence,
   interpolate,
   Extrapolation,
-  runOnJS,
-  FadeIn,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FlashList } from '@shopify/flash-list';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, G } from 'react-native-svg';
 import { useOrders, useUpdateOrderStatus } from '../../src/hooks/useApi';
-import { Colors } from '../../src/constants/colors';
-import { T } from '../../src/constants/typography';
+import { PressCard } from '../../src/components/PressCard';
+import { EmptyState } from '../../src/components/EmptyState';
+import SkeletonBox from '../../src/components/SkeletonBox';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const C = {
+  pageBg:      '#F7F7F7',
+  cardBg:      '#FFFFFF',
+  cardBorder:  '#EAEAEA',
+  cardShadow:  '#000000',
+  text1:       '#000000',
+  text2:       '#444444',
+  text3:       '#888888',
+  accent:      '#0070F3',
+  pending:     '#F5A623',
+  pendingBg:   '#FFF8EB',
+  preparing:   '#0070F3',
+  preparingBg: '#EBF4FF',
+  ready:       '#00B341',
+  readyBg:     '#EDFBF3',
+  delivered:   '#888888',
+  deliveredBg: '#F5F5F5',
+  cancelled:   '#EE0000',
+  cancelledBg: '#FFF0F0',
+  skeleton:    '#F0F0F0',
+};
 
 const STATUS_TABS = ['All', 'Pending', 'Preparing', 'Ready', 'Delivered'];
 
-const STATUS_COLORS = {
-  pending: Colors.warning,
-  preparing: Colors.indigo,
-  ready: Colors.success,
-  delivered: Colors.text3,
-  cancelled: Colors.error,
+const STATUS_META = {
+  pending:   { color: C.pending,   bg: C.pendingBg },
+  preparing: { color: C.preparing, bg: C.preparingBg },
+  ready:     { color: C.ready,     bg: C.readyBg },
+  delivered: { color: C.delivered, bg: C.deliveredBg },
+  cancelled: { color: C.cancelled, bg: C.cancelledBg },
 };
 
-const STATUS_GRADIENT = {
-  pending:   [Colors.warning,  '#B87A10'],
-  preparing: [Colors.indigo,   '#3A3DC0'],
-  ready:     [Colors.success,  '#0A8A60'],
-  delivered: [Colors.text3,    Colors.text4],
-  cancelled: [Colors.error,    '#A02020'],
+// Phase 3 — Contextual CTA map
+const STATUS_CTA = {
+  pending:   { label: 'Start Preparing →', color: '#F5A623', nextStatus: 'preparing' },
+  preparing: { label: 'Mark Ready →',      color: '#0070F3', nextStatus: 'ready' },
+  ready:     { label: 'Mark Served ✓',     color: '#00B341', nextStatus: 'served' },
+  served:    { label: 'Generate Bill',      color: '#000000', nextStatus: 'billed' },
 };
 
+// Keep legacy NEXT_STATUS for optimistic-update logic (handleAdvance)
 const NEXT_STATUS = {
   pending:   'preparing',
   preparing: 'ready',
-  ready:     'delivered',
+  ready:     'served',
+  served:    'billed',
 };
 
-const SWIPE_THRESHOLD = 80;
+const MOCK_ORDERS = [
+  {
+    id: '1',
+    order_number: '#1042',
+    table_number: '4',
+    order_type: 'dine_in',
+    status: 'pending',
+    total_amount: 1850,
+    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
+    items: [{ name: 'Butter Chicken', qty: 2 }, { name: 'Naan', qty: 4 }],
+  },
+  {
+    id: '2',
+    order_number: '#1041',
+    table_number: 'T/A',
+    order_type: 'takeaway',
+    status: 'preparing',
+    total_amount: 650,
+    created_at: new Date(Date.now() - 12 * 60000).toISOString(),
+    items: [{ name: 'Veg Biryani', qty: 1 }],
+  },
+  {
+    id: '3',
+    order_number: '#1040',
+    table_number: '2',
+    order_type: 'dine_in',
+    status: 'ready',
+    total_amount: 2200,
+    created_at: new Date(Date.now() - 18 * 60000).toISOString(),
+    items: [
+      { name: 'Paneer Tikka', qty: 2 },
+      { name: 'Dal Makhani', qty: 1 },
+      { name: 'Roti', qty: 6 },
+    ],
+  },
+];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(dateStr) {
-  const now = Date.now();
-  const then = new Date(dateStr || now).getTime();
-  const diff = Math.floor((now - then) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  const diff = Math.floor((Date.now() - new Date(dateStr || Date.now()).getTime()) / 1000);
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// ─── SVG Empty State ──────────────────────────────────────────────────────────
-
-function EmptyIllustration() {
-  return (
-    <Svg width={120} height={120} viewBox="0 0 120 120" fill="none">
-      <Circle cx="60" cy="60" r="50" fill={Colors.surface2} />
-      {/* plate */}
-      <Circle cx="60" cy="68" r="28" fill="none" stroke={Colors.border} strokeWidth="3" />
-      <Circle cx="60" cy="68" r="20" fill="none" stroke={Colors.border} strokeWidth="1.5" />
-      {/* fork */}
-      <G stroke={Colors.text3} strokeWidth="2" strokeLinecap="round">
-        <Path d="M44 38 L44 54" />
-        <Path d="M41 38 L41 46 Q44 50 47 46 L47 38" />
-        {/* knife */}
-        <Path d="M76 38 L76 54" />
-        <Path d="M76 38 Q80 42 78 47 L76 54" />
-      </G>
-      {/* steam lines */}
-      <G stroke={Colors.text4} strokeWidth="1.5" strokeLinecap="round">
-        <Path d="M50 30 Q52 27 50 24" />
-        <Path d="M60 28 Q62 25 60 22" />
-        <Path d="M70 30 Q72 27 70 24" />
-      </G>
-    </Svg>
-  );
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// ─── Live Dot ─────────────────────────────────────────────────────────────────
 
-function SkeletonCard() {
-  const opacity = useSharedValue(0.35);
-
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.9, { duration: 750 }),
-        withTiming(0.35, { duration: 750 })
-      ),
-      -1,
-      false
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View style={[styles.card, animStyle]}>
-      <View style={[styles.skeletonLeftBorder, { backgroundColor: Colors.border }]} />
-      <View style={{ flex: 1, padding: 14 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-          <View>
-            <View style={[styles.skeletonBar, { width: 100, height: 13, marginBottom: 6 }]} />
-            <View style={[styles.skeletonBar, { width: 70, height: 10 }]} />
-          </View>
-          <View style={[styles.skeletonBar, { width: 55, height: 22, borderRadius: 6 }]} />
-        </View>
-        <View style={[styles.skeletonBar, { width: '90%', height: 10, marginBottom: 6 }]} />
-        <View style={[styles.skeletonBar, { width: '75%', height: 10, marginBottom: 6 }]} />
-        <View style={[styles.skeletonBar, { width: '55%', height: 10, marginBottom: 14 }]} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <View style={[styles.skeletonBar, { width: 80, height: 26, borderRadius: 8 }]} />
-          <View style={[styles.skeletonBar, { width: 110, height: 26, borderRadius: 8 }]} />
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-// ─── Pulsing Dot ─────────────────────────────────────────────────────────────
-
-function PulsingDot({ color = Colors.success }) {
+function LiveDot() {
   const scale = useSharedValue(1);
 
   useEffect(() => {
     scale.value = withRepeat(
       withSequence(
-        withTiming(1.4, { duration: 600 }),
-        withTiming(1, { duration: 600 })
+        withTiming(1.6, { duration: 700 }),
+        withTiming(1,   { duration: 700 })
       ),
       -1,
       false
     );
   }, []);
 
-  const outerStyle = useAnimatedStyle(() => ({
+  const ringStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-    opacity: interpolate(scale.value, [1, 1.4], [0.6, 0], Extrapolation.CLAMP),
+    opacity: interpolate(scale.value, [1, 1.6], [0.5, 0], Extrapolation.CLAMP),
   }));
 
   return (
-    <View style={{ width: 14, height: 14, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: 10, height: 10, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View
         style={[
-          { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: color },
-          outerStyle,
+          {
+            position: 'absolute',
+            width: 10, height: 10,
+            borderRadius: 5,
+            backgroundColor: C.accent,
+          },
+          ringStyle,
         ]}
       />
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent }} />
+    </View>
+  );
+}
+
+// ─── Phase 3 — Orders Skeleton ────────────────────────────────────────────────
+
+function OrdersSkeleton() {
+  return (
+    <View style={{ padding: 16, gap: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+        {[0, 1, 2, 3].map(i => (
+          <SkeletonBox key={i} width={72} height={34} borderRadius={999} color="#F0F0F0" />
+        ))}
+      </View>
+      {[0, 1, 2, 3].map(i => (
+        <SkeletonBox key={i} width="100%" height={68} borderRadius={16} color="#F0F0F0" />
+      ))}
     </View>
   );
 }
@@ -180,28 +194,23 @@ function StatsBar({ orders }) {
     ready:     orders.filter((o) => (o.status || '').toLowerCase() === 'ready').length,
   };
 
-  const pills = [
-    { label: 'Pending',   count: counts.pending,   color: Colors.warning },
-    { label: 'Preparing', count: counts.preparing, color: Colors.indigo },
-    { label: 'Ready',     count: counts.ready,     color: Colors.success },
+  const chips = [
+    { label: 'Pending',   count: counts.pending,   color: C.pending,   bg: C.pendingBg },
+    { label: 'Preparing', count: counts.preparing, color: C.preparing, bg: C.preparingBg },
+    { label: 'Ready',     count: counts.ready,     color: C.ready,     bg: C.readyBg },
   ];
 
   return (
     <View style={styles.statsBar}>
-      {pills.map((p, i) => (
-        <React.Fragment key={p.label}>
-          <View style={[styles.statsPill, { backgroundColor: p.color + '20' }]}>
-            <View style={[styles.statsDot, { backgroundColor: p.color }]} />
-            <Text style={[T.label, { color: p.color }]}>
-              {p.label}
-            </Text>
-            <Text style={[T.numXs, { color: p.color, marginLeft: 4 }]}>
-              {p.count}
+      {chips.map((chip, i) => (
+        <React.Fragment key={chip.label}>
+          {/* Phase 1 — statsChip borderRadius 999 */}
+          <View style={[styles.statsChip, { backgroundColor: chip.bg }]}>
+            <Text style={[styles.statsLabel, { color: chip.color }]}>
+              {chip.label} {chip.count}
             </Text>
           </View>
-          {i < pills.length - 1 && (
-            <View style={styles.statsDivider} />
-          )}
+          {i < chips.length - 1 && <View style={styles.statsDivider} />}
         </React.Fragment>
       ))}
     </View>
@@ -211,57 +220,65 @@ function StatsBar({ orders }) {
 // ─── Filter Tabs ──────────────────────────────────────────────────────────────
 
 function FilterTabs({ activeTab, onSelect }) {
-  const tabWidths = useRef({});
-  const tabOffsets = useRef({});
+  const tabLayouts = useRef({});
   const indicatorX = useSharedValue(0);
   const indicatorW = useSharedValue(0);
-  const [measured, setMeasured] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: indicatorX.value }],
     width: indicatorW.value,
   }));
 
-  function onTabLayout(tab, x, w) {
-    tabOffsets.current[tab] = x;
-    tabWidths.current[tab] = w;
-    if (Object.keys(tabOffsets.current).length === STATUS_TABS.length) {
-      // All tabs measured — animate to active
-      const ax = tabOffsets.current[activeTab] ?? 0;
-      const aw = tabWidths.current[activeTab] ?? 0;
-      indicatorX.value = ax;
-      indicatorW.value = aw;
-      setMeasured(true);
+  function onLayout(tab, x, w) {
+    tabLayouts.current[tab] = { x, w };
+    if (Object.keys(tabLayouts.current).length === STATUS_TABS.length) {
+      const layout = tabLayouts.current[activeTab];
+      if (layout) {
+        indicatorX.value = layout.x;
+        indicatorW.value = layout.w;
+        setReady(true);
+      }
     }
   }
 
-  function handleSelect(tab) {
+  function handlePress(tab) {
     onSelect(tab);
-    const ax = tabOffsets.current[tab] ?? 0;
-    const aw = tabWidths.current[tab] ?? 0;
-    indicatorX.value = withSpring(ax, { damping: 20, stiffness: 200 });
-    indicatorW.value = withSpring(aw, { damping: 20, stiffness: 200 });
+    const layout = tabLayouts.current[tab];
+    if (layout) {
+      indicatorX.value = withSpring(layout.x, { damping: 22, stiffness: 220 });
+      indicatorW.value = withSpring(layout.w, { damping: 22, stiffness: 220 });
+    }
   }
+
+  useEffect(() => {
+    const layout = tabLayouts.current[activeTab];
+    if (layout && ready) {
+      indicatorX.value = withSpring(layout.x, { damping: 22, stiffness: 220 });
+      indicatorW.value = withSpring(layout.w, { damping: 22, stiffness: 220 });
+    }
+  }, [activeTab, ready]);
 
   return (
     <View style={styles.tabsWrapper}>
-      {measured && (
+      {ready && (
         <Animated.View style={[styles.tabIndicator, indicatorStyle]} />
       )}
       {STATUS_TABS.map((tab) => (
         <TouchableOpacity
           key={tab}
-          onPress={() => handleSelect(tab)}
-          onLayout={(e) => {
-            onTabLayout(tab, e.nativeEvent.layout.x, e.nativeEvent.layout.width);
-          }}
+          onPress={() => handlePress(tab)}
+          onLayout={(e) =>
+            onLayout(tab, e.nativeEvent.layout.x, e.nativeEvent.layout.width)
+          }
           style={styles.tab}
-          activeOpacity={0.75}
+          activeOpacity={0.7}
         >
           <Text
             style={[
-              T.label,
-              { color: activeTab === tab ? Colors.gold : Colors.text3 },
+              styles.tabText,
+              { color: activeTab === tab ? C.text1 : C.text3 },
+              activeTab === tab && { fontWeight: '700' },
             ]}
           >
             {tab}
@@ -272,25 +289,71 @@ function FilterTabs({ activeTab, onSelect }) {
   );
 }
 
+// ─── Action Menu (long-press) ─────────────────────────────────────────────────
+
+function ActionMenu({ visible, status, onMarkReady, onCancel, onPrintKOT, onDismiss }) {
+  const opacity = useSharedValue(0);
+  const scale   = useSharedValue(0.9);
+
+  useEffect(() => {
+    if (visible) {
+      opacity.value = withTiming(1, { duration: 150 });
+      scale.value   = withSpring(1, { damping: 18, stiffness: 220 });
+    } else {
+      opacity.value = withTiming(0, { duration: 110 });
+      scale.value   = withTiming(0.9, { duration: 110 });
+    }
+  }, [visible]);
+
+  const menuStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  if (!visible) return null;
+
+  return (
+    <Pressable style={styles.menuOverlay} onPress={onDismiss}>
+      <Animated.View style={[styles.menuBox, menuStyle]}>
+        {status !== 'ready' && status !== 'delivered' && status !== 'cancelled' && (
+          <TouchableOpacity style={styles.menuItem} onPress={onMarkReady} activeOpacity={0.7}>
+            <Text style={styles.menuItemText}>Mark Ready</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.menuItem} onPress={onPrintKOT} activeOpacity={0.7}>
+          <Text style={styles.menuItemText}>Print KOT</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={onCancel} activeOpacity={0.7}>
+          <Text style={[styles.menuItemText, { color: C.cancelled }]}>Cancel Order</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-const OrderCard = React.memo(function OrderCard({ item: o, onAdvance, index }) {
-  const status   = (o.status || 'pending').toLowerCase();
-  const color    = STATUS_COLORS[status] || Colors.text3;
-  const next     = NEXT_STATUS[status];
-  const canAdvance = !!next;
+const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLongAction, index, expanded, onToggle }) {
+  const status     = (order.status || 'pending').toLowerCase();
+  const meta       = STATUS_META[status] || STATUS_META.delivered;
+  // Phase 3 — contextual CTA (null for billed/completed)
+  const ctaConfig  = STATUS_CTA[status] || null;
+  const canAdvance = !!ctaConfig;
 
-  // Entrance animation — slide in from right, staggered
-  const translateX = useSharedValue(60);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [errorMsg,    setErrorMsg]    = useState('');
+
+  // Staggered slide-in entrance
+  const translateX   = useSharedValue(40);
   const entryOpacity = useSharedValue(0);
 
   useEffect(() => {
-    const delay = Math.min(index, 7) * 60;
-    const timer = setTimeout(() => {
-      translateX.value = withSpring(0, { damping: 18, stiffness: 160 });
-      entryOpacity.value = withTiming(1, { duration: 280 });
+    const delay = Math.min(index, 8) * 50;
+    const t = setTimeout(() => {
+      translateX.value   = withSpring(0, { damping: 20, stiffness: 160 });
+      entryOpacity.value = withTiming(1, { duration: 240 });
     }, delay);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, []);
 
   const entryStyle = useAnimatedStyle(() => ({
@@ -298,231 +361,246 @@ const OrderCard = React.memo(function OrderCard({ item: o, onAdvance, index }) {
     opacity: entryOpacity.value,
   }));
 
-  // Swipe gesture
-  const swipeX = useSharedValue(0);
-  const REVEAL_COLOR = canAdvance ? (STATUS_COLORS[next] || Colors.success) : Colors.text3;
+  const items   = order.items || [];
+  const orderId = order.id || order._id;
 
-  const panGesture = Gesture.Pan()
-    .activeOffsetX([8, 9999]) // only trigger on rightward swipe start
-    .onUpdate((e) => {
-      if (!canAdvance) return;
-      swipeX.value = Math.max(0, Math.min(e.translationX, 140));
-    })
-    .onEnd(() => {
-      if (!canAdvance) return;
-      if (swipeX.value > SWIPE_THRESHOLD) {
-        runOnJS(onAdvance)(o.id || o._id, status);
-        swipeX.value = withSpring(0, { damping: 20 });
-      } else {
-        swipeX.value = withSpring(0, { damping: 18 });
-      }
+  const tableLabel = order.table_number
+    ? (order.order_type === 'takeaway' ? 'Takeaway' : `Table ${order.table_number}`)
+    : (order.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in');
+
+  function handleAdvance() {
+    setErrorMsg('');
+    onAdvance(orderId, status, (err) => {
+      if (err) setErrorMsg('Failed — tap to retry');
     });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeX.value }],
-  }));
-
-  const revealOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(swipeX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-  }));
-
-  const items = o.items || [];
-  const shownItems = items.slice(0, 3);
-  const extraCount = items.length - 3;
+  }
 
   return (
     <Animated.View style={entryStyle}>
-      {/* Reveal layer behind card */}
-      <Animated.View style={[styles.revealLayer, { backgroundColor: REVEAL_COLOR + '28' }, revealOpacity]}>
-        <View style={[styles.revealIcon, { backgroundColor: REVEAL_COLOR + '40' }]}>
-          <Text style={{ color: REVEAL_COLOR, fontSize: 16 }}>→</Text>
-        </View>
-        <Text style={[T.label, { color: REVEAL_COLOR, marginLeft: 8 }]}>
-          {next ? `Mark ${next.charAt(0).toUpperCase() + next.slice(1)}` : ''}
-        </Text>
-      </Animated.View>
-
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.card, cardStyle]}>
-          {/* Left colored border */}
-          <View style={[styles.cardLeftBorder, { backgroundColor: color }]} />
-
-          <View style={styles.cardContent}>
-            {/* Top row */}
-            <View style={styles.cardHeader}>
-              <View style={{ flex: 1, marginRight: 12 }}>
-                <Text style={[T.h2, { color: Colors.text1 }]} numberOfLines={1}>
-                  {o.table_number ? `Table ${o.table_number}` : (o.order_type || 'Dine-in')}
-                </Text>
-                <Text style={[T.caption, { color: Colors.text3, marginTop: 2 }]}>
-                  #{String(o.id || o._id || '').slice(-8)} · {timeAgo(o.created_at)}
-                </Text>
-              </View>
-              <Text style={[T.numSm, { color: Colors.gold }]}>
-                ₹{Number(o.total_amount || o.total || 0).toFixed(0)}
+      <Pressable
+        onLongPress={() => setMenuVisible(true)}
+        delayLongPress={420}
+        style={[styles.card]}
+      >
+        {/* ── Phase 2: PressCard wraps the collapsed header row ── */}
+        <PressCard
+          scaleDown={0.98}
+          onPress={onToggle}
+          style={styles.cardCollapsedRow}
+        >
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {/* Phase 4 — order number typography */}
+              <Text style={styles.orderNumber} numberOfLines={1}>
+                {order.order_number || `#${String(orderId).slice(-6)}`}
               </Text>
-            </View>
-
-            {/* Items */}
-            <View style={styles.itemsBlock}>
-              {shownItems.map((item, i) => (
-                <View key={i} style={styles.itemRow}>
-                  <Text style={[T.body, { color: Colors.text2, flex: 1 }]} numberOfLines={1}>
-                    <Text style={[T.body, { color: Colors.text3 }]}>
-                      {item.quantity || item.qty || 1}×{' '}
-                    </Text>
-                    {item.name || item.item_name || 'Item'}
-                  </Text>
-                  <Text style={[T.bodySm, { color: Colors.text3 }]}>
-                    ₹{Number(item.price || item.amount || 0).toFixed(0)}
-                  </Text>
-                </View>
-              ))}
-              {extraCount > 0 && (
-                <Text style={[T.caption, { color: Colors.text3, marginTop: 3 }]}>
-                  +{extraCount} more item{extraCount > 1 ? 's' : ''}
-                </Text>
-              )}
-            </View>
-
-            {/* Bottom row */}
-            <View style={styles.cardFooter}>
-              {/* Status badge */}
-              <View
-                style={[
-                  styles.statusBadge,
-                  { borderColor: color + '45', backgroundColor: color + '16' },
-                ]}
-              >
-                <View style={[styles.statusDot, { backgroundColor: color }]} />
-                <Text style={[T.overline, { color }]}>{status}</Text>
+              {/* Phase 1 — tableBadge borderRadius 999 */}
+              <View style={styles.tableBadge}>
+                <Text style={styles.tableBadgeText}>{tableLabel}</Text>
               </View>
-
-              {/* Advance button */}
-              {canAdvance && (
-                <TouchableOpacity
-                  onPress={() => onAdvance(o.id || o._id, status)}
-                  style={styles.advanceBtnWrap}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={STATUS_GRADIENT[next] || [Colors.indigo, '#3A3DC0']}
-                    style={styles.advanceBtnInner}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={[T.label, { color: '#fff' }]}>
-                      {next.charAt(0).toUpperCase() + next.slice(1)} →
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
             </View>
           </View>
-        </Animated.View>
-      </GestureDetector>
+          {/* Phase 1 — statusBadge borderRadius 999 */}
+          <View style={[styles.statusBadge, { backgroundColor: meta.bg, marginRight: 8 }]}>
+            <View style={[styles.statusDot, { backgroundColor: meta.color }]} />
+            <Text style={[styles.statusText, { color: meta.color }]}>{capitalize(status)}</Text>
+          </View>
+          {/* Phase 4 — amount typography */}
+          <Text style={styles.amount}>
+            ₹{Number(order.total_amount || order.total || 0).toFixed(0)}
+          </Text>
+          <Text style={[styles.chevron, expanded && styles.chevronUp]}>›</Text>
+        </PressCard>
+
+        {/* ── Expanded details ── */}
+        {expanded && (
+          <View style={styles.cardExpanded}>
+            {/* Time */}
+            <Text style={[styles.timeAgo, { marginBottom: 8 }]}>{timeAgo(order.created_at)}</Text>
+
+            {/* Items list */}
+            <View style={styles.itemsBlock}>
+              {items.map((item, i) => (
+                <View key={i} style={styles.itemRow}>
+                  <Text style={styles.itemQty}>
+                    {item.quantity || item.qty || 1}×
+                  </Text>
+                  {/* Phase 4 — item name/price typography */}
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {item.name || item.item_name || 'Item'}
+                  </Text>
+                  {item.price != null && (
+                    <Text style={styles.itemPrice}>₹{Number(item.price).toFixed(0)}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+
+            {/* Footer: total + advance button */}
+            <View style={styles.cardFooter}>
+              <Text style={styles.totalLabel}>
+                Total: <Text style={styles.amount}>₹{Number(order.total_amount || order.total || 0).toFixed(0)}</Text>
+              </Text>
+              {/* Phase 2 + 3: PressCard on advance button, contextual CTA label */}
+              {canAdvance && (
+                <PressCard
+                  scaleDown={0.95}
+                  onPress={handleAdvance}
+                  style={[styles.advanceBtn, { backgroundColor: ctaConfig.color }]}
+                >
+                  <Text style={styles.advanceBtnText}>{ctaConfig.label}</Text>
+                </PressCard>
+              )}
+            </View>
+
+            {!!errorMsg && (
+              <TouchableOpacity onPress={handleAdvance} activeOpacity={0.8}>
+                <Text style={styles.errorMsg}>{errorMsg}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </Pressable>
+
+      <ActionMenu
+        visible={menuVisible}
+        status={status}
+        onMarkReady={() => { setMenuVisible(false); onLongAction(orderId, 'ready'); }}
+        onCancel={() => { setMenuVisible(false); onLongAction(orderId, 'cancelled'); }}
+        onPrintKOT={() => { setMenuVisible(false); onLongAction(orderId, 'print_kot'); }}
+        onDismiss={() => setMenuVisible(false)}
+      />
     </Animated.View>
   );
 });
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyState({ label }) {
-  const floatY = useSharedValue(0);
-
-  useEffect(() => {
-    floatY.value = withRepeat(
-      withSequence(
-        withTiming(-8, { duration: 1600 }),
-        withTiming(0, { duration: 1600 })
-      ),
-      -1,
-      false
-    );
-  }, []);
-
-  const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: floatY.value }],
-  }));
-
-  return (
-    <View style={styles.emptyWrap}>
-      <Animated.View style={floatStyle}>
-        <EmptyIllustration />
-      </Animated.View>
-      <Text style={[T.h2, { color: Colors.text2, marginTop: 20 }]}>
-        No {label === 'All' ? '' : label.toLowerCase() + ' '}orders
-      </Text>
-      <Text style={[T.body, { color: Colors.text3, marginTop: 6, textAlign: 'center' }]}>
-        Pull down to refresh, or check another status tab
-      </Text>
-    </View>
-  );
-}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Orders() {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab]   = useState('All');
-  const [search, setSearch]         = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
 
-  const searchWidth = useSharedValue(0);
-  const searchOpacity = useSharedValue(0);
+  const [activeTab,   setActiveTab]   = useState('All');
+  const [search,      setSearch]      = useState('');
+  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [localOrders, setLocalOrders] = useState(null);
+  const [expandedId,  setExpandedId]  = useState(null);
+
+  // Phase 3 — skeleton loading state, auto-resolves after 700ms
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 700);
+    return () => clearTimeout(t);
+  }, []);
 
   const statusParam = activeTab === 'All' ? undefined : activeTab.toLowerCase();
   const { data, isLoading, refetch, isRefetching } = useOrders(
     statusParam ? { status: statusParam } : {}
   );
-  const { mutate: updateStatus } = useUpdateOrderStatus();
+  const { mutate: updateStatusMutation } = useUpdateOrderStatus();
 
-  const orders  = data?.data || data?.orders || (Array.isArray(data) ? data : []);
-  const filtered = search.trim()
-    ? orders.filter((o) => {
-        const q = search.toLowerCase();
-        return (
-          String(o.id || o._id || '').toLowerCase().includes(q) ||
-          (o.order_type || '').toLowerCase().includes(q) ||
-          String(o.table_number || '').includes(q)
-        );
-      })
-    : orders;
+  const apiOrders     = data?.data || data?.orders || (Array.isArray(data) ? data : null);
+  const baseOrders    = apiOrders && apiOrders.length > 0 ? apiOrders : MOCK_ORDERS;
+  const displayOrders = localOrders !== null ? localOrders : baseOrders;
+
+  useEffect(() => {
+    if (apiOrders && apiOrders.length > 0) setLocalOrders(null);
+  }, [data]);
+
+  const filtered = React.useMemo(() => {
+    let list = displayOrders;
+    if (statusParam) {
+      list = list.filter((o) => (o.status || '').toLowerCase() === statusParam);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (o) =>
+          (o.order_number || '').toLowerCase().includes(q) ||
+          String(o.table_number || '').toLowerCase().includes(q) ||
+          (o.order_type || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [displayOrders, statusParam, search]);
 
   const handleAdvance = useCallback(
-    (orderId, currentStatus) => {
-      updateStatus({ orderId, status: NEXT_STATUS[currentStatus] });
+    (orderId, currentStatus, onError) => {
+      const nextStatus = NEXT_STATUS[currentStatus];
+      if (!nextStatus) return;
+      const snapshot = localOrders !== null ? [...localOrders] : [...baseOrders];
+      setLocalOrders(snapshot.map((o) =>
+        (o.id || o._id) === orderId ? { ...o, status: nextStatus } : o
+      ));
+      updateStatusMutation(
+        { orderId, status: nextStatus },
+        {
+          onError: () => { setLocalOrders(snapshot); if (onError) onError(true); },
+          onSuccess: () => refetch(),
+        }
+      );
     },
-    [updateStatus]
+    [localOrders, baseOrders, updateStatusMutation, refetch]
   );
+
+  const handleLongAction = useCallback(
+    (orderId, action) => {
+      if (action === 'print_kot') return;
+      const snapshot = localOrders !== null ? [...localOrders] : [...baseOrders];
+      setLocalOrders(snapshot.map((o) =>
+        (o.id || o._id) === orderId ? { ...o, status: action } : o
+      ));
+      updateStatusMutation(
+        { orderId, status: action },
+        {
+          onError: () => setLocalOrders(snapshot),
+          onSuccess: () => refetch(),
+        }
+      );
+    },
+    [localOrders, baseOrders, updateStatusMutation, refetch]
+  );
+
+  // Search animation
+  const searchWidth   = useSharedValue(0);
+  const searchOpacity = useSharedValue(0);
+  const searchAnimStyle = useAnimatedStyle(() => ({
+    flex: searchWidth.value,
+    opacity: searchOpacity.value,
+    overflow: 'hidden',
+  }));
 
   function toggleSearch() {
     if (searchOpen) {
       setSearch('');
-      searchWidth.value  = withTiming(0, { duration: 220 });
+      searchWidth.value   = withTiming(0, { duration: 220 });
       searchOpacity.value = withTiming(0, { duration: 200 });
       setSearchOpen(false);
     } else {
       setSearchOpen(true);
-      searchWidth.value  = withTiming(1, { duration: 250 });
+      searchWidth.value   = withTiming(1, { duration: 250 });
       searchOpacity.value = withTiming(1, { duration: 240 });
     }
   }
 
-  const searchBarStyle = useAnimatedStyle(() => ({
-    flex: searchWidth.value,
-    opacity: searchOpacity.value,
-  }));
-
-  const liveCount = orders.filter((o) =>
+  const liveCount = displayOrders.filter((o) =>
     ['pending', 'preparing', 'ready'].includes((o.status || '').toLowerCase())
   ).length;
 
   const renderItem = useCallback(
-    ({ item, index }) => (
-      <OrderCard item={item} onAdvance={handleAdvance} index={index} />
-    ),
-    [handleAdvance]
+    ({ item, index }) => {
+      const id = String(item.id || item._id);
+      return (
+        <OrderCard
+          item={item}
+          onAdvance={handleAdvance}
+          onLongAction={handleLongAction}
+          index={index}
+          expanded={expandedId === id}
+          onToggle={() => setExpandedId((prev) => (prev === id ? null : id))}
+        />
+      );
+    },
+    [handleAdvance, handleLongAction, expandedId]
   );
 
   const keyExtractor = useCallback(
@@ -530,87 +608,99 @@ export default function Orders() {
     []
   );
 
+  // Phase 1 — gap between cards 12
   const Separator = useCallback(() => <View style={{ height: 12 }} />, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.bg }}>
+    <View style={[styles.root, { paddingTop: 0 }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.pageBg} />
 
-        {/* ── Header ── */}
-        <LinearGradient
-          colors={['#0D1F3C', '#0A1628', Colors.bg]}
-          style={[styles.header, { paddingTop: insets.top + 10 }]}
-        >
-          {/* Title row */}
-          <View style={styles.titleRow}>
-            <View style={styles.titleLeft}>
-              <Text style={[T.h1, { color: Colors.text1 }]}>Orders</Text>
-              {liveCount > 0 && (
-                <View style={styles.liveBadge}>
-                  <PulsingDot color={Colors.success} />
-                  <Text style={[T.labelSm, { color: Colors.success, marginLeft: 5 }]}>
-                    {liveCount} live
-                  </Text>
-                </View>
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        {/* Title row */}
+        <View style={styles.titleRow}>
+          <View style={styles.titleLeft}>
+            <Text style={styles.titleText}>Orders</Text>
+            {liveCount > 0 && (
+              <View style={styles.liveBadge}>
+                <LiveDot />
+                <Text style={styles.liveCount}>{liveCount} live</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.searchRow}>
+            <Animated.View style={[styles.searchInputWrap, searchAnimStyle]}>
+              {searchOpen && (
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Table, order ID…"
+                  placeholderTextColor={C.text3}
+                  style={styles.searchTextInput}
+                  autoFocus
+                />
               )}
-            </View>
-
-            {/* Search toggle + input */}
-            <View style={styles.searchRow}>
-              <Animated.View style={[styles.searchInput, searchBarStyle]}>
-                {searchOpen && (
-                  <TextInput
-                    value={search}
-                    onChangeText={setSearch}
-                    placeholder="Table, order ID..."
-                    placeholderTextColor={Colors.text3}
-                    style={[T.body, { flex: 1, color: Colors.text1 }]}
-                    autoFocus
-                  />
-                )}
-              </Animated.View>
-              <TouchableOpacity
-                onPress={toggleSearch}
-                style={styles.searchToggle}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: Colors.text2, fontSize: 16 }}>
-                  {searchOpen ? '✕' : '⌕'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            </Animated.View>
+            <TouchableOpacity
+              onPress={toggleSearch}
+              style={styles.searchToggle}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: C.text2, fontSize: 17 }}>
+                {searchOpen ? '✕' : '⌕'}
+              </Text>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Stats bar */}
-          {!isLoading && orders.length > 0 && <StatsBar orders={orders} />}
-
-          {/* Filter tabs */}
-          <FilterTabs activeTab={activeTab} onSelect={setActiveTab} />
-        </LinearGradient>
-
-        {/* ── Content ── */}
-        {isLoading ? (
-          <View style={{ padding: 16, gap: 12 }}>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </View>
-        ) : (
-          <FlashList
-            data={filtered}
-            estimatedItemSize={180}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            contentContainerStyle={{
-              padding: 16,
-              paddingBottom: insets.bottom + 90,
-            }}
-            ItemSeparatorComponent={Separator}
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<EmptyState label={activeTab} />}
-          />
+        {/* Stats */}
+        {!loading && !isLoading && displayOrders.length > 0 && (
+          <StatsBar orders={displayOrders} />
         )}
+
+        {/* Filter tabs */}
+        <FilterTabs activeTab={activeTab} onSelect={setActiveTab} />
+      </View>
+
+      {/* ── Content ── */}
+      {/* Phase 3 — show skeleton while loading=true OR api isLoading */}
+      {(loading || isLoading) ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          scrollEnabled={false}
+        >
+          <OrdersSkeleton />
+        </ScrollView>
+      ) : (
+        <FlashList
+          data={filtered}
+          estimatedItemSize={68}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={{
+            padding: 14,
+            paddingBottom: insets.bottom + 90,
+          }}
+          ItemSeparatorComponent={Separator}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor={C.accent}
+              colors={[C.accent]}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <EmptyState
+              icon="📋"
+              title="No orders yet"
+              subtitle="New orders will appear here automatically"
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -618,10 +708,23 @@ export default function Orders() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Header
+  root: {
+    flex: 1,
+    backgroundColor: C.pageBg,
+  },
+
+  // ── Header ──
   header: {
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+    shadowColor: 'rgba(0,0,0,0.05)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   titleRow: {
     flexDirection: 'row',
@@ -634,102 +737,125 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  titleText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: C.text1,
+    letterSpacing: -0.5,
+  },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.success + '18',
-    borderColor: Colors.success + '40',
-    borderWidth: 1,
+    gap: 5,
+    backgroundColor: '#EBF4FF',
     borderRadius: 20,
     paddingHorizontal: 8,
     paddingVertical: 3,
+  },
+  liveCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.accent,
+    letterSpacing: 0.2,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  searchInput: {
-    backgroundColor: Colors.surface2,
+  searchInputWrap: {
+    backgroundColor: C.pageBg,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
     paddingHorizontal: 10,
     paddingVertical: Platform.OS === 'ios' ? 7 : 4,
     minWidth: 0,
-    overflow: 'hidden',
+  },
+  searchTextInput: {
+    fontSize: 13,
+    color: C.text1,
+    minWidth: 0,
+    flex: 1,
   },
   searchToggle: {
     width: 34,
     height: 34,
-    backgroundColor: Colors.surface2,
+    backgroundColor: C.pageBg,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // Stats bar
+  // ── Stats ──
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     gap: 6,
   },
-  statsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    paddingHorizontal: 9,
+  statsChip: {
+    // Phase 1 — fully round
+    borderRadius: 999,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    gap: 5,
   },
-  statsDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
+  statsLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   statsDivider: {
     width: 1,
     height: 12,
-    backgroundColor: Colors.border,
+    backgroundColor: C.cardBorder,
   },
 
-  // Tabs
+  // ── Tabs ──
   tabsWrapper: {
     flexDirection: 'row',
     position: 'relative',
-    marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: C.cardBorder,
   },
   tabIndicator: {
     position: 'absolute',
     bottom: 0,
     height: 2,
-    backgroundColor: Colors.gold,
+    backgroundColor: C.text1,
     borderRadius: 1,
   },
+  // Phase 4 — filter pills minHeight 36, paddingHorizontal 14
   tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minHeight: 36,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    // Phase 4 — fontSize 13, fontWeight '600'
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 
-  // Card
+  // ── Card ── Phase 1: borderRadius 16, updated shadow
   card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
+    backgroundColor: C.cardBg,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    flexDirection: 'row',
+    borderColor: C.cardBorder,
     overflow: 'hidden',
-  },
-  cardLeftBorder: {
-    width: 3,
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardContent: {
-    flex: 1,
-    padding: 14,
+    padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -737,81 +863,197 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
+  // Phase 4 — order number: fontSize 15, fontWeight '700', letterSpacing -0.2
+  orderNumber: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text1,
+    letterSpacing: -0.2,
+  },
+  // Phase 1 — tableBadge borderRadius 999; Phase 4 — fontSize 11, fontWeight '700'
+  tableBadge: {
+    backgroundColor: '#F0F0F0',
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  tableBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.text2,
+    letterSpacing: 0.2,
+  },
+  timeAgo: {
+    fontSize: 11,
+    color: C.text3,
+    marginTop: 2,
+  },
+  // Phase 4 — total amount: fontSize 16, fontWeight '800', letterSpacing -0.4, color '#000000'
+  amount: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#000000',
+    letterSpacing: -0.4,
+  },
+
+  // ── Items ──
   itemsBlock: {
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: C.cardBorder,
     paddingTop: 9,
-    marginBottom: 11,
+    marginBottom: 10,
     gap: 4,
   },
   itemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 4,
   },
+  itemQty: {
+    fontSize: 12,
+    color: C.text3,
+    minWidth: 22,
+  },
+  // Phase 4 — item name: fontSize 14, fontWeight '600'
+  itemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.text2,
+    flex: 1,
+  },
+  // Phase 4 — item price: fontSize 13, color '#888888'
+  itemPrice: {
+    fontSize: 13,
+    color: '#888888',
+  },
+  extraItems: {
+    fontSize: 11,
+    color: C.text3,
+    marginTop: 2,
+  },
+
+  // ── Footer ──
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: C.cardBorder,
     paddingTop: 10,
   },
+  // Phase 1 — statusBadge borderRadius 999; Phase 4 — text fontSize 11, fontWeight '700'
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: 999,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  advanceBtnWrap: {
-    borderRadius: 20,
-    overflow: 'hidden',
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  advanceBtnInner: {
+  // Phase 4 — advance btn: minHeight 44, borderRadius 10; phase 3 color set dynamically
+  advanceBtn: {
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 20,
-  },
-
-  // Swipe reveal
-  revealLayer: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 20,
-  },
-  revealIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
+    minHeight: 44,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  advanceBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  errorMsg: {
+    fontSize: 11,
+    color: C.cancelled,
+    marginTop: 6,
+    textAlign: 'right',
   },
 
-  // Skeleton
-  skeletonLeftBorder: {
-    width: 3,
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
+  // ── Long-press menu ──
+  menuOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 99,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 16,
   },
-  skeletonBar: {
-    backgroundColor: Colors.surface2,
+  menuBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    overflow: 'hidden',
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  menuItem: {
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cardBorder,
+  },
+  menuItemDanger: {
+    borderBottomWidth: 0,
+  },
+  menuItemText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: C.text1,
+  },
+
+  // ── Skeleton ──
+  skBar: {
+    backgroundColor: C.skeleton,
     borderRadius: 5,
   },
 
-  // Empty
-  emptyWrap: {
-    marginTop: 60,
+  // ── Collapsed card row ── Phase 1 — padding 16; Phase 4 — minHeight 64
+  cardCollapsedRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    minHeight: 64,
+  },
+  chevron: {
+    fontSize: 20,
+    color: '#888888',
+    marginLeft: 6,
+    transform: [{ rotate: '90deg' }],
+    lineHeight: 22,
+  },
+  chevronUp: {
+    transform: [{ rotate: '-90deg' }],
+  },
+  // Phase 1 — expanded padding 16
+  cardExpanded: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#EAEAEA',
+  },
+  totalLabel: {
+    fontSize: 13,
+    color: '#444444',
+    fontWeight: '500',
   },
 });

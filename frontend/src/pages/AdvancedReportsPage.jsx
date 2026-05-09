@@ -55,17 +55,12 @@ export default function AdvancedReportsPage() {
     staleTime: 120_000,
   });
 
-  // Build heatmap data (hours × days) — use reports data or synthetic demo
+  // Build heatmap data (hours × days) from API response
   const heatData = reports?.hourly_heatmap || [];
-  const heatMatrix = DAYS.map((day, di) =>
+  const heatMatrix = DAYS.map((_, di) =>
     HOURS.map(h => {
       const found = heatData.find(e => e.hour === h && e.day === di);
-      // Demo data that looks realistic for a restaurant
-      if (!found) {
-        const base = (h >= 12 && h <= 14) || (h >= 19 && h <= 22) ? Math.floor(Math.random() * 15 + 5) : h >= 10 ? Math.floor(Math.random() * 5) : 0;
-        return base;
-      }
-      return found.count || 0;
+      return found ? (found.count || 0) : 0;
     })
   );
   const heatMax = Math.max(...heatMatrix.flat());

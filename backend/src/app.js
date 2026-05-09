@@ -177,6 +177,7 @@ app.get('/api', (req, res) => {
         superadmin: '/api/superadmin',
         discounts: '/api/discounts',
         dashboard: '/api/dashboard',
+        audit_logs: '/api/audit-logs',
       },
     },
     message: 'MS-RM Restaurant Management API — Welcome',
@@ -191,6 +192,7 @@ const pricingRoutes  = require('./modules/pricing/pricing.routes');
 const festivalRoutes = require('./modules/festival/festival.routes');
 const fraudRoutes    = require('./modules/fraud/fraud.routes');
 const rosteringRoutes = require('./modules/staff/rostering.routes');
+const xeroRoutes       = require('./modules/xero/xero.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
@@ -223,6 +225,7 @@ app.use('/api/pricing',   pricingRoutes);
 app.use('/api/festival',  festivalRoutes);
 app.use('/api/fraud',     fraudRoutes);
 app.use('/api/rostering', rosteringRoutes);
+app.use('/api/xero',      xeroRoutes);
 const auIntegrationsRoutes = require('./modules/integrations/au-integrations.routes');
 app.use('/api/integrations/au', auIntegrationsRoutes);
 const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
@@ -231,6 +234,8 @@ const reservationRoutes = require('./modules/reservations/reservations.routes');
 app.use('/api/reservations', reservationRoutes);
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 app.use('/api/dashboard', dashboardRoutes);
+const auditRoutes = require('./modules/audit/audit.routes');
+app.use('/api/audit-logs', auditRoutes);
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);

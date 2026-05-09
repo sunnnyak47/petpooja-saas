@@ -12,4 +12,7 @@ const { enforceOutletScope, checkLicense } = require('../../middleware/rbac.midd
 /** GET /api/dashboard/summary */
 router.get('/summary', authenticate, checkLicense, enforceOutletScope, dashboardController.getSummary);
 
+/** GET /api/dashboard/live — real-time stats (polled every 30s) */
+router.get('/live', authenticate, enforceOutletScope, dashboardController.getLive);
+
 module.exports = router;

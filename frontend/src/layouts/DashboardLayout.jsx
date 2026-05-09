@@ -71,6 +71,7 @@ const ownerNav = [
   { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
   { path: '/reports',           label: 'Reports',         icon: BarChart3, feature: 'reports' },
   { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
+  { path: '/xero-analytics',   label: 'Financial Analytics', icon: TrendingUp, feature: 'reports' },
   { path: '/menu-analytics',    label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
   { path: '/reservations',      label: 'Reservations',     icon: BookOpen, feature: 'tables' },

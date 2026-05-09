@@ -1,7 +1,9 @@
 import { Tabs, router } from 'expo-router';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { useRealtimeOrders } from '../../src/hooks/useRealtimeOrders';
@@ -40,10 +42,24 @@ function HapticTabButton(props) {
 }
 
 function TabIcon({ name, focusedName, color, focused }) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (focused) {
+      scale.value = withSpring(1.18, { damping: 10, stiffness: 300 }, () => {
+        scale.value = withSpring(1, { damping: 14, stiffness: 280 });
+      });
+    }
+  }, [focused]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-      <Ionicons name={focused ? focusedName : name} size={20} color={color} />
-    </View>
+    <Animated.View style={[styles.iconWrap, focused && styles.iconWrapActive, animStyle]}>
+      <Ionicons name={focused ? focusedName : name} size={22} color={color} />
+    </Animated.View>
   );
 }
 
@@ -59,10 +75,17 @@ function NotificationBridge() {
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
+  const insets = useSafeAreaInsets();
+
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [user, loading]);
   if (!user) return null;
+
+  // On phones with a home indicator / nav bar: add inset so labels never
+  // overlap the system gesture zone. Minimum 8 px even on flat-bottomed devices.
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
+  const TAB_HEIGHT = 60 + bottomInset;
 
   return (
     <>
@@ -73,24 +96,24 @@ export default function TabLayout() {
           headerShown: false,
           tabBarButton: (props) => <HapticTabButton {...props} />,
           tabBarStyle: {
-            backgroundColor: '#080F1E',
-            borderTopColor: 'rgba(255,255,255,0.07)',
+            backgroundColor: '#FFFFFF',
+            borderTopColor: '#EAEAEA',
             borderTopWidth: 1,
-            height: 68,
-            paddingBottom: 10,
-            paddingTop: 6,
-            elevation: 24,
+            height: TAB_HEIGHT,
+            paddingBottom: bottomInset + 6,
+            paddingTop: 8,
+            elevation: 0,
             shadowColor: '#000',
-            shadowOpacity: 0.6,
-            shadowRadius: 24,
-            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: -2 },
           },
-          tabBarActiveTintColor: Colors.goldBright,
-          tabBarInactiveTintColor: 'rgba(255,255,255,0.20)',
+          tabBarActiveTintColor: '#000000',
+          tabBarInactiveTintColor: '#AAAAAA',
           tabBarLabelStyle: {
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: '700',
-            letterSpacing: 0.6,
+            letterSpacing: 0.3,
             marginTop: 2,
           },
         }}
@@ -103,6 +126,20 @@ export default function TabLayout() {
               <TabIcon
                 name="grid-outline"
                 focusedName="grid"
+                color={color}
+                focused={focused}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="tables"
+          options={{
+            title: 'TABLES',
+            tabBarIcon: ({ color, focused }) => (
+              <TabIcon
+                name="restaurant-outline"
+                focusedName="restaurant"
                 color={color}
                 focused={focused}
               />
@@ -124,13 +161,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="purchase-orders"
+          name="menu-items"
           options={{
-            title: 'PURCHASE',
+            title: 'MENU',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
-                name="cart-outline"
-                focusedName="cart"
+                name="fast-food-outline"
+                focusedName="fast-food"
                 color={color}
                 focused={focused}
               />
@@ -152,17 +189,95 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="reports"
+          name="more"
           options={{
-            title: 'REPORTS',
+            title: 'MORE',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
-                name="bar-chart-outline"
-                focusedName="bar-chart"
+                name="ellipsis-horizontal-circle-outline"
+                focusedName="ellipsis-horizontal-circle"
                 color={color}
                 focused={focused}
               />
             ),
+          }}
+        />
+        {/* Hidden screens — registered but not shown in tab bar */}
+        <Tabs.Screen
+          name="billing"
+          options={{
+            title: 'BILLING',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="purchase-orders"
+          options={{
+            title: 'PURCHASE',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="reports"
+          options={{
+            title: 'REPORTS',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="kot"
+          options={{
+            title: 'KOT',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="staff"
+          options={{
+            title: 'STAFF',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="reservations"
+          options={{
+            title: 'RESERVATIONS',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="customers"
+          options={{
+            title: 'CUSTOMERS',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="delivery-orders"
+          options={{
+            title: 'DELIVERY',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="expenses"
+          options={{
+            title: 'EXPENSES',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="eod"
+          options={{
+            title: 'EOD',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="offers"
+          options={{
+            title: 'OFFERS',
+            tabBarButton: () => null,
           }}
         />
       </Tabs>
@@ -172,17 +287,13 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 28,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   iconWrapActive: {
-    // Gold pill: semi-transparent gold background behind active icon
-    backgroundColor: 'rgba(240,192,64,0.13)',
-    // Subtle gold border ring
-    borderWidth: 1,
-    borderColor: 'rgba(240,192,64,0.18)',
+    backgroundColor: '#F0F0F0',
   },
 });

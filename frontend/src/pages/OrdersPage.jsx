@@ -110,7 +110,7 @@ export default function OrdersPage() {
     onError: (e) => toast.error(e.message || 'Failed to void order'),
   });
 
-  const orders = data?.data || data?.items || [];
+  const orders = Array.isArray(data) ? data : (data?.data || data?.items || []);
 
   return (
     <div className="space-y-4 animate-fade-in relative">

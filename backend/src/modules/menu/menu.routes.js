@@ -19,51 +19,52 @@ const {
   bulkPriceUpdateSchema, bulkAvailabilitySchema,
   createMenuScheduleSchema, createComboSchema,
 } = require('./menu.validation');
+const { auditLog } = require('../../middleware/audit.middleware');
 
 /* -- AI Menu Sync -- */
-router.post('/ai/scan-menu', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), aiMenuController.scanMenu);
-router.post('/ai/confirm-sync', authenticate, hasPermission('MANAGE_MENU'), aiMenuController.confirmSync);
+router.post('/ai/scan-menu', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), auditLog('menu'), aiMenuController.scanMenu);
+router.post('/ai/confirm-sync', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), aiMenuController.confirmSync);
 
 /* -- Categories -- */
-router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), menuController.createCategory);
+router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), auditLog('menu'), menuController.createCategory);
 router.get('/categories', authenticate, enforceOutletScope, menuController.listCategories);
-router.patch('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(updateCategorySchema), menuController.updateCategory);
-router.delete('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), menuController.deleteCategory);
-router.post('/categories/reorder', authenticate, hasPermission('MANAGE_CATEGORIES'), menuController.reorderCategories);
+router.patch('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(updateCategorySchema), auditLog('menu'), menuController.updateCategory);
+router.delete('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), auditLog('menu'), menuController.deleteCategory);
+router.post('/categories/reorder', authenticate, hasPermission('MANAGE_CATEGORIES'), auditLog('menu'), menuController.reorderCategories);
 
 /* -- Menu Items -- */
-router.post('/items', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuItemSchema), menuController.createMenuItem);
+router.post('/items', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuItemSchema), auditLog('menu'), menuController.createMenuItem);
 router.get('/items', authenticate, enforceOutletScope, menuController.listMenuItems);
 router.get('/items/:id', authenticate, enforceOutletScope, menuController.getMenuItem);
-router.patch('/items/:id', authenticate, hasPermission('MANAGE_MENU'), validate(updateMenuItemSchema), menuController.updateMenuItem);
-router.delete('/items/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteMenuItem);
+router.patch('/items/:id', authenticate, hasPermission('MANAGE_MENU'), validate(updateMenuItemSchema), auditLog('menu'), menuController.updateMenuItem);
+router.delete('/items/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteMenuItem);
 router.post('/upload-image', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), menuController.uploadImage);
 
 /* -- Variants -- */
-router.post('/items/:id/variants', authenticate, hasPermission('MANAGE_MENU'), validate(createVariantSchema), menuController.createVariant);
-router.patch('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.updateVariant);
-router.delete('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteVariant);
+router.post('/items/:id/variants', authenticate, hasPermission('MANAGE_MENU'), validate(createVariantSchema), auditLog('menu'), menuController.createVariant);
+router.patch('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.updateVariant);
+router.delete('/variants/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteVariant);
 
 /* -- Addon Groups & Addons -- */
-router.post('/addon-groups', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonGroupSchema), menuController.createAddonGroup);
+router.post('/addon-groups', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonGroupSchema), auditLog('menu'), menuController.createAddonGroup);
 router.get('/addon-groups', authenticate, enforceOutletScope, menuController.listAddonGroups);
-router.post('/addons', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonSchema), menuController.createAddon);
-router.patch('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.updateAddon);
-router.delete('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteAddon);
+router.post('/addons', authenticate, hasPermission('MANAGE_MENU'), validate(createAddonSchema), auditLog('menu'), menuController.createAddon);
+router.patch('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.updateAddon);
+router.delete('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteAddon);
 
 /* -- Bulk Operations -- */
-router.post('/items/bulk-price-update', authenticate, hasPermission('MANAGE_MENU'), validate(bulkPriceUpdateSchema), menuController.bulkPriceUpdate);
-router.post('/items/bulk-availability', authenticate, hasPermission('MANAGE_MENU'), validate(bulkAvailabilitySchema), menuController.bulkAvailability);
+router.post('/items/bulk-price-update', authenticate, hasPermission('MANAGE_MENU'), validate(bulkPriceUpdateSchema), auditLog('menu'), menuController.bulkPriceUpdate);
+router.post('/items/bulk-availability', authenticate, hasPermission('MANAGE_MENU'), validate(bulkAvailabilitySchema), auditLog('menu'), menuController.bulkAvailability);
 
 /* -- Outlet Overrides -- */
-router.post('/items/:itemId/outlet-override', authenticate, hasPermission('MANAGE_MENU'), menuController.setOutletOverride);
+router.post('/items/:itemId/outlet-override', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.setOutletOverride);
 
 /* -- Menu Scheduling -- */
-router.post('/items/:id/schedules', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuScheduleSchema), menuController.createSchedule);
-router.delete('/schedules/:id', authenticate, hasPermission('MANAGE_MENU'), menuController.deleteSchedule);
+router.post('/items/:id/schedules', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuScheduleSchema), auditLog('menu'), menuController.createSchedule);
+router.delete('/schedules/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteSchedule);
 
 /* -- Item Combos -- */
-router.post('/combos', authenticate, hasPermission('MANAGE_MENU'), validate(createComboSchema), menuController.createCombo);
+router.post('/combos', authenticate, hasPermission('MANAGE_MENU'), validate(createComboSchema), auditLog('menu'), menuController.createCombo);
 router.get('/combos', authenticate, enforceOutletScope, menuController.listCombos);
 
 /* -- AU Menu Templates -- */

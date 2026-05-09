@@ -33,7 +33,7 @@ export default function QRCodesPage() {
   // Build the ordering URL for a table
   const getOrderUrl = (tableId) => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/order?outlet=${outletId}&table=${tableId}`;
+    return `${baseUrl}/#/order?outlet=${outletId}&table=${tableId}`;
   };
 
   // Generate QR for a table

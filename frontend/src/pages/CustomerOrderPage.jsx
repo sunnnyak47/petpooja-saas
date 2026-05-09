@@ -4,6 +4,7 @@
  * URL format: /order?outlet=OUTLET_ID&table=TABLE_ID
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ShoppingBag, ChevronRight, Plus, Minus, X,
   CheckCircle2, Clock, UtensilsCrossed, Leaf, Drumstick
@@ -13,6 +14,7 @@ import {
 const API_PREFIX = '/api';
 
 export default function CustomerOrderPage() {
+  const [searchParams] = useSearchParams();
   const [tableId, setTableId] = useState(null);
   const [outletId, setOutletId] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -29,9 +31,8 @@ export default function CustomerOrderPage() {
   const [orderError, setOrderError] = useState('');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oid = params.get('outlet');
-    const tid = params.get('table');
+    const oid = searchParams.get('outlet');
+    const tid = searchParams.get('table');
     if (!oid || !tid) {
       setError('Invalid QR code. Please scan again.');
       setLoading(false);
