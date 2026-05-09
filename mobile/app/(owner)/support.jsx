@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 
 const FAQ = [
@@ -28,14 +29,15 @@ const FAQ = [
 
 export default function SupportScreen() {
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const { colors } = useTheme();
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Help & Support</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Help & Support</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -43,63 +45,63 @@ export default function SupportScreen() {
         {/* Contact Cards */}
         <View style={s.contactGrid}>
           <PressCard
-            style={s.contactCard}
+            style={[s.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => Linking.openURL('tel:+919876543210')}
           >
             <View style={[s.contactIcon, { backgroundColor: '#EDFBF3' }]}>
               <Ionicons name="call" size={22} color="#00B341" />
             </View>
-            <Text style={s.contactLabel}>Call Support</Text>
-            <Text style={s.contactSub}>24/7 helpline</Text>
+            <Text style={[s.contactLabel, { color: colors.text }]}>Call Support</Text>
+            <Text style={[s.contactSub, { color: colors.textMuted }]}>24/7 helpline</Text>
           </PressCard>
 
           <PressCard
-            style={s.contactCard}
+            style={[s.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => Linking.openURL('mailto:support@petpooja.com')}
           >
             <View style={[s.contactIcon, { backgroundColor: '#EBF4FF' }]}>
               <Ionicons name="mail" size={22} color="#0070F3" />
             </View>
-            <Text style={s.contactLabel}>Email Us</Text>
-            <Text style={s.contactSub}>support@petpooja.com</Text>
+            <Text style={[s.contactLabel, { color: colors.text }]}>Email Us</Text>
+            <Text style={[s.contactSub, { color: colors.textMuted }]}>support@petpooja.com</Text>
           </PressCard>
         </View>
 
         {/* FAQ */}
-        <Text style={s.sectionTitle}>Frequently Asked Questions</Text>
+        <Text style={[s.sectionTitle, { color: colors.text }]}>Frequently Asked Questions</Text>
         {FAQ.map((item, i) => (
           <TouchableOpacity
             key={i}
-            style={s.faqCard}
+            style={[s.faqCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             activeOpacity={0.7}
             onPress={() => setExpandedIdx(expandedIdx === i ? null : i)}
           >
             <View style={s.faqHeader}>
-              <Text style={s.faqQ}>{item.q}</Text>
+              <Text style={[s.faqQ, { color: colors.text }]}>{item.q}</Text>
               <Ionicons
                 name={expandedIdx === i ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color="#888"
+                color={colors.textMuted}
               />
             </View>
             {expandedIdx === i && (
-              <Text style={s.faqA}>{item.a}</Text>
+              <Text style={[s.faqA, { color: colors.textSecondary }]}>{item.a}</Text>
             )}
           </TouchableOpacity>
         ))}
 
         {/* System Info */}
-        <Text style={s.sectionTitle}>System Info</Text>
-        <View style={s.infoCard}>
+        <Text style={[s.sectionTitle, { color: colors.text }]}>System Info</Text>
+        <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {[
             { label: 'App Version', value: '1.0.0' },
             { label: 'Expo SDK', value: '54' },
             { label: 'Backend', value: 'petpooja-saas.onrender.com' },
             { label: 'API Status', value: 'Connected', color: '#00B341' },
           ].map(row => (
-            <View key={row.label} style={s.infoRow}>
-              <Text style={s.infoLabel}>{row.label}</Text>
-              <Text style={[s.infoValue, row.color && { color: row.color }]}>{row.value}</Text>
+            <View key={row.label} style={[s.infoRow, { borderBottomColor: colors.borderLight }]}>
+              <Text style={[s.infoLabel, { color: colors.textMuted }]}>{row.label}</Text>
+              <Text style={[s.infoValue, { color: colors.text }, row.color && { color: row.color }]}>{row.value}</Text>
             </View>
           ))}
         </View>

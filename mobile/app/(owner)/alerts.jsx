@@ -19,6 +19,7 @@ import Animated, {
 
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -53,6 +54,7 @@ const FILTER_TABS = [
 
 // ─── Animated Alert Card ────────────────────────────────────────────────────
 function AlertCard({ alert, index, onMarkRead }) {
+  const { colors } = useTheme();
   const typeCfg = ALERT_TYPES[alert.type] || ALERT_TYPES.system;
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
@@ -73,6 +75,7 @@ function AlertCard({ alert, index, onMarkRead }) {
       <PressCard
         style={[
           s.alertCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
           !alert.read && s.alertCardUnread,
         ]}
         onPress={() => {
@@ -91,18 +94,18 @@ function AlertCard({ alert, index, onMarkRead }) {
           {/* Content */}
           <View style={s.alertContent}>
             <View style={s.alertTitleRow}>
-              <Text style={[TYPE.bodyMed, { color: LC.text1, flex: 1 }]} numberOfLines={1}>
+              <Text style={[TYPE.bodyMed, { color: colors.text, flex: 1 }]} numberOfLines={1}>
                 {alert.title}
               </Text>
               {!alert.read && <View style={s.unreadDot} />}
             </View>
 
-            <Text style={[TYPE.small, { color: LC.text2, marginTop: 2 }]} numberOfLines={2}>
+            <Text style={[TYPE.small, { color: colors.textSecondary, marginTop: 2 }]} numberOfLines={2}>
               {alert.description}
             </Text>
 
             <View style={s.alertMeta}>
-              <Text style={[TYPE.caption, { color: LC.text3 }]}>{alert.time}</Text>
+              <Text style={[TYPE.caption, { color: colors.textMuted }]}>{alert.time}</Text>
 
               {alert.amount != null && (
                 <View style={[s.amountBadge, { backgroundColor: typeCfg.bg }]}>
@@ -114,8 +117,8 @@ function AlertCard({ alert, index, onMarkRead }) {
 
               {alert.staff && (
                 <View style={s.staffTag}>
-                  <Ionicons name="person-circle-outline" size={12} color={LC.text3} />
-                  <Text style={[TYPE.caption, { color: LC.text3, marginLeft: 2 }]}>
+                  <Ionicons name="person-circle-outline" size={12} color={colors.textMuted} />
+                  <Text style={[TYPE.caption, { color: colors.textMuted, marginLeft: 2 }]}>
                     {alert.staff}
                   </Text>
                 </View>
@@ -148,6 +151,7 @@ function SkeletonCard() {
 export default function AlertsScreen() {
   const router = useRouter();
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const [activeFilter, setActiveFilter] = useState('all');
   const [localAlerts, setLocalAlerts] = useState(null);
 
@@ -228,15 +232,15 @@ export default function AlertsScreen() {
   // ── Error State ─────────────────────────────────────────────────────────
   if (isError) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.header}>
-          <Text style={[TYPE.h2, { color: LC.text1, flex: 1 }]}>Alerts</Text>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+          <Text style={[TYPE.h2, { color: colors.text, flex: 1 }]}>Alerts</Text>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load alerts</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load alerts</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -245,15 +249,15 @@ export default function AlertsScreen() {
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
       {/* Header */}
-      <View style={s.header}>
-        <Text style={[TYPE.h2, { color: LC.text1, flex: 1 }]}>Alerts</Text>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+        <Text style={[TYPE.h2, { color: colors.text, flex: 1 }]}>Alerts</Text>
         <TouchableOpacity
           onPress={() => router.push('/(owner)/alert-settings')}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="settings-outline" size={22} color={LC.text2} />
+          <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -300,7 +304,7 @@ export default function AlertsScreen() {
                 key={tab.key}
                 style={[
                   s.filterTab,
-                  isActive ? s.filterTabActive : s.filterTabInactive,
+                  { backgroundColor: isActive ? colors.pillActiveBg : colors.pillBg },
                 ]}
                 activeOpacity={0.7}
                 onPress={() => setActiveFilter(tab.key)}
@@ -308,7 +312,7 @@ export default function AlertsScreen() {
                 <Text
                   style={[
                     TYPE.smallMed,
-                    { color: isActive ? '#FFFFFF' : '#888888' },
+                    { color: isActive ? colors.pillActiveText : colors.pillText },
                   ]}
                 >
                   {tab.label}
@@ -347,8 +351,8 @@ export default function AlertsScreen() {
             <View style={s.emptyIcon}>
               <Ionicons name="checkmark-circle" size={56} color={LC.success} />
             </View>
-            <Text style={[TYPE.h3, { color: LC.text1, marginTop: 16 }]}>All clear!</Text>
-            <Text style={[TYPE.small, { color: LC.text3, marginTop: 6, textAlign: 'center' }]}>
+            <Text style={[TYPE.h3, { color: colors.text, marginTop: 16 }]}>All clear!</Text>
+            <Text style={[TYPE.small, { color: colors.textMuted, marginTop: 6, textAlign: 'center' }]}>
               No alerts matching this filter right now.
             </Text>
           </View>
@@ -429,6 +433,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: LC.cardBorder,
   },
+  // Note: alertCard bg/border is overridden at runtime via useTheme colors
   alertCardUnread: {
     backgroundColor: '#F8FBFF',
     borderColor: LC.accent,

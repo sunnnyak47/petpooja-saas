@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useGoals, useOwnerDashboard } from '../../src/hooks/useOwnerApi';
@@ -38,7 +39,7 @@ function fmt(v) {
   return `₹${Math.round(n)}`;
 }
 
-function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3' }) {
+function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3', trackColor = '#F0F0F0' }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
@@ -51,7 +52,7 @@ function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3
           cx={center}
           cy={center}
           r={radius}
-          stroke="#F0F0F0"
+          stroke={trackColor}
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -69,7 +70,7 @@ function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3
         />
       </Svg>
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 24, fontWeight: '900', color: '#000' }}>
+        <Text style={{ fontSize: 24, fontWeight: '900', color }}>
           {Math.round(progress * 100)}%
         </Text>
       </View>
@@ -79,6 +80,7 @@ function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3
 
 export default function GoalsScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: goalsData, isLoading, isError, refetch } = useGoals(outletId);
   const { data: dashData } = useOwnerDashboard(outletId);
 
@@ -107,19 +109,19 @@ export default function GoalsScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Goals</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Goals</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -127,24 +129,24 @@ export default function GoalsScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Goals</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Goals</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Period Toggle */}
-      <View style={s.periodRow}>
+      <View style={[s.periodRow, { backgroundColor: colors.headerBg }]}>
         {['daily', 'weekly', 'monthly'].map(p => (
           <TouchableOpacity
             key={p}
-            style={[s.periodPill, activeGoal === p && s.periodPillActive]}
+            style={[s.periodPill, { backgroundColor: colors.pillBg }, activeGoal === p && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setActiveGoal(p)}
           >
-            <Text style={[s.periodText, activeGoal === p && s.periodTextActive]}>
+            <Text style={[s.periodText, { color: colors.pillText }, activeGoal === p && { color: colors.pillActiveText }]}>
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -169,27 +171,27 @@ export default function GoalsScreen() {
         ) : (
           <>
             {/* Main Progress Ring */}
-            <PressCard style={s.heroCard}>
-              <ProgressRing progress={progress} size={140} strokeWidth={12} color={goalColor} />
+            <PressCard style={[s.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <ProgressRing progress={progress} size={140} strokeWidth={12} color={goalColor} trackColor={colors.pillBg} />
 
-              <Text style={s.heroLabel}>
+              <Text style={[s.heroLabel, { color: colors.textMuted }]}>
                 {activeGoal === 'daily' ? "Today's" : activeGoal === 'weekly' ? 'This Week' : 'This Month'} Target
               </Text>
 
-              <View style={s.heroNumbers}>
+              <View style={[s.heroNumbers, { borderTopColor: colors.borderLight }]}>
                 <View style={s.heroCol}>
-                  <Text style={s.heroValue}>{fmt(goal.current)}</Text>
-                  <Text style={s.heroSub}>Achieved</Text>
+                  <Text style={[s.heroValue, { color: colors.text }]}>{fmt(goal.current)}</Text>
+                  <Text style={[s.heroSub, { color: colors.textMuted }]}>Achieved</Text>
                 </View>
-                <View style={s.heroDivider} />
+                <View style={[s.heroDivider, { backgroundColor: colors.borderLight }]} />
                 <View style={s.heroCol}>
-                  <Text style={s.heroValue}>{fmt(goal.target)}</Text>
-                  <Text style={s.heroSub}>Target</Text>
+                  <Text style={[s.heroValue, { color: colors.text }]}>{fmt(goal.target)}</Text>
+                  <Text style={[s.heroSub, { color: colors.textMuted }]}>Target</Text>
                 </View>
-                <View style={s.heroDivider} />
+                <View style={[s.heroDivider, { backgroundColor: colors.borderLight }]} />
                 <View style={s.heroCol}>
                   <Text style={[s.heroValue, { color: goalColor }]}>{fmt(Math.max(goal.target - goal.current, 0))}</Text>
-                  <Text style={s.heroSub}>Remaining</Text>
+                  <Text style={[s.heroSub, { color: colors.textMuted }]}>Remaining</Text>
                 </View>
               </View>
 
@@ -203,21 +205,21 @@ export default function GoalsScreen() {
 
             {/* Weekly Comparison */}
             {goalsData?.comparison && goalsData.comparison.length > 0 && (
-              <View style={s.card}>
-                <Text style={s.sectionTitle}>Weekly Comparison</Text>
+              <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[s.sectionTitle, { color: colors.text }]}>Weekly Comparison</Text>
                 {goalsData.comparison.map((w, i) => {
                   const maxVal = Math.max(...goalsData.comparison.map(c => c.value), 1);
                   const pct = (w.value / maxVal) * 100;
                   return (
                     <View key={w.label} style={s.compRow}>
-                      <Text style={s.compLabel}>{w.label}</Text>
-                      <View style={s.compBarWrap}>
+                      <Text style={[s.compLabel, { color: colors.textSecondary }]}>{w.label}</Text>
+                      <View style={[s.compBarWrap, { backgroundColor: colors.pillBg }]}>
                         <View style={[s.compBar, {
                           width: `${pct}%`,
-                          backgroundColor: i === 0 ? '#0070F3' : '#E0E0E0',
+                          backgroundColor: i === 0 ? colors.accent : colors.pillBg,
                         }]} />
                       </View>
-                      <Text style={s.compVal}>{fmt(w.value)}</Text>
+                      <Text style={[s.compVal, { color: colors.text }]}>{fmt(w.value)}</Text>
                     </View>
                   );
                 })}
@@ -225,24 +227,24 @@ export default function GoalsScreen() {
             )}
 
             {/* All Goals Summary */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>All Targets</Text>
+            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>All Targets</Text>
               {['daily', 'weekly', 'monthly'].map(p => {
                 const g = liveGoals[p];
                 const pct = g.target > 0 ? Math.min(g.current / g.target, 1) : 0;
                 return (
-                  <View key={p} style={s.targetRow}>
+                  <View key={p} style={[s.targetRow, { borderBottomColor: colors.borderLight }]}>
                     <View style={s.targetLeft}>
-                      <Text style={s.targetName}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
-                      <Text style={s.targetMeta}>{fmt(g.current)} / {fmt(g.target)}</Text>
+                      <Text style={[s.targetName, { color: colors.text }]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+                      <Text style={[s.targetMeta, { color: colors.textMuted }]}>{fmt(g.current)} / {fmt(g.target)}</Text>
                     </View>
-                    <View style={s.targetBarWrap}>
+                    <View style={[s.targetBarWrap, { backgroundColor: colors.pillBg }]}>
                       <View style={[s.targetBar, {
                         width: `${pct * 100}%`,
-                        backgroundColor: pct >= 1 ? '#00B341' : pct >= 0.7 ? '#0070F3' : '#F5A623',
+                        backgroundColor: pct >= 1 ? colors.success : pct >= 0.7 ? colors.accent : colors.warning,
                       }]} />
                     </View>
-                    <Text style={s.targetPct}>{Math.round(pct * 100)}%</Text>
+                    <Text style={[s.targetPct, { color: colors.text }]}>{Math.round(pct * 100)}%</Text>
                   </View>
                 );
               })}

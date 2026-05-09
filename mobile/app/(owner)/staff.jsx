@@ -17,6 +17,7 @@ import Animated, {
 
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -25,6 +26,8 @@ import {
   useLabourCost,
   useStaffTimesheets,
 } from '../../src/hooks/useOwnerApi';
+import { ShareButton } from '../../src/components/ShareButton';
+import { exportReportPdf, shareFile } from '../../src/utils/exportReport';
 
 
 // ─── Role Colors ────────────────────────────────────────────────────────────
@@ -83,7 +86,8 @@ function formatHoursOnFloor(clockedInAt) {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function StaffScreen() {
-  const { outletId } = useOutlet();
+  const { outletId, currentOutlet } = useOutlet();
+  const { colors } = useTheme();
 
   // Active tab
   const [activeTab, setActiveTab] = useState('whosIn');
@@ -162,16 +166,16 @@ export default function StaffScreen() {
 
   if (isError && !refreshing) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.header}>
-          <Ionicons name="people" size={22} color={LC.text1} />
-          <Text style={s.headerTitle}>Staff & Labour</Text>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+          <Ionicons name="people" size={22} color={colors.text} />
+          <Text style={[s.headerTitle, { color: colors.text }]}>Staff & Labour</Text>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -180,10 +184,10 @@ export default function StaffScreen() {
 
   if (isLoading && !refreshing) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.header}>
-          <Ionicons name="people" size={22} color={LC.text1} />
-          <Text style={s.headerTitle}>Staff & Labour</Text>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+          <Ionicons name="people" size={22} color={colors.text} />
+          <Text style={[s.headerTitle, { color: colors.text }]}>Staff & Labour</Text>
         </View>
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
           <View style={s.skeletonRow}>
@@ -207,11 +211,51 @@ export default function StaffScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
       {/* Header */}
-      <View style={s.header}>
-        <Ionicons name="people" size={22} color={LC.text1} />
-        <Text style={s.headerTitle}>Staff & Labour</Text>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+        <Ionicons name="people" size={22} color={colors.text} />
+        <Text style={[s.headerTitle, { color: colors.text, flex: 1 }]}>Staff & Labour</Text>
+        <ShareButton
+          color={colors.text}
+          onPress={async () => {
+            const uri = await exportReportPdf({
+              title: 'Staff Report',
+              subtitle: `${new Date().toLocaleDateString('en-IN')}`,
+              outletName: currentOutlet?.name || 'PetPooja',
+              sections: [
+                {
+                  heading: `On Floor (${staffIn.length} staff)`,
+                  rows: staffIn.length > 0
+                    ? staffIn.map(st => ({
+                        label: `${st.name} (${st.role})`,
+                        value: `Clocked in ${st.clockedInAt} • ${formatHoursOnFloor(st.clockedInAt)}`,
+                      }))
+                    : [{ label: 'No staff on floor', value: '--' }],
+                },
+                {
+                  heading: 'Labour Cost Summary',
+                  rows: [
+                    { label: 'Total Labour Cost', value: `₹${(labour.totalCost || 0).toLocaleString('en-IN')}` },
+                    { label: 'Staff Count', value: `${labour.staffCount || 0}` },
+                    { label: 'Avg Hourly Rate', value: `₹${(labour.avgHourly || 0).toLocaleString('en-IN')}` },
+                    { label: 'Cost % of Revenue', value: `${labour.costPercentage || 0}%` },
+                  ],
+                },
+              ],
+              tableData: (labour.breakdown || []).length > 0 ? {
+                title: 'Cost Breakdown by Staff',
+                headers: ['Name', 'Hours', 'Cost'],
+                rows: (labour.breakdown || []).map(b => [
+                  b.name,
+                  `${b.hours}`,
+                  `₹${(b.cost || 0).toLocaleString('en-IN')}`,
+                ]),
+              } : undefined,
+            });
+            await shareFile(uri, 'Share Staff Report');
+          }}
+        />
       </View>
 
       <ScrollView
@@ -223,38 +267,38 @@ export default function StaffScreen() {
         }
       >
         {/* Tab Selector */}
-        <View style={s.tabRow}>
+        <View style={[s.tabRow, { backgroundColor: colors.border }]}>
           <TouchableOpacity
-            style={[s.tab, activeTab === 'whosIn' && s.tabActive]}
+            style={[s.tab, activeTab === 'whosIn' && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => switchTab('whosIn')}
             activeOpacity={0.7}
           >
             <Ionicons
               name="people-outline"
               size={16}
-              color={activeTab === 'whosIn' ? '#FFFFFF' : LC.text3}
+              color={activeTab === 'whosIn' ? colors.pillActiveText : colors.textMuted}
               style={{ marginRight: 6 }}
             />
             <Text
-              style={[s.tabText, activeTab === 'whosIn' && s.tabTextActive]}
+              style={[s.tabText, { color: colors.textMuted }, activeTab === 'whosIn' && { color: colors.pillActiveText }]}
             >
               Who's In
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[s.tab, activeTab === 'labour' && s.tabActive]}
+            style={[s.tab, activeTab === 'labour' && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => switchTab('labour')}
             activeOpacity={0.7}
           >
             <Ionicons
               name="cash-outline"
               size={16}
-              color={activeTab === 'labour' ? '#FFFFFF' : LC.text3}
+              color={activeTab === 'labour' ? colors.pillActiveText : colors.textMuted}
               style={{ marginRight: 6 }}
             />
             <Text
-              style={[s.tabText, activeTab === 'labour' && s.tabTextActive]}
+              style={[s.tabText, { color: colors.textMuted }, activeTab === 'labour' && { color: colors.pillActiveText }]}
             >
               Labour & Timesheets
             </Text>
@@ -280,10 +324,10 @@ export default function StaffScreen() {
                 <Ionicons
                   name="person-outline"
                   size={56}
-                  color={LC.text4}
+                  color={colors.textMuted}
                 />
-                <Text style={s.emptyTitle}>No staff on floor</Text>
-                <Text style={s.emptyDesc}>
+                <Text style={[s.emptyTitle, { color: colors.textSecondary }]}>No staff on floor</Text>
+                <Text style={[s.emptyDesc, { color: colors.textMuted }]}>
                   No one has clocked in yet today.
                 </Text>
               </View>
@@ -291,7 +335,7 @@ export default function StaffScreen() {
               staffIn.map((staff) => (
                 <PressCard
                   key={staff.id}
-                  style={s.staffCard}
+                  style={[s.staffCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   onPress={() => {}}
                 >
                   <View style={s.staffRow}>
@@ -310,12 +354,12 @@ export default function StaffScreen() {
                     {/* Info */}
                     <View style={s.staffInfo}>
                       <View style={s.staffNameRow}>
-                        <Text style={s.staffName} numberOfLines={1}>
+                        <Text style={[s.staffName, { color: colors.text }]} numberOfLines={1}>
                           {staff.name}
                         </Text>
                         <View style={s.activeDot} />
                       </View>
-                      <Text style={s.staffRole}>{staff.role}</Text>
+                      <Text style={[s.staffRole, { color: colors.textMuted }]}>{staff.role}</Text>
                     </View>
 
                     {/* Clock-in */}
@@ -324,11 +368,11 @@ export default function StaffScreen() {
                         <Ionicons
                           name="time-outline"
                           size={13}
-                          color={LC.text3}
+                          color={colors.textMuted}
                         />
-                        <Text style={s.clockTime}>{staff.clockedInAt}</Text>
+                        <Text style={[s.clockTime, { color: colors.textSecondary }]}>{staff.clockedInAt}</Text>
                       </View>
-                      <Text style={s.onFloor}>
+                      <Text style={[s.onFloor, { color: colors.textMuted }]}>
                         {formatHoursOnFloor(staff.clockedInAt)}
                       </Text>
                     </View>
@@ -344,28 +388,28 @@ export default function StaffScreen() {
           <View>
             {/* Labour Summary Cards */}
             <View style={s.metricsRow}>
-              <View style={s.metricCard}>
-                <Text style={s.metricLabel}>Total Cost</Text>
-                <Text style={s.metricValue}>{fmtFull(labour.totalCost)}</Text>
+              <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Total Cost</Text>
+                <Text style={[s.metricValue, { color: colors.text }]}>{fmtFull(labour.totalCost)}</Text>
               </View>
-              <View style={s.metricCard}>
-                <Text style={s.metricLabel}>Staff Count</Text>
-                <Text style={s.metricValue}>{labour.staffCount}</Text>
+              <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Staff Count</Text>
+                <Text style={[s.metricValue, { color: colors.text }]}>{labour.staffCount}</Text>
               </View>
-              <View style={s.metricCard}>
-                <Text style={s.metricLabel}>Cost %</Text>
-                <Text style={s.metricValue}>
+              <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Cost %</Text>
+                <Text style={[s.metricValue, { color: colors.text }]}>
                   {labour.costPercentage}%
-                  <Text style={s.metricSub}> of revenue</Text>
+                  <Text style={[s.metricSub, { color: colors.textMuted }]}> of revenue</Text>
                 </Text>
               </View>
             </View>
 
             {/* Cost Breakdown */}
-            <View style={s.sectionCard}>
+            <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.sectionHeader}>
-                <Ionicons name="bar-chart-outline" size={18} color={LC.text1} />
-                <Text style={s.sectionTitle}>Cost Breakdown</Text>
+                <Ionicons name="bar-chart-outline" size={18} color={colors.text} />
+                <Text style={[s.sectionTitle, { color: colors.text }]}>Cost Breakdown</Text>
               </View>
 
               {(labour.breakdown || []).length === 0 && (
@@ -379,24 +423,25 @@ export default function StaffScreen() {
                   key={item.name}
                   style={[
                     s.breakdownRow,
+                    { borderBottomColor: colors.border },
                     idx === (labour.breakdown || []).length - 1 && {
                       borderBottomWidth: 0,
                     },
                   ]}
                 >
                   <View style={s.breakdownInfo}>
-                    <Text style={s.breakdownName} numberOfLines={1}>
+                    <Text style={[s.breakdownName, { color: colors.text }]} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text style={s.breakdownMeta}>
+                    <Text style={[s.breakdownMeta, { color: colors.textMuted }]}>
                       {item.hours} hrs · {fmtFull(item.cost)}
                     </Text>
                   </View>
-                  <View style={s.barTrack}>
+                  <View style={[s.barTrack, { backgroundColor: colors.pillBg }]}>
                     <View
                       style={[
                         s.barFill,
-                        { width: `${(item.cost / maxCost) * 100}%` },
+                        { width: `${(item.cost / maxCost) * 100}%`, backgroundColor: colors.accent },
                       ]}
                     />
                   </View>
@@ -405,14 +450,14 @@ export default function StaffScreen() {
             </View>
 
             {/* Weekly Timesheets */}
-            <View style={s.sectionCard}>
+            <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.sectionHeader}>
                 <Ionicons
                   name="calendar-outline"
                   size={18}
-                  color={LC.text1}
+                  color={colors.text}
                 />
-                <Text style={s.sectionTitle}>Weekly Timesheets</Text>
+                <Text style={[s.sectionTitle, { color: colors.text }]}>Weekly Timesheets</Text>
               </View>
 
               {timesheets.length === 0 && (
@@ -429,6 +474,7 @@ export default function StaffScreen() {
                     key={person.name}
                     style={[
                       s.timesheetCard,
+                      { borderBottomColor: colors.border },
                       pIdx === timesheets.length - 1 && {
                         borderBottomWidth: 0,
                         marginBottom: 0,
@@ -454,14 +500,14 @@ export default function StaffScreen() {
                       </View>
 
                       <View style={s.timesheetInfo}>
-                        <Text style={s.timesheetName} numberOfLines={1}>
+                        <Text style={[s.timesheetName, { color: colors.text }]} numberOfLines={1}>
                           {person.name}
                         </Text>
-                        <Text style={s.timesheetRole}>{person.role}</Text>
+                        <Text style={[s.timesheetRole, { color: colors.textMuted }]}>{person.role}</Text>
                       </View>
 
                       <View style={s.timesheetRight}>
-                        <Text style={s.timesheetHours}>
+                        <Text style={[s.timesheetHours, { color: colors.text }]}>
                           {person.totalHours} hrs
                         </Text>
                         {person.overtime > 0 && (
@@ -476,14 +522,14 @@ export default function StaffScreen() {
                       <Ionicons
                         name={isExpanded ? 'chevron-up' : 'chevron-down'}
                         size={18}
-                        color={LC.text3}
+                        color={colors.textMuted}
                         style={{ marginLeft: 8 }}
                       />
                     </TouchableOpacity>
 
                     {/* Expanded shift table */}
                     {isExpanded && (
-                      <View style={s.shiftTable}>
+                      <View style={[s.shiftTable, { backgroundColor: colors.pillBg }]}>
                         {/* Table header */}
                         <View style={s.shiftRow}>
                           <Text
@@ -527,19 +573,20 @@ export default function StaffScreen() {
                         {/* Table body */}
                         {(person.shifts || []).map((shift) => (
                           <View key={shift.date} style={s.shiftRow}>
-                            <Text style={[s.shiftCell, s.cellDay]}>
+                            <Text style={[s.shiftCell, s.cellDay, { color: colors.textSecondary }]}>
                               {shift.date}
                             </Text>
-                            <Text style={[s.shiftCell, s.cellTime]}>
+                            <Text style={[s.shiftCell, s.cellTime, { color: colors.textSecondary }]}>
                               {shift.in}
                             </Text>
-                            <Text style={[s.shiftCell, s.cellTime]}>
+                            <Text style={[s.shiftCell, s.cellTime, { color: colors.textSecondary }]}>
                               {shift.out}
                             </Text>
                             <Text
                               style={[
                                 s.shiftCell,
                                 s.cellHours,
+                                { color: colors.textSecondary },
                                 shift.hours > 8 && { color: LC.warning },
                               ]}
                             >

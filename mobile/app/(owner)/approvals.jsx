@@ -23,6 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import {
@@ -46,6 +47,7 @@ const FILTERS = ['All', 'Pending', 'Approved', 'Rejected'];
 
 export default function ApprovalsScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: approvalsData, isLoading, isError, refetch } = useApprovals(outletId);
   const approveMutation = useApproveRequest();
   const rejectMutation = useRejectRequest();
@@ -113,19 +115,19 @@ export default function ApprovalsScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Approvals</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Approvals</Text>
           <View style={{ width: 26 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -133,27 +135,27 @@ export default function ApprovalsScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Approvals</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Approvals</Text>
         <View style={s.pendingBadge}>
           <Text style={s.pendingBadgeText}>{pendingCount}</Text>
         </View>
       </View>
 
       {/* Filter Pills */}
-      <View style={s.filterRow}>
+      <View style={[s.filterRow, { backgroundColor: colors.headerBg }]}>
         {FILTERS.map((f) => (
           <TouchableOpacity
             key={f}
-            style={[s.pill, filter === f && s.pillActive]}
+            style={[s.pill, { backgroundColor: colors.pillBg }, filter === f && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setFilter(f)}
           >
-            <Text style={[s.pillText, filter === f && s.pillTextActive]}>{f}</Text>
+            <Text style={[s.pillText, { color: colors.pillText }, filter === f && { color: colors.pillActiveText }]}>{f}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -172,11 +174,11 @@ export default function ApprovalsScreen() {
           ))
         ) : filtered.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="checkmark-done-circle" size={56} color="#00B341" />
-            <Text style={s.emptyTitle}>
+            <Ionicons name="checkmark-done-circle" size={56} color={colors.success} />
+            <Text style={[s.emptyTitle, { color: colors.text }]}>
               {filter === 'All' ? 'No requests' : `No ${filter.toLowerCase()} requests`}
             </Text>
-            <Text style={s.emptyDesc}>You're all caught up</Text>
+            <Text style={[s.emptyDesc, { color: colors.textMuted }]}>You're all caught up</Text>
           </View>
         ) : (
           filtered.map((item) => {
@@ -190,6 +192,7 @@ export default function ApprovalsScreen() {
                 key={item.id}
                 style={[
                   s.card,
+                  { backgroundColor: colors.card, borderColor: colors.border },
                   isApproved && s.cardApproved,
                   isRejected && s.cardRejected,
                 ]}
@@ -200,12 +203,12 @@ export default function ApprovalsScreen() {
                     <Ionicons name={type.icon} size={14} color={type.color} />
                     <Text style={[s.typeLabel, { color: type.color }]}>{type.label}</Text>
                   </View>
-                  <Text style={s.cardTime}>{item.time}</Text>
+                  <Text style={[s.cardTime, { color: colors.textMuted }]}>{item.time}</Text>
                 </View>
 
                 {/* Title + description */}
-                <Text style={s.cardTitle}>{item.title}</Text>
-                <Text style={s.cardDesc}>{item.description}</Text>
+                <Text style={[s.cardTitle, { color: colors.text }]}>{item.title}</Text>
+                <Text style={[s.cardDesc, { color: colors.textMuted }]}>{item.description}</Text>
 
                 {/* Amount + Staff */}
                 <View style={s.cardMeta}>

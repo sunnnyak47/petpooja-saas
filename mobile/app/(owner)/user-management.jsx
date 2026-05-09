@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import { useStaffList } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -38,6 +39,7 @@ const ROLE_COLORS = {
 
 export default function UserManagementScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: staffData, isLoading, isError, refetch } = useStaffList(outletId);
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
@@ -64,22 +66,22 @@ export default function UserManagementScreen() {
   }, [refetch]);
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Users</Text>
-        <Text style={s.countBadge}>{staffData?.length || 0}</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Users</Text>
+        <Text style={[s.countBadge, { backgroundColor: colors.text, color: colors.bg }]}>{staffData?.length || 0}</Text>
       </View>
 
       {/* Search */}
-      <View style={s.searchWrap}>
-        <Ionicons name="search" size={18} color="#888" />
+      <View style={[s.searchWrap, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+        <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
-          style={s.searchInput}
+          style={[s.searchInput, { color: colors.text }]}
           placeholder="Search staff..."
-          placeholderTextColor="#BBB"
+          placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
@@ -90,10 +92,10 @@ export default function UserManagementScreen() {
         {roles.map(r => (
           <TouchableOpacity
             key={r}
-            style={[s.rolePill, selectedRole === r && s.rolePillActive]}
+            style={[s.rolePill, { backgroundColor: colors.pillBg }, selectedRole === r && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setSelectedRole(r)}
           >
-            <Text style={[s.roleText, selectedRole === r && s.roleTextActive]}>{r}</Text>
+            <Text style={[s.roleText, { color: colors.pillText }, selectedRole === r && { color: colors.pillActiveText }]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -104,28 +106,28 @@ export default function UserManagementScreen() {
       >
         {isLoading && !refreshing ? (
           <View style={{ alignItems: 'center', paddingVertical: 60, gap: 10 }}>
-            <ActivityIndicator size="large" color="#0070F3" />
-            <Text style={{ ...TYPE.body, color: '#888' }}>Loading staff...</Text>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={{ ...TYPE.body, color: colors.textMuted }}>Loading staff...</Text>
           </View>
         ) : isError ? (
           <View style={{ alignItems: 'center', paddingVertical: 60, gap: 10 }}>
-            <Ionicons name="cloud-offline-outline" size={48} color="#CCC" />
-            <Text style={{ ...TYPE.h3, color: '#888' }}>Failed to load staff</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-              <Text style={s.retryText}>Retry</Text>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+            <Text style={{ ...TYPE.h3, color: colors.textMuted }}>Failed to load staff</Text>
+            <TouchableOpacity style={[s.retryBtn, { backgroundColor: colors.text }]} onPress={refetch}>
+              <Text style={[s.retryText, { color: colors.bg }]}>Retry</Text>
             </TouchableOpacity>
           </View>
         ) : filtered.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 60, gap: 10 }}>
-            <Ionicons name="people-outline" size={48} color="#CCC" />
-            <Text style={{ ...TYPE.h3, color: '#888' }}>No staff found</Text>
-            <Text style={{ ...TYPE.small, color: '#888' }}>{staff.length === 0 ? 'No staff members in this outlet' : 'Try a different search or filter'}</Text>
+            <Ionicons name="people-outline" size={48} color={colors.textMuted} />
+            <Text style={{ ...TYPE.h3, color: colors.textMuted }}>No staff found</Text>
+            <Text style={{ ...TYPE.small, color: colors.textMuted }}>{staff.length === 0 ? 'No staff members in this outlet' : 'Try a different search or filter'}</Text>
           </View>
         ) : null}
         {filtered.map(staff => {
           const rc = ROLE_COLORS[staff.role] || '#888';
           return (
-            <PressCard key={staff.id} style={s.card}>
+            <PressCard key={staff.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.cardRow}>
                 <View style={[s.avatar, { backgroundColor: rc + '20' }]}>
                   <Text style={[s.avatarLetter, { color: rc }]}>
@@ -134,14 +136,14 @@ export default function UserManagementScreen() {
                 </View>
                 <View style={s.cardInfo}>
                   <View style={s.nameRow}>
-                    <Text style={s.staffName}>{staff.name}</Text>
-                    <View style={[s.statusDot, { backgroundColor: staff.active ? '#00B341' : '#CCC' }]} />
+                    <Text style={[s.staffName, { color: colors.text }]}>{staff.name}</Text>
+                    <View style={[s.statusDot, { backgroundColor: staff.active ? '#00B341' : colors.textMuted }]} />
                   </View>
                   <View style={[s.roleBadge, { backgroundColor: rc + '15' }]}>
                     <Text style={[s.roleBadgeText, { color: rc }]}>{staff.role}</Text>
                   </View>
-                  <Text style={s.staffMeta}>{staff.email}</Text>
-                  <Text style={s.staffMeta}>Last login: {staff.lastLogin}</Text>
+                  <Text style={[s.staffMeta, { color: colors.textMuted }]}>{staff.email}</Text>
+                  <Text style={[s.staffMeta, { color: colors.textMuted }]}>Last login: {staff.lastLogin}</Text>
                 </View>
               </View>
             </PressCard>

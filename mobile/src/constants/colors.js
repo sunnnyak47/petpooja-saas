@@ -116,3 +116,55 @@ export const Glass = {
   border:    'rgba(30, 58, 95, 0.55)',   // subtle frosted border
   highlight: 'rgba(255, 255, 255, 0.06)', // top-edge gloss sheen
 };
+
+// ─── Theme System — Light / Dark ──────────────────────────────────────────────
+
+export const LightColors = {
+  bg: '#F7F7F7',
+  card: '#FFFFFF',
+  text: '#000000',
+  textSecondary: '#444444',
+  textMuted: '#888888',
+  border: '#EAEAEA',
+  borderLight: '#F7F7F7',
+  accent: '#0070F3',
+  success: '#00B341',
+  warning: '#F5A623',
+  error: '#EE0000',
+  headerBg: '#FFFFFF',
+  tabBar: '#FFFFFF',
+  tabInactive: '#888888',
+  tabActive: '#000000',
+  pillBg: '#F0F0F0',
+  pillActiveBg: '#000000',
+  pillText: '#888888',
+  pillActiveText: '#FFFFFF',
+  inputBg: '#FFFFFF',
+  switchTrack: '#000000',
+  overlay: 'rgba(0,0,0,0.5)',
+};
+
+export const DarkColors = {
+  bg: '#0A0A0A',
+  card: '#1A1A1A',
+  text: '#FFFFFF',
+  textSecondary: '#CCCCCC',
+  textMuted: '#888888',
+  border: '#2A2A2A',
+  borderLight: '#1F1F1F',
+  headerBg: '#111111',
+  tabBar: '#111111',
+  tabInactive: '#666666',
+  tabActive: '#FFFFFF',
+  accent: '#4A9EFF',
+  success: '#00D44B',
+  warning: '#FFB84D',
+  error: '#FF4444',
+  pillBg: '#2A2A2A',
+  pillActiveBg: '#FFFFFF',
+  pillText: '#888888',
+  pillActiveText: '#000000',
+  inputBg: '#1A1A1A',
+  switchTrack: '#FFFFFF',
+  overlay: 'rgba(0,0,0,0.7)',
+};

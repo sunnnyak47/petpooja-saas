@@ -15,6 +15,7 @@ import Svg, { Rect, G, Text as SvgText, Line } from 'react-native-svg';
 
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import SparkLine from '../../src/components/SparkLine';
@@ -26,6 +27,8 @@ import {
   useTaxSummary,
 } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { ShareButton } from '../../src/components/ShareButton';
+import { exportReportPdf, shareFile } from '../../src/utils/exportReport';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
@@ -125,7 +128,7 @@ function useAnimatedCounter(targetValue, duration = 800) {
 
 // ─── Sub-Components ─────────────────────────────────────────────────────────────
 
-function DateRangePills({ selected, onSelect }) {
+function DateRangePills({ selected, onSelect, colors }) {
   return (
     <View style={s.pillRow}>
       {RANGES.map((r) => {
@@ -133,10 +136,10 @@ function DateRangePills({ selected, onSelect }) {
         return (
           <PressCard
             key={r.key}
-            style={[s.pill, active && s.pillActive]}
+            style={[s.pill, { backgroundColor: colors.pillBg }, active && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => onSelect(r.key)}
           >
-            <Text style={[s.pillText, active && s.pillTextActive]}>{r.label}</Text>
+            <Text style={[s.pillText, { color: colors.pillText }, active && { color: colors.pillActiveText }]}>{r.label}</Text>
           </PressCard>
         );
       })}
@@ -263,7 +266,8 @@ function StackedBar({ data, width }) {
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function ReportsScreen() {
-  const { outletId } = useOutlet();
+  const { outletId, currentOutlet } = useOutlet();
+  const { colors } = useTheme();
   const [range, setRange] = useState('7d');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -341,16 +345,16 @@ export default function ReportsScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.header}>
-          <Ionicons name="bar-chart" size={22} color={LC.text1} />
-          <Text style={s.headerTitle}>Sales Reports</Text>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+          <Ionicons name="bar-chart" size={22} color={colors.text} />
+          <Text style={[s.headerTitle, { color: colors.text }]}>Sales Reports</Text>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -360,11 +364,65 @@ export default function ReportsScreen() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
       {/* Header */}
-      <View style={s.header}>
-        <Ionicons name="bar-chart" size={22} color={LC.text1} />
-        <Text style={s.headerTitle}>Sales Reports</Text>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+        <Ionicons name="bar-chart" size={22} color={colors.text} />
+        <Text style={[s.headerTitle, { color: colors.text, flex: 1 }]}>Sales Reports</Text>
+        <ShareButton
+          color={colors.text}
+          onPress={async () => {
+            const revenue = revenueData || [];
+            const categories = categoryData || [];
+            const items = topItems || [];
+            const pays = payments || [];
+            const tax = taxData || { cgst: 0, sgst: 0, total: 0 };
+
+            const selectedRange = RANGES.find(r => r.key === range)?.label || range;
+
+            const uri = await exportReportPdf({
+              title: 'Sales Report',
+              subtitle: `${selectedRange} • ${new Date().toLocaleDateString('en-IN')}`,
+              outletName: currentOutlet?.name || 'PetPooja',
+              sections: [
+                {
+                  heading: 'Revenue Summary',
+                  rows: [
+                    { label: 'Total Revenue', value: `₹${revenue.reduce((s, r) => s + (r.revenue || 0), 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Orders', value: `${totalOrders}` },
+                    { label: 'Avg Order Value', value: `₹${avgOrderValue.toLocaleString('en-IN')}` },
+                  ],
+                },
+                {
+                  heading: 'Payment Breakdown',
+                  rows: pays.map(p => ({
+                    label: p.method || p.name,
+                    value: `₹${(p.amount || 0).toLocaleString('en-IN')} (${p.percentage || 0}%)`,
+                  })),
+                },
+                {
+                  heading: 'Tax Summary',
+                  rows: [
+                    { label: 'CGST', value: `₹${(tax.cgst || 0).toLocaleString('en-IN')}` },
+                    { label: 'SGST', value: `₹${(tax.sgst || 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Tax', value: `₹${(tax.total || 0).toLocaleString('en-IN')}` },
+                  ],
+                },
+              ],
+              tableData: items.length > 0 ? {
+                title: 'Top Selling Items',
+                headers: ['#', 'Item', 'Qty', 'Revenue'],
+                rows: items.slice(0, 10).map((item, i) => [
+                  `${i + 1}`,
+                  item.name,
+                  `${item.qty}`,
+                  `₹${(item.revenue || 0).toLocaleString('en-IN')}`,
+                ]),
+              } : undefined,
+            });
+            await shareFile(uri, 'Share Sales Report');
+          }}
+        />
       </View>
 
       <ScrollView
@@ -376,23 +434,23 @@ export default function ReportsScreen() {
         }
       >
         {/* Date Range Pills */}
-        <DateRangePills selected={range} onSelect={setRange} />
+        <DateRangePills selected={range} onSelect={setRange} colors={colors} />
 
         {/* Revenue Summary Card */}
         {isLoading ? (
           <SkeletonCard height={240} />
         ) : revenueData.length === 0 ? (
-          <View style={s.card}>
-            <Text style={s.cardLabel}>Total Revenue</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardLabel, { color: colors.textMuted }]}>Total Revenue</Text>
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-              <Ionicons name="bar-chart-outline" size={48} color="#CCC" />
-              <Text style={{ fontSize: 15, color: '#888', marginTop: 8 }}>No revenue data yet</Text>
+              <Ionicons name="bar-chart-outline" size={48} color={colors.textMuted} />
+              <Text style={{ fontSize: 15, color: colors.textMuted, marginTop: 8 }}>No revenue data yet</Text>
             </View>
           </View>
         ) : (
-          <View style={s.card}>
-            <Text style={s.cardLabel}>Total Revenue</Text>
-            <Text style={s.revenueAmount}>{fmtFull(animatedRevenue)}</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardLabel, { color: colors.textMuted }]}>Total Revenue</Text>
+            <Text style={[s.revenueAmount, { color: colors.text }]}>{fmtFull(animatedRevenue)}</Text>
 
             {/* Sparkline preview */}
             <View style={s.sparkWrap}>
@@ -411,20 +469,20 @@ export default function ReportsScreen() {
             </View>
 
             {/* Stats row */}
-            <View style={s.statsRow}>
+            <View style={[s.statsRow, { borderTopColor: colors.border }]}>
               <View style={s.statItem}>
-                <Text style={s.statLabel}>Orders</Text>
-                <Text style={s.statValue}>{totalOrders}</Text>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Orders</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>{totalOrders}</Text>
               </View>
-              <View style={s.statDivider} />
+              <View style={[s.statDivider, { backgroundColor: colors.border }]} />
               <View style={s.statItem}>
-                <Text style={s.statLabel}>Avg Order</Text>
-                <Text style={s.statValue}>{fmt(avgOrderValue)}</Text>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Avg Order</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>{fmt(avgOrderValue)}</Text>
               </View>
-              <View style={s.statDivider} />
+              <View style={[s.statDivider, { backgroundColor: colors.border }]} />
               <View style={s.statItem}>
-                <Text style={s.statLabel}>Peak Day</Text>
-                <Text style={s.statValue}>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Peak Day</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>
                   {fmt(Math.max(...revenueData.map((d) => d.revenue)))}
                 </Text>
               </View>
@@ -436,16 +494,16 @@ export default function ReportsScreen() {
         {isLoading ? (
           <SkeletonCard height={200} />
         ) : categoryData.length === 0 ? (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Category Sales</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Category Sales</Text>
             <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-              <Ionicons name="pie-chart-outline" size={40} color="#CCC" />
-              <Text style={{ fontSize: 14, color: '#888', marginTop: 8 }}>No category data yet</Text>
+              <Ionicons name="pie-chart-outline" size={40} color={colors.textMuted} />
+              <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 8 }}>No category data yet</Text>
             </View>
           </View>
         ) : (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Category Sales</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Category Sales</Text>
 
             {/* Stacked bar */}
             <View style={s.stackedBarWrap}>
@@ -461,11 +519,11 @@ export default function ReportsScreen() {
                     { backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length] },
                   ]}
                 />
-                <Text style={s.catName} numberOfLines={1}>
+                <Text style={[s.catName, { color: colors.text }]} numberOfLines={1}>
                   {cat.category}
                 </Text>
-                <Text style={s.catRevenue}>{fmt(cat.revenue)}</Text>
-                <Text style={s.catPct}>{cat.percentage}%</Text>
+                <Text style={[s.catRevenue, { color: colors.text }]}>{fmt(cat.revenue)}</Text>
+                <Text style={[s.catPct, { color: colors.textMuted }]}>{cat.percentage}%</Text>
               </View>
             ))}
           </View>
@@ -475,41 +533,41 @@ export default function ReportsScreen() {
         {isLoading ? (
           <SkeletonCard height={220} />
         ) : topItems.length === 0 ? (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Top Sellers</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Top Sellers</Text>
             <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-              <Ionicons name="trophy-outline" size={40} color="#CCC" />
-              <Text style={{ fontSize: 14, color: '#888', marginTop: 8 }}>No sales data yet</Text>
+              <Ionicons name="trophy-outline" size={40} color={colors.textMuted} />
+              <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 8 }}>No sales data yet</Text>
             </View>
           </View>
         ) : (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Top Sellers</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Top Sellers</Text>
 
             {topItems.slice(0, 5).map((item, i) => (
               <View key={item.name} style={s.topRow}>
-                <View style={s.topRank}>
-                  <Text style={s.topRankText}>#{i + 1}</Text>
+                <View style={[s.topRank, { backgroundColor: colors.pillBg }]}>
+                  <Text style={[s.topRankText, { color: colors.textSecondary }]}>#{i + 1}</Text>
                 </View>
                 <View style={s.topInfo}>
                   <View style={s.topHeader}>
-                    <Text style={s.topName} numberOfLines={1}>
+                    <Text style={[s.topName, { color: colors.text }]} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text style={s.topRevenue}>{fmt(item.revenue)}</Text>
+                    <Text style={[s.topRevenue, { color: colors.text }]}>{fmt(item.revenue)}</Text>
                   </View>
                   <View style={s.topMeta}>
-                    <Text style={s.topQty}>{item.qty} sold</Text>
+                    <Text style={[s.topQty, { color: colors.textMuted }]}>{item.qty} sold</Text>
                   </View>
                   {/* Proportional bar */}
-                  <View style={s.topBarBg}>
+                  <View style={[s.topBarBg, { backgroundColor: colors.pillBg }]}>
                     <View
                       style={[
                         s.topBarFill,
                         {
                           width: `${(item.revenue / maxItemRevenue) * 100}%`,
                           backgroundColor:
-                            i === 0 ? LC.accent : i === 1 ? '#00B341' : '#D0E3FF',
+                            i === 0 ? colors.accent : i === 1 ? colors.success : colors.pillBg,
                         },
                       ]}
                     />
@@ -524,16 +582,16 @@ export default function ReportsScreen() {
         {isLoading ? (
           <SkeletonCard height={180} />
         ) : payments.length === 0 ? (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Payment Split</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Payment Split</Text>
             <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-              <Ionicons name="card-outline" size={40} color="#CCC" />
-              <Text style={{ fontSize: 14, color: '#888', marginTop: 8 }}>No payment data yet</Text>
+              <Ionicons name="card-outline" size={40} color={colors.textMuted} />
+              <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 8 }}>No payment data yet</Text>
             </View>
           </View>
         ) : (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Payment Split</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Payment Split</Text>
 
             {payments.map((p) => (
               <View key={p.method} style={s.payRow}>
@@ -549,17 +607,17 @@ export default function ReportsScreen() {
                         : 'globe-outline'
                     }
                     size={16}
-                    color={LC.text3}
+                    color={colors.textMuted}
                   />
-                  <Text style={s.payMethod}>{p.method}</Text>
-                  <Text style={s.payAmount}>{fmt(p.amount)}</Text>
-                  <Text style={s.payPct}>{p.percentage}%</Text>
+                  <Text style={[s.payMethod, { color: colors.text }]}>{p.method}</Text>
+                  <Text style={[s.payAmount, { color: colors.text }]}>{fmt(p.amount)}</Text>
+                  <Text style={[s.payPct, { color: colors.textMuted }]}>{p.percentage}%</Text>
                 </View>
-                <View style={s.payBarBg}>
+                <View style={[s.payBarBg, { backgroundColor: colors.pillBg }]}>
                   <View
                     style={[
                       s.payBarFill,
-                      { width: `${p.percentage}%` },
+                      { width: `${p.percentage}%`, backgroundColor: colors.accent },
                     ]}
                   />
                 </View>
@@ -572,25 +630,25 @@ export default function ReportsScreen() {
         {isLoading ? (
           <SkeletonCard height={120} />
         ) : (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Tax Summary</Text>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.text }]}>Tax Summary</Text>
 
             <View style={s.taxRow}>
-              <Text style={s.taxLabel}>Taxable Amount</Text>
-              <Text style={s.taxValue}>{fmtFull(taxData.taxableAmount)}</Text>
+              <Text style={[s.taxLabel, { color: colors.textSecondary }]}>Taxable Amount</Text>
+              <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.taxableAmount)}</Text>
             </View>
             <View style={s.taxRow}>
-              <Text style={s.taxLabel}>CGST</Text>
-              <Text style={s.taxValue}>{fmtFull(taxData.cgst)}</Text>
+              <Text style={[s.taxLabel, { color: colors.textSecondary }]}>CGST</Text>
+              <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.cgst)}</Text>
             </View>
             <View style={s.taxRow}>
-              <Text style={s.taxLabel}>SGST</Text>
-              <Text style={s.taxValue}>{fmtFull(taxData.sgst)}</Text>
+              <Text style={[s.taxLabel, { color: colors.textSecondary }]}>SGST</Text>
+              <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.sgst)}</Text>
             </View>
-            <View style={s.taxDivider} />
+            <View style={[s.taxDivider, { backgroundColor: colors.border }]} />
             <View style={s.taxRow}>
-              <Text style={s.taxTotalLabel}>Total Tax</Text>
-              <Text style={s.taxTotalValue}>{fmtFull(taxData.total)}</Text>
+              <Text style={[s.taxTotalLabel, { color: colors.text }]}>Total Tax</Text>
+              <Text style={[s.taxTotalValue, { color: colors.text }]}>{fmtFull(taxData.total)}</Text>
             </View>
           </View>
         )}

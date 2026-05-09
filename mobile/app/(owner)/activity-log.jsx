@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useAuditLogs } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -37,6 +38,7 @@ const FILTERS = ['All', 'Voids', 'Financial', 'Staff', 'System'];
 
 export default function ActivityLogScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data, isLoading, isError, refetch } = useAuditLogs(outletId);
 
   const [filter, setFilter] = useState('All');
@@ -71,19 +73,19 @@ export default function ActivityLogScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Activity Log</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Activity Log</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -91,23 +93,23 @@ export default function ActivityLogScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Activity Log</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Activity Log</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterScroll}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.filterScroll, { backgroundColor: colors.headerBg }]}>
         {FILTERS.map(f => (
           <TouchableOpacity
             key={f}
-            style={[s.pill, filter === f && s.pillActive]}
+            style={[s.pill, { backgroundColor: colors.pillBg }, filter === f && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setFilter(f)}
           >
-            <Text style={[s.pillText, filter === f && s.pillTextActive]}>{f}</Text>
+            <Text style={[s.pillText, { color: colors.pillText }, filter === f && { color: colors.pillActiveText }]}>{f}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -135,20 +137,20 @@ export default function ActivityLogScreen() {
         ) : (
           grouped.map(([date, items]) => (
             <View key={date}>
-              <Text style={s.dateHeader}>{date}</Text>
+              <Text style={[s.dateHeader, { color: colors.textMuted }]}>{date}</Text>
               {items.map((log) => {
                 const act = ACTION_TYPES[log.action] || ACTION_TYPES.order;
                 return (
-                  <View key={log.id} style={s.logItem}>
+                  <View key={log.id} style={[s.logItem, { borderBottomColor: colors.borderLight }]}>
                     <View style={[s.iconCircle, { backgroundColor: act.color + '15' }]}>
                       <Ionicons name={act.icon} size={18} color={act.color} />
                     </View>
                     <View style={s.logContent}>
                       <View style={s.logTop}>
-                        <Text style={s.logUser}>{log.user}</Text>
-                        <Text style={s.logTime}>{log.time}</Text>
+                        <Text style={[s.logUser, { color: colors.text }]}>{log.user}</Text>
+                        <Text style={[s.logTime, { color: colors.textMuted }]}>{log.time}</Text>
                       </View>
-                      <Text style={s.logDesc}>{log.description}</Text>
+                      <Text style={[s.logDesc, { color: colors.textSecondary }]}>{log.description}</Text>
                       <View style={[s.actionBadge, { backgroundColor: act.color + '15' }]}>
                         <Text style={[s.actionBadgeText, { color: act.color }]}>{act.label}</Text>
                       </View>

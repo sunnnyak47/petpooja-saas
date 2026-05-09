@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useMenuOverview } from '../../src/hooks/useOwnerApi';
@@ -24,6 +25,7 @@ import { useOutlet } from '../../src/context/OutletContext';
 
 export default function MenuOverviewScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data, isLoading, isError, refetch } = useMenuOverview(outletId);
 
   const [search, setSearch] = useState('');
@@ -62,19 +64,19 @@ export default function MenuOverviewScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Menu Overview</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Menu Overview</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -82,37 +84,37 @@ export default function MenuOverviewScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Menu Overview</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Menu Overview</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Stats Row */}
-      <View style={s.statsRow}>
+      <View style={[s.statsRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         {[
-          { label: 'Total', value: stats.total, color: '#000' },
+          { label: 'Total', value: stats.total, color: colors.text },
           { label: 'Active', value: stats.available, color: '#00B341' },
           { label: 'Off', value: stats.unavailable, color: '#EE0000' },
           { label: 'Veg', value: stats.veg, color: '#00B341' },
         ].map(st => (
           <View key={st.label} style={s.statPill}>
             <Text style={[s.statVal, { color: st.color }]}>{st.value}</Text>
-            <Text style={s.statLabel}>{st.label}</Text>
+            <Text style={[s.statLabel, { color: colors.textMuted }]}>{st.label}</Text>
           </View>
         ))}
       </View>
 
       {/* Search */}
-      <View style={s.searchWrap}>
-        <Ionicons name="search" size={18} color="#888" />
+      <View style={[s.searchWrap, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+        <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
-          style={s.searchInput}
+          style={[s.searchInput, { color: colors.text }]}
           placeholder="Search items..."
-          placeholderTextColor="#BBB"
+          placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
@@ -128,10 +130,10 @@ export default function MenuOverviewScreen() {
         {categories.map(c => (
           <TouchableOpacity
             key={c}
-            style={[s.catPill, selectedCat === c && s.catPillActive]}
+            style={[s.catPill, { backgroundColor: colors.pillBg }, selectedCat === c && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setSelectedCat(c)}
           >
-            <Text style={[s.catText, selectedCat === c && s.catTextActive]}>{c}</Text>
+            <Text style={[s.catText, { color: colors.pillText }, selectedCat === c && { color: colors.pillActiveText }]}>{c}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -154,18 +156,18 @@ export default function MenuOverviewScreen() {
           </View>
         ) : (
           filtered.map(item => (
-            <PressCard key={item.id} style={[s.card, !item.available && s.cardDisabled]}>
+            <PressCard key={item.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.available && s.cardDisabled]}>
               <View style={s.cardRow}>
                 {/* Veg/Non-veg indicator */}
                 <View style={[s.vegDot, { borderColor: item.veg ? '#00B341' : '#EE0000' }]}>
                   <View style={[s.vegDotInner, { backgroundColor: item.veg ? '#00B341' : '#EE0000' }]} />
                 </View>
                 <View style={s.cardInfo}>
-                  <Text style={[s.itemName, !item.available && { color: '#BBB' }]}>{item.name}</Text>
-                  <Text style={s.itemCat}>{item.category}</Text>
+                  <Text style={[s.itemName, { color: colors.text }, !item.available && { color: colors.textMuted }]}>{item.name}</Text>
+                  <Text style={[s.itemCat, { color: colors.textMuted }]}>{item.category}</Text>
                 </View>
                 <View style={s.cardRight}>
-                  <Text style={s.itemPrice}>₹{item.price}</Text>
+                  <Text style={[s.itemPrice, { color: colors.text }]}>₹{item.price}</Text>
                   <View style={[s.availBadge, {
                     backgroundColor: item.available ? '#EDFBF3' : '#FFF0F0',
                   }]}>

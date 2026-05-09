@@ -17,10 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useEODPreview, useEODHistory } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { ShareButton } from '../../src/components/ShareButton';
+import { exportReportPdf, shareFile } from '../../src/utils/exportReport';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CONTENT_W = Math.min(SCREEN_W, 480);
@@ -52,7 +55,8 @@ function StatusDot({ status }) {
 }
 
 export default function CashReconScreen() {
-  const { outletId } = useOutlet();
+  const { outletId, currentOutlet } = useOutlet();
+  const { colors } = useTheme();
   const { data: previewData, isLoading: loadingPreview, isError: errorPreview, refetch: refetchPreview } = useEODPreview(outletId);
   const { data: historyData, isLoading: loadingHistory, isError: errorHistory, refetch: refetchHistory } = useEODHistory(outletId);
 
@@ -84,19 +88,19 @@ export default function CashReconScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Cash & EOD</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Cash & EOD</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -104,25 +108,65 @@ export default function CashReconScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Cash & EOD</Text>
-        <View style={{ width: 24 }} />
+        <Text style={[s.headerTitle, { color: colors.text }]}>Cash & EOD</Text>
+        <ShareButton
+          color={colors.text}
+          onPress={async () => {
+            const p = preview || {};
+            const uri = await exportReportPdf({
+              title: 'Cash Reconciliation',
+              subtitle: `Today's Session • ${new Date().toLocaleDateString('en-IN')}`,
+              outletName: currentOutlet?.name || 'PetPooja',
+              sections: [
+                {
+                  heading: 'Session Overview',
+                  rows: [
+                    { label: 'Status', value: p.status === 'open' ? 'Active' : 'Closed' },
+                    { label: 'Opened At', value: p.openedAt || '--' },
+                    { label: 'Opening Cash', value: `₹${(p.openingCash || 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Sales', value: `₹${(p.totalSales || 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Orders', value: `${p.totalOrders || 0}` },
+                    { label: 'Expected Cash', value: `₹${(p.expectedCash || 0).toLocaleString('en-IN')}` },
+                  ],
+                },
+                {
+                  heading: 'Payment Breakdown',
+                  rows: payments.map(pay => ({
+                    label: pay.label,
+                    value: `₹${(pay.amount || 0).toLocaleString('en-IN')} (${pay.pct}%)`,
+                  })),
+                },
+                {
+                  heading: 'Deductions',
+                  rows: [
+                    { label: 'Voids', value: `-₹${(p.voids || 0).toLocaleString('en-IN')}` },
+                    { label: 'Refunds', value: `-₹${(p.refunds || 0).toLocaleString('en-IN')}` },
+                    { label: 'Discounts', value: `-₹${(p.discounts || 0).toLocaleString('en-IN')}` },
+                    { label: 'Tips Collected', value: `+₹${(p.tips || 0).toLocaleString('en-IN')}` },
+                  ],
+                },
+              ],
+            });
+            await shareFile(uri, 'Share Cash Report');
+          }}
+        />
       </View>
 
       {/* Tab bar */}
-      <View style={s.tabBar}>
+      <View style={[s.tabBar, { backgroundColor: colors.headerBg }]}>
         {['today', 'history'].map((t) => (
           <TouchableOpacity
             key={t}
-            style={[s.tab, tab === t && s.tabActive]}
+            style={[s.tab, { backgroundColor: colors.pillBg }, tab === t && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setTab(t)}
           >
-            <Text style={[s.tabText, tab === t && s.tabTextActive]}>
+            <Text style={[s.tabText, { color: colors.pillText }, tab === t && { color: colors.pillActiveText }]}>
               {t === 'today' ? "Today's Session" : 'EOD History'}
             </Text>
           </TouchableOpacity>
@@ -149,62 +193,62 @@ export default function CashReconScreen() {
         ) : tab === 'today' ? (
           <>
             {/* Status Badge */}
-            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#0070F3' : '#00B341' }]}>
+            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#0070F3' : '#00B341', backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.statusRow}>
                 <StatusDot status={preview.status} />
-                <Text style={s.statusLabel}>
+                <Text style={[s.statusLabel, { color: colors.text }]}>
                   {preview.status === 'open' ? 'Session Active' : 'Session Closed'}
                 </Text>
               </View>
-              <Text style={s.statusMeta}>
+              <Text style={[s.statusMeta, { color: colors.textMuted }]}>
                 Opened at {preview.openedAt} · Opening cash: {fmtFull(preview.openingCash)}
               </Text>
             </View>
 
             {/* Revenue Hero */}
-            <PressCard style={s.heroCard}>
-              <Text style={s.heroEyebrow}>TOTAL SALES TODAY</Text>
-              <Text style={s.heroAmount}>{fmtFull(preview.totalSales)}</Text>
+            <PressCard style={[s.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.heroEyebrow, { color: colors.textMuted }]}>TOTAL SALES TODAY</Text>
+              <Text style={[s.heroAmount, { color: colors.text }]}>{fmtFull(preview.totalSales)}</Text>
               <View style={s.heroMeta}>
-                <Text style={s.heroMetaItem}>{preview.totalOrders} orders</Text>
-                <View style={s.heroDivider} />
-                <Text style={s.heroMetaItem}>
+                <Text style={[s.heroMetaItem, { color: colors.textSecondary }]}>{preview.totalOrders} orders</Text>
+                <View style={[s.heroDivider, { backgroundColor: colors.border }]} />
+                <Text style={[s.heroMetaItem, { color: colors.textSecondary }]}>
                   Expected cash: {fmtFull(preview.expectedCash)}
                 </Text>
               </View>
             </PressCard>
 
             {/* Payment Breakdown */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Payment Breakdown</Text>
+            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>Payment Breakdown</Text>
               {payments.map((p) => (
                 <View key={p.label} style={s.payRow}>
                   <View style={s.payLeft}>
                     <Ionicons name={p.icon} size={18} color={p.color} />
-                    <Text style={s.payLabel}>{p.label}</Text>
+                    <Text style={[s.payLabel, { color: colors.text }]}>{p.label}</Text>
                   </View>
-                  <View style={s.payBarWrap}>
+                  <View style={[s.payBarWrap, { backgroundColor: colors.pillBg }]}>
                     <View style={[s.payBar, { width: `${p.pct}%`, backgroundColor: p.color }]} />
                   </View>
-                  <Text style={s.payAmount}>{fmt(p.amount)}</Text>
-                  <Text style={s.payPct}>{p.pct}%</Text>
+                  <Text style={[s.payAmount, { color: colors.text }]}>{fmt(p.amount)}</Text>
+                  <Text style={[s.payPct, { color: colors.textMuted }]}>{p.pct}%</Text>
                 </View>
               ))}
             </View>
 
             {/* Deductions */}
-            <View style={s.card}>
-              <Text style={s.sectionTitle}>Deductions</Text>
+            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>Deductions</Text>
               {[
                 { label: 'Voids', val: preview.voids, icon: 'close-circle', color: '#EE0000' },
                 { label: 'Refunds', val: preview.refunds, icon: 'return-down-back', color: '#F5A623' },
                 { label: 'Discounts', val: preview.discounts, icon: 'pricetag', color: '#F5A623' },
                 { label: 'Tips Collected', val: preview.tips, icon: 'heart', color: '#00B341' },
               ].map((d) => (
-                <View key={d.label} style={s.deductRow}>
+                <View key={d.label} style={[s.deductRow, { borderBottomColor: colors.borderLight }]}>
                   <View style={s.deductLeft}>
                     <Ionicons name={d.icon} size={16} color={d.color} />
-                    <Text style={s.deductLabel}>{d.label}</Text>
+                    <Text style={[s.deductLabel, { color: colors.text }]}>{d.label}</Text>
                   </View>
                   <Text style={[s.deductVal, { color: d.color }]}>
                     {d.label === 'Tips Collected' ? '+' : '-'}{fmtFull(d.val)}
@@ -228,9 +272,9 @@ export default function CashReconScreen() {
               const isBalanced = day.variance === 0;
 
               return (
-                <PressCard key={day.id} style={s.histCard}>
+                <PressCard key={day.id} style={[s.histCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={s.histTop}>
-                    <Text style={s.histDate}>{day.date}</Text>
+                    <Text style={[s.histDate, { color: colors.text }]}>{day.date}</Text>
                     <View style={[s.histBadge, {
                       backgroundColor: isBalanced ? '#EDFBF3' : isShort ? '#FFF0F0' : '#FFF8EB',
                     }]}>
@@ -245,22 +289,22 @@ export default function CashReconScreen() {
 
                   <View style={s.histRow}>
                     <View style={s.histCol}>
-                      <Text style={s.histLabel}>Total Sales</Text>
-                      <Text style={s.histVal}>{fmt(day.totalSales)}</Text>
+                      <Text style={[s.histLabel, { color: colors.textMuted }]}>Total Sales</Text>
+                      <Text style={[s.histVal, { color: colors.text }]}>{fmt(day.totalSales)}</Text>
                     </View>
                     <View style={s.histCol}>
-                      <Text style={s.histLabel}>Cash Expected</Text>
-                      <Text style={s.histVal}>{fmtFull(day.cashExpected)}</Text>
+                      <Text style={[s.histLabel, { color: colors.textMuted }]}>Cash Expected</Text>
+                      <Text style={[s.histVal, { color: colors.text }]}>{fmtFull(day.cashExpected)}</Text>
                     </View>
                     <View style={s.histCol}>
-                      <Text style={s.histLabel}>Cash Actual</Text>
-                      <Text style={s.histVal}>{fmtFull(day.cashActual)}</Text>
+                      <Text style={[s.histLabel, { color: colors.textMuted }]}>Cash Actual</Text>
+                      <Text style={[s.histVal, { color: colors.text }]}>{fmtFull(day.cashActual)}</Text>
                     </View>
                   </View>
 
-                  <View style={s.histFooter}>
-                    <Text style={s.histClosedBy}>Closed by {day.closedBy}</Text>
-                    <Text style={s.histClosedAt}>{day.closedAt}</Text>
+                  <View style={[s.histFooter, { borderTopColor: colors.borderLight }]}>
+                    <Text style={[s.histClosedBy, { color: colors.textMuted }]}>Closed by {day.closedBy}</Text>
+                    <Text style={[s.histClosedAt, { color: colors.textMuted }]}>{day.closedAt}</Text>
                   </View>
                 </PressCard>
               );

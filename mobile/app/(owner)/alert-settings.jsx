@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useAlertPreferences, useUpdateAlertPreferences } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 
@@ -95,6 +96,7 @@ const defaultPrefs = {
 
 export default function AlertSettingsScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: prefsData, isLoading, isError, refetch } = useAlertPreferences(outletId);
   const updatePrefs = useUpdateAlertPreferences();
 
@@ -122,68 +124,68 @@ export default function AlertSettingsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Alert Settings</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Alert Settings</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#000" />
+          <ActivityIndicator size="large" color={colors.text} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Alert Settings</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Alert Settings</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       >
         {/* Master Toggle */}
-        <View style={s.masterCard}>
+        <View style={[s.masterCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.masterLeft}>
-            <Ionicons name="notifications" size={22} color="#000" />
+            <Ionicons name="notifications" size={22} color={colors.text} />
             <View>
-              <Text style={s.masterLabel}>Push Notifications</Text>
-              <Text style={s.masterDesc}>Enable all push notifications</Text>
+              <Text style={[s.masterLabel, { color: colors.text }]}>Push Notifications</Text>
+              <Text style={[s.masterDesc, { color: colors.textMuted }]}>Enable all push notifications</Text>
             </View>
           </View>
           <Switch
             value={current.push_enabled}
             onValueChange={() => toggle('push_enabled')}
-            trackColor={{ false: '#E0E0E0', true: '#000' }}
+            trackColor={{ false: colors.pillBg, true: colors.switchTrack }}
             thumbColor="#FFF"
           />
         </View>
 
         {/* Alert Categories */}
-        <Text style={s.sectionLabel}>ALERT TYPES</Text>
-        <View style={s.section}>
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>ALERT TYPES</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {ALERT_CATEGORIES.map((cat) => (
-            <View key={cat.key} style={s.row}>
+            <View key={cat.key} style={[s.row, { borderBottomColor: colors.borderLight }]}>
               <View style={[s.rowIcon, { backgroundColor: cat.color + '15' }]}>
                 <Ionicons name={cat.icon} size={18} color={cat.color} />
               </View>
               <View style={s.rowText}>
-                <Text style={s.rowLabel}>{cat.label}</Text>
-                <Text style={s.rowDesc}>{cat.desc}</Text>
+                <Text style={[s.rowLabel, { color: colors.text }]}>{cat.label}</Text>
+                <Text style={[s.rowDesc, { color: colors.textMuted }]}>{cat.desc}</Text>
               </View>
               <Switch
                 value={current[cat.key]}
                 onValueChange={() => toggle(cat.key)}
-                trackColor={{ false: '#E0E0E0', true: '#000' }}
+                trackColor={{ false: colors.pillBg, true: colors.switchTrack }}
                 thumbColor="#FFF"
                 disabled={!current.push_enabled}
               />
@@ -192,33 +194,33 @@ export default function AlertSettingsScreen() {
         </View>
 
         {/* Sound & Vibration */}
-        <Text style={s.sectionLabel}>NOTIFICATION STYLE</Text>
-        <View style={s.section}>
-          <View style={s.row}>
-            <View style={[s.rowIcon, { backgroundColor: '#F0F0F0' }]}>
-              <Ionicons name="volume-high" size={18} color="#000" />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>NOTIFICATION STYLE</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={[s.rowIcon, { backgroundColor: colors.pillBg }]}>
+              <Ionicons name="volume-high" size={18} color={colors.text} />
             </View>
             <View style={s.rowText}>
-              <Text style={s.rowLabel}>Sound</Text>
+              <Text style={[s.rowLabel, { color: colors.text }]}>Sound</Text>
             </View>
             <Switch
               value={current.sound}
               onValueChange={() => toggle('sound')}
-              trackColor={{ false: '#E0E0E0', true: '#000' }}
+              trackColor={{ false: colors.pillBg, true: colors.switchTrack }}
               thumbColor="#FFF"
             />
           </View>
-          <View style={s.row}>
-            <View style={[s.rowIcon, { backgroundColor: '#F0F0F0' }]}>
-              <Ionicons name="phone-portrait" size={18} color="#000" />
+          <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={[s.rowIcon, { backgroundColor: colors.pillBg }]}>
+              <Ionicons name="phone-portrait" size={18} color={colors.text} />
             </View>
             <View style={s.rowText}>
-              <Text style={s.rowLabel}>Vibration</Text>
+              <Text style={[s.rowLabel, { color: colors.text }]}>Vibration</Text>
             </View>
             <Switch
               value={current.vibrate}
               onValueChange={() => toggle('vibrate')}
-              trackColor={{ false: '#E0E0E0', true: '#000' }}
+              trackColor={{ false: colors.pillBg, true: colors.switchTrack }}
               thumbColor="#FFF"
             />
           </View>

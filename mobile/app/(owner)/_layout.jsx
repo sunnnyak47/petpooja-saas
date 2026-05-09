@@ -6,6 +6,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { LC } from '../../src/constants/colors';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -78,6 +79,7 @@ function NotificationBridge() {
 
 export default function OwnerLayout() {
   const { user, loading } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [unreadAlerts, setUnreadAlerts] = useState(0);
 
@@ -119,8 +121,8 @@ export default function OwnerLayout() {
           headerShown: false,
           tabBarButton: (props) => <HapticTabButton {...props} />,
           tabBarStyle: {
-            backgroundColor: LC.tabBg,
-            borderTopColor: LC.tabBorder,
+            backgroundColor: colors.tabBar,
+            borderTopColor: colors.border,
             borderTopWidth: 1,
             height: TAB_HEIGHT,
             paddingBottom: bottomInset + 6,
@@ -131,8 +133,8 @@ export default function OwnerLayout() {
             shadowRadius: 12,
             shadowOffset: { width: 0, height: -2 },
           },
-          tabBarActiveTintColor: LC.tabActive,
-          tabBarInactiveTintColor: LC.tabInactive,
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarInactiveTintColor: colors.tabInactive,
           tabBarLabelStyle: {
             fontSize: 10,
             fontWeight: '700',
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconWrapActive: {
-    backgroundColor: LC.bg3,
+    backgroundColor: 'rgba(128,128,128,0.12)',
   },
   badge: {
     position: 'absolute',

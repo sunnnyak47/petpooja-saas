@@ -22,11 +22,13 @@ import Animated, {
 
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import PressCard from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOwnerDashboard, useAlertBadges, useLowStock } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
+import { OutletSwitcher } from '../../src/components/OutletSwitcher';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SCREEN_W = Dimensions.get('window').width;
@@ -122,6 +124,7 @@ export default function OwnerHomeScreen() {
   const router = useRouter();
   const { outletId } = useOutlet();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const { data, isLoading, isError, refetch: refetchDash } = useOwnerDashboard(outletId);
   const { data: alertData, refetch: refetchAlerts } = useAlertBadges(outletId);
@@ -184,26 +187,26 @@ export default function OwnerHomeScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.headerRow}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.headerRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <View>
-            <SkeletonBox width={180} height={20} borderRadius={6} style={{ backgroundColor: LC.bg3 }} />
-            <SkeletonBox width={120} height={14} borderRadius={4} style={{ marginTop: 6, backgroundColor: LC.bg3 }} />
+            <SkeletonBox width={180} height={20} borderRadius={6} style={{ backgroundColor: colors.pillBg }} />
+            <SkeletonBox width={120} height={14} borderRadius={4} style={{ marginTop: 6, backgroundColor: colors.pillBg }} />
           </View>
-          <SkeletonBox width={36} height={36} borderRadius={18} style={{ backgroundColor: LC.bg3 }} />
+          <SkeletonBox width={36} height={36} borderRadius={18} style={{ backgroundColor: colors.pillBg }} />
         </View>
         <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
-          <SkeletonBox width={CONTENT_W - 32} height={200} borderRadius={16} style={{ alignSelf: 'center', backgroundColor: LC.bg3 }} />
+          <SkeletonBox width={CONTENT_W - 32} height={200} borderRadius={16} style={{ alignSelf: 'center', backgroundColor: colors.pillBg }} />
           <View style={s.statusRow}>
             {[1, 2, 3, 4].map((i) => (
-              <SkeletonBox key={i} width={(CONTENT_W - 56) / 4} height={72} borderRadius={12} style={{ backgroundColor: LC.bg3 }} />
+              <SkeletonBox key={i} width={(CONTENT_W - 56) / 4} height={72} borderRadius={12} style={{ backgroundColor: colors.pillBg }} />
             ))}
           </View>
-          <SkeletonBox width={CONTENT_W - 32} height={180} borderRadius={16} style={{ alignSelf: 'center', marginTop: 12, backgroundColor: LC.bg3 }} />
-          <SkeletonBox width={CONTENT_W - 32} height={120} borderRadius={16} style={{ alignSelf: 'center', marginTop: 12, backgroundColor: LC.bg3 }} />
+          <SkeletonBox width={CONTENT_W - 32} height={180} borderRadius={16} style={{ alignSelf: 'center', marginTop: 12, backgroundColor: colors.pillBg }} />
+          <SkeletonBox width={CONTENT_W - 32} height={120} borderRadius={16} style={{ alignSelf: 'center', marginTop: 12, backgroundColor: colors.pillBg }} />
           <View style={s.actionGrid}>
             {[1, 2, 3, 4].map((i) => (
-              <SkeletonBox key={i} width={(CONTENT_W - 48) / 2} height={80} borderRadius={14} style={{ backgroundColor: LC.bg3 }} />
+              <SkeletonBox key={i} width={(CONTENT_W - 48) / 2} height={80} borderRadius={14} style={{ backgroundColor: colors.pillBg }} />
             ))}
           </View>
         </ScrollView>
@@ -215,18 +218,18 @@ export default function OwnerHomeScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.headerRow}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={[s.headerRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <View style={s.headerLeft}>
-            <Text style={s.greeting}>{getGreeting()}, {firstName}</Text>
-            <Text style={s.dateText}>{formatDate()}</Text>
+            <Text style={[s.greeting, { color: colors.text }]}>{getGreeting()}, {firstName}</Text>
+            <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate()}</Text>
           </View>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetchDash()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => refetchDash()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -236,18 +239,21 @@ export default function OwnerHomeScreen() {
   // ── Main Render ────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <View style={s.headerRow}>
+      <View style={[s.headerRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <View style={s.headerLeft}>
-          <Text style={s.greeting}>{getGreeting()}, {firstName}</Text>
-          <Text style={s.dateText}>{formatDate()}</Text>
+          <Text style={[s.greeting, { color: colors.text }]}>{getGreeting()}, {firstName}</Text>
+          <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate()}</Text>
+          <View style={{ marginTop: 8 }}>
+            <OutletSwitcher />
+          </View>
         </View>
         <PressCard
-          style={s.bellWrap}
+          style={[s.bellWrap, { backgroundColor: colors.pillBg }]}
           onPress={() => router.push('/(owner)/alerts')}
         >
-          <Ionicons name="notifications-outline" size={22} color={LC.text1} />
+          <Ionicons name="notifications-outline" size={22} color={colors.text} />
           {totalAlertCount > 0 && (
             <View style={s.badge}>
               <Text style={s.badgeText}>{totalAlertCount > 9 ? '9+' : totalAlertCount}</Text>
@@ -270,11 +276,11 @@ export default function OwnerHomeScreen() {
       >
         <Animated.View style={cardAnimStyle}>
           {/* ── Hero Revenue Card ────────────────────────────────────── */}
-          <View style={s.heroCard}>
-            <Text style={s.heroEyebrow}>TODAY'S REVENUE</Text>
+          <View style={[s.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.heroEyebrow, { color: colors.textMuted }]}>TODAY'S REVENUE</Text>
 
             <View style={s.heroAmountRow}>
-              <Text style={s.heroAmount}>{fmtFull(animatedRevenue)}</Text>
+              <Text style={[s.heroAmount, { color: colors.text }]}>{fmtFull(animatedRevenue)}</Text>
               <View style={[s.growthPill, growthPositive ? s.growthUp : s.growthDown]}>
                 <Ionicons
                   name={growthPositive ? 'arrow-up' : 'arrow-down'}
@@ -314,20 +320,20 @@ export default function OwnerHomeScreen() {
             )}
 
             {/* Stats row */}
-            <View style={s.statsRow}>
+            <View style={[s.statsRow, { borderTopColor: colors.border }]}>
               <View style={s.statItem}>
-                <Text style={s.statValue}>{d.totalOrders || 0}</Text>
-                <Text style={s.statLabel}>Orders</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>{d.totalOrders || 0}</Text>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Orders</Text>
               </View>
-              <View style={s.statDivider} />
+              <View style={[s.statDivider, { backgroundColor: colors.border }]} />
               <View style={s.statItem}>
-                <Text style={s.statValue}>{fmt(d.avgOrderValue || 0)}</Text>
-                <Text style={s.statLabel}>Avg Value</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>{fmt(d.avgOrderValue || 0)}</Text>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Avg Value</Text>
               </View>
-              <View style={s.statDivider} />
+              <View style={[s.statDivider, { backgroundColor: colors.border }]} />
               <View style={s.statItem}>
-                <Text style={s.statValue}>{d.pendingOrders || 0}</Text>
-                <Text style={s.statLabel}>Pending</Text>
+                <Text style={[s.statValue, { color: colors.text }]}>{d.pendingOrders || 0}</Text>
+                <Text style={[s.statLabel, { color: colors.textMuted }]}>Pending</Text>
               </View>
             </View>
           </View>
@@ -335,43 +341,43 @@ export default function OwnerHomeScreen() {
           {/* ── Order Status Cards ───────────────────────────────────── */}
           <View style={s.statusRow}>
             {ORDER_STATUSES.map((st) => (
-              <View key={st.key} style={[s.statusCard, { borderTopColor: st.color }]}>
+              <View key={st.key} style={[s.statusCard, { borderTopColor: st.color, backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Ionicons name={st.icon} size={18} color={st.color} />
-                <Text style={s.statusCount}>{d[st.key] || 0}</Text>
-                <Text style={s.statusLabel}>{st.label}</Text>
+                <Text style={[s.statusCount, { color: colors.text }]}>{d[st.key] || 0}</Text>
+                <Text style={[s.statusLabel, { color: colors.textMuted }]}>{st.label}</Text>
               </View>
             ))}
           </View>
 
           {/* ── Top Selling Items ────────────────────────────────────── */}
-          <View style={s.sectionCard}>
+          <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.sectionHeader}>
-              <Ionicons name="trophy-outline" size={18} color={LC.warning} />
-              <Text style={s.sectionTitle}>Top Items</Text>
+              <Ionicons name="trophy-outline" size={18} color={colors.warning} />
+              <Text style={[s.sectionTitle, { color: colors.text }]}>Top Items</Text>
             </View>
 
             {topItems.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Ionicons name="restaurant-outline" size={36} color="#CCC" />
-                <Text style={{ fontSize: 13, color: '#888', marginTop: 6 }}>No items sold yet</Text>
+                <Ionicons name="restaurant-outline" size={36} color={colors.textMuted} />
+                <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 6 }}>No items sold yet</Text>
               </View>
             )}
             {topItems.map((item, idx) => (
-              <View key={idx} style={s.topItemRow}>
+              <View key={idx} style={[s.topItemRow, { borderBottomColor: colors.border }]}>
                 <View style={s.topItemLeft}>
-                  <Text style={s.topItemRank}>{idx + 1}</Text>
+                  <Text style={[s.topItemRank, { color: colors.textMuted }]}>{idx + 1}</Text>
                   <View style={s.topItemInfo}>
-                    <Text style={s.topItemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={s.topItemMeta}>{item.count} sold  {fmt(item.revenue)}</Text>
+                    <Text style={[s.topItemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[s.topItemMeta, { color: colors.textMuted }]}>{item.count} sold  {fmt(item.revenue)}</Text>
                   </View>
                 </View>
-                <View style={s.topItemBarWrap}>
+                <View style={[s.topItemBarWrap, { backgroundColor: colors.pillBg }]}>
                   <View
                     style={[
                       s.topItemBar,
                       {
                         width: `${(item.count / maxItemCount) * 100}%`,
-                        backgroundColor: idx === 0 ? LC.warning : LC.accent,
+                        backgroundColor: idx === 0 ? colors.warning : colors.accent,
                       },
                     ]}
                   />
@@ -382,48 +388,48 @@ export default function OwnerHomeScreen() {
 
           {/* ── Low Stock Alert ──────────────────────────────────────── */}
           <PressCard
-            style={s.sectionCard}
+            style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => router.push('/(owner)/inventory')}
           >
             <View style={s.sectionHeader}>
-              <Ionicons name="warning-outline" size={18} color={LC.error} />
-              <Text style={s.sectionTitle}>Low Stock</Text>
+              <Ionicons name="warning-outline" size={18} color={colors.error} />
+              <Text style={[s.sectionTitle, { color: colors.text }]}>Low Stock</Text>
               <View style={s.viewAllWrap}>
-                <Text style={s.viewAllText}>View All</Text>
-                <Ionicons name="chevron-forward" size={14} color={LC.accent} />
+                <Text style={[s.viewAllText, { color: colors.accent }]}>View All</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
               </View>
             </View>
 
             {lowStockDisplay.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-                <Ionicons name="checkmark-circle-outline" size={28} color={LC.success} />
-                <Text style={{ fontSize: 13, color: '#888', marginTop: 4 }}>All stocked up</Text>
+                <Ionicons name="checkmark-circle-outline" size={28} color={colors.success} />
+                <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>All stocked up</Text>
               </View>
             )}
             {lowStockDisplay.map((item, idx) => (
-              <View key={idx} style={s.stockRow}>
-                <View style={[s.stockDot, { backgroundColor: item.currentQty <= 1 ? LC.error : LC.warning }]} />
-                <Text style={s.stockName} numberOfLines={1}>{item.name}</Text>
-                <Text style={s.stockQty}>
-                  {item.currentQty}<Text style={s.stockMin}> / {item.minQty}</Text>
+              <View key={idx} style={[s.stockRow, { borderBottomColor: colors.border }]}>
+                <View style={[s.stockDot, { backgroundColor: item.currentQty <= 1 ? colors.error : colors.warning }]} />
+                <Text style={[s.stockName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                <Text style={[s.stockQty, { color: colors.error }]}>
+                  {item.currentQty}<Text style={[s.stockMin, { color: colors.textMuted }]}> / {item.minQty}</Text>
                 </Text>
               </View>
             ))}
           </PressCard>
 
           {/* ── Quick Actions ────────────────────────────────────────── */}
-          <Text style={s.quickActionsTitle}>Quick Actions</Text>
+          <Text style={[s.quickActionsTitle, { color: colors.text }]}>Quick Actions</Text>
           <View style={s.actionGrid}>
             {QUICK_ACTIONS.map((action) => (
               <PressCard
                 key={action.label}
-                style={s.actionTile}
+                style={[s.actionTile, { backgroundColor: colors.card, borderColor: colors.border }]}
                 onPress={() => router.push(action.route)}
               >
                 <View style={[s.actionIconWrap, { backgroundColor: action.color + '14' }]}>
                   <Ionicons name={action.icon} size={22} color={action.color} />
                 </View>
-                <Text style={s.actionLabel}>{action.label}</Text>
+                <Text style={[s.actionLabel, { color: colors.text }]}>{action.label}</Text>
               </PressCard>
             ))}
           </View>

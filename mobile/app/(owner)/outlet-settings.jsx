@@ -16,23 +16,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useOutletDetails } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 
-function InfoRow({ icon, label, value }) {
+function InfoRow({ icon, label, value, colors }) {
   return (
-    <View style={s.row}>
+    <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
       <View style={s.rowIcon}>
-        <Ionicons name={icon} size={16} color="#888" />
+        <Ionicons name={icon} size={16} color={colors.textMuted} />
       </View>
-      <Text style={s.rowLabel}>{label}</Text>
-      <Text style={s.rowValue}>{value}</Text>
+      <Text style={[s.rowLabel, { color: colors.text }]}>{label}</Text>
+      <Text style={[s.rowValue, { color: colors.textSecondary }]}>{value}</Text>
     </View>
   );
 }
 
 export default function OutletSettingsScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: outletData, isLoading, isError, refetch } = useOutletDetails(outletId);
   const outlet = outletData || {};
 
@@ -44,74 +46,74 @@ export default function OutletSettingsScreen() {
   }, [refetch]);
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Outlet Settings</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Outlet Settings</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {isLoading ? (
         <View style={s.centerState}>
-          <ActivityIndicator size="large" color="#0070F3" />
-          <Text style={s.stateText}>Loading outlet details...</Text>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={[s.stateText, { color: colors.textMuted }]}>Loading outlet details...</Text>
         </View>
       ) : isError ? (
         <View style={s.centerState}>
-          <Ionicons name="cloud-offline-outline" size={48} color="#CCC" />
-          <Text style={s.stateText}>Failed to load outlet details</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={refetch}>
-            <Text style={s.retryText}>Retry</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+          <Text style={[s.stateText, { color: colors.textMuted }]}>Failed to load outlet details</Text>
+          <TouchableOpacity style={[s.retryBtn, { backgroundColor: colors.text }]} onPress={refetch}>
+            <Text style={[s.retryText, { color: colors.bg }]}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : (
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       >
         {/* Outlet Info */}
-        <View style={s.outletCard}>
+        <View style={[s.outletCard, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <View style={s.outletIcon}>
-            <Ionicons name="storefront" size={28} color="#0070F3" />
+            <Ionicons name="storefront" size={28} color={colors.accent} />
           </View>
-          <Text style={s.outletName}>{outlet.name || 'Outlet'}</Text>
-          <Text style={s.outletAddr}>{outlet.address || '—'}</Text>
+          <Text style={[s.outletName, { color: colors.text }]}>{outlet.name || 'Outlet'}</Text>
+          <Text style={[s.outletAddr, { color: colors.textMuted }]}>{outlet.address || '—'}</Text>
         </View>
 
-        <Text style={s.sectionLabel}>CONTACT</Text>
-        <View style={s.section}>
-          <InfoRow icon="call" label="Phone" value={outlet.phone || '—'} />
-          <InfoRow icon="mail" label="Email" value={outlet.email || '—'} />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>CONTACT</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow icon="call" label="Phone" value={outlet.phone || '—'} colors={colors} />
+          <InfoRow icon="mail" label="Email" value={outlet.email || '—'} colors={colors} />
         </View>
 
-        <Text style={s.sectionLabel}>BUSINESS</Text>
-        <View style={s.section}>
-          <InfoRow icon="document-text" label="GSTIN" value={outlet.gstin || '—'} />
-          <InfoRow icon="shield-checkmark" label="FSSAI" value={outlet.fssai || '—'} />
-          <InfoRow icon="globe" label="Currency" value={outlet.currency || '—'} />
-          <InfoRow icon="time" label="Timezone" value={outlet.timezone || '—'} />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>BUSINESS</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow icon="document-text" label="GSTIN" value={outlet.gstin || '—'} colors={colors} />
+          <InfoRow icon="shield-checkmark" label="FSSAI" value={outlet.fssai || '—'} colors={colors} />
+          <InfoRow icon="globe" label="Currency" value={outlet.currency || '—'} colors={colors} />
+          <InfoRow icon="time" label="Timezone" value={outlet.timezone || '—'} colors={colors} />
         </View>
 
-        <Text style={s.sectionLabel}>OPERATING HOURS</Text>
-        <View style={s.section}>
-          <InfoRow icon="sunny" label="Opens" value={outlet.openTime || '—'} />
-          <InfoRow icon="moon" label="Closes" value={outlet.closeTime || '—'} />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>OPERATING HOURS</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow icon="sunny" label="Opens" value={outlet.openTime || '—'} colors={colors} />
+          <InfoRow icon="moon" label="Closes" value={outlet.closeTime || '—'} colors={colors} />
         </View>
 
-        <Text style={s.sectionLabel}>TAX CONFIGURATION</Text>
-        <View style={s.section}>
-          <InfoRow icon="calculator" label="CGST" value={outlet.cgst || '—'} />
-          <InfoRow icon="calculator" label="SGST" value={outlet.sgst || '—'} />
-          <InfoRow icon="card" label="Service Charge" value={outlet.serviceCharge || '—'} />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>TAX CONFIGURATION</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow icon="calculator" label="CGST" value={outlet.cgst || '—'} colors={colors} />
+          <InfoRow icon="calculator" label="SGST" value={outlet.sgst || '—'} colors={colors} />
+          <InfoRow icon="card" label="Service Charge" value={outlet.serviceCharge || '—'} colors={colors} />
         </View>
 
-        <Text style={s.sectionLabel}>INFRASTRUCTURE</Text>
-        <View style={s.section}>
-          <InfoRow icon="grid" label="Tables" value={`${outlet.tables || 0}`} />
-          <InfoRow icon="tablet-landscape" label="POS Terminals" value={`${outlet.terminals || 0}`} />
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>INFRASTRUCTURE</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow icon="grid" label="Tables" value={`${outlet.tables || 0}`} colors={colors} />
+          <InfoRow icon="tablet-landscape" label="POS Terminals" value={`${outlet.terminals || 0}`} colors={colors} />
         </View>
 
         <View style={s.noteCard}>

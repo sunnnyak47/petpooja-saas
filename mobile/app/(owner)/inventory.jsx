@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useLowStock, useWastageLogs } from '../../src/hooks/useOwnerApi';
@@ -35,6 +36,7 @@ function getSeverity(current, min) {
 
 export default function InventoryScreen() {
   const { outletId } = useOutlet();
+  const { colors } = useTheme();
   const { data: lowStockData, isLoading: loadingStock, isError: errorStock, refetch: refetchStock } = useLowStock(outletId);
   const { data: wastageData, isLoading: loadingWastage, isError: errorWastage, refetch: refetchWastage } = useWastageLogs(outletId);
 
@@ -64,19 +66,19 @@ export default function InventoryScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.header}>
+      <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Inventory</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>Inventory</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Ionicons name="cloud-offline" size={48} color="#CCC" />
-          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
+          <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+            <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -84,25 +86,25 @@ export default function InventoryScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Inventory</Text>
+        <Text style={[s.headerTitle, { color: colors.text }]}>Inventory</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Tabs */}
-      <View style={s.tabBar}>
+      <View style={[s.tabBar, { backgroundColor: colors.headerBg }]}>
         {['stock', 'wastage'].map((t) => (
           <TouchableOpacity
             key={t}
-            style={[s.tab, tab === t && s.tabActive]}
+            style={[s.tab, { backgroundColor: colors.pillBg }, tab === t && { backgroundColor: colors.pillActiveBg }]}
             onPress={() => setTab(t)}
           >
-            <Text style={[s.tabText, tab === t && s.tabTextActive]}>
+            <Text style={[s.tabText, { color: colors.pillText }, tab === t && { color: colors.pillActiveText }]}>
               {t === 'stock' ? `Low Stock (${lowStock.length})` : 'Wastage Log'}
             </Text>
           </TouchableOpacity>
@@ -116,12 +118,12 @@ export default function InventoryScreen() {
         {tab === 'stock' ? (
           <>
             {/* Search */}
-            <View style={s.searchWrap}>
-              <Ionicons name="search" size={18} color="#888" />
+            <View style={[s.searchWrap, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+              <Ionicons name="search" size={18} color={colors.textMuted} />
               <TextInput
-                style={s.searchInput}
+                style={[s.searchInput, { color: colors.text }]}
                 placeholder="Search items..."
-                placeholderTextColor="#BBB"
+                placeholderTextColor={colors.textMuted}
                 value={search}
                 onChangeText={setSearch}
               />
@@ -161,11 +163,11 @@ export default function InventoryScreen() {
                 const sev = getSeverity(item.currentQty, item.minQty);
                 const ratio = Math.min(item.currentQty / item.minQty, 1);
                 return (
-                  <PressCard key={item.id || item.name} style={s.card}>
+                  <PressCard key={item.id || item.name} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={s.cardRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.itemName}>{item.name}</Text>
-                        <Text style={s.itemCategory}>{item.category || 'General'}</Text>
+                        <Text style={[s.itemName, { color: colors.text }]}>{item.name}</Text>
+                        <Text style={[s.itemCategory, { color: colors.textMuted }]}>{item.category || 'General'}</Text>
                       </View>
                       <View style={[s.severityBadge, { backgroundColor: sev.bg }]}>
                         <Text style={[s.severityText, { color: sev.color }]}>{sev.label}</Text>
@@ -173,11 +175,11 @@ export default function InventoryScreen() {
                     </View>
                     {/* Qty bar */}
                     <View style={s.qtyRow}>
-                      <Text style={s.qtyText}>
+                      <Text style={[s.qtyText, { color: colors.textSecondary }]}>
                         {item.currentQty} / {item.minQty} {item.unit}
                       </Text>
                     </View>
-                    <View style={s.barBg}>
+                    <View style={[s.barBg, { backgroundColor: colors.pillBg }]}>
                       <View style={[s.barFill, { width: `${ratio * 100}%`, backgroundColor: sev.color }]} />
                     </View>
                   </PressCard>
@@ -188,8 +190,8 @@ export default function InventoryScreen() {
         ) : (
           <>
             {/* Wastage Summary */}
-            <View style={s.wastageSummary}>
-              <Text style={s.wastageLabel}>Today's Wastage Cost</Text>
+            <View style={[s.wastageSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.wastageLabel, { color: colors.textMuted }]}>Today's Wastage Cost</Text>
               <Text style={s.wastageAmount}>₹{totalWastageCost.toLocaleString('en-IN')}</Text>
             </View>
 
@@ -208,18 +210,18 @@ export default function InventoryScreen() {
               </View>
             ) : (
               wastage.map((w) => (
-                <PressCard key={w.id} style={s.card}>
+                <PressCard key={w.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={s.cardRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.itemName}>{w.item}</Text>
-                      <Text style={s.itemCategory}>
+                      <Text style={[s.itemName, { color: colors.text }]}>{w.item}</Text>
+                      <Text style={[s.itemCategory, { color: colors.textMuted }]}>
                         {w.qty} {w.unit} — {w.reason}
                       </Text>
                     </View>
                     <Text style={s.wastageCost}>₹{w.cost}</Text>
                   </View>
                   <View style={s.wastageFooter}>
-                    <Text style={s.wastageTime}>{w.date}</Text>
+                    <Text style={[s.wastageTime, { color: colors.textMuted }]}>{w.date}</Text>
                     {w.staff && <Text style={s.wastageStaff}>{w.staff}</Text>}
                   </View>
                 </PressCard>

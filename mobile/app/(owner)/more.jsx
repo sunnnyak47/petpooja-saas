@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTheme } from '../../src/context/ThemeContext';
 
 const tiles = [
   { label: 'Inventory', icon: 'layers', route: '/(owner)/inventory' },
@@ -19,23 +20,24 @@ const tiles = [
 
 export default function MoreScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   return (
-    <SafeAreaView style={s.safe}>
-      <View style={s.header}>
-        <Ionicons name="grid" size={24} color="#000" />
-        <Text style={s.title}>More</Text>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+        <Ionicons name="grid" size={24} color={colors.text} />
+        <Text style={[s.title, { color: colors.text }]}>More</Text>
       </View>
       <ScrollView contentContainerStyle={s.grid}>
         {tiles.map((tile) => (
           <TouchableOpacity
             key={tile.route}
-            style={s.tile}
+            style={[s.tile, { backgroundColor: colors.card }]}
             activeOpacity={0.7}
             onPress={() => router.push(tile.route)}
           >
-            <Ionicons name={tile.icon} size={32} color="#000" />
-            <Text style={s.tileLabel}>{tile.label}</Text>
+            <Ionicons name={tile.icon} size={32} color={colors.text} />
+            <Text style={[s.tileLabel, { color: colors.text }]}>{tile.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
