@@ -29,6 +29,14 @@ router.get('/outlets', authenticate, hasRole('super_admin', 'owner'), async (req
   } catch (error) { next(error); }
 });
 
+/** GET /api/ho/outlets/:id — Single outlet details */
+router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
+  try {
+    const outlet = await hoService.getOutletById(req.params.id);
+    sendSuccess(res, outlet, 'Outlet details retrieved');
+  } catch (error) { next(error); }
+});
+
 /** GET /api/ho/dashboard — Enterprise consolidated dashboard */
 router.get('/dashboard', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
   try {
@@ -136,9 +144,23 @@ router.get('/settings', authenticate, async (req, res, next) => {
     const outlet_id = req.query.outlet_id || req.user?.outlet_id || req.user?.outlets?.[0]?.id;
     if (!outlet_id) return res.status(400).json({ success: false, message: 'outlet_id required' });
 
-    const rows = await prisma.outletSetting.findMany({
-      where: { outlet_id, is_deleted: false },
-    });
+    const section = req.query.section;
+
+    const where = { outlet_id, is_deleted: false };
+    if (section) {
+      // Filter settings whose key starts with the section prefix
+      where.setting_key = { startsWith: `${section}_` };
+    }
+
+    let rows = await prisma.outletSetting.findMany({ where });
+
+    // If section filter was used but returned nothing, also try exact key match
+    // (handles case where section is stored as a single JSON value key)
+    if (section && rows.length === 0) {
+      rows = await prisma.outletSetting.findMany({
+        where: { outlet_id, is_deleted: false, setting_key: section },
+      });
+    }
 
     // Convert to a flat key-value object
     const result = {};

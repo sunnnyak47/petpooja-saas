@@ -670,6 +670,34 @@ async function resolveAlert(outletId, alertId, note) {
   });
 }
 
+async function approveAlert(outletId, alertId, userId, note) {
+  const prisma = getDbClient();
+  const resolvedNote = JSON.stringify({
+    status: 'APPROVED',
+    approved_by: userId,
+    note: note || null,
+    timestamp: new Date().toISOString(),
+  });
+  return prisma.fraudAlert.updateMany({
+    where: { id: alertId, outlet_id: outletId },
+    data: { is_resolved: true, resolved_note: resolvedNote, is_read: true },
+  });
+}
+
+async function rejectAlert(outletId, alertId, userId, note) {
+  const prisma = getDbClient();
+  const resolvedNote = JSON.stringify({
+    status: 'REJECTED',
+    rejected_by: userId,
+    note: note || null,
+    timestamp: new Date().toISOString(),
+  });
+  return prisma.fraudAlert.updateMany({
+    where: { id: alertId, outlet_id: outletId },
+    data: { is_resolved: true, resolved_note: resolvedNote, is_read: true },
+  });
+}
+
 async function getAlertStats(outletId) {
   const prisma = getDbClient();
   const [total, unread, bySev, byType, trend] = await Promise.all([
@@ -712,6 +740,8 @@ module.exports = {
   markAllRead,
   dismissAlert,
   resolveAlert,
+  approveAlert,
+  rejectAlert,
   getAlertStats,
   DEFAULT_THRESHOLDS,
 };

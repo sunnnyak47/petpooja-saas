@@ -1,0 +1,505 @@
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+} from 'react-native-reanimated';
+
+import { LC } from '../../src/constants/colors';
+import { TYPE } from '../../src/constants/typography';
+import { PressCard } from '../../src/components/PressCard';
+import SkeletonBox from '../../src/components/SkeletonBox';
+import { useOutlet } from '../../src/context/OutletContext';
+import {
+  useOwnerAlerts,
+  useMarkAlertRead,
+  useAlertBadges,
+} from '../../src/hooks/useOwnerApi';
+
+// ─── Alert type config ──────────────────────────────────────────────────────
+const ALERT_TYPES = {
+  void:           { icon: 'close-circle',       color: '#EE0000', bg: '#FFF0F0', label: 'Void' },
+  refund:         { icon: 'return-down-back',    color: '#F5A623', bg: '#FFF8EB', label: 'Refund' },
+  discount:       { icon: 'pricetag',            color: '#F5A623', bg: '#FFF8EB', label: 'Discount' },
+  low_stock:      { icon: 'warning',             color: '#EE0000', bg: '#FFF0F0', label: 'Low Stock' },
+  late_clock:     { icon: 'time',                color: '#F5A623', bg: '#FFF8EB', label: 'Late Clock-in' },
+  no_sale:        { icon: 'cash',                color: '#EE0000', bg: '#FFF0F0', label: 'No Sale' },
+  price_override: { icon: 'create',              color: '#F5A623', bg: '#FFF8EB', label: 'Price Override' },
+  cash_variance:  { icon: 'wallet',              color: '#EE0000', bg: '#FFF0F0', label: 'Cash Variance' },
+  system:         { icon: 'information-circle',  color: '#0070F3', bg: '#EBF4FF', label: 'System' },
+};
+
+
+// ─── Filter tab definitions ─────────────────────────────────────────────────
+const FILTER_TABS = [
+  { key: 'all',    label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'voids',  label: 'Voids' },
+  { key: 'stock',  label: 'Stock' },
+  { key: 'staff',  label: 'Staff' },
+];
+
+// ─── Animated Alert Card ────────────────────────────────────────────────────
+function AlertCard({ alert, index, onMarkRead }) {
+  const typeCfg = ALERT_TYPES[alert.type] || ALERT_TYPES.system;
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(20);
+
+  React.useEffect(() => {
+    const delay = index * 60;
+    opacity.value = withTiming(1, { duration: 350 + delay });
+    translateY.value = withTiming(0, { duration: 350 + delay });
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.View style={animStyle}>
+      <PressCard
+        style={[
+          s.alertCard,
+          !alert.read && s.alertCardUnread,
+        ]}
+        onPress={() => {
+          if (!alert.read) onMarkRead(alert.id);
+        }}
+      >
+        {/* Left accent border for unread */}
+        {!alert.read && <View style={s.unreadBar} />}
+
+        <View style={s.alertRow}>
+          {/* Icon circle */}
+          <View style={[s.iconCircle, { backgroundColor: typeCfg.bg }]}>
+            <Ionicons name={typeCfg.icon} size={20} color={typeCfg.color} />
+          </View>
+
+          {/* Content */}
+          <View style={s.alertContent}>
+            <View style={s.alertTitleRow}>
+              <Text style={[TYPE.bodyMed, { color: LC.text1, flex: 1 }]} numberOfLines={1}>
+                {alert.title}
+              </Text>
+              {!alert.read && <View style={s.unreadDot} />}
+            </View>
+
+            <Text style={[TYPE.small, { color: LC.text2, marginTop: 2 }]} numberOfLines={2}>
+              {alert.description}
+            </Text>
+
+            <View style={s.alertMeta}>
+              <Text style={[TYPE.caption, { color: LC.text3 }]}>{alert.time}</Text>
+
+              {alert.amount != null && (
+                <View style={[s.amountBadge, { backgroundColor: typeCfg.bg }]}>
+                  <Text style={[TYPE.caption, { color: typeCfg.color, fontWeight: '700' }]}>
+                    {'₹'}{alert.amount.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              )}
+
+              {alert.staff && (
+                <View style={s.staffTag}>
+                  <Ionicons name="person-circle-outline" size={12} color={LC.text3} />
+                  <Text style={[TYPE.caption, { color: LC.text3, marginLeft: 2 }]}>
+                    {alert.staff}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </PressCard>
+    </Animated.View>
+  );
+}
+
+// ─── Skeleton loader ────────────────────────────────────────────────────────
+function SkeletonCard() {
+  return (
+    <View style={[s.alertCard, { padding: 16 }]}>
+      <View style={s.alertRow}>
+        <SkeletonBox width={40} height={40} borderRadius={20} style={{ backgroundColor: '#EAEAEA' }} />
+        <View style={[s.alertContent, { gap: 8 }]}>
+          <SkeletonBox width="70%" height={14} borderRadius={4} style={{ backgroundColor: '#EAEAEA' }} />
+          <SkeletonBox width="100%" height={12} borderRadius={4} style={{ backgroundColor: '#EAEAEA' }} />
+          <SkeletonBox width="40%" height={10} borderRadius={4} style={{ backgroundColor: '#EAEAEA' }} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ────────────────────────────────────────────────────────────
+export default function AlertsScreen() {
+  const router = useRouter();
+  const { outletId } = useOutlet();
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [localAlerts, setLocalAlerts] = useState(null);
+
+  const { data, isLoading, isError, refetch } = useOwnerAlerts(outletId);
+  const { data: badges } = useAlertBadges(outletId);
+  const markAlertRead = useMarkAlertRead();
+
+  // Use API data with safe defaults
+  const sourceAlerts = data || [];
+
+  // Use local state for optimistic updates, seed from source
+  const alerts = useMemo(() => {
+    if (localAlerts) return localAlerts;
+    return sourceAlerts;
+  }, [localAlerts, sourceAlerts]);
+
+  // Re-seed local state when source changes
+  React.useEffect(() => {
+    setLocalAlerts(sourceAlerts);
+  }, [sourceAlerts]);
+
+  // Badge counts — prefer API, fallback to computed
+  const badgeCounts = useMemo(() => {
+    if (badges?.totalAlerts != null) return badges;
+    return {
+      totalAlerts: alerts.length,
+      voids: alerts.filter((a) => a.type === 'void' || a.type === 'refund').length,
+      refunds: alerts.filter((a) => a.type === 'refund').length,
+      lowStock: alerts.filter((a) => a.type === 'low_stock').length,
+    };
+  }, [badges, alerts]);
+
+  // Filter logic
+  const filteredAlerts = useMemo(() => {
+    switch (activeFilter) {
+      case 'unread':
+        return alerts.filter((a) => !a.read);
+      case 'voids':
+        return alerts.filter((a) => a.type === 'void' || a.type === 'refund');
+      case 'stock':
+        return alerts.filter((a) => a.type === 'low_stock');
+      case 'staff':
+        return alerts.filter((a) => a.type === 'late_clock');
+      default:
+        return alerts;
+    }
+  }, [alerts, activeFilter]);
+
+  // Mark as read handler — optimistic update
+  const handleMarkRead = useCallback(
+    (alertId) => {
+      setLocalAlerts((prev) =>
+        (prev || []).map((a) =>
+          a.id === alertId ? { ...a, read: true } : a,
+        ),
+      );
+      markAlertRead.mutate({ alertId, data: { read: true } });
+    },
+    [markAlertRead],
+  );
+
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  // Stats bar pills
+  const statPills = [
+    { label: 'Total', count: badgeCounts.totalAlerts, color: LC.accent, bg: LC.accentLight, filterKey: 'all' },
+    { label: 'Voids', count: badgeCounts.voids, color: LC.error, bg: LC.errorBg, filterKey: 'voids' },
+    { label: 'Refunds', count: badgeCounts.refunds, color: LC.warning, bg: LC.warningBg, filterKey: null },
+    { label: 'Low Stock', count: badgeCounts.lowStock, color: LC.error, bg: LC.errorBg, filterKey: 'stock' },
+  ];
+
+  // ── Error State ─────────────────────────────────────────────────────────
+  if (isError) {
+    return (
+      <SafeAreaView style={s.safe} edges={['top']}>
+        <View style={s.header}>
+          <Text style={[TYPE.h2, { color: LC.text1, flex: 1 }]}>Alerts</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Ionicons name="cloud-offline" size={48} color="#CCC" />
+          <Text style={{ fontSize: 16, color: '#888', marginTop: 12 }}>Unable to load alerts</Text>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#000', borderRadius: 8 }}>
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={[TYPE.h2, { color: LC.text1, flex: 1 }]}>Alerts</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/(owner)/alert-settings')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="settings-outline" size={22} color={LC.text2} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LC.accent} />
+        }
+      >
+        {/* Stats Bar */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.statsRow}
+        >
+          {statPills.map((pill) => (
+            <TouchableOpacity
+              key={pill.label}
+              style={[s.statPill, { backgroundColor: pill.bg }]}
+              activeOpacity={0.7}
+              onPress={() => pill.filterKey && setActiveFilter(pill.filterKey)}
+            >
+              <Text style={[TYPE.amountLg, { color: pill.color, fontSize: 18 }]}>
+                {pill.count ?? 0}
+              </Text>
+              <Text style={[TYPE.caption, { color: pill.color, marginTop: 1 }]}>
+                {pill.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Filter Tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.filterRow}
+        >
+          {FILTER_TABS.map((tab) => {
+            const isActive = activeFilter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[
+                  s.filterTab,
+                  isActive ? s.filterTabActive : s.filterTabInactive,
+                ]}
+                activeOpacity={0.7}
+                onPress={() => setActiveFilter(tab.key)}
+              >
+                <Text
+                  style={[
+                    TYPE.smallMed,
+                    { color: isActive ? '#FFFFFF' : '#888888' },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Loading skeletons */}
+        {isLoading && (
+          <View style={s.listContainer}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </View>
+        )}
+
+        {/* Alert List */}
+        {!isLoading && filteredAlerts.length > 0 && (
+          <View style={s.listContainer}>
+            {filteredAlerts.map((alert, idx) => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                index={idx}
+                onMarkRead={handleMarkRead}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && filteredAlerts.length === 0 && (
+          <View style={s.emptyState}>
+            <View style={s.emptyIcon}>
+              <Ionicons name="checkmark-circle" size={56} color={LC.success} />
+            </View>
+            <Text style={[TYPE.h3, { color: LC.text1, marginTop: 16 }]}>All clear!</Text>
+            <Text style={[TYPE.small, { color: LC.text3, marginTop: 6, textAlign: 'center' }]}>
+              No alerts matching this filter right now.
+            </Text>
+          </View>
+        )}
+
+        {/* Bottom spacer */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: LC.bg2,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: LC.card,
+    borderBottomWidth: 1,
+    borderBottomColor: LC.cardBorder,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+
+  // Stats bar
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  statPill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 80,
+  },
+
+  // Filter tabs
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  filterTabActive: {
+    backgroundColor: '#000000',
+  },
+  filterTabInactive: {
+    backgroundColor: '#F0F0F0',
+  },
+
+  // Alert list
+  listContainer: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  alertCard: {
+    backgroundColor: LC.card,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: LC.cardBorder,
+  },
+  alertCardUnread: {
+    backgroundColor: '#F8FBFF',
+    borderColor: LC.accent,
+    borderLeftWidth: 3,
+  },
+  unreadBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: LC.accent,
+    borderTopLeftRadius: 14,
+    borderBottomLeftRadius: 14,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 14,
+    gap: 12,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertContent: {
+    flex: 1,
+  },
+  alertTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: LC.accent,
+  },
+  alertMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 10,
+  },
+  amountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  staffTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: LC.successBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

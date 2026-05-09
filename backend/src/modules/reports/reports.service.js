@@ -1055,10 +1055,96 @@ async function getAdvancedReport(outletId, range = 'week') {
   }
 }
 
+/**
+ * Payment breakdown by method (cash, card, upi, other) for a date range.
+ * Primary source: DailySummary (pre-aggregated). Fallback: Payment/PaymentSplit tables.
+ * @param {string} outletId
+ * @param {string} from - YYYY-MM-DD
+ * @param {string} to - YYYY-MM-DD
+ * @returns {Promise<{breakdown: object[], total: number}>}
+ */
+async function getPaymentBreakdown(outletId, from, to) {
+  const prisma = getDbClient();
+  try {
+    const fromDate = new Date(from);
+    fromDate.setHours(0, 0, 0, 0);
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999);
+
+    // Try DailySummary first (pre-aggregated, faster)
+    const summaries = await prisma.dailySummary.findMany({
+      where: {
+        outlet_id: outletId,
+        summary_date: { gte: fromDate, lte: toDate },
+        is_deleted: false,
+      },
+    });
+
+    let cash = 0, card = 0, upi = 0, other = 0;
+
+    if (summaries.length > 0) {
+      for (const s of summaries) {
+        cash += Number(s.cash_collected);
+        card += Number(s.card_collected);
+        upi += Number(s.upi_collected);
+        other += Number(s.other_collected);
+      }
+    } else {
+      // Fallback: aggregate from Payment table directly
+      const payments = await prisma.payment.findMany({
+        where: {
+          outlet_id: outletId,
+          status: 'success',
+          is_deleted: false,
+          created_at: { gte: fromDate, lte: toDate },
+        },
+        include: {
+          splits: { where: { is_deleted: false, status: 'success' } },
+        },
+      });
+
+      for (const payment of payments) {
+        if (payment.splits && payment.splits.length > 0) {
+          // Use splits for split-payment orders
+          for (const split of payment.splits) {
+            const method = split.method;
+            const amount = Number(split.amount);
+            if (method === 'cash') cash += amount;
+            else if (method.includes('card')) card += amount;
+            else if (method.includes('upi')) upi += amount;
+            else other += amount;
+          }
+        } else {
+          const method = payment.method;
+          const amount = Number(payment.amount);
+          if (method === 'cash') cash += amount;
+          else if (method.includes('card')) card += amount;
+          else if (method.includes('upi')) upi += amount;
+          else other += amount;
+        }
+      }
+    }
+
+    const total = Math.round((cash + card + upi + other) * 100) / 100;
+
+    const breakdown = [
+      { method: 'Cash', amount: Math.round(cash * 100) / 100, percentage: total > 0 ? Math.round((cash / total) * 100) : 0 },
+      { method: 'Card', amount: Math.round(card * 100) / 100, percentage: total > 0 ? Math.round((card / total) * 100) : 0 },
+      { method: 'UPI', amount: Math.round(upi * 100) / 100, percentage: total > 0 ? Math.round((upi / total) * 100) : 0 },
+      { method: 'Other', amount: Math.round(other * 100) / 100, percentage: total > 0 ? Math.round((other / total) * 100) : 0 },
+    ];
+
+    return { breakdown, total };
+  } catch (error) {
+    logger.error('Get payment breakdown failed', { error: error.message });
+    throw error;
+  }
+}
+
 module.exports = {
   getDailySales, getItemWiseSales, getRevenueTrend,
   getDashboard, getHourlyBreakdown, getCategoryWiseSales, getGstReport, getStaffPerformance,
   getTopSellingItems, getGstDetailedReport, exportGstCsv,
   getFranchiseKPIs, getInventoryValuation, getRevenueTrendRange,
-  getFinancialYearRange, getBASReport, getAdvancedReport,
+  getFinancialYearRange, getBASReport, getAdvancedReport, getPaymentBreakdown,
 };

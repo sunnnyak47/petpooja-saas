@@ -209,6 +209,18 @@ router.get('/forecast', authenticate, hasPermission('VIEW_REPORTS'), enforceOutl
   } catch (error) { next(error); }
 });
 
+/** GET /api/reports/payment-breakdown?outlet_id=&from=&to= */
+router.get('/payment-breakdown', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const from = req.query.from;
+    const to = req.query.to;
+    if (!from || !to) return res.status(400).json({ success: false, message: 'from and to date params required' });
+    const data = await reportsService.getPaymentBreakdown(outletId, from, to);
+    sendSuccess(res, data, 'Payment breakdown retrieved');
+  } catch (error) { next(error); }
+});
+
 /**
  * GET /api/reports/summary?range=7d
  * Mobile app alias — aggregates revenue, orders and top items for the given range.

@@ -1,7 +1,13 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'https://petpooja-saas.onrender.com/api';
+import Constants from 'expo-constants';
+
+// Use local backend in dev, Render in production
+const BASE_URL =
+  __DEV__ && Constants.expoConfig?.extra?.apiUrl
+    ? Constants.expoConfig.extra.apiUrl
+    : 'https://petpooja-saas.onrender.com/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

@@ -425,7 +425,88 @@ async function listAllChains() {
   });
 }
 
+/**
+ * Gets a single outlet by ID with tax configs and settings.
+ * @param {string} outletId - UUID of the outlet
+ * @returns {Promise<object>} Outlet details with tax config and settings
+ */
+async function getOutletById(outletId) {
+  const prisma = getDbClient();
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId, is_deleted: false },
+      include: {
+        outlet_settings: { where: { is_deleted: false } },
+        tax_configs: { where: { is_deleted: false, is_active: true } },
+      },
+    });
+
+    if (!outlet) throw new NotFoundError('Outlet not found');
+
+    // Extract tax rates from tax_configs
+    const cgstConfig = outlet.tax_configs.find(t => t.name?.toLowerCase() === 'cgst');
+    const sgstConfig = outlet.tax_configs.find(t => t.name?.toLowerCase() === 'sgst');
+    const serviceChargeConfig = outlet.tax_configs.find(t => t.name?.toLowerCase().includes('service'));
+
+    // Count tables from DB
+    const tableCount = await prisma.table.count({
+      where: { outlet_id: outletId, is_deleted: false },
+    }).catch(() => outlet.tables_count || 0);
+
+    // Format opening/closing times
+    const formatTime = (dt) => {
+      if (!dt) return null;
+      const d = new Date(dt);
+      const hours = d.getUTCHours();
+      const mins = d.getUTCMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h12 = hours % 12 || 12;
+      return `${String(h12).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${ampm}`;
+    };
+
+    return {
+      id: outlet.id,
+      name: outlet.name,
+      code: outlet.code,
+      type: outlet.type,
+      address_line1: outlet.address_line1,
+      address_line2: outlet.address_line2,
+      city: outlet.city,
+      state: outlet.state,
+      pincode: outlet.pincode,
+      country: outlet.country,
+      phone: outlet.phone,
+      email: outlet.email,
+      gstin: outlet.gstin,
+      fssai_number: outlet.fssai_number,
+      timezone: outlet.timezone,
+      currency: outlet.currency,
+      opening_time: formatTime(outlet.opening_time),
+      closing_time: formatTime(outlet.closing_time),
+      cgst_rate: cgstConfig ? Number(cgstConfig.rate) : null,
+      sgst_rate: sgstConfig ? Number(sgstConfig.rate) : null,
+      service_charge_rate: serviceChargeConfig ? Number(serviceChargeConfig.rate) : null,
+      table_count: tableCount,
+      terminal_count: 0, // No terminal model; placeholder
+      is_active: outlet.is_active,
+      logo_url: outlet.logo_url,
+      settings: outlet.outlet_settings.reduce((acc, s) => {
+        acc[s.setting_key] = s.data_type === 'boolean'
+          ? s.setting_value === 'true'
+          : s.data_type === 'number'
+          ? Number(s.setting_value)
+          : s.setting_value;
+        return acc;
+      }, {}),
+    };
+  } catch (error) {
+    if (error instanceof NotFoundError) throw error;
+    logger.error('Get outlet by ID failed', { outletId, error: error.message });
+    throw error;
+  }
+}
+
 module.exports = {
   listOutlets, getEnterpriseDashboard, getOutletComparison,
-  syncMenu, createIndent, registerRestaurant, listAllChains,
+  syncMenu, createIndent, registerRestaurant, listAllChains, getOutletById,
 };

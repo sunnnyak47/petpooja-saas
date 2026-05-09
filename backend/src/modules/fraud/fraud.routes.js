@@ -82,4 +82,20 @@ router.patch('/alerts/:id/resolve', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** POST /api/fraud/alerts/:id/approve */
+router.post('/alerts/:id/approve', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await svc.approveAlert(outletId, req.params.id, req.user.id, req.body.note), 'Alert approved');
+  } catch (e) { next(e); }
+});
+
+/** POST /api/fraud/alerts/:id/reject */
+router.post('/alerts/:id/reject', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await svc.rejectAlert(outletId, req.params.id, req.user.id, req.body.note), 'Alert rejected');
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
