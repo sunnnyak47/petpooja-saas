@@ -86,4 +86,47 @@ router.post('/reset-password-token', authLimiter, validate(resetPasswordTokenSch
  */
 router.get('/me', authenticate, authController.getMe);
 
+/**
+ * POST /api/auth/emergency-reset
+ * TEMPORARY — one-time admin password reset, remove after use
+ */
+router.post('/emergency-reset', async (req, res) => {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const bcrypt = require('bcrypt');
+    const prisma = new PrismaClient();
+
+    const hash = await bcrypt.hash('Petpooja@2026', 12);
+
+    // Try to find user first
+    const existing = await prisma.user.findFirst({ where: { email: 'admin@petpooja.com' } });
+
+    if (existing) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { password_hash: hash, is_active: true, is_deleted: false, failed_login_attempts: 0, locked_until: null }
+      });
+      await prisma.$disconnect();
+      return res.json({ success: true, message: 'Admin password reset', userId: existing.id, is_deleted_was: existing.is_deleted, is_active_was: existing.is_active });
+    }
+
+    // User doesn't exist — create
+    const user = await prisma.user.create({
+      data: {
+        full_name: 'Global Software Owner',
+        email: 'admin@petpooja.com',
+        phone: '9999999999',
+        password_hash: hash,
+        is_active: true,
+        is_email_verified: true,
+        is_phone_verified: true
+      }
+    });
+    await prisma.$disconnect();
+    return res.json({ success: true, message: 'Admin user created', userId: user.id });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;
