@@ -1,0 +1,229 @@
+name: Auto Release (macOS + Windows)
+
+# Triggers on every push to main that touches desktop/ or frontend/
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'frontend/**'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: false
+        default: 'patch'
+        type: choice
+        options: [patch, minor, major]
+
+concurrency:
+  group: auto-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Step 1: Bump version and create tag ─────────────────────────────────────
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump desktop/package.json version
+        id: bump
+        working-directory: desktop
+        run: |
+          BUMP_TYPE="${{ inputs.bump || 'patch' }}"
+          CURRENT=$(node -p "require('./package.json').version")
+
+          # Split version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case $BUMP_TYPE in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+          # Update package.json
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '$NEW_VERSION';
+            require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped version: $CURRENT -> $NEW_VERSION"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add desktop/package.json
+          git commit -m "chore: bump desktop version to ${{ steps.bump.outputs.new_version }}" || true
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin main --tags
+
+  # ─── Step 2: Build macOS (DMG + ZIP for auto-update) ────────────────────────
+  build-mac:
+    name: Build macOS
+    needs: bump-version
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://petpooja-saas.onrender.com
+          VITE_SOCKET_URL: https://petpooja-saas.onrender.com
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Sync frontend
+        working-directory: desktop
+        run: npm run sync-frontend
+
+      - name: Build macOS DMG + ZIP
+        working-directory: desktop
+        run: npx electron-builder --mac dmg zip --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: find desktop/dist -name "*.dmg" -o -name "*.zip" -o -name "*.yml" | head -20
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-${{ needs.bump-version.outputs.new_version }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.blockmap
+            desktop/dist/latest-mac.yml
+          retention-days: 90
+
+  # ─── Step 3: Build Windows ──────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows
+    needs: bump-version
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://petpooja-saas.onrender.com
+          VITE_SOCKET_URL: https://petpooja-saas.onrender.com
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Sync frontend
+        working-directory: desktop
+        run: npm run sync-frontend
+
+      - name: Build Windows installer
+        working-directory: desktop
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-${{ needs.bump-version.outputs.new_version }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest.yml
+          retention-days: 90
+
+  # ─── Step 4: Publish GitHub Release ─────────────────────────────────────────
+  publish-release:
+    name: Publish Release
+    needs: [bump-version, build-mac, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build-${{ needs.bump-version.outputs.new_version }}
+          path: release-assets/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build-${{ needs.bump-version.outputs.new_version }}
+          path: release-assets/
+
+      - name: List release assets
+        run: ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
+          name: "v${{ needs.bump-version.outputs.new_version }}"
+          body: |
+            ## Auto-Release v${{ needs.bump-version.outputs.new_version }}
+
+            This release was automatically built and published on push to main.
+
+            **The desktop app will auto-update** — no need to reinstall!
+
+            ### Downloads
+            - **macOS**: `.dmg` (first install) or auto-update via app
+            - **Windows**: `.exe` installer or auto-update via app
+
+            ### What's new
+            See [commit history](https://github.com/sunnnyak47/petpooja-saas/compare/v${{ needs.bump-version.outputs.new_version }}...main) for changes.
+          files: release-assets/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

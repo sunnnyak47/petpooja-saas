@@ -760,8 +760,14 @@ function setupIPC() {
  */
 function setupAutoUpdater() {
   autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => {
+    log.info('[AutoUpdater] Checking for updates...')
+  })
 
   autoUpdater.on('update-available', (info) => {
+    log.info(`[AutoUpdater] Update available: v${info.version}`)
     dialog
       .showMessageBox(mainWindow, {
         type: 'info',
@@ -773,29 +779,49 @@ function setupAutoUpdater() {
       .then(({ response }) => {
         if (response === 0) {
           autoUpdater.downloadUpdate()
-          notifyRenderer('update-downloading', {})
+          notifyRenderer('update-downloading', { version: info.version })
         }
       })
   })
 
-  autoUpdater.on('update-downloaded', () => {
+  autoUpdater.on('update-not-available', () => {
+    log.info('[AutoUpdater] App is up to date')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    notifyRenderer('update-progress', {
+      percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      total: progress.total,
+      speed: progress.bytesPerSecond,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info(`[AutoUpdater] Update downloaded: v${info.version}`)
+    notifyRenderer('update-ready', { version: info.version })
     dialog
       .showMessageBox(mainWindow, {
         type: 'info',
         title: 'Update Ready',
-        message: 'Restart to apply the update?',
+        message: `Version ${info.version} has been downloaded. Restart to apply?`,
         buttons: ['Restart Now', 'Later'],
       })
       .then(({ response }) => {
         if (response === 0) {
-          autoUpdater.quitAndInstall()
+          autoUpdater.quitAndInstall(false, true)
         }
       })
   })
 
-  // Only check automatically in production builds
+  autoUpdater.on('error', (err) => {
+    log.error('[AutoUpdater] Error:', err.message)
+  })
+
+  // Check automatically in production builds — 5s after launch, then every 30 min
   if (!isDev) {
-    setTimeout(() => autoUpdater.checkForUpdates(), 5000)
+    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000)
+    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000)
   }
 }
 
