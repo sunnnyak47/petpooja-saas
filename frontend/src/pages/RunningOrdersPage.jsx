@@ -9,6 +9,8 @@ import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
+import hybridAPI from '../api/offlineAPI';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../hooks/useCurrency';
 import Modal from '../components/Modal';
@@ -178,16 +180,26 @@ function OrderCard({ order, onAction }) {
   );
 }
 
+const IS_ELECTRON_INNER = typeof window !== 'undefined' && !!window.electron;
+
 /** Add More Items modal — loads menu and allows adding to existing order */
 function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
   const [pendingItems, setPendingItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [punching, setPunching] = useState(false);
+  const innerOnline = useOnlineStatus();
 
   const { data: menuData } = useQuery({
-    queryKey: ['menu-items-quick', outletId],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=100`).then(r => r.data),
+    queryKey: ['menu-items-quick', outletId, innerOnline],
+    queryFn: async () => {
+      if (IS_ELECTRON_INNER && !innerOnline) {
+        const result = await hybridAPI.getMenu(outletId);
+        return result?.items || [];
+      }
+      return api.get(`/menu/items?outlet_id=${outletId}&limit=100`).then(r => r.data);
+    },
     enabled: isOpen && !!outletId,
+    staleTime: innerOnline ? 30_000 : Infinity,
   });
 
   const items = menuData?.items || menuData || [];
@@ -207,17 +219,30 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
     if (pendingItems.length === 0) return toast.error('Add at least one item');
     setPunching(true);
     try {
-      // Add items to order then punch KOT
-      await api.post(`/orders/${order.id}/items`, {
-        items: pendingItems.map(p => ({ menu_item_id: p.menu_item_id, quantity: p.quantity, addons: [] }))
-      });
-      await api.post(`/orders/${order.id}/kot`);
-      toast.success('KOT sent to kitchen! 🍳');
+      if (IS_ELECTRON_INNER && !innerOnline) {
+        for (const p of pendingItems) {
+          await hybridAPI.addOrderItem({
+            order_id: order.id,
+            menu_item_id: p.menu_item_id,
+            menu_item_name: p.name,
+            unit_price: p.price,
+            quantity: p.quantity,
+            addons: [],
+          });
+        }
+        await hybridAPI.generateKOT(order.id);
+      } else {
+        await api.post(`/orders/${order.id}/items`, {
+          items: pendingItems.map(p => ({ menu_item_id: p.menu_item_id, quantity: p.quantity, addons: [] }))
+        });
+        await api.post(`/orders/${order.id}/kot`);
+      }
+      toast.success('KOT sent to kitchen!');
       setPendingItems([]);
       onSuccess();
       onClose();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to punch KOT');
+      toast.error(e.response?.data?.message || e.message || 'Failed to punch KOT');
     } finally {
       setPunching(false);
     }
@@ -272,10 +297,13 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
   );
 }
 
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
+
 export default function RunningOrdersPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, symbol, locale } = useCurrency();
+  const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState('all');
@@ -284,18 +312,24 @@ export default function RunningOrdersPage() {
   const [activeModal, setActiveModal] = useState(null); // 'cancel'|'bill'|'pay'|'kot'
 
   const { data: orders, isLoading, refetch } = useQuery({
-    queryKey: ['running-orders', outletId],
-    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`).then(r => r.data),
+    queryKey: ['running-orders', outletId, isOnline],
+    queryFn: async () => {
+      if (IS_ELECTRON && !isOnline) {
+        return hybridAPI.getOrders(outletId, { status: 'created,confirmed,held,billed' });
+      }
+      return api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`).then(r => r.data);
+    },
     enabled: !!outletId,
-    refetchInterval: isLive ? 8000 : false,
+    refetchInterval: isLive && isOnline ? 8000 : false,
+    staleTime: isOnline ? 5000 : Infinity,
   });
 
   const activeOrders = Array.isArray(orders) ? orders : (orders?.items || []);
   const filtered = activeOrders.filter(o => filter === 'all' || o.order_type === filter);
 
-  // Real-time socket
+  // Real-time socket (only when online)
   useEffect(() => {
-    if (!outletId) return;
+    if (!outletId || !isOnline) return;
     const socket = io(`${SOCKET_URL}/orders`, {
       transports: ['websocket'], withCredentials: true
     });
@@ -311,19 +345,29 @@ export default function RunningOrdersPage() {
   }, [outletId, queryClient]);
 
   const billMutation = useMutation({
-    mutationFn: (id) => api.post(`/orders/${id}/bill`),
-    onSuccess: (res) => {
-      toast.success('Bill Generated! 🧾');
+    mutationFn: async (id) => {
+      if (IS_ELECTRON && !isOnline) {
+        return hybridAPI.generateBill(id);
+      }
+      const res = await api.post(`/orders/${id}/bill`);
+      return res.data?.data || res.data;
+    },
+    onSuccess: (billData) => {
+      toast.success('Bill Generated!');
       queryClient.invalidateQueries({ queryKey: ['running-orders'] });
-      const billData = res.data?.data || res.data;
       setSelectedOrder(billData);
       setActiveModal('bill');
     },
-    onError: (e) => toast.error(e.response?.data?.message || 'Failed to generate bill'),
+    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to generate bill'),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }) => api.post(`/orders/${id}/cancel`, { reason }),
+    mutationFn: async ({ id, reason }) => {
+      if (IS_ELECTRON && !isOnline) {
+        return window.electron.invoke('db-update-order-status', id, 'cancelled', { cancel_reason: reason });
+      }
+      return api.post(`/orders/${id}/cancel`, { reason });
+    },
     onSuccess: () => {
       toast.success('Order Cancelled');
       queryClient.invalidateQueries({ queryKey: ['running-orders'] });
@@ -452,11 +496,15 @@ export default function RunningOrdersPage() {
               orderNumber={selectedOrder.order_number}
               customer={selectedOrder.customer || null}
               onSuccess={async (method, paidAmount, razorpayId) => {
-                await api.post(`/orders/${selectedOrder.id}/payment`, {
-                  method,
-                  amount: paidAmount,
-                  razorpay_payment_id: razorpayId,
-                });
+                if (IS_ELECTRON && !isOnline) {
+                  await hybridAPI.processPayment(selectedOrder.id, { method, amount: paidAmount });
+                } else {
+                  await api.post(`/orders/${selectedOrder.id}/payment`, {
+                    method,
+                    amount: paidAmount,
+                    razorpay_payment_id: razorpayId,
+                  });
+                }
                 toast.success('Payment recorded ✓');
                 closeModal();
                 queryClient.invalidateQueries({ queryKey: ['running-orders'] });

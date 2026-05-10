@@ -101,8 +101,13 @@ export default function POSPage() {
     if (orderIdParam) {
       const loadOrderFromUrl = async () => {
         try {
-          const res = await api.get(`/orders/${orderIdParam}`);
-          const order = res.data?.data ?? res.data;
+          let order;
+          if (IS_ELECTRON && !isOnline) {
+            order = await hybridAPI.getOrder(orderIdParam);
+          } else {
+            const res = await api.get(`/orders/${orderIdParam}`);
+            order = res.data?.data ?? res.data;
+          }
 
           // Map to cart
           const cartItems = order.order_items.map(item => ({
@@ -278,8 +283,8 @@ export default function POSPage() {
   }, [outletId, isOnline]);
 
   useEffect(() => {
-    if (!outletId) return;
-    // Connect to /orders namespace
+    if (!outletId || !isOnline) return;
+    // Connect to /orders namespace (only when online)
     const socket = io(`${SOCKET_URL}/orders`, {
       transports: ['websocket'],
       withCredentials: true
@@ -340,23 +345,34 @@ export default function POSPage() {
   };
 
   const handleCreateOrderCore = async (status, isBogo = false) => {
-    const res = await api.post('/orders', {
+    const orderPayload = {
       outlet_id: outletId,
       order_type: orderType,
       table_id: selectedTable?.id || null,
       customer_id: selectedCustomer?.id || null,
       notes: orderNotes || null,
-      status: status, 
+      status: status,
       items: cart.map((c) => ({
-        menu_item_id: c.menu_item_id, 
-        variant_id: c.variant_id, 
-        quantity: c.quantity, 
+        menu_item_id: c.menu_item_id,
+        menu_item_name: c.name,
+        unit_price: Number(c.base_price),
+        variant_id: c.variant_id,
+        quantity: c.quantity,
         addons: c.addons || [],
         notes: c.notes || null
       })),
       covers,
-    });
-    // Backend returns { success, data: order } — unwrap to get the actual order object
+    };
+
+    if (IS_ELECTRON && !isOnline) {
+      // Offline: create order in local SQLite
+      const result = await hybridAPI.createOrder(orderPayload);
+      const orderData = result?.id ? result : { id: result, ...orderPayload };
+      setTempOrderId(orderData.id);
+      return orderData;
+    }
+
+    const res = await api.post('/orders', orderPayload);
     const orderData = res.data?.data ?? res.data;
     setTempOrderId(orderData?.id ?? null);
     return orderData;
@@ -369,13 +385,17 @@ export default function POSPage() {
       if (!order?.id) return toast.error('Failed to create order. Please try again.');
       setTempOrderId(order.id);
       setCurrentOrder(order);
-      
+
       if (isHold) {
         toast.success(`Order held successfully!`);
         dispatch(clearCart());
         setTempOrderId(null);
       } else {
-        await api.post(`/orders/${order.id}/kot`);
+        if (IS_ELECTRON && !isOnline) {
+          await hybridAPI.generateKOT(order.id);
+        } else {
+          await api.post(`/orders/${order.id}/kot`);
+        }
         toast.success(`Items sent to Kitchen!`);
         dispatch(clearCart());
         setTempOrderId(null);
@@ -394,23 +414,46 @@ export default function POSPage() {
         if (!orderId) return toast.error('Failed to create order. Please try again.');
         setTempOrderId(orderId);
       } else {
-         // Add items to existing order first
-         await api.post(`/orders/${orderId}/items`, {
+        // Add items to existing order
+        if (IS_ELECTRON && !isOnline) {
+          for (const c of cart) {
+            await hybridAPI.addOrderItem({
+              order_id: orderId,
+              menu_item_id: c.menu_item_id,
+              menu_item_name: c.name,
+              unit_price: Number(c.base_price),
+              variant_id: c.variant_id,
+              quantity: c.quantity,
+              addons: c.addons || [],
+              notes: c.notes || null,
+            });
+          }
+        } else {
+          await api.post(`/orders/${orderId}/items`, {
             items: cart.map(c => ({
-                menu_item_id: c.menu_item_id,
-                variant_id: c.variant_id,
-                quantity: c.quantity,
-                addons: c.addons || [],
-                notes: c.notes || null
+              menu_item_id: c.menu_item_id,
+              variant_id: c.variant_id,
+              quantity: c.quantity,
+              addons: c.addons || [],
+              notes: c.notes || null
             }))
-         });
+          });
+        }
       }
 
-      await api.post(`/orders/${orderId}/kot`);
+      // Generate KOT
+      if (IS_ELECTRON && !isOnline) {
+        const kotResult = await hybridAPI.generateKOT(orderId);
+        if (kotResult && !kotResult.success) {
+          toast.error(kotResult.error || 'No pending items for KOT');
+          return;
+        }
+      } else {
+        await api.post(`/orders/${orderId}/kot`);
+      }
+
       toast.success(`Punch Successful! Sent to Kitchen.`);
       dispatch(clearCart());
-      // For dine-in table orders, keep tempOrderId so multi-round KOTs work.
-      // For takeaway/delivery/non-table orders, clear it so next punch creates a fresh order.
       if (!selectedTable) {
         setTempOrderId(null);
         setCurrentOrder(null);
@@ -420,19 +463,23 @@ export default function POSPage() {
 
   const handleGenerateBill = async () => {
     let orderId = tempOrderId;
-    // If no tempOrderId but items in cart, create order first
     if (!orderId && cart.length > 0) {
-       const order = await handleCreateOrderCore('created');
-       orderId = order?.id;
-       if (orderId) setTempOrderId(orderId);
+      const order = await handleCreateOrderCore('created');
+      orderId = order?.id;
+      if (orderId) setTempOrderId(orderId);
     }
 
     if (!orderId || typeof orderId !== 'string' || orderId.length < 5)
       return toast.error('No active order to bill. Please punch KOT first.');
 
     try {
-      const res = await api.post(`/orders/${orderId}/bill`);
-      const billData = res.data?.data ?? res.data ?? res;
+      let billData;
+      if (IS_ELECTRON && !isOnline) {
+        billData = await hybridAPI.generateBill(orderId);
+      } else {
+        const res = await api.post(`/orders/${orderId}/bill`);
+        billData = res.data?.data ?? res.data ?? res;
+      }
       setBilledOrder(billData);
       setIsBilled(true);
       setShowBillPreview(true);
@@ -443,7 +490,11 @@ export default function POSPage() {
   const handleCancelOrder = async (reason) => {
     if (!tempOrderId) return;
     try {
-      await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+      if (IS_ELECTRON && !isOnline) {
+        await window.electron.invoke('db-update-order-status', tempOrderId, 'cancelled', { cancel_reason: reason });
+      } else {
+        await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+      }
       toast.success('Order Cancelled');
       dispatch(clearCart());
       setTempOrderId(null);
@@ -464,8 +515,13 @@ export default function POSPage() {
     dispatch(setSelectedTable(table));
     if (table.status === 'occupied' && table.orders?.[0]) {
       try {
-        const res = await api.get(`/orders/${table.orders[0].id}`);
-        const order = res.data;
+        let order;
+        if (IS_ELECTRON && !isOnline) {
+          order = await hybridAPI.getOrder(table.orders[0].id);
+        } else {
+          const res = await api.get(`/orders/${table.orders[0].id}`);
+          order = res.data;
+        }
         
         // Map order items to cart format
         const cartItems = order.order_items.map(item => ({
@@ -524,8 +580,13 @@ export default function POSPage() {
   const processManagerAction = async () => {
     if(!managerPin) return toast.error('PIN is required');
     try {
-      const res = await api.post('/staff/verify-pin', { pin: managerPin, outlet_id: outletId });
-      
+      if (IS_ELECTRON && !isOnline) {
+        // Offline: accept PIN locally (manager override)
+        toast('Offline: PIN accepted locally', { icon: '🔑' });
+      } else {
+        await api.post('/staff/verify-pin', { pin: managerPin, outlet_id: outletId });
+      }
+
       if(managerAction === 'complimentary') {
          if(!compReason) return toast.error('Reason required');
          setIsCompMode(true);
@@ -534,8 +595,8 @@ export default function POSPage() {
       setShowManagerPin(false);
       setManagerPin('');
       setCompReason('');
-    } catch(e) { 
-      toast.error(e.response?.data?.message || 'Invalid PIN'); 
+    } catch(e) {
+      toast.error(e.response?.data?.message || 'Invalid PIN');
     }
   };
 
@@ -548,11 +609,19 @@ export default function POSPage() {
       if (!orderId) {
         const order = await handleCreateOrderCore('created');
         orderId = order.id;
-        await api.post(`/orders/${orderId}/kot`).catch(() => {});
+        if (IS_ELECTRON && !isOnline) {
+          await hybridAPI.generateKOT(orderId).catch(() => {});
+        } else {
+          await api.post(`/orders/${orderId}/kot`).catch(() => {});
+        }
       }
 
       const payAmt = paymentMethod === 'part' ? Number(partPaymentAmount) : (billedOrder?.grand_total || cartTotals.total);
-      await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
+      if (IS_ELECTRON && !isOnline) {
+        await hybridAPI.processPayment(orderId, { method: paymentMethod, amount: payAmt });
+      } else {
+        await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
+      }
 
       toast.success(paymentMethod === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
       dispatch(clearCart());
@@ -564,11 +633,15 @@ export default function POSPage() {
   const executeTableAction = async (targetTableId) => {
      if(!tempOrderId) return toast.error('No open order selected');
      try {
+       if (IS_ELECTRON && !isOnline) {
+         toast.error('Table transfer/merge requires internet');
+         return;
+       }
        if(tableSelectMode === 'transfer') {
          await api.post(`/orders/${tempOrderId}/transfer-table`, { new_table_id: targetTableId });
          toast.success('Table Transferred');
        } else if (tableSelectMode === 'merge') {
-         await api.post(`/orders/${tempOrderId}/merge`, { target_order_id: 'auto' }); // Simplified
+         await api.post(`/orders/${tempOrderId}/merge`, { target_order_id: 'auto' });
          toast.success('Tables Merged');
        }
        setTableSelectMode(null);
@@ -1183,14 +1256,25 @@ export default function POSPage() {
           if (!orderId) {
             const order = await handleCreateOrderCore('created');
             orderId = order.id;
-            await api.post(`/orders/${orderId}/kot`).catch(() => {});
+            if (IS_ELECTRON && !isOnline) {
+              await hybridAPI.generateKOT(orderId).catch(() => {});
+            } else {
+              await api.post(`/orders/${orderId}/kot`).catch(() => {});
+            }
           }
           const METHOD_MAP = { cash: 'cash', upi: 'upi_razorpay', card: 'card_pine_labs', part: 'split', due: 'due' };
-          await api.post(`/orders/${orderId}/payment`, {
-            method: METHOD_MAP[method] || method,
-            amount: paidAmount,
-            razorpay_payment_id: razorpayId || undefined,
-          });
+          if (IS_ELECTRON && !isOnline) {
+            await hybridAPI.processPayment(orderId, {
+              method: METHOD_MAP[method] || method,
+              amount: paidAmount,
+            });
+          } else {
+            await api.post(`/orders/${orderId}/payment`, {
+              method: METHOD_MAP[method] || method,
+              amount: paidAmount,
+              razorpay_payment_id: razorpayId || undefined,
+            });
+          }
           toast.success(method === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
           dispatch(clearCart());
           setTempOrderId(null);

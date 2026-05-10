@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useTheme } from '../themes/ThemeContext';
 import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
@@ -260,6 +261,7 @@ export default function KitchenDisplayPage() {
   const outletId    = user?.outlet_id || user?.outlets?.[0]?.id;
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
+  const isOnline    = useOnlineStatus();
   const { isDark }  = useTheme();
 
   const [activeStation, setActiveStation] = useState('ALL');
@@ -276,18 +278,29 @@ export default function KitchenDisplayPage() {
   }, []);
 
   /* ── fetch KOTs ── */
+  const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
   const { data: kots, isLoading } = useQuery({
-    queryKey: ['kds-kots', outletId, activeStation],
-    queryFn:  () =>
-      api.get(`/kitchen/kots?outlet_id=${outletId}${activeStation !== 'ALL' ? `&station=${activeStation}` : ''}`)
-         .then(r => { const raw = r.data?.data ?? r.data ?? r; return Array.isArray(raw) ? raw : []; }),
+    queryKey: ['kds-kots', outletId, activeStation, isOnline],
+    queryFn: async () => {
+      if (IS_ELECTRON && !isOnline) {
+        // Fetch KOTs from local SQLite
+        try {
+          const localKots = await window.electron.invoke('db-get-kots-for-order', null);
+          return Array.isArray(localKots) ? localKots : [];
+        } catch { return []; }
+      }
+      const r = await api.get(`/kitchen/kots?outlet_id=${outletId}${activeStation !== 'ALL' ? `&station=${activeStation}` : ''}`);
+      const raw = r.data?.data ?? r.data ?? r;
+      return Array.isArray(raw) ? raw : [];
+    },
     enabled:  !!outletId,
-    refetchInterval: 12000,
+    refetchInterval: isOnline ? 12000 : false,
+    staleTime: isOnline ? 5000 : Infinity,
   });
 
-  /* ── socket ── */
+  /* ── socket (only when online) ── */
   useEffect(() => {
-    if (!outletId) return;
+    if (!outletId || !isOnline) return;
     const socket = io(`${SOCKET_URL}/kitchen`, {
       transports: ['websocket'],
       withCredentials: true,

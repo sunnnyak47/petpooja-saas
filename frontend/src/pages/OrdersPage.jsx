@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import hybridAPI from '../api/offlineAPI';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
@@ -28,11 +30,14 @@ const STATUS_STYLES = {
 
 const STATUS_FLOW = ['created', 'confirmed', 'preparing', 'ready', 'served', 'paid'];
 
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
+
 export default function OrdersPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, locale } = useCurrency();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const [statusFilter, setStatusFilter] = useState('');
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isVoidOpen, setIsVoidOpen] = useState(false);
@@ -77,15 +82,26 @@ export default function OrdersPage() {
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', outletId, statusFilter],
-    queryFn: () => api.get(`/orders?outlet_id=${outletId}&limit=50${statusFilter ? `&status=${statusFilter}` : ''}`).then(r => r.data),
+    queryKey: ['orders', outletId, statusFilter, isOnline],
+    queryFn: async () => {
+      if (IS_ELECTRON && !isOnline) {
+        return hybridAPI.getOrders(outletId, statusFilter ? { status: statusFilter } : {});
+      }
+      return api.get(`/orders?outlet_id=${outletId}&limit=50${statusFilter ? `&status=${statusFilter}` : ''}`).then(r => r.data);
+    },
     enabled: !!outletId,
-    refetchInterval: 10000,
+    refetchInterval: isOnline ? 10000 : false,
+    staleTime: isOnline ? 5000 : Infinity,
   });
 
   const { data: orderDetail } = useQuery({
     queryKey: ['orderDetail', selectedOrder?.id],
-    queryFn: () => api.get(`/orders/${selectedOrder.id}`).then(r => r.data),
+    queryFn: async () => {
+      if (IS_ELECTRON && !isOnline) {
+        return hybridAPI.getOrder(selectedOrder.id);
+      }
+      return api.get(`/orders/${selectedOrder.id}`).then(r => r.data);
+    },
     enabled: !!selectedOrder?.id && isDetailOpen,
   });
 
