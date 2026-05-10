@@ -57,7 +57,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "publisherName": "Petpooja ERP"
     },
     "nsis": {
@@ -66,8 +66,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Petpooja ERP",
-      "installerIcon": "assets/icon.png",
-      "uninstallerIcon": "assets/icon.png",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
       "language": "1033"
     },
     "mac": {
