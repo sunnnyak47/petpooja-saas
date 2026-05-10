@@ -19,6 +19,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
+import { useCreateOfflineOrder } from '../../src/hooks/useCreateOfflineOrder';
+import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
+import { useOfflineTables } from '../../src/hooks/useOfflineTables';
+import { useOutlet } from '../../src/context/OutletContext';
+import { useAuth } from '../../src/context/AuthContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -223,11 +228,12 @@ function SettledBillRow({ bill }) {
 
 // ─── Item Picker Modal ────────────────────────────────────────────────────────
 
-function ItemPickerModal({ visible, onClose, onAdd }) {
+function ItemPickerModal({ visible, onClose, onAdd, menuItems }) {
   const [search, setSearch] = useState('');
+  const sourceItems = menuItems && menuItems.length > 0 ? menuItems : MENU_ITEMS;
   const filtered = useMemo(
-    () => MENU_ITEMS.filter(m => m.name.toLowerCase().includes(search.toLowerCase())),
-    [search]
+    () => sourceItems.filter(m => m.name.toLowerCase().includes(search.toLowerCase())),
+    [search, sourceItems]
   );
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -490,7 +496,7 @@ function SplitBillModal({ visible, onClose, grandTotal, items }) {
 
 // ─── Bill Modal ───────────────────────────────────────────────────────────────
 
-function BillModal({ table, visible, onClose, onSettle }) {
+function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating, outletId, userId, menuItems }) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(null);
@@ -558,14 +564,39 @@ function BillModal({ table, visible, onClose, onSettle }) {
         {
           text: 'Confirm',
           style: 'default',
-          onPress: () => {
-            onSettle(table.id, grandTotal);
-            Alert.alert('Success', `Table ${table.number} settled successfully!`);
+          onPress: async () => {
+            try {
+              if (createOrder) {
+                const orderData = {
+                  outlet_id: outletId,
+                  order_type: 'dine_in',
+                  table_id: table.id || null,
+                  source: 'pos',
+                  notes: '',
+                  items: items.map(item => ({
+                    menu_item_id: item.id,
+                    item_name: item.name,
+                    variant_id: null,
+                    variant_name: null,
+                    quantity: item.qty,
+                    unit_price: item.price,
+                    notes: '',
+                    addons: [],
+                  })),
+                  created_by: userId,
+                };
+                await createOrder(orderData);
+              }
+              onSettle(table.id, grandTotal);
+              Alert.alert('Success', `Table ${table.number} settled successfully!`);
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to create order');
+            }
           },
         },
       ]
     );
-  }, [table, grandTotal, onSettle]);
+  }, [table, grandTotal, onSettle, createOrder, outletId, userId, items]);
 
   const handleWhatsApp = useCallback(() => {
     const text = formatWhatsAppBill({
@@ -796,9 +827,15 @@ function BillModal({ table, visible, onClose, onSettle }) {
             <View style={styles.separator} />
 
             {/* Action Buttons */}
-            <PressCard scaleDown={0.97} onPress={handleSettle} style={styles.actionBtnPrimary}>
-              <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" />
-              <Text style={styles.actionBtnPrimaryText}>Settle &amp; Print</Text>
+            <PressCard scaleDown={0.97} onPress={handleSettle} style={[styles.actionBtnPrimary, isCreating && { opacity: 0.6 }]} disabled={isCreating}>
+              {isCreating ? (
+                <Text style={styles.actionBtnPrimaryText}>Creating Order...</Text>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" />
+                  <Text style={styles.actionBtnPrimaryText}>Settle &amp; Print</Text>
+                </>
+              )}
             </PressCard>
 
             <PressCard scaleDown={0.97} onPress={handleWhatsApp} style={styles.actionBtnWhatsapp}>
@@ -820,6 +857,7 @@ function BillModal({ table, visible, onClose, onSettle }) {
         visible={showItemPicker}
         onClose={() => setShowItemPicker(false)}
         onAdd={addItem}
+        menuItems={menuItems}
       />
       <SplitBillModal
         visible={showSplitModal}
@@ -835,11 +873,35 @@ function BillModal({ table, visible, onClose, onSettle }) {
 
 export default function BillingScreen() {
   const insets = useSafeAreaInsets();
+  const { outletId } = useOutlet();
+  const { user } = useAuth();
+  const { createOrder, isCreating } = useCreateOfflineOrder();
+  const { items: offlineMenuItems } = useOfflineMenu(outletId);
+  const { tables: offlineTables } = useOfflineTables(outletId);
+
+  // Use offline data with fallbacks to hardcoded arrays
+  const activeTables = offlineTables && offlineTables.length > 0 ? offlineTables : INITIAL_TABLES;
+  const activeMenuItems = offlineMenuItems && offlineMenuItems.length > 0
+    ? offlineMenuItems.map(item => ({
+        id: item.id,
+        name: item.name || item.item_name,
+        price: item.price || item.unit_price || 0,
+        category: item.category || item.category_name || 'Uncategorized',
+      }))
+    : MENU_ITEMS;
+
   const [tables, setTables] = useState(INITIAL_TABLES);
   const [settledBills, setSettledBills] = useState(SETTLED_BILLS_MOCK);
   const [selectedTable, setSelectedTable] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Update tables state when offline data loads
+  useEffect(() => {
+    if (offlineTables && offlineTables.length > 0) {
+      setTables(offlineTables);
+    }
+  }, [offlineTables]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -965,6 +1027,11 @@ export default function BillingScreen() {
         visible={modalVisible}
         onClose={closeBill}
         onSettle={handleSettle}
+        createOrder={createOrder}
+        isCreating={isCreating}
+        outletId={outletId}
+        userId={user?.id}
+        menuItems={activeMenuItems}
       />
     </View>
   );

@@ -8,6 +8,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/colors';
 import { useRealtimeOrders } from '../../src/hooks/useRealtimeOrders';
 import { useNotifications } from '../../src/hooks/useNotifications';
+import { SyncStatusBar } from '../../src/components/SyncStatusBar';
 
 // Safe haptics import — gracefully degrades when expo-haptics is absent
 let Haptics = null;
@@ -91,6 +92,7 @@ export default function TabLayout() {
     <>
       <RealtimeBridge />
       <NotificationBridge />
+      <SyncStatusBar />
       <Tabs
         screenOptions={{
           headerShown: false,

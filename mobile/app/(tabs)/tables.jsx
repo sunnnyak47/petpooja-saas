@@ -17,6 +17,8 @@ import { useRouter } from 'expo-router';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { EmptyState } from '../../src/components/EmptyState';
+import { useOfflineTables } from '../../src/hooks/useOfflineTables';
+import { useOutlet } from '../../src/context/OutletContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -663,8 +665,10 @@ function TableDetailModal({
 export default function TablesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { outletId } = useOutlet();
+  const { tables: offlineTables, isLoading: tablesLoading, refresh: refreshTables, updateStatus } = useOfflineTables(outletId);
 
-  const [tables, setTables] = useState(MOCK_TABLES);
+  const [tables, setTables] = useState([]);
   const [filter, setFilter] = useState('all');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'floor'
   const [selectedTable, setSelectedTable] = useState(null);
@@ -676,10 +680,39 @@ export default function TablesScreen() {
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState(null);
 
+  // Populate tables from offline SQLite cache
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 700);
-    return () => clearTimeout(t);
+    if (offlineTables && offlineTables.length > 0) {
+      setTables(offlineTables.map(t => ({
+        id: t.id,
+        name: t.name,
+        section: t.section || 'Main',
+        capacity: t.capacity || 4,
+        status: t.status || 'available',
+        // Keep other fields the UI expects with defaults
+        waiter: null,
+        covers: 0,
+        order_id: null,
+        time_seated: null,
+        ...t, // spread any extra fields from cache
+      })));
+    }
+  }, [offlineTables]);
+
+  // Fallback to mock data if offline cache is empty (first launch / no sync yet)
+  useEffect(() => {
+    if (!offlineTables || offlineTables.length === 0) {
+      setTables(MOCK_TABLES);
+    }
   }, []);
+
+  // Loading state: use tablesLoading from hook, with a minimum display time
+  useEffect(() => {
+    if (!tablesLoading) {
+      const t = setTimeout(() => setLoading(false), 400);
+      return () => clearTimeout(t);
+    }
+  }, [tablesLoading]);
 
   // ── Derived counts ──────────────────────────────────────────────────────────
 
@@ -709,8 +742,10 @@ export default function TablesScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 900);
-  }, []);
+    refreshTables().finally(() => {
+      setTimeout(() => setRefreshing(false), 400);
+    });
+  }, [refreshTables]);
 
   const handleUpdateStatus = useCallback((id, newStatus) => {
     setTables(prev => prev.map(t =>
@@ -726,7 +761,9 @@ export default function TablesScreen() {
           }
         : t
     ));
-  }, []);
+    // Persist status change to SQLite
+    updateStatus(id, newStatus);
+  }, [updateStatus]);
 
   const handleUpdateCovers = useCallback((id, covers) => {
     setTables(prev => prev.map(t => t.id === id ? { ...t, covers } : t));

@@ -20,6 +20,7 @@ import {
   Alert,
   Pressable,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +34,8 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { PressCard } from '../../src/components/PressCard';
+import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
+import { useOutlet } from '../../src/context/OutletContext';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -1129,11 +1132,70 @@ function FAB({ onPress, bottomOffset }) {
 export default function MenuItemsScreen() {
   const insets = useSafeAreaInsets();
 
-  const [items, setItems] = useState(MOCK_MENU);
+  // Offline menu data
+  const { outletId } = useOutlet();
+  const {
+    categories: offlineCategories,
+    items: offlineItems,
+    isLoading: menuLoading,
+    refresh: refreshMenu,
+    isStale,
+  } = useOfflineMenu(outletId);
+
+  const [items, setItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [loading, setLoading] = useState(true);
+
+  // Populate from offline SQLite data
+  useEffect(() => {
+    if (offlineItems && offlineItems.length > 0) {
+      setItems(offlineItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        category: offlineCategories?.find(c => c.id === item.category_id)?.name || 'Uncategorized',
+        category_id: item.category_id,
+        isVeg: item.is_veg || false,
+        available: item.is_available !== false,
+        is_available: item.is_available !== false,
+        image_url: item.image_url,
+        variants: item.variants || [],
+        addons: item.addons || [],
+        description: item.description || '',
+        rating: item.rating || 0,
+        orders: item.orders || 0,
+        isSeasonal: item.is_seasonal || false,
+        isSpecial: item.is_special || false,
+        ...item,
+      })));
+    }
+  }, [offlineItems, offlineCategories]);
+
+  // Fallback to mock data if offline data is empty
+  useEffect(() => {
+    if ((!offlineItems || offlineItems.length === 0) && !menuLoading) {
+      setItems(MOCK_MENU);
+    }
+  }, [menuLoading, offlineItems]);
+
+  // Populate categories from offline data
+  useEffect(() => {
+    if (offlineCategories && offlineCategories.length > 0) {
+      const catNames = offlineCategories.map(c => c.name).filter(Boolean);
+      if (catNames.length > 0) {
+        setCategories(catNames);
+      }
+    }
+  }, [offlineCategories]);
+
+  // Auto-refresh if stale
+  useEffect(() => {
+    if (isStale) {
+      refreshMenu();
+    }
+  }, [isStale, refreshMenu]);
 
   // Modals
   const [itemModalVisible, setItemModalVisible] = useState(false);
@@ -1145,9 +1207,13 @@ export default function MenuItemsScreen() {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
+    if (!menuLoading) {
+      setLoading(false);
+    } else {
+      const t = setTimeout(() => setLoading(false), 800);
+      return () => clearTimeout(t);
+    }
+  }, [menuLoading]);
 
   // Stats
   const totalItems = items.length;
@@ -1438,6 +1504,14 @@ export default function MenuItemsScreen() {
         </View>
       )}
 
+      {/* ── Stale data banner ──────────────────────────────────────────── */}
+      {isStale && !loading && (
+        <View style={styles.staleBanner}>
+          <Ionicons name="cloud-offline-outline" size={14} color={C.gold} />
+          <Text style={styles.staleBannerText}>Menu data may be outdated. Pull to refresh.</Text>
+        </View>
+      )}
+
       {/* ── List ─────────────────────────────────────────────────────────── */}
       {loading ? (
         <MenuSkeleton />
@@ -1450,6 +1524,13 @@ export default function MenuItemsScreen() {
             paddingTop: 10,
             paddingBottom: 120 + insets.bottom,
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={menuLoading}
+              onRefresh={refreshMenu}
+              tintColor={C.text3}
+            />
+          }
         >
           {filteredItems.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1676,6 +1757,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: C.text3,
+  },
+
+  // Stale banner
+  staleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    backgroundColor: C.gold + '12',
+    borderBottomWidth: 1,
+    borderBottomColor: C.gold + '22',
+  },
+  staleBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.gold,
   },
 
   // Selection hint
