@@ -1,12 +1,14 @@
 name: Auto Release (macOS + Windows)
 
 # Triggers on every push to main that touches desktop/ or frontend/
+# Skips if commit message contains [skip ci]
 on:
   push:
     branches: [main]
     paths:
       - 'desktop/**'
       - 'frontend/**'
+      - '.github/workflows/auto-release.yml'
   workflow_dispatch:
     inputs:
       bump:
@@ -15,6 +17,9 @@ on:
         default: 'patch'
         type: choice
         options: [patch, minor, major]
+
+permissions:
+  contents: write
 
 concurrency:
   group: auto-release-${{ github.ref }}
@@ -25,6 +30,8 @@ jobs:
   bump-version:
     name: Bump Version
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
       tag: ${{ steps.bump.outputs.tag }}
@@ -33,6 +40,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -73,7 +81,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add desktop/package.json
-          git commit -m "chore: bump desktop version to ${{ steps.bump.outputs.new_version }}" || true
+          git commit -m "chore: bump desktop version to ${{ steps.bump.outputs.new_version }} [skip ci]" || true
           git tag "${{ steps.bump.outputs.tag }}"
           git push origin main --tags
 
