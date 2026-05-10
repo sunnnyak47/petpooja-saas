@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { AppModeProvider } from '../src/context/AppModeContext';
 import { OutletProvider } from '../src/context/OutletContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import { SyncProvider } from '../src/context/SyncContext';
 import { queryClient, asyncStoragePersister } from '../src/lib/queryClient';
 import LockScreen from '../src/components/LockScreen';
 import { initSentry, setUser as setSentryUser } from '../src/lib/sentry';
@@ -26,19 +27,21 @@ function RootContent() {
   return (
     <AppModeProvider>
       <OutletProvider>
-        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
-        <Stack
-          screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="mode-select" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(owner)" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        {isLocked && <LockScreen />}
+        <SyncProvider>
+          <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
+          <Stack
+            screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="mode-select" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(owner)" />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          {isLocked && <LockScreen />}
+        </SyncProvider>
       </OutletProvider>
     </AppModeProvider>
   );
