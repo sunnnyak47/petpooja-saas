@@ -5,6 +5,8 @@ const express = require('express');
 const router = express.Router();
 const onboardingService = require('./onboarding.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { saveStepSchema, parseMenuSchema } = require('./onboarding.validation');
 const { sendSuccess } = require('../../utils/response');
 
 // All routes require auth
@@ -21,7 +23,7 @@ router.get('/status', async (req, res, next) => {
 });
 
 /** POST /api/onboarding/step/:step */
-router.post('/step/:step', async (req, res, next) => {
+router.post('/step/:step', validate(saveStepSchema), async (req, res, next) => {
   try {
     const headOfficeId = req.user.head_office_id || req.user.head_office?.id;
     const outletId = req.user.outlet_id || req.user.outlets?.[0]?.id;
@@ -32,7 +34,7 @@ router.post('/step/:step', async (req, res, next) => {
 });
 
 /** POST /api/onboarding/parse-menu */
-router.post('/parse-menu', async (req, res, next) => {
+router.post('/parse-menu', validate(parseMenuSchema), async (req, res, next) => {
   try {
     const { menu_text, currency = 'INR' } = req.body;
     if (!menu_text) return res.status(400).json({ success: false, message: 'menu_text required' });

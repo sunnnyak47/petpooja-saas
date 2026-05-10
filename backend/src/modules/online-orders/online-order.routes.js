@@ -8,6 +8,7 @@ const router = express.Router();
 const onlineOrderController = require('./online-order.controller');
 const { validate } = require('../../middleware/validate.middleware');
 const { createOrderSchema } = require('../orders/order.validation');
+const { acceptOrderSchema, rejectOrderSchema } = require('./online-order.validation');
 
 const { authenticate, hasRole } = require('../../middleware/auth.middleware');
 const rateLimit = require('express-rate-limit');
@@ -28,9 +29,9 @@ router.post('/place', publicOrderLimiter, validate(createOrderSchema), onlineOrd
  */
 
 // PUT /api/online-orders/:id/accept
-router.put('/:id/accept', authenticate, hasRole('owner', 'manager', 'cashier'), onlineOrderController.acceptOrder);
+router.put('/:id/accept', authenticate, hasRole('owner', 'manager', 'cashier'), validate(acceptOrderSchema), onlineOrderController.acceptOrder);
 
 // PUT /api/online-orders/:id/reject
-router.put('/:id/reject', authenticate, hasRole('owner', 'manager', 'cashier'), onlineOrderController.rejectOrder);
+router.put('/:id/reject', authenticate, hasRole('owner', 'manager', 'cashier'), validate(rejectOrderSchema), onlineOrderController.rejectOrder);
 
 module.exports = router;

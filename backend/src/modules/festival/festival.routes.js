@@ -7,6 +7,8 @@ const express = require('express');
 const router  = express.Router();
 const svc     = require('./festival.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { saveFestivalConfigSchema, toggleFestivalSchema } = require('./festival.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 
 /** GET /api/festival/detect — upcoming festivals for outlet's region */
@@ -43,7 +45,7 @@ router.get('/configs', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/festival/configs — save/update a festival config */
-router.post('/configs', authenticate, async (req, res, next) => {
+router.post('/configs', authenticate, validate(saveFestivalConfigSchema), async (req, res, next) => {
   try {
     const outletId    = req.body.outlet_id || req.user.outlet_id;
     const { festival_key, ...data } = req.body;
@@ -53,7 +55,7 @@ router.post('/configs', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/festival/configs/:id/toggle — activate/deactivate */
-router.post('/configs/:id/toggle', authenticate, async (req, res, next) => {
+router.post('/configs/:id/toggle', authenticate, validate(toggleFestivalSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.toggleFestivalMode(outletId, req.params.id), 'Festival mode toggled');

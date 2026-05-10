@@ -3,6 +3,8 @@ const router = express.Router();
 const { getDbClient } = require('../../config/database');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { createReservationSchema, updateReservationSchema } = require('./reservations.validation');
 const { sendSuccess, sendError } = require('../../utils/response');
 
 router.use(authenticate);
@@ -37,7 +39,7 @@ router.get('/', async (req, res, next) => {
 });
 
 /** POST /api/reservations */
-router.post('/', hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/', hasPermission('MANAGE_POS'), validate(createReservationSchema), async (req, res, next) => {
   try {
     const { customer_name, customer_phone, party_size, reservation_date,
             reservation_time, special_requests, outlet_id, table_id } = req.body;
@@ -73,7 +75,7 @@ router.post('/', hasPermission('MANAGE_POS'), async (req, res, next) => {
 });
 
 /** PATCH /api/reservations/:id */
-router.patch('/:id', hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.patch('/:id', hasPermission('MANAGE_POS'), validate(updateReservationSchema), async (req, res, next) => {
   try {
     const { status, customer_name, customer_phone, party_size,
             reservation_date, reservation_time, special_requests } = req.body;

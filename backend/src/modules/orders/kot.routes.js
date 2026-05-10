@@ -10,6 +10,8 @@ const tableService = require('./table.service');
 const prepAnalytics = require('./prep-analytics.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { enforceOutletScope } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { updateKOTStatusSchema, markItemReadySchema } = require('./kot.validation');
 const { sendSuccess } = require('../../utils/response');
 
 /* ══════════════════════════════════════════════════════
@@ -26,7 +28,7 @@ router.get(['/kots', '/kot/pending', '/', '/pending'], authenticate, enforceOutl
 });
 
 // PUT /api/kitchen/kots/:id/status  ← KDS bump button (pending→preparing→ready→served)
-router.put('/kots/:id/status', authenticate, async (req, res, next) => {
+router.put('/kots/:id/status', authenticate, validate(updateKOTStatusSchema), async (req, res, next) => {
   try {
     const { status, outlet_id } = req.body;
     const kotId = req.params.id;
@@ -74,7 +76,7 @@ router.put('/kots/:kotId/items/:itemId/ready', authenticate, async (req, res, ne
 });
 
 // Legacy routes (kept for backwards compat)
-router.patch('/kot/:id/item-ready', authenticate, async (req, res, next) => {
+router.patch('/kot/:id/item-ready', authenticate, validate(markItemReadySchema), async (req, res, next) => {
   try {
     const result = await kotService.markItemReady(req.params.id, req.body.kot_item_id);
     sendSuccess(res, result, 'Item marked as ready');

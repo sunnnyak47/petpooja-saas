@@ -4,6 +4,19 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  xeroConnectSchema,
+  xeroExportSchema,
+  squareConnectSchema,
+  squarePaymentSchema,
+  myobConnectSchema,
+  myobExportSchema,
+  googleReviewsConnectSchema,
+  googleReviewReplySchema,
+  prontoConnectSchema,
+  prontoSyncSchema,
+} = require('./au-integrations.validation');
 const { sendSuccess } = require('../../utils/response');
 const prisma = require('../../config/database').getDbClient();
 
@@ -41,7 +54,7 @@ router.get('/xero/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/xero/connect', authenticate, async (req, res, next) => {
+router.post('/xero/connect', authenticate, validate(xeroConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { client_id, client_secret, org_name } = req.body;
@@ -53,7 +66,7 @@ router.post('/xero/connect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/xero/export-sales', authenticate, async (req, res, next) => {
+router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { from_date, to_date } = req.body;
@@ -99,7 +112,7 @@ router.get('/square/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/square/connect', authenticate, async (req, res, next) => {
+router.post('/square/connect', authenticate, validate(squareConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { access_token, merchant_name, location_id } = req.body;
@@ -111,7 +124,7 @@ router.post('/square/connect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/square/process-payment', authenticate, async (req, res, next) => {
+router.post('/square/process-payment', authenticate, validate(squarePaymentSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { amount, order_id, source_id } = req.body;
@@ -149,7 +162,7 @@ router.get('/myob/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/myob/connect', authenticate, async (req, res, next) => {
+router.post('/myob/connect', authenticate, validate(myobConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { api_key, company_file_id, company_name } = req.body;
@@ -161,7 +174,7 @@ router.post('/myob/connect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/myob/export', authenticate, async (req, res, next) => {
+router.post('/myob/export', authenticate, validate(myobExportSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { from_date, to_date, type } = req.body; // type: sales | purchases
@@ -205,7 +218,7 @@ router.get('/google-reviews/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/google-reviews/connect', authenticate, async (req, res, next) => {
+router.post('/google-reviews/connect', authenticate, validate(googleReviewsConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { api_key, place_id, business_name } = req.body;
@@ -226,7 +239,7 @@ router.get('/google-reviews/reviews', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/google-reviews/reply', authenticate, async (req, res, next) => {
+router.post('/google-reviews/reply', authenticate, validate(googleReviewReplySchema), async (req, res, next) => {
   try {
     const { review_id, reply_text } = req.body;
     sendSuccess(res, { review_id, replied: true, reply_text, replied_at: new Date().toISOString() }, 'Reply posted to Google');
@@ -250,7 +263,7 @@ router.get('/pronto/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/pronto/connect', authenticate, async (req, res, next) => {
+router.post('/pronto/connect', authenticate, validate(prontoConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { api_endpoint, site_id, api_key } = req.body;
@@ -259,7 +272,7 @@ router.post('/pronto/connect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/pronto/sync', authenticate, async (req, res, next) => {
+router.post('/pronto/sync', authenticate, validate(prontoSyncSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const cfg = await getIntegration(outletId, 'pronto');

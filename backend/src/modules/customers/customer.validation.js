@@ -50,4 +50,32 @@ const redeemPointsSchema = Joi.object({
   points: Joi.number().integer().min(1).required(),
 });
 
-module.exports = { createCustomerSchema, updateCustomerSchema, addAddressSchema, redeemPointsSchema };
+const adjustPointsSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  points: Joi.number().integer().required(),
+  reason: Joi.string().max(255).required(),
+});
+
+const createCampaignSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  name: Joi.string().max(100).required(),
+  type: Joi.string().valid('sms', 'whatsapp', 'email').required(),
+  target_segment: Joi.string(),
+  message: Joi.string().max(1000).required(),
+  schedule_at: Joi.date().allow(null),
+});
+
+const birthdayCampaignSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  message_template: Joi.string().max(500).required(),
+});
+
+module.exports = {
+  createCustomerSchema,
+  updateCustomerSchema,
+  addAddressSchema,
+  redeemPointsSchema,
+  adjustPointsSchema,
+  createCampaignSchema,
+  birthdayCampaignSchema,
+};

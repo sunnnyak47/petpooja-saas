@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema } = require('./order.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
 const taxService = require('./tax.service');
@@ -63,15 +63,15 @@ router.get('/tax-preview', authenticate, async (req, res, next) => {
 
 router.get('/:id', authenticate, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.getOrder);
 router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(addItemsSchema), auditLog('order'), orderController.addItems);
-router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), auditLog('order'), orderController.generateKOT);
-router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), auditLog('order'), orderController.updateStatus);
+router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(generateKOTSchema), auditLog('order'), orderController.generateKOT);
+router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(updateOrderStatusSchema), auditLog('order'), orderController.updateStatus);
 router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(processPaymentSchema), auditLog('payment'), orderController.processPayment);
-router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), auditLog('order'), orderController.generateBill);
+router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(generateBillSchema), auditLog('order'), orderController.generateBill);
 router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), auditLog('order'), orderController.voidOrder);
 router.post('/:id/refund', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(refundOrderSchema), auditLog('payment'), orderController.refundOrder);
-router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), auditLog('order'), orderController.transferTable);
-router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), auditLog('order'), orderController.mergeOrder);
-router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), auditLog('order'), orderController.syncOfflineOrders);
+router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(transferTableSchema), auditLog('order'), orderController.transferTable);
+router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(mergeOrderSchema), auditLog('order'), orderController.mergeOrder);
+router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(syncOfflineOrdersSchema), auditLog('order'), orderController.syncOfflineOrders);
 
 module.exports = router;

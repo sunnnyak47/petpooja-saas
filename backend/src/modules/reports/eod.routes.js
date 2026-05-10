@@ -8,6 +8,8 @@ const router  = express.Router();
 const eod     = require('./eod.service');
 const { authenticate }     = require('../../middleware/auth.middleware');
 const { hasPermission }    = require('../../middleware/rbac.middleware');
+const { validate }         = require('../../middleware/validate.middleware');
+const { saveDraftSchema, lockEODSchema } = require('./eod.validation');
 const { sendSuccess }      = require('../../utils/response');
 
 /* ── GET /api/reports/eod/preview — live snapshot of today (no save) ── */
@@ -40,7 +42,7 @@ router.get('/:date', authenticate, async (req, res, next) => {
 });
 
 /* ── POST /api/reports/eod/save — save / update draft ── */
-router.post('/save', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/save', authenticate, hasPermission('MANAGE_POS'), validate(saveDraftSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const {
@@ -63,7 +65,7 @@ router.post('/save', authenticate, hasPermission('MANAGE_POS'), async (req, res,
 });
 
 /* ── POST /api/reports/eod/lock — finalise & lock ── */
-router.post('/lock', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/lock', authenticate, hasPermission('MANAGE_POS'), validate(lockEODSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { report_id } = req.body;

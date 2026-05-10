@@ -7,6 +7,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, hasRole } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { createDiscountSchema, updateDiscountSchema, validateCouponSchema } = require('./discount.validation');
 const discountService = require('./discount.service');
 const logger = require('../../config/logger');
 
@@ -30,7 +32,7 @@ router.get('/', authenticate, async (req, res, next) => {
 /**
  * POST /api/discounts — Create a new discount
  */
-router.post('/', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
+router.post('/', authenticate, hasRole('super_admin', 'owner', 'manager'), validate(createDiscountSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const discount = await discountService.createDiscount(req.body, outletId);
@@ -43,7 +45,7 @@ router.post('/', authenticate, hasRole('super_admin', 'owner', 'manager'), async
 /**
  * PUT /api/discounts/:id — Update a discount
  */
-router.put('/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
+router.put('/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), validate(updateDiscountSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await discountService.updateDiscount(req.params.id, req.body, outletId);
@@ -69,7 +71,7 @@ router.delete('/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), 
 /**
  * POST /api/discounts/validate — Validate a coupon code
  */
-router.post('/validate', authenticate, async (req, res, next) => {
+router.post('/validate', authenticate, validate(validateCouponSchema), async (req, res, next) => {
   try {
     const { code, outlet_id, order_total, customer_id } = req.body;
     const outletId = outlet_id || req.user.outlet_id;

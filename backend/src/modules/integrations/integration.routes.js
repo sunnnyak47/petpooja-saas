@@ -12,6 +12,19 @@ const accountingRoutes = require('./accounting/accounting.routes');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  acceptOnlineOrderSchema,
+  rejectOnlineOrderSchema,
+  markOrderReadySchema,
+  createRazorpayOrderSchema,
+  verifyRazorpayPaymentSchema,
+  razorpayRefundSchema,
+  sendSMSSchema,
+  sendWhatsAppSchema,
+  sendCampaignSchema,
+  updateIntegrationConfigSchema,
+} = require('./integration.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const logger = require('../../config/logger');
 
@@ -50,7 +63,7 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
 });
 
 /** POST /api/integrations/online-orders/:id/accept */
-router.post('/online-orders/:id/accept', authenticate, hasPermission('MANAGE_ORDERS'), async (req, res, next) => {
+router.post('/online-orders/:id/accept', authenticate, hasPermission('MANAGE_ORDERS'), validate(acceptOnlineOrderSchema), async (req, res, next) => {
   try {
     const order = await aggregatorService.acceptOnlineOrder(req.params.id);
     sendSuccess(res, order, 'Online order accepted');
@@ -58,7 +71,7 @@ router.post('/online-orders/:id/accept', authenticate, hasPermission('MANAGE_ORD
 });
 
 /** POST /api/integrations/online-orders/:id/reject */
-router.post('/online-orders/:id/reject', authenticate, hasPermission('MANAGE_ORDERS'), async (req, res, next) => {
+router.post('/online-orders/:id/reject', authenticate, hasPermission('MANAGE_ORDERS'), validate(rejectOnlineOrderSchema), async (req, res, next) => {
   try {
     const order = await aggregatorService.rejectOnlineOrder(req.params.id, req.body.reason);
     sendSuccess(res, order, 'Online order rejected');
@@ -66,7 +79,7 @@ router.post('/online-orders/:id/reject', authenticate, hasPermission('MANAGE_ORD
 });
 
 /** POST /api/integrations/online-orders/:id/ready */
-router.post('/online-orders/:id/ready', authenticate, hasPermission('MANAGE_ORDERS'), async (req, res, next) => {
+router.post('/online-orders/:id/ready', authenticate, hasPermission('MANAGE_ORDERS'), validate(markOrderReadySchema), async (req, res, next) => {
   try {
     const order = await aggregatorService.markOrderReady(req.params.id);
     sendSuccess(res, order, 'Online order marked ready');
@@ -102,7 +115,7 @@ router.get('/online-orders/stats', authenticate, hasPermission('VIEW_REPORTS'), 
    ============================ */
 
 /** POST /api/integrations/razorpay/create-order */
-router.post('/razorpay/create-order', authenticate, async (req, res, next) => {
+router.post('/razorpay/create-order', authenticate, validate(createRazorpayOrderSchema), async (req, res, next) => {
   try {
     const { amount, order_id, customer_name, customer_phone } = req.body;
     const razorpayOrder = await paymentService.createRazorpayOrder(amount, order_id, customer_name, customer_phone);
@@ -111,7 +124,7 @@ router.post('/razorpay/create-order', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/integrations/razorpay/verify */
-router.post('/razorpay/verify', authenticate, async (req, res, next) => {
+router.post('/razorpay/verify', authenticate, validate(verifyRazorpayPaymentSchema), async (req, res, next) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const isValid = paymentService.verifyRazorpayPayment(razorpay_order_id, razorpay_payment_id, razorpay_signature);
@@ -144,7 +157,7 @@ router.post('/razorpay/webhook', webhookLimiter, async (req, res, next) => {
 });
 
 /** POST /api/integrations/razorpay/refund */
-router.post('/razorpay/refund', authenticate, hasPermission('MANAGE_PAYMENTS'), async (req, res, next) => {
+router.post('/razorpay/refund', authenticate, hasPermission('MANAGE_PAYMENTS'), validate(razorpayRefundSchema), async (req, res, next) => {
   try {
     const { payment_id, amount, reason } = req.body;
     const refund = await paymentService.initiateRazorpayRefund(payment_id, amount, reason);
@@ -157,7 +170,7 @@ router.post('/razorpay/refund', authenticate, hasPermission('MANAGE_PAYMENTS'), 
    ============================ */
 
 /** POST /api/integrations/notify/sms */
-router.post('/notify/sms', authenticate, hasPermission('MANAGE_CUSTOMERS'), async (req, res, next) => {
+router.post('/notify/sms', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(sendSMSSchema), async (req, res, next) => {
   try {
     const { phone, message, template_id } = req.body;
     const result = await notificationService.sendSMS(phone, message, template_id);
@@ -166,7 +179,7 @@ router.post('/notify/sms', authenticate, hasPermission('MANAGE_CUSTOMERS'), asyn
 });
 
 /** POST /api/integrations/notify/whatsapp */
-router.post('/notify/whatsapp', authenticate, hasPermission('MANAGE_CUSTOMERS'), async (req, res, next) => {
+router.post('/notify/whatsapp', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(sendWhatsAppSchema), async (req, res, next) => {
   try {
     const { phone, template_name, parameters } = req.body;
     const result = await notificationService.sendWhatsApp(phone, template_name, parameters);
@@ -175,7 +188,7 @@ router.post('/notify/whatsapp', authenticate, hasPermission('MANAGE_CUSTOMERS'),
 });
 
 /** POST /api/integrations/notify/campaign */
-router.post('/notify/campaign', authenticate, hasPermission('MANAGE_CAMPAIGNS'), async (req, res, next) => {
+router.post('/notify/campaign', authenticate, hasPermission('MANAGE_CAMPAIGNS'), validate(sendCampaignSchema), async (req, res, next) => {
   try {
     const { recipients, template_name, parameters } = req.body;
     const result = await notificationService.sendCampaign(recipients, template_name, parameters);
@@ -199,7 +212,7 @@ router.get('/config', authenticate, async (req, res, next) => {
 });
 
 /** PUT /api/integrations/config */
-router.put('/config', authenticate, async (req, res, next) => {
+router.put('/config', authenticate, validate(updateIntegrationConfigSchema), async (req, res, next) => {
   try {
     const { getDbClient } = require('../../config/database');
     const prisma = getDbClient();

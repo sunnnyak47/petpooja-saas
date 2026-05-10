@@ -44,4 +44,87 @@ const createInventoryItemSchema = Joi.object({
   max_threshold: Joi.number().precision(2).min(0).default(0),
 });
 
-module.exports = { adjustStockSchema, recordWastageSchema, createRecipeSchema, createInventoryItemSchema };
+const createItemSchema = Joi.object({
+  name: Joi.string().trim().max(100).required(),
+  sku: Joi.string().trim().max(50),
+  category: Joi.string().trim().max(50),
+  unit: Joi.string().valid('kg', 'g', 'l', 'ml', 'pcs', 'dozen', 'box', 'packet').required(),
+  cost_per_unit: Joi.number().min(0).required(),
+  min_threshold: Joi.number().min(0),
+  max_threshold: Joi.number().min(0),
+  auto_order_enabled: Joi.boolean(),
+  reorder_qty: Joi.number().min(0),
+  preferred_supplier_id: Joi.string().uuid().allow(null),
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const updateItemSchema = Joi.object({
+  name: Joi.string().trim().max(100),
+  sku: Joi.string().trim().max(50),
+  category: Joi.string().trim().max(50),
+  unit: Joi.string().valid('kg', 'g', 'l', 'ml', 'pcs', 'dozen', 'box', 'packet'),
+  cost_per_unit: Joi.number().min(0),
+  min_threshold: Joi.number().min(0),
+  max_threshold: Joi.number().min(0),
+  auto_order_enabled: Joi.boolean(),
+  reorder_qty: Joi.number().min(0),
+  preferred_supplier_id: Joi.string().uuid().allow(null),
+  outlet_id: Joi.string().uuid(),
+});
+
+const createSupplierSchema = Joi.object({
+  name: Joi.string().trim().max(150).required(),
+  contact_person: Joi.string().trim().max(100),
+  phone: Joi.string().pattern(/^[0-9]{10,15}$/),
+  email: Joi.string().email().allow('', null),
+  address: Joi.string().max(500),
+  gstin: Joi.string().max(15).allow('', null),
+  abn: Joi.string().max(11).allow('', null),
+  pan: Joi.string().max(10).allow('', null),
+  payment_terms: Joi.string().max(100),
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const triggerAutoOrderSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const restockOrderSchema = Joi.object({
+  order_id: Joi.string().uuid().required(),
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const aiSuggestItemsSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  prompt: Joi.string().max(500),
+});
+
+const aiSuggestRecipeSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  menu_item_id: Joi.string().uuid().required(),
+});
+
+const aiBuildPOSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const aiAutofillItemSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  name: Joi.string().trim().max(100).required(),
+});
+
+module.exports = {
+  adjustStockSchema,
+  recordWastageSchema,
+  createRecipeSchema,
+  createInventoryItemSchema,
+  createItemSchema,
+  updateItemSchema,
+  createSupplierSchema,
+  triggerAutoOrderSchema,
+  restockOrderSchema,
+  aiSuggestItemsSchema,
+  aiSuggestRecipeSchema,
+  aiBuildPOSchema,
+  aiAutofillItemSchema,
+};

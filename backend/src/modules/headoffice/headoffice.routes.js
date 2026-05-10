@@ -12,6 +12,13 @@ const { sendSuccess, sendCreated } = require('../../utils/response');
 const Joi = require('joi');
 const { validate } = require('../../middleware/validate.middleware');
 const logger = require('../../config/logger');
+const {
+  menuSyncSchema,
+  createIndentSchema,
+  registerRestaurantSchema,
+  updateBrandingSchema,
+  setupCompleteSchema,
+} = require('./headoffice.validation');
 
 /**
  * Joi schema for saving outlet settings.
@@ -54,7 +61,7 @@ router.get('/outlet-comparison', authenticate, hasRole('super_admin', 'owner'), 
 });
 
 /** POST /api/ho/menu-sync — Push menu from source outlet to targets */
-router.post('/menu-sync', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
+router.post('/menu-sync', authenticate, hasRole('super_admin', 'owner'), validate(menuSyncSchema), async (req, res, next) => {
   try {
     const { source_outlet_id, target_outlet_ids, options } = req.body;
     const result = await hoService.syncMenu(source_outlet_id, target_outlet_ids, options);
@@ -63,7 +70,7 @@ router.post('/menu-sync', authenticate, hasRole('super_admin', 'owner'), async (
 });
 
 /** POST /api/ho/indents — Create central kitchen indent */
-router.post('/indents', authenticate, hasPermission('MANAGE_INVENTORY'), async (req, res, next) => {
+router.post('/indents', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createIndentSchema), async (req, res, next) => {
   try {
     const indent = await hoService.createIndent(req.body);
     sendCreated(res, indent, 'Indent created');
@@ -71,7 +78,7 @@ router.post('/indents', authenticate, hasPermission('MANAGE_INVENTORY'), async (
 });
 
 /** POST /api/ho/register — SaaS Onboarding (Super Admin only) */
-router.post('/register', authenticate, hasRole('super_admin'), async (req, res, next) => {
+router.post('/register', authenticate, hasRole('super_admin'), validate(registerRestaurantSchema), async (req, res, next) => {
   try {
     const result = await hoService.registerRestaurant(req.body);
     sendCreated(res, result, 'New restaurant chain onboarded');
@@ -97,7 +104,7 @@ router.get('/chains', authenticate, hasRole('super_admin'), async (req, res, nex
 });
 
 /** PATCH /api/ho/branding — Update branding for a chain */
-router.patch('/branding', authenticate, hasRole('super_admin'), async (req, res, next) => {
+router.patch('/branding', authenticate, hasRole('super_admin'), validate(updateBrandingSchema), async (req, res, next) => {
   const { head_office_id, primary_color, logo_url } = req.body;
   const prisma = require('../../config/database').getDbClient();
   try {
@@ -110,7 +117,7 @@ router.patch('/branding', authenticate, hasRole('super_admin'), async (req, res,
 });
 
 /** PATCH /api/ho/setup-complete — Owner completes wizard */
-router.patch('/setup-complete', authenticate, hasRole('owner'), async (req, res, next) => {
+router.patch('/setup-complete', authenticate, hasRole('owner'), validate(setupCompleteSchema), async (req, res, next) => {
   const { primary_color, logo_url, gstin, legal_name } = req.body;
   const prisma = require('../../config/database').getDbClient();
   try {

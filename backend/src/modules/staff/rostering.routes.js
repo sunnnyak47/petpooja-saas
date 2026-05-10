@@ -5,10 +5,21 @@ const express = require('express');
 const router = express.Router();
 const svc = require('./rostering.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  createRosterSchema,
+  updateRosterSchema,
+  publishRosterSchema,
+  addAssignmentSchema,
+  updateAssignmentSchema,
+  setAvailabilitySchema,
+  addCertificationSchema,
+  updateCertificationSchema,
+} = require('./rostering.validation');
 const { sendSuccess } = require('../../utils/response');
 
 // ── Rosters ──────────────────────────────────────────────────────────────
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, validate(createRosterSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.createRoster(outletId, req.body, req.user.id);
@@ -32,7 +43,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.patch('/:id', authenticate, async (req, res, next) => {
+router.patch('/:id', authenticate, validate(updateRosterSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.updateRoster(req.params.id, outletId, req.body);
@@ -40,7 +51,7 @@ router.patch('/:id', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/:id/publish', authenticate, async (req, res, next) => {
+router.post('/:id/publish', authenticate, validate(publishRosterSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.publishRoster(req.params.id, outletId);
@@ -57,14 +68,14 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 });
 
 // ── Assignments ──────────────────────────────────────────────────────────
-router.post('/:id/assignments', authenticate, async (req, res, next) => {
+router.post('/:id/assignments', authenticate, validate(addAssignmentSchema), async (req, res, next) => {
   try {
     const result = await svc.addAssignment(req.params.id, req.body);
     sendSuccess(res, result, 'Assignment added');
   } catch (e) { next(e); }
 });
 
-router.patch('/assignments/:assignmentId', authenticate, async (req, res, next) => {
+router.patch('/assignments/:assignmentId', authenticate, validate(updateAssignmentSchema), async (req, res, next) => {
   try {
     const result = await svc.updateAssignment(req.params.assignmentId, req.body);
     sendSuccess(res, result, 'Assignment updated');
@@ -79,7 +90,7 @@ router.delete('/assignments/:assignmentId', authenticate, async (req, res, next)
 });
 
 // ── Availability ─────────────────────────────────────────────────────────
-router.post('/staff/:staffId/availability', authenticate, async (req, res, next) => {
+router.post('/staff/:staffId/availability', authenticate, validate(setAvailabilitySchema), async (req, res, next) => {
   try {
     const result = await svc.setAvailability(req.params.staffId, req.body);
     sendSuccess(res, result, 'Availability updated');
@@ -102,7 +113,7 @@ router.get('/available-staff', authenticate, async (req, res, next) => {
 });
 
 // ── Certifications ───────────────────────────────────────────────────────
-router.post('/certifications', authenticate, async (req, res, next) => {
+router.post('/certifications', authenticate, validate(addCertificationSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.addCertification(outletId, req.body.staff_id, req.body);
@@ -134,7 +145,7 @@ router.get('/staff/:staffId/certifications', authenticate, async (req, res, next
   } catch (e) { next(e); }
 });
 
-router.patch('/certifications/:id', authenticate, async (req, res, next) => {
+router.patch('/certifications/:id', authenticate, validate(updateCertificationSchema), async (req, res, next) => {
   try {
     const result = await svc.updateCertification(req.params.id, req.body);
     sendSuccess(res, result, 'Certification updated');

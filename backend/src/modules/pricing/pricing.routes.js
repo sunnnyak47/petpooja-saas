@@ -7,6 +7,8 @@ const express = require('express');
 const router = express.Router();
 const svc = require('./pricing.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { createRuleSchema, updateRuleSchema, toggleRuleSchema, logApplicationSchema, seedRulesSchema } = require('./pricing.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 
 /** GET  /api/pricing/rules — list all rules for outlet */
@@ -18,7 +20,7 @@ router.get('/rules', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/pricing/rules — create rule */
-router.post('/rules', authenticate, async (req, res, next) => {
+router.post('/rules', authenticate, validate(createRuleSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendCreated(res, await svc.createRule(outletId, req.body), 'Pricing rule created');
@@ -26,7 +28,7 @@ router.post('/rules', authenticate, async (req, res, next) => {
 });
 
 /** PATCH /api/pricing/rules/:id — update rule */
-router.patch('/rules/:id', authenticate, async (req, res, next) => {
+router.patch('/rules/:id', authenticate, validate(updateRuleSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.updateRule(req.params.id, outletId, req.body), 'Rule updated');
@@ -42,7 +44,7 @@ router.delete('/rules/:id', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/pricing/rules/:id/toggle — enable/disable */
-router.post('/rules/:id/toggle', authenticate, async (req, res, next) => {
+router.post('/rules/:id/toggle', authenticate, validate(toggleRuleSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.toggleRule(req.params.id, outletId), 'Rule toggled');
@@ -59,7 +61,7 @@ router.get('/live', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/pricing/log — log a rule application from POS */
-router.post('/log', authenticate, async (req, res, next) => {
+router.post('/log', authenticate, validate(logApplicationSchema), async (req, res, next) => {
   try {
     const { rule_id, menu_item_id, original_price, applied_price } = req.body;
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -77,7 +79,7 @@ router.get('/analytics', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/pricing/seed — seed default rules (first-time setup) */
-router.post('/seed', authenticate, async (req, res, next) => {
+router.post('/seed', authenticate, validate(seedRulesSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendCreated(res, await svc.seedDefaultRules(outletId), 'Default rules seeded');

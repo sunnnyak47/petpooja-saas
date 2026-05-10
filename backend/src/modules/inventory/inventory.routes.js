@@ -10,15 +10,29 @@ const aiController = require('./inventory.ai.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { adjustStockSchema, recordWastageSchema, createRecipeSchema, createInventoryItemSchema } = require('./inventory.validation');
+const {
+  adjustStockSchema,
+  recordWastageSchema,
+  createRecipeSchema,
+  createInventoryItemSchema,
+  createItemSchema,
+  updateItemSchema,
+  createSupplierSchema,
+  triggerAutoOrderSchema,
+  restockOrderSchema,
+  aiSuggestItemsSchema,
+  aiSuggestRecipeSchema,
+  aiBuildPOSchema,
+  aiAutofillItemSchema,
+} = require('./inventory.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 
 // Summary — must be registered before /:id-style routes to avoid collision
 router.get('/summary', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.getSummary);
 
 router.get('/items', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listItems);
-router.post('/items', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.createItem);
-router.patch('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.updateItem);
+router.post('/items', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createItemSchema), auditLog('inventory'), inventoryController.createItem);
+router.patch('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), validate(updateItemSchema), auditLog('inventory'), inventoryController.updateItem);
 router.delete('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.deleteItem);
 
 router.get('/stock', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.getStock);
@@ -33,21 +47,21 @@ router.get('/recipes', authenticate, hasPermission('VIEW_INVENTORY'), enforceOut
 router.get('/recipes/:menuItemId/cost', authenticate, hasPermission('VIEW_INVENTORY'), inventoryController.getRecipeCost);
 
 // Auto-order trigger
-router.post('/auto-order', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.triggerAutoOrder);
+router.post('/auto-order', authenticate, hasPermission('MANAGE_INVENTORY'), validate(triggerAutoOrderSchema), auditLog('inventory'), inventoryController.triggerAutoOrder);
 
 // Restock from cancelled order
-router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.restockOrder);
+router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), validate(restockOrderSchema), auditLog('inventory'), inventoryController.restockOrder);
 
 // Suppliers
 router.get('/suppliers', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listSuppliers);
-router.post('/suppliers', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.createSupplier);
+router.post('/suppliers', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createSupplierSchema), auditLog('inventory'), inventoryController.createSupplier);
 
 // AI-powered endpoints
-router.post('/ai/suggest-items',  authenticate, hasPermission('MANAGE_INVENTORY'), aiController.suggestItems);
-router.post('/ai/suggest-recipe', authenticate, hasPermission('MANAGE_INVENTORY'), aiController.suggestRecipe);
+router.post('/ai/suggest-items',  authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiSuggestItemsSchema), aiController.suggestItems);
+router.post('/ai/suggest-recipe', authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiSuggestRecipeSchema), aiController.suggestRecipe);
 router.get('/ai/insights',        authenticate, hasPermission('VIEW_INVENTORY'),   enforceOutletScope, aiController.getInsights);
-router.post('/ai/build-po',       authenticate, hasPermission('MANAGE_INVENTORY'), aiController.buildPO);
-router.post('/ai/autofill-item',  authenticate, hasPermission('MANAGE_INVENTORY'), aiController.autofillItem);
+router.post('/ai/build-po',       authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiBuildPOSchema), aiController.buildPO);
+router.post('/ai/autofill-item',  authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiAutofillItemSchema), aiController.autofillItem);
 
 // ── Mobile app aliases ────────────────────────────────────────────────────────
 // The mobile app calls GET/POST /api/inventory and PATCH /api/inventory/:itemId
@@ -58,10 +72,10 @@ router.post('/ai/autofill-item',  authenticate, hasPermission('MANAGE_INVENTORY'
 router.get('/', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listItems);
 
 /** POST /api/inventory  →  alias for POST /api/inventory/items */
-router.post('/', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.createItem);
+router.post('/', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createItemSchema), auditLog('inventory'), inventoryController.createItem);
 
 /** PATCH /api/inventory/:itemId  →  alias for PATCH /api/inventory/items/:id */
-router.patch('/:itemId', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), (req, res, next) => {
+router.patch('/:itemId', authenticate, hasPermission('MANAGE_INVENTORY'), validate(updateItemSchema), auditLog('inventory'), (req, res, next) => {
   // Re-map :itemId → :id so the controller can read req.params.id consistently
   req.params.id = req.params.itemId;
   return inventoryController.updateItem(req, res, next);

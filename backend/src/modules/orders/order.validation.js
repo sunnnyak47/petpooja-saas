@@ -72,6 +72,51 @@ const cancelOrderSchema = Joi.object({
   reason: Joi.string().min(3).max(500).required(),
 });
 
+const generateKOTSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const updateOrderStatusSchema = Joi.object({
+  status: Joi.string().valid('pending', 'preparing', 'ready', 'served', 'delivered', 'completed', 'cancelled').required(),
+});
+
+const generateBillSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+});
+
+const transferTableSchema = Joi.object({
+  target_table_id: Joi.string().uuid().required(),
+});
+
+const mergeOrderSchema = Joi.object({
+  merge_order_id: Joi.string().uuid().required(),
+});
+
+const syncOfflineOrdersSchema = Joi.object({
+  orders: Joi.array().items(Joi.object({
+    id: Joi.string(),
+    outlet_id: Joi.string().uuid().required(),
+    order_type: Joi.string().valid('dine_in', 'takeaway', 'delivery', 'online', 'qr_order'),
+    table_id: Joi.string().uuid().allow(null),
+    customer_id: Joi.string().uuid().allow(null),
+    source: Joi.string().valid('pos', 'qr', 'online', 'kiosk', 'app'),
+    notes: Joi.string().max(500).allow(''),
+    items: Joi.array().items(Joi.object({
+      menu_item_id: Joi.string().uuid().required(),
+      item_name: Joi.string(),
+      variant_id: Joi.string().uuid().allow(null),
+      variant_name: Joi.string().allow('', null),
+      quantity: Joi.number().integer().min(1).required(),
+      unit_price: Joi.number().min(0).required(),
+      total_price: Joi.number().min(0),
+      notes: Joi.string().max(200).allow('', null),
+      addons: Joi.array().default([]),
+    })).min(1).required(),
+    created_at: Joi.string(),
+    created_by: Joi.string().uuid(),
+  })).min(1).required(),
+});
+
 module.exports = {
   createOrderSchema,
   addItemsSchema,
@@ -80,4 +125,10 @@ module.exports = {
   voidOrderSchema,
   refundOrderSchema,
   cancelOrderSchema,
+  generateKOTSchema,
+  updateOrderStatusSchema,
+  generateBillSchema,
+  transferTableSchema,
+  mergeOrderSchema,
+  syncOfflineOrdersSchema,
 };

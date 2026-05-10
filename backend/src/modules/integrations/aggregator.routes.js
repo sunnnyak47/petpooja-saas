@@ -10,6 +10,15 @@ const agg = require('./aggregator.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  updateAggregatorConfigSchema,
+  pushMenuSchema,
+  setItemAvailabilitySchema,
+  simulateOrderSchema,
+  acceptAggOrderSchema,
+  rejectAggOrderSchema,
+} = require('./aggregator.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const logger = require('../../config/logger');
 
@@ -35,7 +44,7 @@ router.get('/config', authenticate, async (req, res, next) => {
 });
 
 /** PUT /api/aggregators/config/:platform — save platform config */
-router.put('/config/:platform', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.put('/config/:platform', authenticate, hasPermission('MANAGE_POS'), validate(updateAggregatorConfigSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { platform } = req.params;
@@ -58,7 +67,7 @@ router.put('/config/:platform', authenticate, hasPermission('MANAGE_POS'), async
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/menu/push/:platform — push menu to one platform */
-router.post('/menu/push/:platform', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/menu/push/:platform', authenticate, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await agg.pushMenuToPlatform(outletId, req.params.platform);
@@ -67,7 +76,7 @@ router.post('/menu/push/:platform', authenticate, hasPermission('MANAGE_POS'), a
 });
 
 /** POST /api/aggregators/menu/push-all — push menu to all enabled platforms */
-router.post('/menu/push-all', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/menu/push-all', authenticate, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const results = await agg.pushMenuToAllPlatforms(outletId);
@@ -90,7 +99,7 @@ router.get('/menu/preview', authenticate, async (req, res, next) => {
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/availability/:platform — toggle items on one platform */
-router.post('/availability/:platform', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/availability/:platform', authenticate, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { item_ids, is_available } = req.body;
@@ -101,7 +110,7 @@ router.post('/availability/:platform', authenticate, hasPermission('MANAGE_POS')
 });
 
 /** POST /api/aggregators/availability/all — toggle items on all platforms */
-router.post('/availability/all', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+router.post('/availability/all', authenticate, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { item_ids, is_available } = req.body;
@@ -155,7 +164,7 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/simulate/:platform — fire a fake inbound order */
-router.post('/simulate/:platform', authenticate, async (req, res, next) => {
+router.post('/simulate/:platform', authenticate, validate(simulateOrderSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const order = await agg.simulateIncomingOrder(outletId, req.params.platform, req.body);
@@ -195,7 +204,7 @@ router.get('/orders/stats', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/aggregators/orders/:id/accept */
-router.post('/orders/:id/accept', authenticate, hasPermission('MANAGE_ORDERS'), async (req, res, next) => {
+router.post('/orders/:id/accept', authenticate, hasPermission('MANAGE_ORDERS'), validate(acceptAggOrderSchema), async (req, res, next) => {
   try {
     const order = await agg.acceptOnlineOrder(req.params.id, req.body.prep_time);
     sendSuccess(res, order, 'Order accepted');
@@ -203,7 +212,7 @@ router.post('/orders/:id/accept', authenticate, hasPermission('MANAGE_ORDERS'), 
 });
 
 /** POST /api/aggregators/orders/:id/reject */
-router.post('/orders/:id/reject', authenticate, hasPermission('MANAGE_ORDERS'), async (req, res, next) => {
+router.post('/orders/:id/reject', authenticate, hasPermission('MANAGE_ORDERS'), validate(rejectAggOrderSchema), async (req, res, next) => {
   try {
     const order = await agg.rejectOnlineOrder(req.params.id, req.body.reason || 'Rejected by restaurant');
     sendSuccess(res, order, 'Order rejected');

@@ -7,6 +7,16 @@ const express = require('express');
 const router = express.Router();
 const ondcService = require('./ondc.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  updateSellerProfileSchema,
+  submitForReviewSchema,
+  toggleLiveSchema,
+  acceptOndcOrderSchema,
+  rejectOndcOrderSchema,
+  updateOndcOrderStatusSchema,
+  simulateOndcOrderSchema,
+} = require('./ondc.validation');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
 
 /** GET /api/ondc/profile — get seller profile (creates draft if not exists) */
@@ -19,7 +29,7 @@ router.get('/profile', authenticate, async (req, res, next) => {
 });
 
 /** PATCH /api/ondc/profile — update seller profile fields */
-router.patch('/profile', authenticate, async (req, res, next) => {
+router.patch('/profile', authenticate, validate(updateSellerProfileSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const profile = await ondcService.updateSellerProfile(outletId, req.body);
@@ -28,7 +38,7 @@ router.patch('/profile', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/ondc/profile/submit — submit for review */
-router.post('/profile/submit', authenticate, async (req, res, next) => {
+router.post('/profile/submit', authenticate, validate(submitForReviewSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await ondcService.submitForReview(outletId);
@@ -37,7 +47,7 @@ router.post('/profile/submit', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/ondc/profile/toggle-live — go live or take offline */
-router.post('/profile/toggle-live', authenticate, async (req, res, next) => {
+router.post('/profile/toggle-live', authenticate, validate(toggleLiveSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await ondcService.toggleLive(outletId, req.body.live);
@@ -55,7 +65,7 @@ router.get('/orders', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/ondc/orders/:id/accept — accept order */
-router.post('/orders/:id/accept', authenticate, async (req, res, next) => {
+router.post('/orders/:id/accept', authenticate, validate(acceptOndcOrderSchema), async (req, res, next) => {
   try {
     const result = await ondcService.acceptOrder(req.params.id, req.body.prep_time_minutes);
     sendSuccess(res, result, 'Order accepted');
@@ -63,7 +73,7 @@ router.post('/orders/:id/accept', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/ondc/orders/:id/reject — reject order */
-router.post('/orders/:id/reject', authenticate, async (req, res, next) => {
+router.post('/orders/:id/reject', authenticate, validate(rejectOndcOrderSchema), async (req, res, next) => {
   try {
     const result = await ondcService.rejectOrder(req.params.id, req.body.reason);
     sendSuccess(res, result, 'Order rejected');
@@ -71,7 +81,7 @@ router.post('/orders/:id/reject', authenticate, async (req, res, next) => {
 });
 
 /** PATCH /api/ondc/orders/:id/status — update order status */
-router.patch('/orders/:id/status', authenticate, async (req, res, next) => {
+router.patch('/orders/:id/status', authenticate, validate(updateOndcOrderStatusSchema), async (req, res, next) => {
   try {
     const result = await ondcService.updateOrderStatus(req.params.id, req.body.status);
     sendSuccess(res, result, 'Order status updated');
@@ -99,7 +109,7 @@ router.post('/webhook', async (req, res, next) => {
 });
 
 /** POST /api/ondc/simulate-order — test order simulation (dev/staging) */
-router.post('/simulate-order', authenticate, async (req, res, next) => {
+router.post('/simulate-order', authenticate, validate(simulateOndcOrderSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     // Temporarily set outlet as live for simulation

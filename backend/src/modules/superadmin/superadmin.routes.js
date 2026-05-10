@@ -2,9 +2,37 @@ const express = require('express');
 const router = express.Router();
 const superadminController = require('./superadmin.controller');
 const { authenticate, isSuperAdmin } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const {
+  superadminLoginSchema,
+  onboardSchema,
+  impersonateSchema,
+  updateSubscriptionSchema,
+  updateConfigSchema,
+  switchRegionSchema,
+  updateFeaturesSchema,
+  toggleStatusSchema,
+  updateNotesSchema,
+  assignPlanSchema,
+  generateInvoicesSchema,
+  updateInvoiceSchema,
+  saveTaxProfilesSchema,
+  createAnnouncementSchema,
+  updateAnnouncementSchema,
+  createTicketSchema,
+  updateTicketSchema,
+  replyToTicketSchema,
+  sendBroadcastSchema,
+  createPromoCodeSchema,
+  updatePromoCodeSchema,
+  validatePromoCodeSchema,
+  updateChainProfileSchema,
+  logImpersonationSchema,
+  savePlatformSettingsSchema,
+} = require('./superadmin.validation');
 
 /** POST /api/superadmin/login */
-router.post('/login', superadminController.login);
+router.post('/login', validate(superadminLoginSchema), superadminController.login);
 
 /** GET /api/superadmin/verify — Verify token */
 router.get('/verify', authenticate, isSuperAdmin, superadminController.verifyToken);
@@ -22,39 +50,39 @@ router.get('/chains', superadminController.getChains);
 router.get('/chains/:id', superadminController.getChainDetail);
 
 /** POST /api/superadmin/onboard */
-router.post('/onboard', superadminController.onboard);
+router.post('/onboard', validate(onboardSchema), superadminController.onboard);
 
 /** POST /api/superadmin/impersonate */
-router.post('/impersonate', superadminController.impersonate);
+router.post('/impersonate', validate(impersonateSchema), superadminController.impersonate);
 
 /** PATCH /api/superadmin/subscription/:id */
-router.patch('/subscription/:id', superadminController.updateSubscription);
+router.patch('/subscription/:id', validate(updateSubscriptionSchema), superadminController.updateSubscription);
 
 /** GET /api/superadmin/revenue */
 router.get('/revenue', superadminController.getRevenue);
 
 /** GET/PUT /api/superadmin/config */
 router.get('/config', superadminController.getConfig);
-router.put('/config', superadminController.updateConfig);
+router.put('/config', validate(updateConfigSchema), superadminController.updateConfig);
 
 /** GET /api/superadmin/region-templates — AU vs IN defaults */
 router.get('/region-templates', superadminController.getRegionTemplates);
 
 /** PATCH /api/superadmin/chains/:id/region — switch HeadOffice region */
-router.patch('/chains/:id/region', superadminController.switchRegion);
+router.patch('/chains/:id/region', validate(switchRegionSchema), superadminController.switchRegion);
 
 /** GET/PATCH /api/superadmin/chains/:id/features — feature flag management */
 router.get('/chains/:id/features', superadminController.getFeatures);
-router.patch('/chains/:id/features', superadminController.updateFeatures);
+router.patch('/chains/:id/features', validate(updateFeaturesSchema), superadminController.updateFeatures);
 
 /** PATCH /api/superadmin/chains/:id/status — suspend / activate */
-router.patch('/chains/:id/status', superadminController.toggleStatus);
+router.patch('/chains/:id/status', validate(toggleStatusSchema), superadminController.toggleStatus);
 
 /** PATCH /api/superadmin/chains/:id/notes — internal notes */
-router.patch('/chains/:id/notes', superadminController.updateNotes);
+router.patch('/chains/:id/notes', validate(updateNotesSchema), superadminController.updateNotes);
 
 /** PATCH /api/superadmin/chains/:id/plan — assign plan */
-router.patch('/chains/:id/plan', superadminController.assignPlan);
+router.patch('/chains/:id/plan', validate(assignPlanSchema), superadminController.assignPlan);
 
 /** GET /api/superadmin/live-stats — global live stats */
 router.get('/live-stats', superadminController.getLiveStats);
@@ -67,53 +95,53 @@ router.get('/revenue-analytics', superadminController.getRevenueAnalytics);
 
 /** Invoice management */
 router.get('/invoices', superadminController.getInvoices);
-router.post('/invoices/generate', superadminController.generateInvoices);
-router.patch('/invoices/:id', superadminController.updateInvoice);
+router.post('/invoices/generate', validate(generateInvoicesSchema), superadminController.generateInvoices);
+router.patch('/invoices/:id', validate(updateInvoiceSchema), superadminController.updateInvoice);
 
 /** Tax profiles */
 router.get('/tax-profiles', superadminController.getTaxProfiles);
-router.put('/tax-profiles', superadminController.saveTaxProfiles);
+router.put('/tax-profiles', validate(saveTaxProfilesSchema), superadminController.saveTaxProfiles);
 
 /** Announcements — NOTE: for-chain route must come before /:id to avoid param collision */
 router.get('/announcements/for-chain/:headOfficeId', superadminController.getChainAnnouncements);
 router.get('/announcements', superadminController.getAnnouncements);
-router.post('/announcements', superadminController.createAnnouncement);
-router.patch('/announcements/:id', superadminController.updateAnnouncement);
+router.post('/announcements', validate(createAnnouncementSchema), superadminController.createAnnouncement);
+router.patch('/announcements/:id', validate(updateAnnouncementSchema), superadminController.updateAnnouncement);
 router.delete('/announcements/:id', superadminController.deleteAnnouncement);
 
 /** P2: Platform Settings */
 router.get('/platform-settings', superadminController.getPlatformSettings);
-router.put('/platform-settings', superadminController.savePlatformSettings);
+router.put('/platform-settings', validate(savePlatformSettingsSchema), superadminController.savePlatformSettings);
 
 /** P2: Support Tickets */
 router.get('/support-tickets', superadminController.getTickets);
-router.post('/support-tickets', superadminController.createTicket);
-router.patch('/support-tickets/:id', superadminController.updateTicket);
-router.post('/support-tickets/:id/reply', superadminController.replyToTicket);
+router.post('/support-tickets', validate(createTicketSchema), superadminController.createTicket);
+router.patch('/support-tickets/:id', validate(updateTicketSchema), superadminController.updateTicket);
+router.post('/support-tickets/:id/reply', validate(replyToTicketSchema), superadminController.replyToTicket);
 
 /** P2: Broadcast Center */
 router.get('/broadcasts', superadminController.getBroadcasts);
-router.post('/broadcasts', superadminController.sendBroadcast);
+router.post('/broadcasts', validate(sendBroadcastSchema), superadminController.sendBroadcast);
 
 /** P2: All Users */
 router.get('/users', superadminController.getAllUsers);
 
 /** P2: Promo Codes */
 router.get('/promo-codes', superadminController.getPromoCodes);
-router.post('/promo-codes', superadminController.createPromoCode);
-router.patch('/promo-codes/:id', superadminController.updatePromoCode);
+router.post('/promo-codes', validate(createPromoCodeSchema), superadminController.createPromoCode);
+router.patch('/promo-codes/:id', validate(updatePromoCodeSchema), superadminController.updatePromoCode);
 router.delete('/promo-codes/:id', superadminController.deletePromoCode);
-router.post('/promo-codes/validate', superadminController.validatePromoCode);
+router.post('/promo-codes/validate', validate(validatePromoCodeSchema), superadminController.validatePromoCode);
 
 /** P2: Chain Profile Edit */
-router.patch('/chains/:id/profile', superadminController.updateChainProfile);
+router.patch('/chains/:id/profile', validate(updateChainProfileSchema), superadminController.updateChainProfile);
 
 /** P3/P4: Platform Health Monitor */
 router.get('/health', superadminController.getPlatformHealth);
 
 /** P3/P4: Impersonation Audit Log */
 router.get('/impersonation-log', superadminController.getImpersonationLog);
-router.post('/impersonation-log', superadminController.logImpersonation);
+router.post('/impersonation-log', validate(logImpersonationSchema), superadminController.logImpersonation);
 
 /** P4: Menu Performance Analytics */
 router.get('/menu-analytics', superadminController.getMenuAnalytics);

@@ -8,6 +8,8 @@ const router = express.Router();
 const staffService = require('./staff.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { createStaffSchema, updateStaffSchema, verifyPinSchema, clockInSchema, clockOutSchema, createShiftSchema, calculateSalarySchema, bulkCalculateSalarySchema, markSalaryPaidSchema, generateOTPSchema, verifyOTPSchema } = require('./staff.validation');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
 
 /** GET /api/staff — List staff for outlet */
@@ -20,7 +22,7 @@ router.get('/', authenticate, hasPermission('VIEW_STAFF'), enforceOutletScope, a
 });
 
 /** POST /api/staff — Create staff with user */
-router.post('/', authenticate, hasPermission('MANAGE_STAFF'), enforceOutletScope, async (req, res, next) => {
+router.post('/', authenticate, hasPermission('MANAGE_STAFF'), validate(createStaffSchema), enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await staffService.createStaffWithUser(outletId, req.body);
@@ -29,7 +31,7 @@ router.post('/', authenticate, hasPermission('MANAGE_STAFF'), enforceOutletScope
 });
 
 /** PATCH /api/staff/:id — Update profile */
-router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), validate(updateStaffSchema), async (req, res, next) => {
   try {
     const profile = await staffService.upsertStaffProfile(req.body.user_id, req.user.outlet_id, req.body);
     sendSuccess(res, profile, 'Staff updated');
@@ -37,7 +39,7 @@ router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), async (req, re
 });
 
 /** POST /api/staff/verify-pin */
-router.post('/verify-pin', authenticate, async (req, res, next) => {
+router.post('/verify-pin', authenticate, validate(verifyPinSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const staff = await staffService.verifyManagerPIN(outletId, req.body.pin);
@@ -47,7 +49,7 @@ router.post('/verify-pin', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/staff/clock-in — Clock in */
-router.post('/clock-in', authenticate, async (req, res, next) => {
+router.post('/clock-in', authenticate, validate(clockInSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const record = await staffService.clockIn(req.user.id, outletId, req.body);
@@ -56,7 +58,7 @@ router.post('/clock-in', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/staff/clock-out — Clock out */
-router.post('/clock-out', authenticate, async (req, res, next) => {
+router.post('/clock-out', authenticate, validate(clockOutSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const record = await staffService.clockOut(req.user.id, outletId, req.body);
@@ -83,7 +85,7 @@ router.get('/shifts', authenticate, enforceOutletScope, async (req, res, next) =
 });
 
 /** POST /api/staff/shifts — Create shift */
-router.post('/shifts', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+router.post('/shifts', authenticate, hasPermission('MANAGE_STAFF'), validate(createShiftSchema), async (req, res, next) => {
   try {
     const shift = await staffService.createShift(req.body);
     sendCreated(res, shift, 'Shift created');
@@ -100,7 +102,7 @@ router.get('/performance', authenticate, hasPermission('VIEW_REPORTS'), enforceO
 });
 
 /** POST /api/staff/otp/generate — Generate clock-in/out OTP */
-router.post('/otp/generate', authenticate, async (req, res, next) => {
+router.post('/otp/generate', authenticate, validate(generateOTPSchema), async (req, res, next) => {
   try {
     const { action } = req.body; // clock_in | clock_out
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -110,7 +112,7 @@ router.post('/otp/generate', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/staff/otp/verify — Verify OTP and clock in/out */
-router.post('/otp/verify', authenticate, async (req, res, next) => {
+router.post('/otp/verify', authenticate, validate(verifyOTPSchema), async (req, res, next) => {
   try {
     const { otp, action } = req.body;
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -138,7 +140,7 @@ router.get('/salary', authenticate, hasPermission('MANAGE_STAFF'), enforceOutlet
 });
 
 /** POST /api/staff/salary/calculate — Calculate salary for one staff */
-router.post('/salary/calculate', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+router.post('/salary/calculate', authenticate, hasPermission('MANAGE_STAFF'), validate(calculateSalarySchema), async (req, res, next) => {
   try {
     const { user_id, month, year } = req.body;
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -148,7 +150,7 @@ router.post('/salary/calculate', authenticate, hasPermission('MANAGE_STAFF'), as
 });
 
 /** POST /api/staff/salary/bulk-calculate — Calculate salary for all staff */
-router.post('/salary/bulk-calculate', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+router.post('/salary/bulk-calculate', authenticate, hasPermission('MANAGE_STAFF'), validate(bulkCalculateSalarySchema), async (req, res, next) => {
   try {
     const { month, year } = req.body;
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -158,7 +160,7 @@ router.post('/salary/bulk-calculate', authenticate, hasPermission('MANAGE_STAFF'
 });
 
 /** PATCH /api/staff/salary/:id/pay — Mark salary as paid */
-router.patch('/salary/:id/pay', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+router.patch('/salary/:id/pay', authenticate, hasPermission('MANAGE_STAFF'), validate(markSalaryPaidSchema), async (req, res, next) => {
   try {
     const record = await staffService.markSalaryPaid(req.params.id, req.body.bonus || 0);
     sendSuccess(res, record, 'Salary marked as paid');

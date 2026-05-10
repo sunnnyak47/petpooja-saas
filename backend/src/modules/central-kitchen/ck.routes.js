@@ -16,7 +16,14 @@ const express = require('express');
 const router = express.Router();
 const ckService = require('./ck.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
 const { sendSuccess, sendCreated } = require('../../utils/response');
+const {
+  createIndentSchema,
+  approveIndentSchema,
+  dispatchIndentSchema,
+  rejectIndentSchema,
+} = require('./ck.validation');
 
 // All routes require auth
 router.use(authenticate);
@@ -38,7 +45,7 @@ router.get('/indents/:id', async (req, res, next) => {
 });
 
 /** Branch creates requisition */
-router.post('/indents', async (req, res, next) => {
+router.post('/indents', validate(createIndentSchema), async (req, res, next) => {
   try {
     const indent = await ckService.createIndent(req.body, req.user);
     sendCreated(res, indent, 'Requisition created');
@@ -46,7 +53,7 @@ router.post('/indents', async (req, res, next) => {
 });
 
 /** CK approves indent */
-router.patch('/indents/:id/approve', async (req, res, next) => {
+router.patch('/indents/:id/approve', validate(approveIndentSchema), async (req, res, next) => {
   try {
     const indent = await ckService.approveIndent(req.params.id, req.body, req.user);
     sendSuccess(res, indent, 'Indent approved');
@@ -54,7 +61,7 @@ router.patch('/indents/:id/approve', async (req, res, next) => {
 });
 
 /** CK dispatches goods */
-router.patch('/indents/:id/dispatch', async (req, res, next) => {
+router.patch('/indents/:id/dispatch', validate(dispatchIndentSchema), async (req, res, next) => {
   try {
     const indent = await ckService.dispatchIndent(req.params.id, req.body, req.user);
     sendSuccess(res, indent, 'Indent dispatched');
@@ -70,7 +77,7 @@ router.patch('/indents/:id/receive', async (req, res, next) => {
 });
 
 /** CK rejects indent */
-router.patch('/indents/:id/reject', async (req, res, next) => {
+router.patch('/indents/:id/reject', validate(rejectIndentSchema), async (req, res, next) => {
   try {
     const indent = await ckService.rejectIndent(req.params.id, req.body, req.user);
     sendSuccess(res, indent, 'Indent rejected');

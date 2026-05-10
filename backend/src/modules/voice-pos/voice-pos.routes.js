@@ -6,6 +6,8 @@ const router = express.Router();
 const { conversationalParse, getSupportedLanguages, getUpsellSuggestions, placeVoiceOrder } = require('./voice-pos.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const { converseSchema, upsellSchema, placeVoiceOrderSchema } = require('./voice-pos.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 
 /**
@@ -13,7 +15,7 @@ const { sendSuccess, sendCreated } = require('../../utils/response');
  * Multi-turn conversational order parsing via Groq LLM
  * Body: { transcript, conversation_history, current_cart, outlet_id? }
  */
-router.post('/converse', authenticate, async (req, res, next) => {
+router.post('/converse', authenticate, validate(converseSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { transcript, conversation_history = [], current_cart = [] } = req.body;
@@ -42,7 +44,7 @@ router.get('/languages', authenticate, (req, res) => {
  * Get Groq-powered upsell suggestions for the current cart
  * Body: { cart, outlet_id? }
  */
-router.post('/upsell', authenticate, async (req, res, next) => {
+router.post('/upsell', authenticate, validate(upsellSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { cart = [] } = req.body;
@@ -57,7 +59,7 @@ router.post('/upsell', authenticate, async (req, res, next) => {
  * Create a real order directly from Voice POS (bypasses Redux cart)
  * Body: { cart, outlet_id?, order_type, table_id?, customer_name? }
  */
-router.post('/place-order', authenticate, hasPermission('CREATE_ORDER'), async (req, res, next) => {
+router.post('/place-order', authenticate, hasPermission('CREATE_ORDER'), validate(placeVoiceOrderSchema), async (req, res, next) => {
   try {
     const outletId    = req.body.outlet_id || req.user.outlet_id;
     const { cart, order_type, table_id, customer_name } = req.body;
