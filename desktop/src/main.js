@@ -759,38 +759,56 @@ function setupIPC() {
  * Prompts user before downloading and before installing.
  */
 function setupAutoUpdater() {
+  // Log the update feed URL for debugging
+  log.info(`[AutoUpdater] Current version: ${app.getVersion()}`)
+  log.info(`[AutoUpdater] isDev: ${isDev}, isPackaged: ${app.isPackaged}`)
+
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
+  // Force the correct GitHub provider config
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'sunnnyak47',
+    repo: 'petpooja-saas',
+    releaseType: 'release',
+  })
+
   autoUpdater.on('checking-for-update', () => {
     log.info('[AutoUpdater] Checking for updates...')
+    notifyRenderer('update-status', { status: 'checking' })
   })
 
   autoUpdater.on('update-available', (info) => {
     log.info(`[AutoUpdater] Update available: v${info.version}`)
+    notifyRenderer('update-status', { status: 'available', version: info.version })
     dialog
       .showMessageBox(mainWindow, {
         type: 'info',
         title: 'Update Available',
         message: `Version ${info.version} is available!`,
-        detail: 'Download now to get the latest features and bug fixes.',
+        detail: `You are running v${app.getVersion()}. Download now to get the latest features and bug fixes.`,
         buttons: ['Download Now', 'Later'],
       })
       .then(({ response }) => {
         if (response === 0) {
+          log.info('[AutoUpdater] User clicked Download Now')
           autoUpdater.downloadUpdate()
           notifyRenderer('update-downloading', { version: info.version })
         }
       })
   })
 
-  autoUpdater.on('update-not-available', () => {
-    log.info('[AutoUpdater] App is up to date')
+  autoUpdater.on('update-not-available', (info) => {
+    log.info(`[AutoUpdater] App is up to date (latest: v${info?.version || 'unknown'})`)
+    notifyRenderer('update-status', { status: 'up-to-date' })
   })
 
   autoUpdater.on('download-progress', (progress) => {
+    const pct = Math.round(progress.percent)
+    log.info(`[AutoUpdater] Download progress: ${pct}%`)
     notifyRenderer('update-progress', {
-      percent: Math.round(progress.percent),
+      percent: pct,
       transferred: progress.transferred,
       total: progress.total,
       speed: progress.bytesPerSecond,
@@ -815,14 +833,31 @@ function setupAutoUpdater() {
   })
 
   autoUpdater.on('error', (err) => {
-    log.error('[AutoUpdater] Error:', err.message)
+    log.error(`[AutoUpdater] Error: ${err.message}`)
+    log.error(`[AutoUpdater] Stack: ${err.stack}`)
+    notifyRenderer('update-status', { status: 'error', error: err.message })
   })
 
-  // Check automatically in production builds — 5s after launch, then every 30 min
-  if (!isDev) {
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000)
-    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000)
-  }
+  // IPC handler for manual update check from renderer
+  ipcMain.handle('check-for-updates', async () => {
+    try {
+      log.info('[AutoUpdater] Manual check triggered')
+      const result = await autoUpdater.checkForUpdates()
+      return { success: true, version: result?.updateInfo?.version }
+    } catch (err) {
+      log.error(`[AutoUpdater] Manual check failed: ${err.message}`)
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Check on launch (both dev & prod) — 5s after ready, then every 30 min
+  setTimeout(() => {
+    log.info('[AutoUpdater] Initial update check...')
+    autoUpdater.checkForUpdates().catch((err) => {
+      log.error(`[AutoUpdater] Initial check failed: ${err.message}`)
+    })
+  }, 5000)
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000)
 }
 
 // ─────────────────────────────────────

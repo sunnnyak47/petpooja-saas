@@ -22,6 +22,7 @@
   "build": {
     "appId": "com.petpoojaerp.app",
     "productName": "MS-RM System",
+    "artifactName": "${name}-${version}-${arch}.${ext}",
     "copyright": "Copyright 2026 Madsun Digital Marketing & Media Agency",
     "afterSign": "build/afterSign.js",
     "directories": {

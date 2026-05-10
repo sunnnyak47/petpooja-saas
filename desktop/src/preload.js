@@ -98,16 +98,25 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.invoke('request-microphone-access'),
 
   // ─── Updates ───────────────────────────────────────────────────
-  /**
-   * Subscribe to update download start events.
-   * @param {Function} callback
-   * @returns {Function} unsubscribe function
-   */
+  /** Manually trigger an update check */
+  checkForUpdates: () =>
+    ipcRenderer.invoke('check-for-updates'),
+
+  /** Subscribe to update status events */
+  onUpdateStatus: (callback) =>
+    onEvent('update-status', callback),
+
+  /** Subscribe to update download start events */
   onUpdateDownloading: (callback) =>
     onEvent('update-downloading', callback),
 
+  /** Subscribe to update download progress */
   onUpdateProgress: (callback) =>
     onEvent('update-progress', callback),
+
+  /** Subscribe to update ready events */
+  onUpdateReady: (callback) =>
+    onEvent('update-ready', callback),
 
   // ─── Sync Engine ───────────────────────────────────────────────
   /** Trigger a manual sync */
