@@ -54,7 +54,6 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import QRCodesPage from './pages/QRCodesPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
-import { OfflineBanner } from './hooks/useOfflineSync';
 import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import SetupWizard from './pages/SetupWizard';
@@ -164,7 +163,6 @@ export default function App() {
     <ErrorBoundary>
     <OnlineStatusBar />
     <SyncStatusIndicator />
-    <OfflineBanner />
     <Routes>
       {typeof window !== 'undefined' && window.electron && !setupComplete && (
         <Route path="*" element={<SetupWizard onComplete={handleSetupComplete} />} />

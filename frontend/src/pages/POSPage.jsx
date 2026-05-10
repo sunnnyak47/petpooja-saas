@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import hybridAPI from '../api/offlineAPI';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import {
@@ -89,6 +90,7 @@ export default function POSPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, symbol } = useCurrency();
+  const isOnline = useOnlineStatus();
 
   const [searchParams] = useSearchParams();
   const orderIdParam = searchParams.get('order_id');
@@ -149,31 +151,67 @@ export default function POSPage() {
     }
   }, [orderIdParam, autoPayParam, dispatch]);
 
-  const { data: categories } = useQuery({
+  // ── Hybrid menu/table queries: local SQLite when offline, cloud when online ──
+  const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
+
+  const { data: hybridMenuData } = useQuery({
+    queryKey: ['hybridMenu', outletId, isOnline],
+    queryFn: () => hybridAPI.getMenu(outletId),
+    enabled: !!outletId && IS_ELECTRON,
+    staleTime: isOnline ? 30_000 : Infinity,    // never stale offline
+    gcTime: 1000 * 60 * 60,                     // keep cache 1 hour
+    retry: isOnline ? 1 : false,
+  });
+
+  // Cloud-only fallback for browser (non-Electron)
+  const { data: cloudCategories } = useQuery({
     queryKey: ['categories', outletId],
     queryFn: () => api.get(`/menu/categories?outlet_id=${outletId}`).then((r) => r.data),
-    enabled: !!outletId,
+    enabled: !!outletId && !IS_ELECTRON,
   });
+
+  const { data: cloudMenuData } = useQuery({
+    queryKey: ['menuItems', outletId, activeCategory],
+    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=100${activeCategory ? `&category_id=${activeCategory}` : ''}`).then((r) => r.data),
+    enabled: !!outletId && !IS_ELECTRON,
+  });
+
+  // Merge: Electron uses hybridMenuData, browser uses cloud
+  const categories = IS_ELECTRON
+    ? (hybridMenuData?.categories || [])
+    : (cloudCategories?.data || cloudCategories || []);
+
+  const rawMenuItems = IS_ELECTRON
+    ? (hybridMenuData?.items || [])
+    : (cloudMenuData?.items || cloudMenuData?.data || cloudMenuData || []);
+
+  // Apply category filter client-side for Electron (SQLite returns all items)
+  const menuData = IS_ELECTRON && activeCategory
+    ? rawMenuItems.filter(i => String(i.category_id) === String(activeCategory))
+    : rawMenuItems;
 
   const { data: tableAreas } = useQuery({
     queryKey: ['tableAreas', outletId],
     queryFn: () => api.get(`/orders/tables/areas?outlet_id=${outletId}`).then(r => r.data),
-    enabled: !!outletId,
+    enabled: !!outletId && isOnline,
+    staleTime: isOnline ? 30_000 : Infinity,
   });
 
-  const { data: tables } = useQuery({
+  const { data: cloudTables } = useQuery({
     queryKey: ['tables', outletId],
-    queryFn: () => api.get(`/orders/tables?outlet_id=${outletId}`).then(r => r.data),
+    queryFn: async () => {
+      if (IS_ELECTRON) return hybridAPI.getTables(outletId);
+      const res = await api.get(`/orders/tables?outlet_id=${outletId}`);
+      return res.data?.data || res.data || [];
+    },
     enabled: !!outletId,
+    staleTime: isOnline ? 30_000 : Infinity,
+    gcTime: 1000 * 60 * 60,
+    retry: isOnline ? 1 : false,
   });
 
-  const tablesForSelect = tables || [];
-
-  const { data: menuData } = useQuery({
-    queryKey: ['menuItems', outletId, activeCategory],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=100${activeCategory ? `&category_id=${activeCategory}` : ''}`).then((r) => r.data),
-    enabled: !!outletId,
-  });
+  const tables = cloudTables || [];
+  const tablesForSelect = tables;
 
   const { data: customerResults } = useQuery({
     queryKey: ['customersSearch', outletId, customerSearchInput],
@@ -206,7 +244,7 @@ export default function POSPage() {
     onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to create customer'),
   });
 
-  const items = menuData?.items || menuData || [];
+  const items = Array.isArray(menuData) ? menuData : (menuData?.items || menuData?.data || []);
   const filteredItems = useMemo(() => {
     let filtered = items;
     if (search) filtered = filtered.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
@@ -231,6 +269,13 @@ export default function POSPage() {
       total: isCompMode ? 0 : Math.round(subtotal + tax) 
     };
   }, [cart, isCompMode]);
+
+  // Sync menu + tables to local SQLite when online (Electron only)
+  useEffect(() => {
+    if (!outletId || !IS_ELECTRON || !isOnline) return;
+    hybridAPI.syncMenuFromCloud(outletId).catch(() => {});
+    hybridAPI.syncTablesFromCloud(outletId).catch(() => {});
+  }, [outletId, isOnline]);
 
   useEffect(() => {
     if (!outletId) return;
