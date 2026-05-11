@@ -310,15 +310,16 @@ const MenuDB = {
    * @returns {object[]}
    */
   getItems(outletId, categoryId = null) {
+    // Alias price→base_price, veg_type→food_type so frontend field names match
     if (categoryId) {
       return getDB().prepare(`
-        SELECT * FROM menu_items
+        SELECT *, price AS base_price, veg_type AS food_type FROM menu_items
         WHERE outlet_id = ? AND category_id = ? AND is_available = 1
         ORDER BY display_order
       `).all(outletId, categoryId)
     }
     return getDB().prepare(`
-      SELECT * FROM menu_items
+      SELECT *, price AS base_price, veg_type AS food_type FROM menu_items
       WHERE outlet_id = ? AND is_available = 1
       ORDER BY display_order
     `).all(outletId)
@@ -368,8 +369,24 @@ const MenuDB = {
     `)
 
     database.transaction((cats, itms) => {
-      for (const cat of cats) insertCat.run({ ...cat, synced_at: now })
-      for (const item of itms) insertItem.run({ ...item, synced_at: now })
+      for (const cat of cats) {
+        insertCat.run({
+          ...cat,
+          is_active: cat.is_active !== undefined ? (cat.is_active ? 1 : 0) : 1,
+          synced_at: now,
+        })
+      }
+      for (const item of itms) {
+        insertItem.run({
+          ...item,
+          // Map cloud field names → SQLite column names
+          price: item.price ?? item.base_price ?? 0,
+          veg_type: item.veg_type ?? item.food_type ?? 'veg',
+          is_available: item.is_available !== undefined ? (item.is_available ? 1 : 0) : 1,
+          is_bestseller: item.is_bestseller ? 1 : 0,
+          synced_at: now,
+        })
+      }
     })(categories, items)
   },
 }
@@ -385,22 +402,95 @@ const OrderDB = {
    * @returns {string} new order UUID
    */
   create(orderData) {
+    const database = getDB()
     const id = orderData.id || crypto.randomUUID()
     const now = new Date().toISOString()
+    const items = orderData.items || []
 
-    getDB().prepare(`
-      INSERT INTO orders (
-        id, outlet_id, order_number, table_id, table_number,
-        order_type, source, status, customer_name, customer_phone,
-        covers, notes, subtotal, tax_amount, cgst_amount, sgst_amount,
-        service_charge, discount_amount, total_amount, synced, created_at, updated_at
-      ) VALUES (
-        @id, @outlet_id, @order_number, @table_id, @table_number,
-        @order_type, @source, @status, @customer_name, @customer_phone,
-        @covers, @notes, @subtotal, @tax_amount, @cgst_amount, @sgst_amount,
-        @service_charge, @discount_amount, @total_amount, 0, @created_at, @updated_at
-      )
-    `).run({ ...orderData, id, created_at: now, updated_at: now })
+    // Calculate totals from items
+    let subtotal = 0
+    for (const item of items) {
+      const addonTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price || 0) * (a.quantity || 1)), 0)
+      subtotal += (Number(item.unit_price || 0) + addonTotal) * (item.quantity || 1)
+    }
+    const cgst = subtotal * 0.025
+    const sgst = subtotal * 0.025
+    const total = subtotal + cgst + sgst
+
+    // Generate a local order number
+    const orderNumber = orderData.order_number || `OFF-${Date.now().toString().slice(-6)}`
+
+    database.transaction(() => {
+      // 1. Insert order header
+      database.prepare(`
+        INSERT INTO orders (
+          id, outlet_id, order_number, table_id, table_number,
+          order_type, source, status, customer_name, customer_phone,
+          covers, notes, subtotal, tax_amount, cgst_amount, sgst_amount,
+          service_charge, discount_amount, total_amount, synced, created_at, updated_at
+        ) VALUES (
+          @id, @outlet_id, @order_number, @table_id, @table_number,
+          @order_type, @source, @status, @customer_name, @customer_phone,
+          @covers, @notes, @subtotal, @tax_amount, @cgst_amount, @sgst_amount,
+          @service_charge, @discount_amount, @total_amount, 0, @created_at, @updated_at
+        )
+      `).run({
+        id,
+        outlet_id: orderData.outlet_id,
+        order_number: orderNumber,
+        table_id: orderData.table_id || null,
+        table_number: orderData.table_number || null,
+        order_type: orderData.order_type || 'dine_in',
+        source: orderData.source || 'pos',
+        status: orderData.status || 'active',
+        customer_name: orderData.customer_name || null,
+        customer_phone: orderData.customer_phone || null,
+        covers: orderData.covers || 1,
+        notes: orderData.notes || null,
+        subtotal,
+        tax_amount: cgst + sgst,
+        cgst_amount: cgst,
+        sgst_amount: sgst,
+        service_charge: orderData.service_charge || 0,
+        discount_amount: orderData.discount_amount || 0,
+        total_amount: total,
+        created_at: now,
+        updated_at: now,
+      })
+
+      // 2. Insert each order item
+      const insertItem = database.prepare(`
+        INSERT INTO order_items (
+          id, order_id, outlet_id, menu_item_id, menu_item_name,
+          variant_id, variant_name, quantity, unit_price, addon_total,
+          line_total, kot_status, notes, created_at
+        ) VALUES (
+          @id, @order_id, @outlet_id, @menu_item_id, @menu_item_name,
+          @variant_id, @variant_name, @quantity, @unit_price, @addon_total,
+          @line_total, 'pending', @notes, @created_at
+        )
+      `)
+
+      for (const item of items) {
+        const addonTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price || 0) * (a.quantity || 1)), 0)
+        const lineTotal = (Number(item.unit_price || 0) + addonTotal) * (item.quantity || 1)
+        insertItem.run({
+          id: crypto.randomUUID(),
+          order_id: id,
+          outlet_id: orderData.outlet_id,
+          menu_item_id: item.menu_item_id || null,
+          menu_item_name: item.menu_item_name || item.name || 'Unknown Item',
+          variant_id: item.variant_id || null,
+          variant_name: item.variant_name || null,
+          quantity: item.quantity || 1,
+          unit_price: Number(item.unit_price || 0),
+          addon_total: addonTotal,
+          line_total: lineTotal,
+          notes: item.notes || null,
+          created_at: now,
+        })
+      }
+    })()
 
     SyncDB.enqueue('orders', id, 'INSERT', { ...orderData, id })
     return id
@@ -416,14 +506,16 @@ const OrderDB = {
     const order = getDB().prepare(`
       SELECT * FROM orders
       WHERE table_id = ? AND outlet_id = ?
-        AND status IN ('active','confirmed','billed')
+        AND status IN ('active','confirmed','billed','created')
       ORDER BY created_at DESC LIMIT 1
     `).get(tableId, outletId)
 
     if (order) {
-      order.items = getDB().prepare(`
-        SELECT * FROM order_items WHERE order_id = ? ORDER BY created_at
+      order.order_items = getDB().prepare(`
+        SELECT *, menu_item_name AS name FROM order_items WHERE order_id = ? ORDER BY created_at
       `).all(order.id)
+      // Also expose as items for internal use
+      order.items = order.order_items
     }
     return order
   },
@@ -436,9 +528,11 @@ const OrderDB = {
   getById(orderId) {
     const order = getDB().prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId)
     if (order) {
-      order.items = getDB().prepare(`
-        SELECT * FROM order_items WHERE order_id = ? ORDER BY created_at
+      order.order_items = getDB().prepare(`
+        SELECT *, menu_item_name AS name FROM order_items WHERE order_id = ? ORDER BY created_at
       `).all(orderId)
+      // Also expose as items for internal use
+      order.items = order.order_items
     }
     return order
   },
@@ -473,6 +567,17 @@ const OrderDB = {
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
 
+    // Calculate addon_total and line_total if not provided
+    const addonTotal = itemData.addon_total ?? (itemData.addons || []).reduce((s, a) => s + (Number(a.price || 0) * (a.quantity || 1)), 0)
+    const lineTotal = itemData.line_total ?? ((Number(itemData.unit_price || 0) + addonTotal) * (itemData.quantity || 1))
+
+    // Get outlet_id from the order if not provided
+    let outletId = itemData.outlet_id
+    if (!outletId) {
+      const order = getDB().prepare(`SELECT outlet_id FROM orders WHERE id = ?`).get(itemData.order_id)
+      outletId = order?.outlet_id || ''
+    }
+
     getDB().prepare(`
       INSERT INTO order_items (
         id, order_id, outlet_id, menu_item_id, menu_item_name,
@@ -483,7 +588,16 @@ const OrderDB = {
         @variant_id, @variant_name, @quantity, @unit_price, @addon_total,
         @line_total, 'pending', @notes, @created_at
       )
-    `).run({ ...itemData, id, created_at: now })
+    `).run({
+      ...itemData,
+      id,
+      outlet_id: outletId,
+      addon_total: addonTotal,
+      line_total: lineTotal,
+      menu_item_name: itemData.menu_item_name || itemData.name || 'Unknown Item',
+      variant_name: itemData.variant_name || null,
+      created_at: now,
+    })
 
     // Recalculate order totals atomically
     const rows = getDB().prepare(`
@@ -685,17 +799,41 @@ const TableDB = {
    * @returns {object[]}
    */
   getAll(outletId) {
-    return getDB().prepare(`
+    const rows = getDB().prepare(`
       SELECT t.*,
         o.id               as order_id,
         o.total_amount     as order_total,
         o.created_at       as order_started_at,
-        o.covers
+        o.covers           as order_covers,
+        o.status           as order_status
       FROM tables t
-      LEFT JOIN orders o ON o.table_id = t.id AND o.status IN ('active','confirmed','billed')
+      LEFT JOIN orders o ON o.table_id = t.id AND o.status IN ('active','confirmed','billed','created')
       WHERE t.outlet_id = ?
       ORDER BY t.table_number
     `).all(outletId)
+
+    // Transform flat rows into nested format matching cloud API response
+    return rows.map(row => {
+      const table = {
+        id: row.id,
+        outlet_id: row.outlet_id,
+        table_number: row.table_number,
+        area_name: row.area_name,
+        capacity: row.capacity,
+        status: row.order_id ? 'occupied' : (row.status || 'available'),
+        orders: [],
+      }
+      if (row.order_id) {
+        table.orders = [{
+          id: row.order_id,
+          total_amount: row.order_total,
+          created_at: row.order_started_at,
+          covers: row.order_covers,
+          status: row.order_status,
+        }]
+      }
+      return table
+    })
   },
 
   /**

@@ -759,7 +759,9 @@ function setupIPC() {
  * Prompts user before downloading and before installing.
  */
 function setupAutoUpdater() {
-  // Log the update feed URL for debugging
+  // Use console as logger (electron-log is optional)
+  const log = { info: console.log, error: console.error, warn: console.warn }
+
   log.info(`[AutoUpdater] Current version: ${app.getVersion()}`)
   log.info(`[AutoUpdater] isDev: ${isDev}, isPackaged: ${app.isPackaged}`)
 

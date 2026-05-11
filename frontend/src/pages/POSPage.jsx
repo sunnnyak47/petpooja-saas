@@ -92,6 +92,9 @@ export default function POSPage() {
   const { format, symbol } = useCurrency();
   const isOnline = useOnlineStatus();
 
+  // ── Electron detection (must be declared before any useEffect that references it) ──
+  const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
+
   const [searchParams] = useSearchParams();
   const orderIdParam = searchParams.get('order_id');
   const autoPayParam = searchParams.get('pay');
@@ -109,30 +112,34 @@ export default function POSPage() {
             order = res.data?.data ?? res.data;
           }
 
-          // Map to cart
-          const cartItems = order.order_items.map(item => ({
-            menu_item_id: item.menu_item_id,
-            name: item.name,
-            base_price: Number(item.unit_price),
-            food_type: item.food_type || 'veg',
-            kitchen_station: item.kitchen_station,
-            variant_id: item.variant_id,
-            variant_price: Number(item.variant_price || 0),
-            variant_name: item.variant_name,
-            quantity: item.quantity,
-            notes: item.notes,
-            addons: (item.addons ?? []).map(a => ({
-              addon_id: a.addon_id,
-              name: a.name,
-              price: Number(a.price),
-              quantity: a.quantity
-            }))
-          }));
+          // Map to cart (handle both cloud and SQLite shapes)
+          const orderItems = order.order_items || order.items || [];
+          const cartItems = orderItems.map(item => {
+            let addons = [];
+            if (Array.isArray(item.addons)) {
+              addons = item.addons.map(a => ({ addon_id: a.addon_id, name: a.name, price: Number(a.price), quantity: a.quantity || 1 }));
+            } else if (typeof item.addons === 'string') {
+              try { addons = JSON.parse(item.addons) || []; } catch { addons = []; }
+            }
+            return {
+              menu_item_id: item.menu_item_id,
+              name: item.name || item.menu_item_name,
+              base_price: Number(item.unit_price || item.base_price || 0),
+              food_type: item.food_type || 'veg',
+              kitchen_station: item.kitchen_station,
+              variant_id: item.variant_id,
+              variant_price: Number(item.variant_price || 0),
+              variant_name: item.variant_name,
+              quantity: item.quantity,
+              notes: item.notes,
+              addons,
+            };
+          });
 
           dispatch(setPOSState({
             cart: cartItems,
-            selectedTable: order.table,
-            selectedCustomer: order.customer,
+            selectedTable: order.table || null,
+            selectedCustomer: order.customer || null,
             orderType: order.order_type,
             orderNotes: order.notes || '',
             covers: order.covers || 1
@@ -157,8 +164,6 @@ export default function POSPage() {
   }, [orderIdParam, autoPayParam, dispatch]);
 
   // ── Hybrid menu/table queries: local SQLite when offline, cloud when online ──
-  const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
-
   const { data: hybridMenuData } = useQuery({
     queryKey: ['hybridMenu', outletId, isOnline],
     queryFn: () => hybridAPI.getMenu(outletId),
@@ -522,31 +527,41 @@ export default function POSPage() {
           const res = await api.get(`/orders/${table.orders[0].id}`);
           order = res.data;
         }
-        
-        // Map order items to cart format
-        const cartItems = order.order_items.map(item => ({
-          menu_item_id: item.menu_item_id,
-          name: item.name,
-          base_price: Number(item.unit_price),
-          food_type: item.food_type || 'veg', // Fallback if not in item
-          kitchen_station: item.kitchen_station,
-          variant_id: item.variant_id,
-          variant_price: Number(item.variant_price || 0),
-          variant_name: item.variant_name,
-          quantity: item.quantity,
-          notes: item.notes,
-          addons: (item.addons ?? []).map(a => ({
-            addon_id: a.addon_id,
-            name: a.name,
-            price: Number(a.price),
-            quantity: a.quantity
-          }))
-        }));
+
+        // Map order items to cart format (handle both cloud and SQLite shapes)
+        const orderItems = order.order_items || order.items || [];
+        const cartItems = orderItems.map(item => {
+          // Parse addons: SQLite stores as JSON string or null, cloud as array
+          let addons = [];
+          if (Array.isArray(item.addons)) {
+            addons = item.addons.map(a => ({
+              addon_id: a.addon_id,
+              name: a.name,
+              price: Number(a.price),
+              quantity: a.quantity || 1
+            }));
+          } else if (typeof item.addons === 'string') {
+            try { addons = JSON.parse(item.addons) || []; } catch { addons = []; }
+          }
+          return {
+            menu_item_id: item.menu_item_id,
+            name: item.name || item.menu_item_name,
+            base_price: Number(item.unit_price || item.base_price || 0),
+            food_type: item.food_type || 'veg',
+            kitchen_station: item.kitchen_station,
+            variant_id: item.variant_id,
+            variant_price: Number(item.variant_price || 0),
+            variant_name: item.variant_name,
+            quantity: item.quantity,
+            notes: item.notes,
+            addons,
+          };
+        });
 
         dispatch(setPOSState({
           cart: cartItems,
           selectedTable: table,
-          selectedCustomer: order.customer,
+          selectedCustomer: order.customer || null,
           orderType: order.order_type,
           orderNotes: order.notes || '',
           covers: order.covers || 1
