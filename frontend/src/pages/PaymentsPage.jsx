@@ -10,11 +10,13 @@ import {
   DollarSign, Wallet, Banknote,
   TrendingUp, Receipt, RotateCcw
 } from 'lucide-react';
+import { useRegion } from '../hooks/useRegion';
 
 const METHOD_ICONS = {
   cash: <Banknote className="w-4 h-4" />,
   card: <CreditCard className="w-4 h-4" />,
   upi: <Wallet className="w-4 h-4" />,
+  eftpos: <Wallet className="w-4 h-4" />,
   split: <DollarSign className="w-4 h-4" />,
   online_prepaid: <TrendingUp className="w-4 h-4" />,
 };
@@ -23,6 +25,7 @@ const METHOD_COLORS = {
   cash: 'bg-emerald-500/20 text-emerald-400',
   card: 'bg-blue-500/20 text-blue-400',
   upi: 'bg-purple-500/20 text-purple-400',
+  eftpos: 'bg-purple-500/20 text-purple-400',
   split: 'bg-orange-500/20 text-orange-400',
   due: 'bg-red-500/20 text-red-400',
   online_prepaid: 'bg-teal-500/20 text-teal-400',
@@ -34,6 +37,9 @@ const METHOD_COLORS = {
 export default function PaymentsPage() {
   const { user } = useSelector((s) => s.auth);
   const { format, symbol } = useCurrency();
+  const region = useRegion();
+  const digitalMethod = region === 'AU' ? 'eftpos' : 'upi';
+  const digitalLabel = region === 'AU' ? 'EFTPOS' : 'UPI';
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
 
@@ -107,8 +113,8 @@ export default function PaymentsPage() {
     const total = allOrders.reduce((sum, o) => sum + Number(o.grand_total || 0), 0);
     const cash = allOrders.filter(o => o.payments?.some(p => p.method === 'cash')).reduce((s, o) => s + Number(o.grand_total || 0), 0);
     const card = allOrders.filter(o => o.payments?.some(p => p.method === 'card')).reduce((s, o) => s + Number(o.grand_total || 0), 0);
-    const upi = allOrders.filter(o => o.payments?.some(p => p.method === 'upi')).reduce((s, o) => s + Number(o.grand_total || 0), 0);
-    return { total, cash, card, upi, count: allOrders.length };
+    const digital = allOrders.filter(o => o.payments?.some(p => p.method === digitalMethod || p.method === 'upi' || p.method === 'eftpos')).reduce((s, o) => s + Number(o.grand_total || 0), 0);
+    return { total, cash, card, digital, count: allOrders.length };
   }, [allOrders]);
 
   const exportCSV = () => {
@@ -154,7 +160,7 @@ export default function PaymentsPage() {
           { label: 'Transactions', value: stats.count, icon: <Receipt className="w-5 h-5" />, color: 'text-blue-400' },
           { label: 'Cash', value: format(stats.cash), icon: <Banknote className="w-5 h-5" />, color: 'text-emerald-400' },
           { label: 'Card', value: format(stats.card), icon: <CreditCard className="w-5 h-5" />, color: 'text-blue-400' },
-          { label: 'UPI', value: format(stats.upi), icon: <Wallet className="w-5 h-5" />, color: 'text-purple-400' },
+          { label: digitalLabel, value: format(stats.digital), icon: <Wallet className="w-5 h-5" />, color: 'text-purple-400' },
         ].map((s, i) => (
           <div key={i} className="bg-surface-900 rounded-2xl p-4 border border-surface-800">
             <div className="flex items-center justify-between mb-2">
@@ -182,10 +188,10 @@ export default function PaymentsPage() {
           ))}
         </div>
         <div className="flex bg-surface-800 rounded-xl p-1 gap-1">
-          {['all', 'cash', 'card', 'upi', 'split'].map((m) => (
+          {['all', 'cash', 'card', digitalMethod, 'split'].map((m) => (
             <button key={m} onClick={() => setMethodFilter(m)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${methodFilter === m ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}>
-              {m}
+              {m === digitalMethod ? digitalLabel : m}
             </button>
           ))}
         </div>

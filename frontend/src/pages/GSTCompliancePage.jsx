@@ -9,9 +9,10 @@ import {
 } from 'recharts';
 import {
   Calendar, Download, FileText, IndianRupee, Percent,
-  TrendingUp, ChevronDown, AlertCircle,
+  TrendingUp, ChevronDown, AlertCircle, DollarSign,
 } from 'lucide-react';
 import { format, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth } from 'date-fns';
+import { useRegion } from '../hooks/useRegion';
 
 const DATE_PRESETS = [
   { label: 'Today', getValue: () => ({ from: new Date(), to: new Date() }) },
@@ -21,7 +22,8 @@ const DATE_PRESETS = [
   { label: 'Last Month', getValue: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
 ];
 
-const RATE_COLORS = { '0': '#64748b', '5': '#3b82f6', '12': '#10b981', '18': '#f59e0b', '28': '#ef4444' };
+const RATE_COLORS_IN = { '0': '#64748b', '5': '#3b82f6', '12': '#10b981', '18': '#f59e0b', '28': '#ef4444' };
+const RATE_COLORS_AU = { '0': '#64748b', '10': '#3b82f6' };
 
 function StatCard({ label, value, sub, icon: Icon, accent }) {
   return (
@@ -43,6 +45,9 @@ function StatCard({ label, value, sub, icon: Icon, accent }) {
 export default function GSTCompliancePage() {
   const { user } = useSelector((s) => s.auth);
   const { format: formatCurrency, symbol, locale } = useCurrency();
+  const region = useRegion();
+  const isAU = region === 'AU';
+  const RATE_COLORS = isAU ? RATE_COLORS_AU : RATE_COLORS_IN;
   const [dateRange, setDateRange] = useState(DATE_PRESETS[3].getValue()); // This Month default
   const [presetIndex, setPresetIndex] = useState(3);
   const [showCustom, setShowCustom] = useState(false);
@@ -141,10 +146,10 @@ export default function GSTCompliancePage() {
             </select>
           )}
           <button onClick={() => handleExport('gstr1')} className="btn-surface text-xs font-semibold gap-1.5 shrink-0">
-            <Download className="w-3.5 h-3.5" /> GSTR-1 CSV
+            <Download className="w-3.5 h-3.5" /> {isAU ? 'BAS CSV' : 'GSTR-1 CSV'}
           </button>
           <button onClick={() => handleExport('gstr3b')} className="btn-success text-xs font-semibold gap-1.5 shrink-0">
-            <Download className="w-3.5 h-3.5" /> GSTR-3B Summary
+            <Download className="w-3.5 h-3.5" /> {isAU ? 'BAS Summary' : 'GSTR-3B Summary'}
           </button>
         </div>
       </div>
@@ -152,7 +157,7 @@ export default function GSTCompliancePage() {
       {/* Alert Banner */}
       <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl px-4 py-3 text-sm">
         <AlertCircle className="w-4 h-4 shrink-0" />
-        <span>GST figures shown are based on recorded orders. Verify with your CA before filing. Period: <strong>{format(dateRange.from, 'dd MMM yyyy')}</strong> to <strong>{format(dateRange.to, 'dd MMM yyyy')}</strong></span>
+        <span>GST figures shown are based on recorded orders. {isAU ? 'Verify with your accountant before lodging BAS.' : 'Verify with your CA before filing.'} Period: <strong>{format(dateRange.from, 'dd MMM yyyy')}</strong> to <strong>{format(dateRange.to, 'dd MMM yyyy')}</strong></span>
       </div>
 
       {isLoading ? (
@@ -163,13 +168,22 @@ export default function GSTCompliancePage() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className={`grid grid-cols-2 md:grid-cols-3 ${isAU ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-3`}>
             <StatCard label="Total Orders" value={summaryCards.totalOrders} icon={FileText} accent="#3b82f6" />
-            <StatCard label="Taxable Amount" value={fmt(summaryCards.taxable)} icon={IndianRupee} accent="#10b981" />
-            <StatCard label="CGST Collected" value={fmt(summaryCards.cgst)} icon={Percent} accent="#8b5cf6" />
-            <StatCard label="SGST Collected" value={fmt(summaryCards.sgst)} icon={Percent} accent="#f59e0b" />
-            <StatCard label="IGST Collected" value={fmt(summaryCards.igst)} icon={Percent} accent="#ef4444" />
-            <StatCard label="Total GST" value={fmt(summaryCards.totalTax)} icon={TrendingUp} accent="var(--accent)" sub="CGST + SGST + IGST" />
+            <StatCard label="Taxable Amount" value={fmt(summaryCards.taxable)} icon={isAU ? DollarSign : IndianRupee} accent="#10b981" />
+            {isAU ? (
+              <>
+                <StatCard label="GST Collected (10%)" value={fmt(summaryCards.totalTax)} icon={Percent} accent="#3b82f6" />
+                <StatCard label="Total GST" value={fmt(summaryCards.totalTax)} icon={TrendingUp} accent="var(--accent)" sub="Flat 10% GST" />
+              </>
+            ) : (
+              <>
+                <StatCard label="CGST Collected" value={fmt(summaryCards.cgst)} icon={Percent} accent="#8b5cf6" />
+                <StatCard label="SGST Collected" value={fmt(summaryCards.sgst)} icon={Percent} accent="#f59e0b" />
+                <StatCard label="IGST Collected" value={fmt(summaryCards.igst)} icon={Percent} accent="#ef4444" />
+                <StatCard label="Total GST" value={fmt(summaryCards.totalTax)} icon={TrendingUp} accent="var(--accent)" sub="CGST + SGST + IGST" />
+              </>
+            )}
           </div>
 
           {/* Tabs */}
@@ -177,7 +191,7 @@ export default function GSTCompliancePage() {
             {[
               { id: 'summary', label: 'Rate-wise Summary' },
               { id: 'register', label: 'Daily Register' },
-              { id: 'hsn', label: 'HSN Summary' },
+              ...(!isAU ? [{ id: 'hsn', label: 'HSN Summary' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -223,7 +237,7 @@ export default function GSTCompliancePage() {
               {/* Rate-wise Table */}
               <div className="bg-surface-900 border border-surface-800 rounded-2xl overflow-hidden">
                 <div className="flex justify-between items-center p-4 bg-surface-950 border-b border-surface-800">
-                  <h3 className="font-bold text-white text-sm uppercase tracking-wider">GSTR-3B Rate-wise Breakup</h3>
+                  <h3 className="font-bold text-white text-sm uppercase tracking-wider">{isAU ? 'BAS Rate-wise Breakup' : 'GSTR-3B Rate-wise Breakup'}</h3>
                   <button onClick={() => handleExport('rate_wise')} className="btn-surface btn-sm text-xs">
                     <Download className="w-3 h-3 mr-1" /> Export
                   </button>
@@ -235,9 +249,15 @@ export default function GSTCompliancePage() {
                         <th className="p-3">GST Rate</th>
                         <th className="p-3">Orders</th>
                         <th className="p-3">Taxable Amt</th>
-                        <th className="p-3">CGST</th>
-                        <th className="p-3">SGST</th>
-                        <th className="p-3 text-brand-400">Total Tax</th>
+                        {isAU ? (
+                          <th className="p-3 text-brand-400">GST</th>
+                        ) : (
+                          <>
+                            <th className="p-3">CGST</th>
+                            <th className="p-3">SGST</th>
+                            <th className="p-3 text-brand-400">Total Tax</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-800/50">
@@ -253,21 +273,33 @@ export default function GSTCompliancePage() {
                           </td>
                           <td className="p-3 text-surface-300">{row.order_count}</td>
                           <td className="p-3 text-surface-200">{fmt(row.taxable)}</td>
-                          <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
-                          <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
-                          <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                          {isAU ? (
+                            <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                          ) : (
+                            <>
+                              <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
+                              <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
+                              <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                            </>
+                          )}
                         </tr>
                       )) : (
-                        <tr><td colSpan="6" className="p-8 text-center text-surface-500 italic">No GST data for this period</td></tr>
+                        <tr><td colSpan={isAU ? 4 : 6} className="p-8 text-center text-surface-500 italic">No GST data for this period</td></tr>
                       )}
                       {rateWiseData.length > 0 && (
                         <tr className="bg-surface-950 font-bold">
                           <td className="p-3 text-surface-200">TOTAL</td>
                           <td className="p-3 text-surface-200">{rateWiseData.reduce((s, r) => s + r.order_count, 0)}</td>
                           <td className="p-3 text-surface-200">{fmt(rateWiseData.reduce((s, r) => s + r.taxable, 0))}</td>
-                          <td className="p-3 text-purple-400">{fmt(rateWiseData.reduce((s, r) => s + r.cgst, 0))}</td>
-                          <td className="p-3 text-amber-400">{fmt(rateWiseData.reduce((s, r) => s + r.sgst, 0))}</td>
-                          <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
+                          {isAU ? (
+                            <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
+                          ) : (
+                            <>
+                              <td className="p-3 text-purple-400">{fmt(rateWiseData.reduce((s, r) => s + r.cgst, 0))}</td>
+                              <td className="p-3 text-amber-400">{fmt(rateWiseData.reduce((s, r) => s + r.sgst, 0))}</td>
+                              <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
+                            </>
+                          )}
                         </tr>
                       )}
                     </tbody>
@@ -283,7 +315,7 @@ export default function GSTCompliancePage() {
               <div className="flex justify-between items-center p-4 bg-surface-950 border-b border-surface-800">
                 <h3 className="font-bold text-white text-sm uppercase tracking-wider">Daily GST Register</h3>
                 <button onClick={() => handleExport('gstr1')} className="btn-surface btn-sm text-xs">
-                  <Download className="w-3 h-3 mr-1" /> Export GSTR-1 CSV
+                  <Download className="w-3 h-3 mr-1" /> {isAU ? 'Export BAS CSV' : 'Export GSTR-1 CSV'}
                 </button>
               </div>
               <div className="overflow-x-auto">
@@ -295,10 +327,16 @@ export default function GSTCompliancePage() {
                       <th className="p-3">Gross Revenue</th>
                       <th className="p-3">Discount</th>
                       <th className="p-3">Taxable</th>
-                      <th className="p-3">CGST</th>
-                      <th className="p-3">SGST</th>
-                      <th className="p-3">IGST</th>
-                      <th className="p-3 text-brand-400 bg-brand-500/5">Total Tax</th>
+                      {isAU ? (
+                        <th className="p-3 text-brand-400 bg-brand-500/5">GST (10%)</th>
+                      ) : (
+                        <>
+                          <th className="p-3">CGST</th>
+                          <th className="p-3">SGST</th>
+                          <th className="p-3">IGST</th>
+                          <th className="p-3 text-brand-400 bg-brand-500/5">Total Tax</th>
+                        </>
+                      )}
                       <th className="p-3">Grand Total</th>
                     </tr>
                   </thead>
@@ -312,14 +350,20 @@ export default function GSTCompliancePage() {
                         <td className="p-3 text-surface-300">{fmt(row.gross_revenue)}</td>
                         <td className="p-3 text-red-400">{row.discount > 0 ? `-${fmt(row.discount)}` : '—'}</td>
                         <td className="p-3 text-surface-200">{fmt(row.taxable)}</td>
-                        <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
-                        <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
-                        <td className="p-3 text-blue-400">{row.igst > 0 ? fmt(row.igst) : '—'}</td>
-                        <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                        {isAU ? (
+                          <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                        ) : (
+                          <>
+                            <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
+                            <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
+                            <td className="p-3 text-blue-400">{row.igst > 0 ? fmt(row.igst) : '—'}</td>
+                            <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
+                          </>
+                        )}
                         <td className="p-3 font-bold text-white">{fmt(row.grand_total)}</td>
                       </tr>
                     )) : (
-                      <tr><td colSpan="10" className="p-8 text-center text-surface-500 italic">No data for this period</td></tr>
+                      <tr><td colSpan={isAU ? 7 : 10} className="p-8 text-center text-surface-500 italic">No data for this period</td></tr>
                     )}
                     {dailyRegister.length > 0 && (
                       <tr className="bg-surface-950 font-bold text-sm">
@@ -328,10 +372,16 @@ export default function GSTCompliancePage() {
                         <td className="p-3 text-white">{fmt(dailyRegister.reduce((s, r) => s + r.gross_revenue, 0))}</td>
                         <td className="p-3 text-red-400">{fmt(dailyRegister.reduce((s, r) => s + r.discount, 0))}</td>
                         <td className="p-3 text-white">{fmt(dailyRegister.reduce((s, r) => s + r.taxable, 0))}</td>
-                        <td className="p-3 text-purple-400">{fmt(dailyRegister.reduce((s, r) => s + r.cgst, 0))}</td>
-                        <td className="p-3 text-amber-400">{fmt(dailyRegister.reduce((s, r) => s + r.sgst, 0))}</td>
-                        <td className="p-3 text-blue-400">{fmt(dailyRegister.reduce((s, r) => s + r.igst, 0))}</td>
-                        <td className="p-3 text-brand-400">{fmt(dailyRegister.reduce((s, r) => s + r.total_tax, 0))}</td>
+                        {isAU ? (
+                          <td className="p-3 text-brand-400">{fmt(dailyRegister.reduce((s, r) => s + r.total_tax, 0))}</td>
+                        ) : (
+                          <>
+                            <td className="p-3 text-purple-400">{fmt(dailyRegister.reduce((s, r) => s + r.cgst, 0))}</td>
+                            <td className="p-3 text-amber-400">{fmt(dailyRegister.reduce((s, r) => s + r.sgst, 0))}</td>
+                            <td className="p-3 text-blue-400">{fmt(dailyRegister.reduce((s, r) => s + r.igst, 0))}</td>
+                            <td className="p-3 text-brand-400">{fmt(dailyRegister.reduce((s, r) => s + r.total_tax, 0))}</td>
+                          </>
+                        )}
                         <td className="p-3 text-white">{fmt(dailyRegister.reduce((s, r) => s + r.grand_total, 0))}</td>
                       </tr>
                     )}
