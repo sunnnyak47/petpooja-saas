@@ -1,4 +1,7 @@
 import React, { useState } from 'react'
+import { useDispatch } from 'react-redux'
+import { loginSuccess } from '../store/slices/authSlice'
+import api from '../lib/api'
 
 const SetupWizard = ({ onComplete }) => {
   const [step, setStep] = useState(1)
@@ -64,6 +67,7 @@ const SetupWizard = ({ onComplete }) => {
 // Step 2: Login
 // ─────────────────────────────────────
 const LoginStep = ({ onComplete, onBack }) => {
+  const dispatch = useDispatch()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -74,14 +78,26 @@ const LoginStep = ({ onComplete, onBack }) => {
     setError('')
     setLoading(true)
 
-    // Example API logic...
     try {
-      // Assuming a real login check, here we just simulate saving it
       if (!email || !password) throw new Error("Email and password are required")
-      
-      onComplete({ email, password, outlet_id: 'default' })
+
+      const res = await api.post('/auth/login', { login: email, password })
+      // api interceptor unwraps response.data, so res = { success, data, message }
+      const payload = res.data || res
+      const { user, accessToken, refreshToken } = payload
+
+      // Persist auth state
+      localStorage.setItem('accessToken', accessToken)
+      localStorage.setItem('refreshToken', refreshToken || '')
+      localStorage.setItem('user', JSON.stringify(user))
+      dispatch(loginSuccess({ accessToken, refreshToken, user }))
+
+      // Extract real outlet_id from the user's first role assignment
+      const outlet_id = user.user_roles?.[0]?.outlet_id || 'default'
+
+      onComplete({ email, password, outlet_id })
     } catch (err) {
-      setError(err.message || 'Login failed')
+      setError(err.response?.data?.message || err.message || 'Login failed')
     } finally {
       setLoading(false)
     }

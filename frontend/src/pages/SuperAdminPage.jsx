@@ -43,7 +43,7 @@ export default function SuperAdminPage() {
   const [regionModal, setRegionModal]   = useState(null);
   const [filterRegion, setFilterRegion] = useState('ALL');
   const [searchQ, setSearchQ]           = useState('');
-  const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN' });
+  const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN', owner_name: '', city: '', abn: '', acn: '' });
   const [notesModal, setNotesModal]     = useState(null); // { chain, text }
   const [planDropdown, setPlanDropdown] = useState(null); // chain.id
   const [activeTab, setActiveTab]       = useState('chains');
@@ -72,7 +72,7 @@ export default function SuperAdminPage() {
       queryClient.invalidateQueries(['onboarding-overview']);
       toast.success('Restaurant chain onboarded!');
       setShowOnboard(false);
-      setFormData({ name: '', email: '', phone: '', password: '', region: 'IN' });
+      setFormData({ name: '', email: '', phone: '', password: '', region: 'IN', owner_name: '', city: '', abn: '', acn: '' });
     },
     onError: (e) => toast.error(e.response?.data?.message || e.message || 'Onboarding failed'),
   });
@@ -853,10 +853,12 @@ export default function SuperAdminPage() {
             </div>
             <div className="p-5 space-y-3">
               {[
-                { key: 'name',     placeholder: 'Restaurant Chain Name', type: 'text' },
-                { key: 'email',    placeholder: 'Owner Email',           type: 'email' },
-                { key: 'phone',    placeholder: 'Phone',                  type: 'text' },
-                { key: 'password', placeholder: 'Initial Password',       type: 'password' },
+                { key: 'name',       placeholder: 'Restaurant Chain Name', type: 'text' },
+                { key: 'owner_name', placeholder: 'Owner Full Name',       type: 'text' },
+                { key: 'email',      placeholder: 'Owner Email',           type: 'email' },
+                { key: 'phone',      placeholder: 'Phone',                 type: 'text' },
+                { key: 'city',       placeholder: 'City',                  type: 'text' },
+                { key: 'password',   placeholder: 'Initial Password',      type: 'password' },
               ].map(f => (
                 <input key={f.key} type={f.type} placeholder={f.placeholder}
                   value={formData[f.key]}
@@ -884,6 +886,21 @@ export default function SuperAdminPage() {
                   ))}
                 </div>
               </div>
+
+              {formData.region === 'AU' && (
+                <div className="space-y-3">
+                  <input placeholder="ABN (Australian Business Number)" type="text"
+                    value={formData.abn}
+                    onChange={e => setFormData(p => ({ ...p, abn: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }} />
+                  <input placeholder="ACN (Australian Company Number)" type="text"
+                    value={formData.acn}
+                    onChange={e => setFormData(p => ({ ...p, acn: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', '--tw-ring-color': 'var(--accent)' }} />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowOnboard(false)}

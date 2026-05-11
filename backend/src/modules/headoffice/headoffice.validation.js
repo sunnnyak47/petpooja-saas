@@ -34,15 +34,19 @@ const createIndentSchema = Joi.object({
 const registerRestaurantSchema = Joi.object({
   name: Joi.string().required().max(150),
   email: Joi.string().email().required(),
-  phone: Joi.string().required().pattern(/^[0-9]{10,15}$/),
+  phone: Joi.string().required().pattern(/^[+]?[0-9]{8,15}$/),
   password: Joi.string().required().min(6).max(100),
   legal_name: Joi.string().max(200),
   gstin: Joi.string().max(15).allow('', null),
   owner_name: Joi.string().max(150),
+  full_name: Joi.string().max(150),
   plan: Joi.string().valid('starter', 'growth', 'pro', 'enterprise'),
   city: Joi.string().max(100),
   state: Joi.string().max(100),
   address: Joi.string().max(500),
+  region: Joi.string().valid('IN', 'AU').default('IN'),
+  abn: Joi.string().max(20).allow('', null),
+  acn: Joi.string().max(15).allow('', null),
 });
 
 /**

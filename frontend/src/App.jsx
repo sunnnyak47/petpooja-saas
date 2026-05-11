@@ -146,6 +146,7 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  const { isAuthenticated } = useSelector((s) => s.auth);
   const [setupComplete, setSetupComplete] = useState(
     localStorage.getItem('msrm_setup_completed') === 'true'
   );
@@ -164,7 +165,7 @@ export default function App() {
     <OnlineStatusBar />
     <SyncStatusIndicator />
     <Routes>
-      {typeof window !== 'undefined' && window.electron && !setupComplete && (
+      {typeof window !== 'undefined' && window.electron && !setupComplete && !isAuthenticated && (
         <Route path="*" element={<SetupWizard onComplete={handleSetupComplete} />} />
       )}
       <Route path="/welcome" element={<WelcomePage />} />
