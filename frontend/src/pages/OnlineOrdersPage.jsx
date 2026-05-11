@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useRegion } from '../hooks/useRegion';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PLATFORM_META = {
   swiggy:   { label: 'Swiggy',    color: '#FF5200', bg: '#fff3ed', region: 'IN' },
@@ -62,7 +63,7 @@ function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejec
           )}
         </div>
         <div className="text-right">
-          <div className="font-bold text-lg">₹{Number(total).toFixed(2)}</div>
+          <div className="font-bold text-lg">{symbol}{Number(total).toFixed(2)}</div>
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-700'}`}>
             {order.status}
           </span>
@@ -73,7 +74,7 @@ function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejec
         {(order.items || []).map((item, i) => (
           <div key={i} className="flex justify-between text-xs">
             <span>{item.quantity}× {item.name}</span>
-            <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+            <span>{symbol}{(item.price * item.quantity).toFixed(2)}</span>
           </div>
         ))}
       </div>
@@ -151,7 +152,7 @@ function HistoryView({ outletId, platformFilter }) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold">₹{Number(total).toFixed(2)}</div>
+                  <div className="font-semibold">{symbol}{Number(total).toFixed(2)}</div>
                   <span className={`text-xs ${order.status === 'DELIVERED' ? 'text-green-600' : order.status === 'REJECTED' ? 'text-red-600' : 'text-blue-600'}`}>
                     {order.status}
                   </span>
@@ -169,6 +170,7 @@ export default function OnlineOrdersPage() {
   const { user, token } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const userRegion = useRegion();
+  const { format: formatCurrency, symbol } = useCurrency();
   const queryClient = useQueryClient();
 
   /* Only show platforms matching the user's region */
@@ -414,7 +416,7 @@ export default function OnlineOrdersPage() {
       {stats && (
         <div className="card p-4 flex flex-wrap gap-6 text-sm border-t">
           <div><span className="text-secondary">Today's Orders:</span> <strong>{stats.today_orders ?? 0}</strong></div>
-          <div><span className="text-secondary">Revenue:</span> <strong>₹{Number(stats.today_revenue ?? 0).toFixed(2)}</strong></div>
+          <div><span className="text-secondary">Revenue:</span> <strong>{symbol}{Number(stats.today_revenue ?? 0).toFixed(2)}</strong></div>
           <div><span className="text-secondary">Accepted:</span> <strong className="text-green-600">{stats.accepted ?? 0}</strong></div>
           <div><span className="text-secondary">Rejected:</span> <strong className="text-red-600">{stats.rejected ?? 0}</strong></div>
           {Object.entries(REGION_PLATFORMS).map(([p, meta]) => stats[p] != null && (
