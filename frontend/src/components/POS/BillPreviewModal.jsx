@@ -1,9 +1,14 @@
 import Modal from '../Modal';
 import { Printer, Share2, ClipboardCheck, X } from 'lucide-react';
 import useBranding from '../../hooks/useBranding';
+import { useCurrency } from '../../hooks/useCurrency';
+import { useRegion } from '../../hooks/useRegion';
 
 export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
   const { branding } = useBranding();
+  const { symbol } = useCurrency();
+  const userRegion = useRegion();
+  const isAU = userRegion === 'AU';
   if (!order) return null;
 
   const formatDate = (date) => new Date(date).toLocaleString();
@@ -16,7 +21,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold uppercase tracking-widest">{order.outlet?.name || `${branding.platform_name} Restaurant`}</h2>
             <p className="text-[10px] mt-1">{order.outlet?.address || '123 Food Street, Main City'}</p>
-            <p className="text-[10px]">GSTIN: {order.outlet?.gstin || '24AAAAA0000A1Z5'}</p>
+            <p className="text-[10px]">{isAU ? `ABN: ${order.outlet?.abn || ''}` : `GSTIN: ${order.outlet?.gstin || '24AAAAA0000A1Z5'}`}</p>
             <div className="border-t border-dashed border-gray-300 my-4"></div>
             <h3 className="font-bold underline decoration-double">PROFORMA INVOICE</h3>
           </div>
@@ -49,7 +54,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
                   {item.addons?.map(a => <p key={a.id} className="text-[9px] pl-2 opacity-70">+ {a.name}</p>)}
                 </div>
                 <span className="col-span-1 text-center">{item.quantity}</span>
-                <span className="col-span-3 text-right">₹{Number(item.item_total).toFixed(2)}</span>
+                <span className="col-span-3 text-right">{symbol}{Number(item.item_total).toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -57,23 +62,34 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
           <div className="border-t border-dashed border-gray-300 pt-2 space-y-1">
             <div className="flex justify-between text-[11px]">
                <span>Subtotal</span>
-               <span>₹{Number(order.subtotal).toFixed(2)}</span>
+               <span>{symbol}{Number(order.subtotal).toFixed(2)}</span>
             </div>
-            {Number(order.cgst) > 0 && (
-              <div className="flex justify-between text-[10px] opacity-70">
-                <span>CGST (2.5%)</span>
-                <span>₹{Number(order.cgst).toFixed(2)}</span>
-              </div>
-            )}
-            {Number(order.sgst) > 0 && (
-              <div className="flex justify-between text-[10px] opacity-70">
-                <span>SGST (2.5%)</span>
-                <span>₹{Number(order.sgst).toFixed(2)}</span>
-              </div>
+            {isAU ? (
+              (Number(order.cgst) > 0 || Number(order.sgst) > 0 || Number(order.gst) > 0) && (
+                <div className="flex justify-between text-[10px] opacity-70">
+                  <span>GST (10%)</span>
+                  <span>{symbol}{Number(order.gst || (Number(order.cgst || 0) + Number(order.sgst || 0))).toFixed(2)}</span>
+                </div>
+              )
+            ) : (
+              <>
+                {Number(order.cgst) > 0 && (
+                  <div className="flex justify-between text-[10px] opacity-70">
+                    <span>CGST (2.5%)</span>
+                    <span>{symbol}{Number(order.cgst).toFixed(2)}</span>
+                  </div>
+                )}
+                {Number(order.sgst) > 0 && (
+                  <div className="flex justify-between text-[10px] opacity-70">
+                    <span>SGST (2.5%)</span>
+                    <span>{symbol}{Number(order.sgst).toFixed(2)}</span>
+                  </div>
+                )}
+              </>
             )}
             <div className="flex justify-between font-bold text-base border-t border-double border-gray-900 pt-2 mt-2">
                <span>GRAND TOTAL</span>
-               <span>₹{Number(order.grand_total).toFixed(0)}.00</span>
+               <span>{symbol}{Number(order.grand_total).toFixed(2)}</span>
             </div>
           </div>
 

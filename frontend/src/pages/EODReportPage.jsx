@@ -145,7 +145,7 @@ function DenomRow({ denom, count, onChange, fmt }) {
 }
 
 /* ─── Print preview ──────────────────────────────────────────────── */
-function PrintPreview({ report, snap, outletName, user, fmt }) {
+function PrintPreview({ report, snap, outletName, user, fmt, upiLabel = 'UPI' }) {
   const printRef = useRef();
   const handlePrint = () => {
     const win = window.open('', '_blank');
@@ -190,7 +190,7 @@ function PrintPreview({ report, snap, outletName, user, fmt }) {
         <div className="space-y-1">
           <div className="flex justify-between"><span>Cash</span><strong>{fmt(d.cash_system)}</strong></div>
           <div className="flex justify-between"><span>Card</span><strong>{fmt(d.card_system)}</strong></div>
-          <div className="flex justify-between"><span>UPI</span><strong>{fmt(d.upi_system)}</strong></div>
+          <div className="flex justify-between"><span>{upiLabel}</span><strong>{fmt(d.upi_system)}</strong></div>
           <div className="flex justify-between"><span>Other</span><strong>{fmt(d.other_system)}</strong></div>
         </div>
 
@@ -237,7 +237,9 @@ export default function EODReportPage() {
   const navigate  = useNavigate();
   const qc        = useQueryClient();
   const { format, locale, isAU } = useCurrency();
+  const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
   const fmt = (n) => format(n ?? 0);
+  const upiLabel = userRegion === 'AU' ? 'EFTPOS' : 'UPI';
   const DENOMS = isAU ? AU_DENOMS : IN_DENOMS;
   const computeCashActual = (counts) => DENOMS.reduce((s, d) => s + d.value * (Number(counts[d.value] || 0)), 0);
 
@@ -503,7 +505,7 @@ export default function EODReportPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <PayCard label="Cash"  icon={Coins}       amount={snap?.cash_system}  pctVal={pct(snap?.cash_system,  totalRevenue)} color="#22c55e" fmt={fmt}/>
                 <PayCard label="Card"  icon={CreditCard}  amount={snap?.card_system}  pctVal={pct(snap?.card_system,  totalRevenue)} color="#3b82f6" fmt={fmt}/>
-                <PayCard label="UPI"   icon={Smartphone}  amount={snap?.upi_system}   pctVal={pct(snap?.upi_system,   totalRevenue)} color="#a855f7" fmt={fmt}/>
+                <PayCard label={upiLabel}  icon={Smartphone}  amount={snap?.upi_system}   pctVal={pct(snap?.upi_system,   totalRevenue)} color="#a855f7" fmt={fmt}/>
                 <PayCard label="Other" icon={DollarSign}  amount={snap?.other_system} pctVal={pct(snap?.other_system, totalRevenue)} color="#f59e0b" fmt={fmt}/>
               </div>
 
@@ -511,10 +513,10 @@ export default function EODReportPage() {
                 <h2 className="font-semibold mb-4 flex items-center gap-2"><CreditCard size={16}/> Payment Method Totals</h2>
                 <div className="space-y-0">
                   {[
-                    { label: 'Cash',  value: snap?.cash_system  },
-                    { label: 'Card',  value: snap?.card_system  },
-                    { label: 'UPI',   value: snap?.upi_system   },
-                    { label: 'Other', value: snap?.other_system },
+                    { label: 'Cash',     value: snap?.cash_system  },
+                    { label: 'Card',     value: snap?.card_system  },
+                    { label: upiLabel,   value: snap?.upi_system   },
+                    { label: 'Other',    value: snap?.other_system },
                   ].map(p => (
                     <StatRow key={p.label} label={p.label} value={fmt(p.value)}/>
                   ))}
@@ -526,7 +528,7 @@ export default function EODReportPage() {
                 <h2 className="font-semibold mb-3">Opening Float</h2>
                 <p className="text-sm text-secondary mb-3">Enter the cash amount in the drawer at the start of the day (petty cash float).</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl font-bold text-secondary">₹</span>
+                  <span className="text-xl font-bold text-secondary">{isAU ? 'A$' : '₹'}</span>
                   <input type="number" min="0" step="0.01" value={openingCash}
                     onChange={e => setOpeningCash(e.target.value)}
                     placeholder="e.g. 1000"
@@ -631,7 +633,7 @@ export default function EODReportPage() {
                   <h2 className="font-semibold mb-3">Full Payment Summary</h2>
                   <StatRow label="Cash Collected"   value={fmt(cashSystem)}/>
                   <StatRow label="Card Collected"   value={fmt(snap?.card_system)}/>
-                  <StatRow label="UPI Collected"    value={fmt(snap?.upi_system)}/>
+                  <StatRow label={`${upiLabel} Collected`} value={fmt(snap?.upi_system)}/>
                   <StatRow label="Other"            value={fmt(snap?.other_system)}/>
                   <StatRow label="TOTAL"            value={fmt(totalRevenue)} highlight/>
                 </div>
@@ -681,7 +683,8 @@ export default function EODReportPage() {
                   snap={snap}
                   outletName={user?.outlet_name || user?.name}
                   user={user}
-                  fmt={fmt}/>
+                  fmt={fmt}
+                  upiLabel={upiLabel}/>
               </div>
 
               {/* Final actions */}

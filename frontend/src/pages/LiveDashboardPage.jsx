@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   Activity, ShoppingCart, TrendingUp, Users, Clock,
   Zap, RefreshCw, CheckCircle2, AlertCircle, ChefHat,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 function LiveCounter({ value, label, color, icon: Icon, prefix = '' }) {
+  const { locale } = useCurrency();
   const target = value || 0;
   const [display, setDisplay] = useState(target);
 
@@ -43,7 +45,7 @@ function LiveCounter({ value, label, color, icon: Icon, prefix = '' }) {
       </div>
       <div>
         <p className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          {prefix}{typeof display === 'number' ? display.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : display}
+          {prefix}{typeof display === 'number' ? display.toLocaleString(locale, { maximumFractionDigits: 0 }) : display}
         </p>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{label}</p>
       </div>
@@ -68,6 +70,7 @@ function OrderStatusBar({ label, count, total, color }) {
 
 export default function LiveDashboardPage() {
   const { user } = useSelector(s => s.auth);
+  const { symbol } = useCurrency();
   const [pulse, setPulse] = useState(false);
 
   const { data: stats, refetch, dataUpdatedAt } = useQuery({
@@ -142,9 +145,9 @@ export default function LiveDashboardPage() {
       {/* Key Metrics */}
       <div className="grid grid-cols-4 gap-4">
         <LiveCounter label="Orders Today"       value={d?.orders_today || d?.today_orders || 0}     color="#6366f1" icon={ShoppingCart} />
-        <LiveCounter label="Revenue Today (₹)"  value={d?.revenue_today || d?.today_revenue || 0}   color="#22c55e" icon={TrendingUp} prefix="₹" />
+        <LiveCounter label={`Revenue Today (${symbol})`}  value={d?.revenue_today || d?.today_revenue || 0}   color="#22c55e" icon={TrendingUp} prefix={symbol} />
         <LiveCounter label="Active Tables"       value={d?.active_tables || d?.tables_occupied || 0} color="#f59e0b" icon={Utensils} />
-        <LiveCounter label="Avg Order Value (₹)" value={d?.avg_order_value || 0}                     color="#a78bfa" icon={DollarSign} prefix="₹" />
+        <LiveCounter label={`Avg Order Value (${symbol})`} value={d?.avg_order_value || 0}                     color="#a78bfa" icon={DollarSign} prefix={symbol} />
       </div>
 
       <div className="grid grid-cols-2 gap-6">

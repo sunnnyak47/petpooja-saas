@@ -12,12 +12,13 @@ import {
   ChevronRight, Timer, Settings2, ExternalLink
 } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { useRegion } from '../hooks/useRegion';
 
 const PLATFORM_META = {
-  swiggy:   { label: 'Swiggy',    color: '#FF5200', bg: '#fff3ed' },
-  zomato:   { label: 'Zomato',    color: '#E23744', bg: '#fdf0f1' },
-  doordash: { label: 'DoorDash',  color: '#FF3008', bg: '#fff2f0' },
-  menulog:  { label: 'Menulog',   color: '#E60000', bg: '#fff0f0' },
+  swiggy:   { label: 'Swiggy',    color: '#FF5200', bg: '#fff3ed', region: 'IN' },
+  zomato:   { label: 'Zomato',    color: '#E23744', bg: '#fdf0f1', region: 'IN' },
+  doordash: { label: 'DoorDash',  color: '#FF3008', bg: '#fff2f0', region: 'AU' },
+  menulog:  { label: 'Menulog',   color: '#E60000', bg: '#fff0f0', region: 'AU' },
 };
 
 function PlatformBadge({ platform }) {
@@ -167,7 +168,13 @@ function HistoryView({ outletId, platformFilter }) {
 export default function OnlineOrdersPage() {
   const { user, token } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const userRegion = useRegion();
   const queryClient = useQueryClient();
+
+  /* Only show platforms matching the user's region */
+  const REGION_PLATFORMS = Object.fromEntries(
+    Object.entries(PLATFORM_META).filter(([, meta]) => meta.region === userRegion)
+  );
   const socketRef = useRef(null);
   const navigate = useNavigate();
 
@@ -246,7 +253,7 @@ export default function OnlineOrdersPage() {
   const ready     = filteredOrders.filter(o => o.status === 'READY');
 
   const statsByPlatform = {};
-  Object.keys(PLATFORM_META).forEach(p => {
+  Object.keys(REGION_PLATFORMS).forEach(p => {
     statsByPlatform[p] = (activeOrders || []).filter(o => o.platform === p).length;
   });
 
@@ -259,7 +266,7 @@ export default function OnlineOrdersPage() {
             <Globe size={24} className="text-accent" /> Online Orders
           </h1>
           <p className="text-secondary text-sm mt-1">
-            Live orders from Swiggy, Zomato, DoorDash & Menulog
+            Live orders from {Object.values(REGION_PLATFORMS).map(m => m.label).join(', ')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -289,7 +296,7 @@ export default function OnlineOrdersPage() {
           <div className="text-2xl font-bold">{activeOrders.length}</div>
           <div className="text-xs text-secondary">Active Orders</div>
         </div>
-        {Object.entries(PLATFORM_META).map(([key, meta]) => (
+        {Object.entries(REGION_PLATFORMS).map(([key, meta]) => (
           <div key={key} className="card p-4 cursor-pointer hover:border-accent transition-colors"
             style={{ borderLeft: `3px solid ${meta.color}` }}
             onClick={() => setPlatformFilter(platformFilter === key ? 'all' : key)}>
@@ -312,10 +319,10 @@ export default function OnlineOrdersPage() {
           </button>
         </div>
         <div className="flex gap-2">
-          {['all', ...Object.keys(PLATFORM_META)].map(p => (
+          {['all', ...Object.keys(REGION_PLATFORMS)].map(p => (
             <button key={p} onClick={() => setPlatformFilter(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${platformFilter === p ? 'bg-accent text-white' : 'bg-surface border border-border text-secondary hover:text-primary'}`}>
-              {p === 'all' ? 'All' : PLATFORM_META[p]?.label}
+              {p === 'all' ? 'All' : REGION_PLATFORMS[p]?.label}
             </button>
           ))}
         </div>
@@ -410,7 +417,7 @@ export default function OnlineOrdersPage() {
           <div><span className="text-secondary">Revenue:</span> <strong>₹{Number(stats.today_revenue ?? 0).toFixed(2)}</strong></div>
           <div><span className="text-secondary">Accepted:</span> <strong className="text-green-600">{stats.accepted ?? 0}</strong></div>
           <div><span className="text-secondary">Rejected:</span> <strong className="text-red-600">{stats.rejected ?? 0}</strong></div>
-          {Object.entries(PLATFORM_META).map(([p, meta]) => stats[p] != null && (
+          {Object.entries(REGION_PLATFORMS).map(([p, meta]) => stats[p] != null && (
             <div key={p}><span className="text-secondary">{meta.label}:</span> <strong style={{ color: meta.color }}>{stats[p]}</strong></div>
           ))}
         </div>

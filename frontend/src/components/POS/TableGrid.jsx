@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Users, Clock, ArrowRight, CheckCircle2, AlertCircle, Ban } from 'lucide-react';
+import { useCurrency } from '../../hooks/useCurrency';
 
 /**
  * TableGrid - A visual representation of the restaurant's floor plan.
@@ -11,6 +12,7 @@ import { Users, Clock, ArrowRight, CheckCircle2, AlertCircle, Ban } from 'lucide
  * - Blocked: Red (Error)
  */
 const TableGrid = ({ tables, areas, onTableClick, selectedAreaId, onAreaChange }) => {
+  const { format } = useCurrency();
   const filteredTables = selectedAreaId 
     ? tables.filter(t => t.area_id === selectedAreaId) 
     : tables;
@@ -115,7 +117,7 @@ const TableGrid = ({ tables, areas, onTableClick, selectedAreaId, onAreaChange }
               <div className="mt-auto">
                 {currentOrder ? (
                   <div className="flex flex-col items-start">
-                    <span className="text-[10px] font-black tracking-tighter text-white opacity-40 uppercase">₹ {currentOrder.grand_total}</span>
+                    <span className="text-[10px] font-black tracking-tighter text-white opacity-40 uppercase">{format(currentOrder.grand_total)}</span>
                     <span className="text-[9px] font-bold text-white leading-tight truncate w-full text-left line-clamp-1 italic">Order: {currentOrder.order_number}</span>
                   </div>
                 ) : (

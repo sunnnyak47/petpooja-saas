@@ -22,9 +22,9 @@ const SQUARE_ICONS = {
   egg: <div className="w-3 h-3 border border-yellow-500 flex items-center justify-center p-[1px]"><div className="w-full h-full bg-yellow-500 rounded-full"></div></div>
 };
 
-const EMPTY_ITEM = {
+const EMPTY_ITEM_BASE = {
   name: '', short_code: '', description: '', base_price: '', category_id: '',
-  food_type: 'veg', kitchen_station: 'KITCHEN', gst_rate: 5,
+  food_type: 'veg', kitchen_station: 'KITCHEN',
   is_available: true, image_url: '',
   variants: [], addons: [], menu_schedules: []
 };
@@ -32,7 +32,9 @@ const EMPTY_ITEM = {
 export default function MenuPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
   const { symbol, format } = useCurrency();
+  const EMPTY_ITEM = { ...EMPTY_ITEM_BASE, gst_rate: userRegion === 'AU' ? 10 : 5 };
   const queryClient = useQueryClient();
   
   // Filters
@@ -241,7 +243,7 @@ export default function MenuPage() {
       id: item.id, name: item.name || '', short_code: item.short_code || '', description: item.description || '',
       base_price: item.base_price || '', category_id: item.category_id || '',
       food_type: item.food_type || 'veg', kitchen_station: item.kitchen_station || 'KITCHEN',
-      gst_rate: item.gst_rate ?? 5, is_available: item.is_available ?? true,
+      gst_rate: item.gst_rate ?? (userRegion === 'AU' ? 10 : 5), is_available: item.is_available ?? true,
       image_url: item.image_url || '',
       variants: item.variants || [], addons: item.addons || [],
       menu_schedules: item.menu_schedules || []
@@ -337,11 +339,20 @@ export default function MenuPage() {
                  <option value="egg">Contains Egg</option>
                </select>
                <select className="input w-32 bg-surface-950 border-surface-700 text-sm" value={gstFilter} onChange={e=>setGstFilter(e.target.value)}>
-                 <option value="">GST: All</option>
-                 <option value="5">GST: 5%</option>
-                 <option value="12">GST: 12%</option>
-                 <option value="18">GST: 18%</option>
-                 <option value="0">Exempt</option>
+                 <option value="">{userRegion === 'AU' ? 'GST: All' : 'GST: All'}</option>
+                 {userRegion === 'AU' ? (
+                   <>
+                     <option value="10">GST: 10%</option>
+                     <option value="0">GST-Free</option>
+                   </>
+                 ) : (
+                   <>
+                     <option value="5">GST: 5%</option>
+                     <option value="12">GST: 12%</option>
+                     <option value="18">GST: 18%</option>
+                     <option value="0">Exempt</option>
+                   </>
+                 )}
                </select>
                <select className="input w-40 bg-surface-950 border-surface-700 text-sm" value={sortBy} onChange={e=>setSortBy(e.target.value)}>
                  <option value="name">Sort: A-Z</option>
@@ -498,14 +509,23 @@ export default function MenuPage() {
                {/* Right Col - Pricing & Image */}
                <div className="space-y-4">
                   <div className="bg-surface-800 p-4 rounded-xl border border-surface-700 text-center">
-                     <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Base Price (₹) *</label>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Base Price ({symbol}) *</label>
                      <input required type="number" min="0" step="1" className="input w-full text-center text-3xl font-black text-brand-400 p-2" value={itemForm.base_price} onChange={e=>setItemForm({...itemForm, base_price: e.target.value})} />
                   </div>
                   <div>
                      <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">GST Category *</label>
                      <select className="input w-full" value={itemForm.gst_rate} onChange={e=>setItemForm({...itemForm, gst_rate: Number(e.target.value)})}>
-                        <option value={5}>5%</option><option value={12}>12%</option>
-                        <option value={18}>18%</option><option value={0}>Exempt (0%)</option>
+                        {userRegion === 'AU' ? (
+                          <>
+                            <option value={10}>10%</option>
+                            <option value={0}>GST-Free (0%)</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value={5}>5%</option><option value={12}>12%</option>
+                            <option value={18}>18%</option><option value={0}>Exempt (0%)</option>
+                          </>
+                        )}
                      </select>
                   </div>
                   <div className="p-4 border-2 border-dashed border-surface-600 hover:border-brand-500 hover:bg-surface-800 transition-colors rounded-xl text-center cursor-pointer relative overflow-hidden group">
@@ -560,7 +580,7 @@ export default function MenuPage() {
                               setItemForm({ ...itemForm, variants: next });
                            }} />
                            <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800">
-                              <span className="text-surface-500 text-xs font-bold">+ ₹</span>
+                              <span className="text-surface-500 text-xs font-bold">+ {symbol}</span>
                               <input type="number" placeholder="0" className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
                                  const next = [...itemForm.variants];
                                  next[idx].price_addition = Number(e.target.value);
@@ -676,10 +696,10 @@ export default function MenuPage() {
          <div className="space-y-4 pt-2">
             <div className="flex bg-surface-900 rounded-lg p-1">
                <button onClick={()=>setBulkForm({...bulkForm, type: 'percentage'})} className={`flex-1 py-1.5 text-sm font-bold rounded ${bulkForm.type==='percentage' ? 'bg-surface-700 text-white':'text-surface-500'}`}>% Percentage</button>
-               <button onClick={()=>setBulkForm({...bulkForm, type: 'flat'})} className={`flex-1 py-1.5 text-sm font-bold rounded ${bulkForm.type==='flat' ? 'bg-surface-700 text-white':'text-surface-500'}`}>₹ Flat Amount</button>
+               <button onClick={()=>setBulkForm({...bulkForm, type: 'flat'})} className={`flex-1 py-1.5 text-sm font-bold rounded ${bulkForm.type==='flat' ? 'bg-surface-700 text-white':'text-surface-500'}`}>{symbol} Flat Amount</button>
             </div>
             <div>
-               <label className="block text-xs font-bold text-surface-400 mb-1">{bulkForm.type==='percentage' ? 'Percentage Increase (%)' : 'Amount to Add (₹)'}</label>
+               <label className="block text-xs font-bold text-surface-400 mb-1">{bulkForm.type==='percentage' ? 'Percentage Increase (%)' : `Amount to Add (${symbol})`}</label>
                <input type="number" step="0.1" className="input w-full text-2xl font-bold py-2" value={bulkForm.value} onChange={e=>setBulkForm({...bulkForm, value: e.target.value})} />
                <p className="text-xs text-brand-400 mt-2 bg-brand-500/10 p-2 rounded">Use positive numbers to increase, negative to decrease.</p>
             </div>

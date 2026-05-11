@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import {
   Zap, Plus, Trash2, ToggleLeft, ToggleRight, Clock, Calendar,
   CloudRain, Sun, Snowflake, TrendingUp, TrendingDown, Tag,
@@ -11,7 +12,7 @@ import {
 } from 'lucide-react';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-const fmt   = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const fmt   = (n) => formatCurrencyStatic(n);
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DAYS_ALL   = [0,1,2,3,4,5,6];
 
@@ -70,6 +71,7 @@ const BLANK = {
 };
 
 function RuleModal({ rule, categories, outletId, onClose }) {
+  const { symbol } = useCurrency();
   const qc = useQueryClient();
   const isEdit = !!rule;
   const [form, setForm] = useState(isEdit ? {
@@ -314,17 +316,17 @@ function RuleModal({ rule, categories, outletId, onClose }) {
               <label className="label">Unit</label>
               <select className="input w-full" value={form.action_unit} onChange={set('action_unit')}>
                 <option value="percent">% Percent</option>
-                <option value="flat">₹ Flat Amount</option>
+                <option value="flat">{symbol} Flat Amount</option>
               </select>
             </div>
             {form.action_type === 'discount' && (
               <div>
-                <label className="label">Max Discount Cap (₹)</label>
+                <label className="label">Max Discount Cap ({symbol})</label>
                 <input className="input w-full" type="number" min="0" value={form.max_discount_amt || ''} onChange={set('max_discount_amt')} placeholder="No cap" />
               </div>
             )}
             <div>
-              <label className="label">Min Order Value (₹)</label>
+              <label className="label">Min Order Value ({symbol})</label>
               <input className="input w-full" type="number" min="0" value={form.min_order_value || ''} onChange={set('min_order_value')} placeholder="No minimum" />
             </div>
           </div>
@@ -383,7 +385,7 @@ function RuleCard({ rule, categories, outletId, onEdit }) {
 
   const actionLabel = rule.action_unit === 'percent'
     ? `${rule.action_value}%`
-    : `₹${rule.action_value}`;
+    : fmt(rule.action_value);
 
   return (
     <div className={`card transition-all ${rule.is_active ? '' : 'opacity-50'}`}>
@@ -532,7 +534,7 @@ function LivePricesTab({ outletId }) {
               return (
                 <div key={r.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold ${r.action_type === 'discount' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
                   {r.action_type === 'discount' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
-                  {r.name} — {r.action_type === 'discount' ? '−' : '+'}{r.action_value}{r.action_unit === 'percent' ? '%' : '₹'} on {r.item_target}
+                  {r.name} — {r.action_type === 'discount' ? '−' : '+'}{r.action_unit === 'percent' ? `${r.action_value}%` : fmt(r.action_value)} on {r.item_target}
                 </div>
               );
             })}
@@ -547,7 +549,7 @@ function LivePricesTab({ outletId }) {
             <Tag className="w-4 h-4 text-yellow-400" />
             Price Changes ({affected.length} items affected)
           </h3>
-          {dataUpdatedAt && <p className="text-xs text-surface-500">Updated {new Date(dataUpdatedAt).toLocaleTimeString('en-IN')}</p>}
+          {dataUpdatedAt && <p className="text-xs text-surface-500">Updated {new Date(dataUpdatedAt).toLocaleTimeString()}</p>}
         </div>
 
         {isLoading ? (

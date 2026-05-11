@@ -12,7 +12,7 @@ import {
 import api from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import toast from 'react-hot-toast';
-import { formatCurrencyStatic } from '../hooks/useCurrency';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 
 /* ── helpers ─────────────────────────────────── */
 const fmt = (n, currency = 'INR') => formatCurrencyStatic(n, currency);
@@ -199,6 +199,7 @@ export default function PurchaseOrderPage() {
    CREATE PO VIEW
 ═══════════════════════════════════════════════ */
 function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, presets, onSaved, onBack }) {
+  const { symbol } = useCurrency();
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [search, setSearch]     = useState('');
   const [lineItems, setLineItems] = useState([]);
@@ -354,7 +355,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ color: muted }}>
-                      {['Item', 'Category', 'HSN', 'Unit', 'Qty', 'Rate (₹)', 'GST%', 'Amount', ''].map(h => (
+                      {['Item', 'Category', 'HSN', 'Unit', 'Qty', `Rate (${symbol})`, 'GST%', 'Amount', ''].map(h => (
                         <th key={h} className="text-left pb-2 pr-2 font-semibold">{h}</th>
                       ))}
                     </tr>

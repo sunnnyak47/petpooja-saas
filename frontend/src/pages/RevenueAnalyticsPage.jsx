@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   TrendingUp, TrendingDown, IndianRupee, Users, BarChart2,
   Globe, Activity, RefreshCw, ArrowUpRight, ArrowDownRight
@@ -46,7 +47,7 @@ function MetricCard({ icon: Icon, label, value, change, changeLabel, color = '#6
 }
 
 // Mini bar chart rendered with divs
-function MrrChart({ data }) {
+function MrrChart({ data, symbol = '₹' }) {
   if (!data?.length) return null;
   const maxMrr = Math.max(...data.map(d => d.mrr), 1);
   return (
@@ -57,7 +58,7 @@ function MrrChart({ data }) {
         return (
           <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
             <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-              {d.label}: ₹{(d.mrr / 1000).toFixed(0)}K
+              {d.label}: {symbol}{(d.mrr / 1000).toFixed(0)}K
             </div>
             <div
               className="w-full rounded-t transition-all"
@@ -88,6 +89,7 @@ function MrrLabels({ data }) {
 }
 
 export default function RevenueAnalyticsPage() {
+  const { formatShort, symbol } = useCurrency();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['revenue-analytics'],
     queryFn: () => api.get('/superadmin/revenue-analytics').then(r => r.data),
@@ -95,11 +97,8 @@ export default function RevenueAnalyticsPage() {
   });
 
   const fmt = (n) => {
-    if (!n) return '₹0';
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)}Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-    return `₹${n}`;
+    if (!n) return `${symbol}0`;
+    return formatShort(n);
   };
 
   if (isLoading) return (
@@ -151,7 +150,7 @@ export default function RevenueAnalyticsPage() {
             </div>
           </div>
         </div>
-        <MrrChart data={data?.mrr_trend} />
+        <MrrChart data={data?.mrr_trend} symbol={symbol} />
         <MrrLabels data={data?.mrr_trend} />
 
         {/* Chain count overlay */}

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import {
@@ -13,17 +13,16 @@ import {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function fmtTime(dt, locale = 'en-IN') {
+function fmtTime(dt, locale) {
   if (!dt) return '—';
   return new Date(dt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
-function fmtDate(dt, locale = 'en-IN') {
+function fmtDate(dt, locale) {
   if (!dt) return '—';
   return new Date(dt).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
 function fmtCurrency(n, currency = 'INR') {
-  if (currency === 'AUD') return 'A$' + parseFloat(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2 });
-  return '₹' + parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+  return formatCurrencyStatic(n, currency);
 }
 
 // ── OTP Clock Modal ─────────────────────────────────────────────
@@ -129,6 +128,7 @@ function OTPClockModal({ isOpen, onClose, outletId }) {
 
 // ── Add / Edit Staff Modal ──────────────────────────────────────
 function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
+  const { symbol } = useCurrency();
   const profile = staff?.profile || staff?.staff_profiles?.[0];
   const [form, setForm] = useState({
     full_name: staff?.full_name || '',
@@ -185,11 +185,11 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
             </select>
           </div>
           <div>
-            <label className="label">Monthly Salary (₹)</label>
+            <label className="label">Monthly Salary ({symbol})</label>
             <input className="input" type="number" value={form.monthly_salary} onChange={e => upd('monthly_salary', e.target.value)} placeholder="15000" />
           </div>
           <div>
-            <label className="label">Hourly Rate (₹)</label>
+            <label className="label">Hourly Rate ({symbol})</label>
             <input className="input" type="number" value={form.hourly_rate} onChange={e => upd('hourly_rate', e.target.value)} placeholder="100" />
           </div>
           <div>
@@ -437,7 +437,7 @@ function SalaryTab({ outletId }) {
                     {r.status !== 'paid' && (
                       bonusId === r.id ? (
                         <div className="flex gap-1 items-center">
-                          <input className="input w-20 text-sm py-1" type="number" placeholder="Bonus ₹"
+                          <input className="input w-20 text-sm py-1" type="number" placeholder="Bonus"
                             value={bonusAmt} onChange={e => setBonusAmt(e.target.value)} />
                           <button onClick={() => payMutation.mutate({ id: r.id, bonus: bonusAmt || 0 })}
                             disabled={payMutation.isPending} className="btn-success btn-sm">
@@ -611,7 +611,7 @@ export default function StaffPage() {
                         <div className="text-right">
                           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Since</p>
                           <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            {new Date(profile.join_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                            {new Date(profile.join_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                           </p>
                         </div>
                       )}

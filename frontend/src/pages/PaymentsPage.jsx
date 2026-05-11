@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   CreditCard, Search, Download,
   DollarSign, Wallet, Banknote,
@@ -32,6 +33,7 @@ const METHOD_COLORS = {
  */
 export default function PaymentsPage() {
   const { user } = useSelector((s) => s.auth);
+  const { format, symbol } = useCurrency();
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
 
@@ -148,11 +150,11 @@ export default function PaymentsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total Revenue', value: `₹${stats.total.toLocaleString()}`, icon: <TrendingUp className="w-5 h-5" />, color: 'text-brand-400' },
+          { label: 'Total Revenue', value: format(stats.total), icon: <TrendingUp className="w-5 h-5" />, color: 'text-brand-400' },
           { label: 'Transactions', value: stats.count, icon: <Receipt className="w-5 h-5" />, color: 'text-blue-400' },
-          { label: 'Cash', value: `₹${stats.cash.toLocaleString()}`, icon: <Banknote className="w-5 h-5" />, color: 'text-emerald-400' },
-          { label: 'Card', value: `₹${stats.card.toLocaleString()}`, icon: <CreditCard className="w-5 h-5" />, color: 'text-blue-400' },
-          { label: 'UPI', value: `₹${stats.upi.toLocaleString()}`, icon: <Wallet className="w-5 h-5" />, color: 'text-purple-400' },
+          { label: 'Cash', value: format(stats.cash), icon: <Banknote className="w-5 h-5" />, color: 'text-emerald-400' },
+          { label: 'Card', value: format(stats.card), icon: <CreditCard className="w-5 h-5" />, color: 'text-blue-400' },
+          { label: 'UPI', value: format(stats.upi), icon: <Wallet className="w-5 h-5" />, color: 'text-purple-400' },
         ].map((s, i) => (
           <div key={i} className="bg-surface-900 rounded-2xl p-4 border border-surface-800">
             <div className="flex items-center justify-between mb-2">
@@ -226,7 +228,7 @@ export default function PaymentsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <span className="text-sm font-bold text-brand-400">₹{Number(o.grand_total).toLocaleString()}</span>
+                  <span className="text-sm font-bold text-brand-400">{format(o.grand_total)}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-xs text-surface-400">{new Date(o.created_at).toLocaleDateString()}</span>
@@ -249,7 +251,7 @@ export default function PaymentsPage() {
           <div className="bg-surface-900 rounded-xl p-4 border border-surface-800">
             <p className="text-xs text-surface-400 mb-1">Order</p>
             <p className="text-lg font-bold text-white">#{selectedPayment?.order_number}</p>
-            <p className="text-2xl font-black text-red-400 mt-1">₹{Number(selectedPayment?.grand_total || 0).toLocaleString()}</p>
+            <p className="text-2xl font-black text-red-400 mt-1">{format(selectedPayment?.grand_total || 0)}</p>
           </div>
           <textarea value={refundReason} onChange={(e) => setRefundReason(e.target.value)}
             className="input w-full resize-none" rows={3} placeholder="Reason for refund..." />

@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   CreditCard, CheckCircle2, ArrowUp, Download, Calendar,
   Store, Users, Zap, Star, Crown, Building2, Clock,
@@ -33,6 +34,7 @@ function timeAgo(dt) {
 
 export default function SubscriptionPage() {
   const { user } = useSelector(s => s.auth);
+  const { format, symbol, locale } = useCurrency();
   const headOfficeId = user?.head_office_id;
 
   const { data: sub, isLoading } = useQuery({
@@ -83,7 +85,7 @@ export default function SubscriptionPage() {
                   </div>
                   <h2 className="text-3xl font-bold">{sub.plan}</h2>
                   <p className="text-lg opacity-80 mt-1">
-                    {sub.plan_price === 0 ? 'Free' : `₹${sub.plan_price.toLocaleString('en-IN')}/month`}
+                    {sub.plan_price === 0 ? 'Free' : `${format(sub.plan_price)}/month`}
                   </p>
                 </div>
                 <div className="text-right">
@@ -92,7 +94,7 @@ export default function SubscriptionPage() {
                     {sub.is_active ? 'Active' : 'Inactive'}
                   </div>
                   <p className="text-xs opacity-60 mt-2">
-                    Member since {new Date(sub.member_since).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                    Member since {new Date(sub.member_since).toLocaleDateString(locale, { month: 'short', year: 'numeric' })}
                   </p>
                 </div>
               </div>
@@ -166,7 +168,7 @@ export default function SubscriptionPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-sm" style={{ color: npColor }}>₹{np.price.toLocaleString('en-IN')}/mo</p>
+                        <p className="font-bold text-sm" style={{ color: npColor }}>{format(np.price)}/mo</p>
                         <div className="flex items-center gap-1 mt-1">
                           <ArrowUp className="w-3 h-3" style={{ color: npColor }} />
                           <span className="text-xs" style={{ color: npColor }}>Upgrade</span>
@@ -215,7 +217,7 @@ export default function SubscriptionPage() {
                           {inv.invoice_number || inv.id?.slice(0, 8).toUpperCase()}
                         </p>
                         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                          {new Date(inv.created_at || inv.invoice_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {new Date(inv.created_at || inv.invoice_date).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                       </div>
                     </div>
@@ -228,7 +230,7 @@ export default function SubscriptionPage() {
                         {inv.status}
                       </span>
                       <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                        ₹{parseFloat(inv.amount || inv.total_amount || 0).toLocaleString('en-IN')}
+                        {format(inv.amount || inv.total_amount || 0)}
                       </p>
                     </div>
                   </div>

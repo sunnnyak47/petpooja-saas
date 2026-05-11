@@ -11,13 +11,21 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useRegion } from '../../hooks/useRegion';
 
-const METHODS = [
+const METHODS_IN = [
   { id: 'cash',  label: 'Cash',       icon: Banknote,            color: '#16a34a' },
   { id: 'upi',   label: 'UPI / QR',   icon: Smartphone,          color: '#7c3aed' },
   { id: 'card',  label: 'Card',       icon: CreditCard,          color: '#0ea5e9' },
   { id: 'part',  label: 'Part Pay',   icon: SplitSquareHorizontal, color: '#d97706' },
   { id: 'due',   label: 'Due / Credit', icon: Clock,             color: '#dc2626' },
+];
+const METHODS_AU = [
+  { id: 'cash',   label: 'Cash',       icon: Banknote,            color: '#16a34a' },
+  { id: 'eftpos', label: 'EFTPOS',     icon: CreditCard,          color: '#7c3aed' },
+  { id: 'card',   label: 'Card',       icon: CreditCard,          color: '#0ea5e9' },
+  { id: 'part',   label: 'Part Pay',   icon: SplitSquareHorizontal, color: '#d97706' },
+  { id: 'due',    label: 'Due / Credit', icon: Clock,             color: '#dc2626' },
 ];
 
 /* Load Razorpay checkout JS once */
@@ -42,6 +50,9 @@ export default function PaymentModal({
   onSuccess,         // (method, paidAmount) => void
 }) {
   const { format, symbol, locale } = useCurrency();
+  const userRegion = useRegion();
+  const isAU = userRegion === 'AU';
+  const METHODS = isAU ? METHODS_AU : METHODS_IN;
   const [method, setMethod]           = useState('cash');
   const [partAmount, setPartAmount]   = useState('');
   const [upiVpa, setUpiVpa]           = useState('');
@@ -134,7 +145,7 @@ export default function PaymentModal({
   const handleConfirm = async () => {
     if (method === 'due' && !customer) return toast.error('Attach a customer to record due payment');
     if (method === 'part' && (!partAmount || Number(partAmount) <= 0)) return toast.error('Enter partial amount');
-    if (method === 'card' && razorpayEnabled) return handleRazorpay();
+    if (method === 'card' && razorpayEnabled && !isAU) return handleRazorpay();
 
     setProcessing(true);
     try {
@@ -181,8 +192,8 @@ export default function PaymentModal({
           ))}
         </div>
 
-        {/* ── UPI QR Panel ── */}
-        {method === 'upi' && (
+        {/* ── UPI QR Panel (India only) ── */}
+        {method === 'upi' && !isAU && (
           <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
             <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: '#7c3aed18', borderBottom: '1px solid var(--border)' }}>
               <span className="text-xs font-bold" style={{ color: '#7c3aed' }}>UPI Payment QR — GPay · PhonePe · Paytm</span>
@@ -217,7 +228,7 @@ export default function PaymentModal({
                   </div>
                   <div className="rounded-xl p-3 border" style={{ background: 'var(--bg-hover)', borderColor: 'var(--border)' }}>
                     <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-secondary)' }}>Amount to pay</p>
-                    <p className="text-2xl font-black" style={{ color: '#7c3aed' }}>₹{amount.toLocaleString('en-IN')}</p>
+                    <p className="text-2xl font-black" style={{ color: '#7c3aed' }}>{format(amount)}</p>
                   </div>
                   <div className="flex gap-2">
                     {['GPay', 'PhonePe', 'Paytm', 'BHIM'].map(app => (
@@ -245,6 +256,19 @@ export default function PaymentModal({
           </div>
         )}
 
+        {/* ── EFTPOS Panel (Australia only) ── */}
+        {method === 'eftpos' && isAU && (
+          <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-hover)' }}>
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" style={{ color: '#7c3aed' }} />
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>EFTPOS Payment</span>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Process payment via EFTPOS terminal. Tap, insert, or swipe the customer's card.
+            </p>
+          </div>
+        )}
+
         {/* ── Card / Razorpay Panel ── */}
         {method === 'card' && (
           <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-hover)' }}>
@@ -252,14 +276,14 @@ export default function PaymentModal({
               <CreditCard className="w-5 h-5" style={{ color: '#0ea5e9' }} />
               <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Card Payment</span>
             </div>
-            {razorpayEnabled && razorpayKey ? (
+            {!isAU && razorpayEnabled && razorpayKey ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ background: 'color-mix(in srgb, #0ea5e9 8%, transparent)', borderColor: 'color-mix(in srgb, #0ea5e9 25%, transparent)' }}>
                 <Shield className="w-4 h-4 flex-shrink-0" style={{ color: '#0ea5e9' }} />
                 <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Razorpay Checkout will open — supports Card, UPI, NetBanking & Wallets</p>
               </div>
             ) : (
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Manual card swipe. Enable Razorpay in <strong>Settings → Payment</strong> for digital checkout.
+                Manual card swipe.{!isAU && <> Enable Razorpay in <strong>Settings → Payment</strong> for digital checkout.</>}
               </p>
             )}
           </div>
@@ -323,11 +347,11 @@ export default function PaymentModal({
             (method === 'due' && !customer)
           }
           className="w-full py-4 rounded-xl text-base font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          style={{ background: method === 'due' ? 'var(--danger)' : method === 'upi' ? '#7c3aed' : method === 'card' ? '#0ea5e9' : 'var(--success)' }}
+          style={{ background: method === 'due' ? 'var(--danger)' : method === 'upi' ? '#7c3aed' : method === 'eftpos' ? '#7c3aed' : method === 'card' ? '#0ea5e9' : 'var(--success)' }}
         >
           {processing
             ? <><Loader className="w-5 h-5 animate-spin" /> Processing...</>
-            : method === 'card' && razorpayEnabled && razorpayKey
+            : method === 'card' && razorpayEnabled && razorpayKey && !isAU
             ? <>Open Razorpay Checkout <ChevronRight className="w-4 h-4" /></>
             : method === 'upi' && upiVpa && !upiPaid
             ? 'Waiting for UPI Confirmation…'
@@ -366,7 +390,7 @@ function CashChangeCalculator({ amount }) {
             className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all"
             style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
-            ₹{v}
+            {symbol}{v}
           </button>
         ))}
         <button

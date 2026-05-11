@@ -3,8 +3,13 @@ import Modal from '../Modal';
 import { CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { useRegion } from '../../hooks/useRegion';
+import { useCurrency } from '../../hooks/useCurrency';
 
 export default function SplitBillModal({ isOpen, onClose, orderTotal, cartItems, orderId, outletId }) {
+  const userRegion = useRegion();
+  const isAU = userRegion === 'AU';
+  const { symbol } = useCurrency();
   const [splitMode, setSplitMode] = useState('equal'); // equal, custom
   const [splitCount, setSplitCount] = useState(2);
   const [customSplits, setCustomSplits] = useState([]);
@@ -64,11 +69,13 @@ export default function SplitBillModal({ isOpen, onClose, orderTotal, cartItems,
                 {currentSplits.map((s, i) => (
                   <div key={i} className="bg-surface-800/50 p-4 rounded-xl border border-surface-700">
                      <p className="text-surface-400 text-sm">Bill {i + 1}</p>
-                     <p className="text-2xl font-bold text-white mb-2">₹{s.amount.toFixed(2)}</p>
+                     <p className="text-2xl font-bold text-white mb-2">{symbol}{s.amount.toFixed(2)}</p>
                      <select className="input w-full text-sm" value={s.method} onChange={(e) => {}}>
                        <option value="cash">Cash</option>
                        <option value="card">Card</option>
-                       <option value="upi">UPI</option>
+                       {isAU
+                         ? <option value="eftpos">EFTPOS</option>
+                         : <option value="upi">UPI</option>}
                      </select>
                   </div>
                 ))}

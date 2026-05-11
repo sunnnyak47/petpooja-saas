@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useRegion } from '../hooks/useRegion';
 import Modal from '../components/Modal';
 import {
   Zap, ZapOff, UploadCloud, RefreshCw, CheckCircle2, XCircle,
@@ -35,7 +36,13 @@ function platformWebhookUrl(platformId) {
 export default function AggregatorPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
+  const userRegion = useRegion();
   const qc = useQueryClient();
+
+  /* Only show platforms matching the user's region */
+  const REGION_PLATFORMS = Object.fromEntries(
+    Object.entries(PLATFORM_META).filter(([, meta]) => meta.region === userRegion)
+  );
 
   const [activeTab, setActiveTab]         = useState('connect');   // connect | menu | orders | logs
   const [expandedPlatform, setExpanded]   = useState(null);
@@ -146,7 +153,7 @@ export default function AggregatorPage() {
             <Globe className="w-6 h-6 text-brand-400" /> Delivery Aggregators
           </h1>
           <p className="text-sm text-surface-500 mt-0.5">
-            {enabledCount} of {Object.keys(PLATFORM_META).length} platforms connected
+            {enabledCount} of {Object.keys(REGION_PLATFORMS).length} platforms connected
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -170,8 +177,8 @@ export default function AggregatorPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Today's Orders", value: totalOrders, icon: ShoppingBag, color: '#3b82f6' },
-          { label: "Today's Revenue", value: `₹${Number(totalRevenue).toLocaleString('en-IN')}`, icon: TrendingUp, color: '#22c55e' },
-          ...Object.entries(PLATFORM_META).map(([id, m]) => ({
+          { label: "Today's Revenue", value: `${CURRENCY[userRegion]}${Number(totalRevenue).toLocaleString(userRegion === 'AU' ? 'en-AU' : 'en-IN')}`, icon: TrendingUp, color: '#22c55e' },
+          ...Object.entries(REGION_PLATFORMS).map(([id, m]) => ({
             label: m.name,
             value: `${stats?.by_platform?.[id]?.count || 0} orders`,
             sub: `${CURRENCY[m.region]}${Number(stats?.by_platform?.[id]?.revenue || 0).toLocaleString()} rev`,
@@ -207,7 +214,7 @@ export default function AggregatorPage() {
       {/* ══ TAB: CONNECT ══════════════════════════════════ */}
       {activeTab === 'connect' && (
         <div className="space-y-4">
-          {Object.entries(PLATFORM_META).map(([platformId, meta]) => {
+          {Object.entries(REGION_PLATFORMS).map(([platformId, meta]) => {
             const cfg     = configs[platformId] || {};
             const isOpen  = expandedPlatform === platformId;
             const draft   = configDraft[platformId] || {};
@@ -404,7 +411,7 @@ export default function AggregatorPage() {
 
           {/* per-platform push buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {Object.entries(PLATFORM_META).map(([id, meta]) => {
+            {Object.entries(REGION_PLATFORMS).map(([id, meta]) => {
               const cfg = configs[id] || {};
               const enabled = cfg.enabled === true || cfg.enabled === 'true';
               return (
@@ -457,7 +464,7 @@ export default function AggregatorPage() {
       )}
 
       {/* ══ TAB: ORDERS ═══════════════════════════════════ */}
-      {activeTab === 'orders' && <OrdersTab outletId={outletId} qc={qc} />}
+      {activeTab === 'orders' && <OrdersTab outletId={outletId} qc={qc} regionPlatforms={REGION_PLATFORMS} />}
 
       {/* ══ TAB: SYNC LOGS ════════════════════════════════ */}
       {activeTab === 'logs' && (
@@ -599,7 +606,7 @@ export default function AggregatorPage() {
 /* ──────────────────────────────────────────────────────
    ORDERS TAB — live kanban for all 4 platforms
 ────────────────────────────────────────────────────── */
-function OrdersTab({ outletId, qc }) {
+function OrdersTab({ outletId, qc, regionPlatforms }) {
   const [filter, setFilter] = useState('all');
 
   const { data: orders = [], isLoading } = useQuery({
@@ -638,12 +645,12 @@ function OrdersTab({ outletId, qc }) {
     <div className="space-y-4">
       {/* platform filter */}
       <div className="flex gap-2 flex-wrap">
-        {['all', ...Object.keys(PLATFORM_META)].map(p => (
+        {['all', ...Object.keys(regionPlatforms)].map(p => (
           <button key={p} onClick={() => setFilter(p)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${filter === p
               ? 'border-brand-500 bg-brand-500/10 text-brand-400'
               : 'border-surface-700 text-surface-500 hover:text-surface-300'}`}>
-            {p === 'all' ? 'All Platforms' : `${PLATFORM_META[p].emoji} ${PLATFORM_META[p].name}`}
+            {p === 'all' ? 'All Platforms' : `${regionPlatforms[p].emoji} ${regionPlatforms[p].name}`}
           </button>
         ))}
       </div>

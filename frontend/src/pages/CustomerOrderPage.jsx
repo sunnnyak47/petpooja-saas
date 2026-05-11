@@ -9,11 +9,13 @@ import {
   ShoppingBag, ChevronRight, Plus, Minus, X,
   CheckCircle2, Clock, UtensilsCrossed, Leaf, Drumstick
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 // Using relative paths to work with Vercel rewrites or direct proxy
 const API_PREFIX = '/api';
 
 export default function CustomerOrderPage() {
+  const { format, symbol } = useCurrency();
   const [searchParams] = useSearchParams();
   const [tableId, setTableId] = useState(null);
   const [outletId, setOutletId] = useState(null);
@@ -175,7 +177,7 @@ export default function CustomerOrderPage() {
             </div>
             <div className="flex justify-between items-center pt-3 border-t border-gray-200/50">
               <span className="text-base text-gray-900 font-bold">Total Paid</span>
-              <span className="text-lg text-orange-600 font-black">₹{Number(lastOrder?.total_amount || 0).toFixed(0)}</span>
+              <span className="text-lg text-orange-600 font-black">{format(lastOrder?.total_amount || 0)}</span>
             </div>
           </div>
         </div>
@@ -277,7 +279,7 @@ export default function CustomerOrderPage() {
                     {item.description && <p className="mt-0.5 text-[11px] text-gray-400 line-clamp-1">{item.description}</p>}
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="font-extrabold text-orange-600">₹{Number(item.base_price).toFixed(0)}</span>
+                    <span className="font-extrabold text-orange-600">{symbol}{Number(item.base_price).toFixed(0)}</span>
                     {inCart ? (
                       <div className="flex items-center gap-2 bg-orange-500 rounded-lg px-2 py-1">
                         <button onClick={() => updateQuantity(item.id, -1)} className="text-white"><Minus size={16} /></button>
@@ -312,7 +314,7 @@ export default function CustomerOrderPage() {
               </div>
               <div className="text-left">
                 <span className="block text-[10px] uppercase opacity-70 tracking-wider">View Cart</span>
-                <span className="block font-extrabold text-lg leading-tight">₹{cartTotal.toFixed(0)}</span>
+                <span className="block font-extrabold text-lg leading-tight">{symbol}{cartTotal.toFixed(0)}</span>
               </div>
             </div>
             <div className="flex items-center gap-1 font-bold bg-white/20 rounded-xl px-4 py-2">
@@ -345,7 +347,7 @@ export default function CustomerOrderPage() {
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-bold text-sm text-gray-900 truncate">{item.name}</h4>
-                      <p className="text-sm font-extrabold text-orange-500">₹{(Number(item.base_price) * item.quantity).toFixed(0)}</p>
+                      <p className="text-sm font-extrabold text-orange-500">{symbol}{(Number(item.base_price) * item.quantity).toFixed(0)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-2.5 py-1 border border-gray-100 shrink-0">
@@ -359,7 +361,7 @@ export default function CustomerOrderPage() {
             <div className="mt-6 pt-4 border-t border-gray-100 space-y-4">
               <div className="flex justify-between text-lg font-extrabold">
                 <span>Total</span>
-                <span className="text-orange-600">₹{cartTotal.toFixed(0)}</span>
+                <span className="text-orange-600">{symbol}{cartTotal.toFixed(0)}</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input type="text" placeholder="Your Name" value={orderInfo.name}

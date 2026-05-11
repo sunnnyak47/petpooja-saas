@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../hooks/useCurrency';
 import {
   QrCode, Check, X, Clock, UtensilsCrossed, User, ShoppingBag,
   BellRing, Volume2, VolumeX, RefreshCw, AlertTriangle, Timer
@@ -44,6 +45,7 @@ function ElapsedTimer({ createdAt }) {
 
 export default function TableQROrdersPage() {
   const { user, token } = useSelector((s) => s.auth);
+  const { format, symbol } = useCurrency();
   const outletId = user?.outlet_id;
   const queryClient = useQueryClient();
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -285,7 +287,7 @@ export default function TableQROrdersPage() {
                       <span className="text-white font-bold">{item.quantity} ×</span>
                       <span className="text-surface-300">{item.name}</span>
                     </div>
-                    <span className="text-surface-500 font-mono text-xs">₹{Number(item.item_total || 0).toFixed(0)}</span>
+                    <span className="text-surface-500 font-mono text-xs">{symbol}{Number(item.item_total || 0).toFixed(0)}</span>
                   </div>
                 ))}
               </div>
@@ -293,7 +295,7 @@ export default function TableQROrdersPage() {
               {/* Total */}
               <div className="flex items-center justify-between py-3 border-t border-surface-800 mb-5">
                 <span className="text-xs font-black text-surface-500 uppercase tracking-widest">Grand Total</span>
-                <span className="text-xl font-black text-brand-400">₹{Number(order.grand_total || 0).toFixed(0)}</span>
+                <span className="text-xl font-black text-brand-400">{format(order.grand_total || 0)}</span>
               </div>
 
               {/* Action buttons */}

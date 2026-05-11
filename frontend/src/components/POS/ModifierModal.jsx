@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
 import { X, Minus, Plus, Search } from 'lucide-react';
 import Modal from '../Modal';
+import { useCurrency } from '../../hooks/useCurrency';
 
 export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
+  const { format, symbol } = useCurrency();
   const [selectedVariant, setSelectedVariant] = useState(
     item?.variants?.find(v => v.is_default) || item?.variants?.[0] || null
   );
@@ -122,7 +124,7 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
                       </div>
                       <div>
                         <p className="font-medium text-sm">{addon.name}</p>
-                        <p className="text-xs opacity-70">₹{Number(addon.price).toFixed(0)}</p>
+                        <p className="text-xs opacity-70">{symbol}{Number(addon.price).toFixed(0)}</p>
                       </div>
                     </button>
                     
@@ -153,7 +155,7 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
           onClick={handleAdd}
           className="flex-1 btn-primary py-4 rounded-xl text-lg font-bold shadow-xl shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
         >
-          Add to Cart <span className="opacity-50">|</span> ₹{totalPrice.toFixed(0)}
+          Add to Cart <span className="opacity-50">|</span> {symbol}{totalPrice.toFixed(0)}
         </button>
       </div>
     </Modal>

@@ -154,10 +154,10 @@ async function login(login, password, auditInfo = {}) {
                 },
               },
             },
-            outlet: { select: { id: true, name: true, code: true, primary_color: true } },
+            outlet: { select: { id: true, name: true, code: true, primary_color: true, country: true, currency: true, timezone: true } },
           },
         },
-        head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true, metadata: true } }
+        head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true, metadata: true, region: true, currency: true, timezone: true } }
       },
     });
     logger.debug(`Prisma user lookup took ${Date.now() - startDb}ms`);

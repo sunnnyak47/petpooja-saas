@@ -55,7 +55,7 @@ function SeasonIcon({ festival }) {
 }
 
 /* ─── Festival Card ───────────────────────────────────────── */
-function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onConfigure, locale }) {
+function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onConfigure, locale, symbol }) {
   const isActive   = savedConfig?.is_active;
   const configured = !!savedConfig;
   const special    = festival.special_mode ? SPECIAL_MODE_INFO[festival.special_mode] : null;
@@ -149,7 +149,7 @@ function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onC
         {festival.offer_structure && (
           <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 mb-3">
             <Gift size={11} />
-            <span>{festival.offer_structure.label} — {festival.offer_structure.value}{festival.offer_structure.unit === 'percent' ? '%' : '₹'} off</span>
+            <span>{festival.offer_structure.label} — {festival.offer_structure.value}{festival.offer_structure.unit === 'percent' ? '%' : symbol} off</span>
           </div>
         )}
 
@@ -182,6 +182,7 @@ function FestivalCard({ festival, savedConfig, outletId, onActivate, onView, onC
 
 /* ─── Menu Suggestions Modal ──────────────────────────────── */
 function MenuSuggestionsModal({ festival, outletId, onClose }) {
+  const { format, symbol } = useCurrency();
   const { data, isLoading } = useQuery({
     queryKey: ['festival-menu', festival.key || festival.festival_key, outletId],
     queryFn:  () => festApi.menuSuggestions(festival.key || festival.festival_key, outletId),
@@ -230,7 +231,7 @@ function MenuSuggestionsModal({ festival, outletId, onClose }) {
                   </div>
                   <p className="text-surface-50 text-sm">{data.offer_suggestion.label}</p>
                   <p className="text-xs text-surface-400 mt-1">
-                    {data.offer_suggestion.value}{data.offer_suggestion.unit === 'percent' ? '%' : '₹'} off · Min order ₹{data.offer_suggestion.min_order}
+                    {data.offer_suggestion.value}{data.offer_suggestion.unit === 'percent' ? '%' : symbol} off · Min order {format(data.offer_suggestion.min_order)}
                   </p>
                 </div>
               )}
@@ -251,7 +252,7 @@ function MenuSuggestionsModal({ festival, outletId, onClose }) {
                           <div className="text-xs text-surface-400">{item.category_name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-semibold text-surface-50">₹{Number(item.base_price).toFixed(0)}</div>
+                          <div className="text-sm font-semibold text-surface-50">{symbol}{Number(item.base_price).toFixed(0)}</div>
                           <div className="flex gap-0.5 justify-end mt-1">
                             {Array.from({ length: Math.min(item.relevance_score, 3) }).map((_, i) => (
                               <Star key={i} size={8} className="text-amber-500 fill-amber-500" />
@@ -309,6 +310,7 @@ function MenuSuggestionsModal({ festival, outletId, onClose }) {
 
 /* ─── Configure Modal ─────────────────────────────────────── */
 function ConfigureModal({ festival, savedConfig, outletId, onClose, onSave }) {
+  const { symbol } = useCurrency();
   const def = festival;
   const [form, setForm] = useState({
     festival_key:     def.key || def.festival_key || '',
@@ -384,7 +386,7 @@ function ConfigureModal({ festival, savedConfig, outletId, onClose, onSave }) {
               </div>
             </div>
             <div className="mt-3">
-              <label className="text-xs text-surface-400 mb-1 block">Min Order Value (₹)</label>
+              <label className="text-xs text-surface-400 mb-1 block">Min Order Value ({symbol})</label>
               <input type="number" value={form.offer_structure?.min_order || ''} onChange={e => set('offer_structure', { ...form.offer_structure, min_order: +e.target.value })}
                 className="input w-full text-xs py-1.5" />
             </div>
@@ -630,7 +632,7 @@ export default function FestivalModePage() {
                     {upcomingFiltered.filter(f => f.is_ongoing).map(f => (
                       <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
                         outletId={outletId} onActivate={toggleMut.mutate}
-                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
+                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} symbol={symbol} />
                     ))}
                   </div>
                 </div>
@@ -644,7 +646,7 @@ export default function FestivalModePage() {
                     {upcomingFiltered.filter(f => !f.is_ongoing).map(f => (
                       <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
                         outletId={outletId} onActivate={toggleMut.mutate}
-                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
+                        onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} symbol={symbol} />
                     ))}
                   </div>
                 </div>
@@ -660,7 +662,7 @@ export default function FestivalModePage() {
           {calendarFiltered.map(f => (
             <FestivalCard key={f.key} festival={f} savedConfig={savedMap[f.key]}
               outletId={outletId} onActivate={toggleMut.mutate}
-              onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} />
+              onView={() => setViewModal(f)} onConfigure={() => setConfigModal(f)} locale={locale} symbol={symbol} />
           ))}
         </div>
       )}

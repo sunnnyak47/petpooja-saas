@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../hooks/useCurrency';
 import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -41,6 +42,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }) {
 
 export default function GSTCompliancePage() {
   const { user } = useSelector((s) => s.auth);
+  const { format: formatCurrency, symbol, locale } = useCurrency();
   const [dateRange, setDateRange] = useState(DATE_PRESETS[3].getValue()); // This Month default
   const [presetIndex, setPresetIndex] = useState(3);
   const [showCustom, setShowCustom] = useState(false);
@@ -90,7 +92,7 @@ export default function GSTCompliancePage() {
     } catch { toast.error('GST export failed'); }
   };
 
-  const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n) => formatCurrency(n);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -202,11 +204,11 @@ export default function GSTCompliancePage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={rateWiseData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                       <XAxis dataKey="rate" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${symbol}${(v/1000).toFixed(0)}k`} />
                       <Tooltip
                         cursor={{ fill: '#1e293b' }}
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                        formatter={(val, name) => [`₹${Number(val).toLocaleString('en-IN')}`, name]}
+                        formatter={(val, name) => [`${symbol}${Number(val).toLocaleString(locale)}`, name]}
                       />
                       <Bar dataKey="total_tax" radius={[6, 6, 0, 0]} name="Total Tax">
                         {rateWiseData.map((entry) => (

@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  BellRing, Check, X, Info, UtensilsCrossed, 
-  MapPin, ShoppingBag, User, Smartphone 
+import {
+  BellRing, Check, X, Info, UtensilsCrossed,
+  MapPin, ShoppingBag, User, Smartphone
 } from 'lucide-react';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 
 export default function IncomingOrderAlert({ order, onAccepted, onRejected, audioLocked, audioCtx }) {
+  const { format } = useCurrency();
   const [loading, setLoading] = useState(false);
   const audioRef = useRef(null);
 
@@ -124,7 +126,7 @@ export default function IncomingOrderAlert({ order, onAccepted, onRejected, audi
                 <Info className="w-4 h-4" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">Amount</span>
               </div>
-              <p className="text-xl font-black text-brand-400">₹{order.total_amount}</p>
+              <p className="text-xl font-black text-brand-400">{format(order.total_amount)}</p>
             </div>
           </div>
 

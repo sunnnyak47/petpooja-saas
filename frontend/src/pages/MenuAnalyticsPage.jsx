@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import {
   TrendingUp, TrendingDown, Minus, BarChart2, Star,
   AlertTriangle, Package, ChevronRight, Flame, Snowflake
@@ -18,7 +18,7 @@ const ABC_CONFIG = {
   C: { label: 'Slow Movers',   color: '#f87171', bg: 'rgba(239,68,68,0.12)',  icon: Snowflake,   desc: 'Low volume — consider promotions or removal' },
 };
 
-function ItemCard({ item, fmt = (v) => '₹' + parseFloat(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }) }) {
+function ItemCard({ item, fmt = (v) => formatCurrencyStatic(v) }) {
   const cfg = ABC_CONFIG[item.abc] || ABC_CONFIG.C;
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl transition-all hover:opacity-80"

@@ -94,8 +94,8 @@ const ownerNav = [
   { section: 'Settings' },
   { path: '/integrations',   label: 'Integrations',    icon: Puzzle, feature: 'integrations' },
   { path: '/aggregators',    label: 'Aggregators',     icon: ShoppingBag, feature: 'aggregators' },
-  { path: '/au-integrations',label: 'AU Integrations', icon: Link2, feature: 'integrations' },
-  { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc' },
+  { path: '/au-integrations',label: 'AU Integrations', icon: Link2, feature: 'integrations', region: 'AU' },
+  { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc', region: 'IN' },
   { path: '/qr-codes',      label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
   { path: '/rostering',     label: 'Rostering',       icon: CalendarDays, feature: 'rostering' },
   { path: '/fraud',          label: 'Fraud Detection', icon: ShieldAlert, feature: 'fraud' },
@@ -190,9 +190,12 @@ export default function DashboardLayout() {
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
   const rawNavItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
-  // Filter out disabled features. Keep section headers that still have at least one visible item below.
+  const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
+  // Filter out disabled features and region-restricted items. Keep section headers that still have at least one visible item below.
   const navItems = (() => {
-    const filtered = rawNavItems.filter(item => item.section || isFeatureEnabled(user, item.feature));
+    const filtered = rawNavItems.filter(item =>
+      item.section || (isFeatureEnabled(user, item.feature) && (!item.region || item.region === userRegion))
+    );
     // Drop section headers with no items beneath them
     return filtered.filter((item, i) => {
       if (!item.section) return true;
