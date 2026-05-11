@@ -49,46 +49,59 @@ const superAdminNav = [
 ];
 
 const ownerNav = [
-  { section: 'Operations' },
+  // ── Core: daily use, every shift ──
+  { section: 'Core' },
   { path: '/',               label: 'Dashboard',       icon: LayoutDashboard },
   { path: '/pos',            label: 'POS Terminal',    icon: ShoppingCart, feature: 'pos' },
   { path: '/running-orders', label: 'Live Orders',     icon: Clock,    isLive: true, feature: 'running_orders' },
   { path: '/kitchen',        label: 'Kitchen Display', icon: ChefHat, feature: 'kitchen' },
-  { section: 'Management' },
+
+  // ── Orders: all order channels ──
+  { section: 'Orders' },
   { path: '/orders',         label: 'Order History',   icon: ClipboardList, feature: 'orders' },
-  { path: '/menu',           label: 'Menu',            icon: UtensilsCrossed, feature: 'menu' },
+  { path: '/online-orders',  label: 'Online Orders',   icon: Globe, isLive: true, feature: 'online_orders' },
+  { path: '/qr-orders',     label: 'QR Orders',       icon: BellRing, isLive: true, feature: 'qr_orders' },
+  { path: '/reservations',  label: 'Reservations',    icon: BookOpen, feature: 'tables' },
+
+  // ── Menu & Stock: product management ──
+  { section: 'Menu & Stock' },
+  { path: '/menu',             label: 'Menu',            icon: UtensilsCrossed, feature: 'menu' },
   { path: '/inventory',        label: 'Inventory',       icon: Package, feature: 'inventory' },
   { path: '/purchase-orders',  label: 'Purchase Orders', icon: ShoppingBag, feature: 'purchase_orders' },
-  { path: '/central-kitchen', label: 'Central Kitchen', icon: Warehouse, feature: 'central_kitchen' },
+  { path: '/central-kitchen',  label: 'Central Kitchen', icon: Warehouse, feature: 'central_kitchen' },
+
+  // ── Customers & Promos ──
+  { section: 'Customers' },
   { path: '/customers',      label: 'Customers',       icon: Users, feature: 'customers' },
   { path: '/crm',            label: 'Loyalty & CRM',   icon: Heart, feature: 'crm' },
-  { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc' },
-  { path: '/pricing',         label: 'Dynamic Pricing',  icon: Zap, feature: 'dynamic_pricing' },
-  { path: '/festival',        label: 'Festival Mode',    icon: Sparkles, feature: 'festival_mode' },
-  { path: '/fraud',           label: 'Fraud Detection',  icon: ShieldAlert, feature: 'fraud' },
-  { section: 'Revenue' },
-  { path: '/payments',       label: 'Payments',        icon: CreditCard, feature: 'payments' },
   { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
-  { path: '/reports',           label: 'Reports',         icon: BarChart3, feature: 'reports' },
+  { path: '/pricing',        label: 'Dynamic Pricing', icon: Zap, feature: 'dynamic_pricing' },
+  { path: '/festival',       label: 'Festival Mode',   icon: Sparkles, feature: 'festival_mode' },
+
+  // ── Analytics: all reporting in one place ──
+  { section: 'Analytics' },
+  { path: '/reports',           label: 'Reports',          icon: BarChart3, feature: 'reports' },
   { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
-  { path: '/xero-analytics',   label: 'Financial Analytics', icon: TrendingUp, feature: 'reports' },
-  { path: '/menu-analytics',    label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
+  { path: '/xero-analytics',   label: 'Financials',       icon: TrendingUp, feature: 'reports' },
+  { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
+  { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
-  { path: '/reservations',      label: 'Reservations',     icon: BookOpen, feature: 'tables' },
-  { path: '/subscription',      label: 'My Subscription',  icon: Star },
-  { path: '/chain-health',      label: 'Health Score',     icon: HeartPulse },
-  { section: 'System' },
-  { path: '/qr-codes',       label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
-  { path: '/qr-orders',      label: 'QR Orders',       icon: BellRing, isLive: true, feature: 'qr_orders' },
+  { path: '/eod-report',       label: 'EOD Report',       icon: ClipboardList, feature: 'eod_report' },
+  { path: '/payments',          label: 'Payments',         icon: CreditCard, feature: 'payments' },
+  { path: '/chain-health',     label: 'Health Score',     icon: HeartPulse },
+
+  // ── Settings: configuration & tools ──
+  { section: 'Settings' },
   { path: '/integrations',   label: 'Integrations',    icon: Puzzle, feature: 'integrations' },
-  { path: '/audit-log',      label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
-  { path: '/rostering',       label: 'Rostering',       icon: CalendarDays, feature: 'rostering' },
-  { path: '/au-integrations', label: 'AU Integrations', icon: Link2, feature: 'integrations' },
-  { path: '/aggregators',     label: 'Aggregators',     icon: ShoppingBag, feature: 'aggregators' },
-  { path: '/online-orders',   label: 'Online Orders',   icon: Globe, isLive: true, feature: 'online_orders' },
-  { path: '/prep-analytics',  label: 'Prep Analytics',  icon: BarChart3, feature: 'prep_analytics' },
-  { path: '/eod-report',      label: 'EOD Report',      icon: ClipboardList, feature: 'eod_report' },
-  { path: '/settings',       label: 'Settings',        icon: Settings },
+  { path: '/aggregators',    label: 'Aggregators',     icon: ShoppingBag, feature: 'aggregators' },
+  { path: '/au-integrations',label: 'AU Integrations', icon: Link2, feature: 'integrations' },
+  { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc' },
+  { path: '/qr-codes',      label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
+  { path: '/rostering',     label: 'Rostering',       icon: CalendarDays, feature: 'rostering' },
+  { path: '/fraud',          label: 'Fraud Detection', icon: ShieldAlert, feature: 'fraud' },
+  { path: '/audit-log',     label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
+  { path: '/subscription',  label: 'Subscription',    icon: Star },
+  { path: '/settings',      label: 'Settings',        icon: Settings },
 ];
 
 // Helper: check if a feature is enabled. Default to ON if not present in user.features
@@ -305,15 +318,22 @@ export default function DashboardLayout() {
           <nav className="flex-1 overflow-y-auto py-2 px-2">
             {navItems.map((item, idx) => {
               if (item.section) {
-                if (collapsed) return null;
+                if (collapsed) {
+                  // Show a thin divider line in collapsed mode
+                  return idx === 0 ? null : (
+                    <div key={idx} className="mx-2 my-2" style={{ borderTop: '1px solid var(--border)' }} />
+                  );
+                }
                 return (
-                  <p
-                    key={idx}
-                    className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest"
-                    style={{ color: 'var(--text-secondary)', opacity: 0.5, marginTop: idx === 0 ? 4 : 16 }}
-                  >
-                    {item.section}
-                  </p>
+                  <div key={idx} style={{ marginTop: idx === 0 ? 2 : 12, marginBottom: 4 }}>
+                    {idx !== 0 && <div className="mx-2 mb-2" style={{ borderTop: '1px solid var(--border)', opacity: 0.5 }} />}
+                    <p
+                      className="px-2.5 text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: 'var(--text-secondary)', opacity: 0.6 }}
+                    >
+                      {item.section}
+                    </p>
+                  </div>
                 );
               }
               const { path, label, icon: Icon, isLive } = item;
@@ -323,12 +343,13 @@ export default function DashboardLayout() {
                   to={path}
                   end={path === '/'}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 mb-0.5 ${collapsed ? 'justify-center' : ''} ${isActive ? 'sidebar-link-active' : 'sidebar-link'}`
+                    `flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 mb-[1px] ${collapsed ? 'justify-center' : ''} ${isActive ? 'sidebar-link-active' : 'sidebar-link'}`
                   }
+                  title={collapsed ? label : undefined}
                 >
                   <div className="relative flex-shrink-0">
-                    <Icon className="w-4 h-4" />
-                    {isLive && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
+                    <Icon className="w-[15px] h-[15px]" />
+                    {isLive && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2" style={{ ringColor: 'var(--sidebar-bg)' }} />}
                   </div>
                   {!collapsed && <span className="truncate">{label}</span>}
                 </NavLink>
@@ -424,16 +445,7 @@ export default function DashboardLayout() {
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
-              <button
-                onClick={() => navigate('/settings')}
-                className="p-2 rounded-lg border transition-colors"
-                style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+              {/* Settings accessible via sidebar */}
             </div>
           </header>
 
