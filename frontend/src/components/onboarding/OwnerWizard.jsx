@@ -8,14 +8,18 @@ import {
 } from 'lucide-react';
 
 import useBranding from '../../hooks/useBranding';
+import { useRegion } from '../../hooks/useRegion';
 
 export default function OwnerWizard({ headOffice }) {
   const { branding } = useBranding();
+  const region = useRegion();
+  const isAU = region === 'AU';
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     logo_url: headOffice?.logo_url || '',
     primary_color: headOffice?.primary_color || '#4F46E5',
     gstin: headOffice?.gstin || '',
+    abn: headOffice?.abn || '',
     legal_name: headOffice?.legal_name || headOffice?.name,
   });
 
@@ -113,13 +117,15 @@ export default function OwnerWizard({ headOffice }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">GSTIN Number (Optional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="27AAAAAAAAAAAAA"
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">
+                    {isAU ? 'ABN (Optional)' : 'GSTIN Number (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={isAU ? '51 824 753 556' : '27AAAAAAAAAAAAA'}
                     className="w-full px-5 py-4 bg-slate-50 border rounded-2xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                    value={formData.gstin}
-                    onChange={(e) => setFormData({...formData, gstin: e.target.value})}
+                    value={isAU ? formData.abn : formData.gstin}
+                    onChange={(e) => setFormData({...formData, [isAU ? 'abn' : 'gstin']: e.target.value})}
                   />
                 </div>
               </div>

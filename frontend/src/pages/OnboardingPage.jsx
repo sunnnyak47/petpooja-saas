@@ -813,16 +813,20 @@ function ProgressBar({ currentStep, completedSteps }) {
 export default function OnboardingPage() {
   const { user } = useSelector((s) => s.auth);
 
+  // Derive default country from user's head_office region or outlet country
+  const defaultCountry = user?.head_office?.region === 'AU' || user?.outlet?.currency === 'AUD' || user?.outlet?.country === 'Australia' ? 'AU' : 'IN';
+  const isAU = defaultCountry === 'AU';
+
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState([]);
   const [saving, setSaving] = useState(false);
 
   const [wizardData, setWizardData] = useState({
-    step1: { restaurant_name: '', legal_name: '', cuisine_types: [], business_type: '', country: 'IN', gstin: '', abn: '', acn: '', fssai: '', logo_url: '', operating_hours: {} },
+    step1: { restaurant_name: '', legal_name: '', cuisine_types: [], business_type: '', country: defaultCountry, gstin: '', abn: '', acn: '', fssai: '', logo_url: '', operating_hours: {} },
     step2: { outlet_name: '', address: '', city: '', phone: '', dine_in: true, takeaway: true, delivery: false, table_count: 10, enable_qr: true },
     step3: { menu_text: '', parsed_items: [], approved_items: [], input_mode: 'ai_text' },
     step4: { staff_members: [] },
-    step5: { default_order_type: 'dine_in', payment_modes: ['cash', 'upi'], receipt_footer: 'Thank you for dining with us!', voice_language: 'en-IN', voice_language_label: 'English' },
+    step5: { default_order_type: 'dine_in', payment_modes: isAU ? ['cash', 'eftpos'] : ['cash', 'upi'], receipt_footer: 'Thank you for dining with us!', voice_language: isAU ? 'en-AU' : 'en-IN', voice_language_label: isAU ? 'Australian English' : 'English' },
     step6: { swiggy_key: '', zomato_key: '', ubereats_key: '', menulog_key: '', whatsapp_number: '', razorpay_key_id: '' },
     step7: {},
   });
