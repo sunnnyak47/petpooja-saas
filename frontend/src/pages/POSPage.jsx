@@ -7,6 +7,8 @@ import api, { SOCKET_URL } from '../lib/api';
 import hybridAPI from '../api/offlineAPI';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
+import { AU_TAG_MAP } from '../constants/dietaryTags';
 import toast from 'react-hot-toast';
 import {
   addToCart, removeFromCart, updateCartQuantity, clearCart,
@@ -90,6 +92,8 @@ export default function POSPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, symbol } = useCurrency();
+  const posRegion = useRegion();
+  const isAU = posRegion === 'AU';
   const isOnline = useOnlineStatus();
 
   // ── Electron detection (must be declared before any useEffect that references it) ──
@@ -860,8 +864,19 @@ export default function POSPage() {
                     title={hasNoPrice ? 'Price not set — edit this item in Menu' : item.name}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        {SQUARE_ICONS[item.food_type]}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {isAU ? (
+                          Array.isArray(item.tags) && item.tags.length > 0 ? (
+                            item.tags.slice(0, 2).map(tv => {
+                              const t = AU_TAG_MAP[tv];
+                              return t ? <span key={tv} className={`text-[7px] font-black uppercase px-1 py-0.5 rounded ${t.bg} ${t.text}`}>{t.abbr}</span> : null;
+                            })
+                          ) : (
+                            SQUARE_ICONS[item.food_type]
+                          )
+                        ) : (
+                          SQUARE_ICONS[item.food_type]
+                        )}
                         {item.short_code && <span className="text-[10px] px-1 rounded font-mono" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{item.short_code}</span>}
                       </div>
                       <div className="flex gap-1">

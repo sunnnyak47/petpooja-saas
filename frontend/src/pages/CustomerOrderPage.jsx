@@ -10,6 +10,7 @@ import {
   CheckCircle2, Clock, UtensilsCrossed, Leaf, Drumstick
 } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
+import { AU_DIETARY_TAGS, AU_TAG_MAP } from '../constants/dietaryTags';
 
 // Using relative paths to work with Vercel rewrites or direct proxy
 const API_PREFIX = '/api';
@@ -31,6 +32,8 @@ export default function CustomerOrderPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
   const [orderError, setOrderError] = useState('');
+  // Derive region from outlet (no Redux on this public page)
+  const isAU = outlet?.currency === 'AUD';
 
   useEffect(() => {
     const oid = searchParams.get('outlet');
@@ -267,13 +270,28 @@ export default function CustomerOrderPage() {
                 {/* Details */}
                 <div className="flex flex-grow flex-col justify-between py-0.5 min-w-0">
                   <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <div className={`h-3 w-3 rounded-sm border-2 ${item.food_type === 'veg' ? 'border-green-600' : 'border-red-600'} flex items-center justify-center p-[1px]`}>
-                        <div className={`h-full w-full rounded-full ${item.food_type === 'veg' ? 'bg-green-600' : 'bg-red-600'}`}></div>
-                      </div>
-                      <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">
-                        {item.food_type === 'veg' ? 'Veg' : 'Non-Veg'}
-                      </span>
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      {isAU ? (
+                        Array.isArray(item.tags) && item.tags.length > 0 ? (
+                          item.tags.slice(0, 3).map(tv => {
+                            const t = AU_TAG_MAP[tv];
+                            return t ? (
+                              <span key={tv} className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md ${t.bgLight} ${t.textLight} border ${t.borderLight}`}>{t.abbr}</span>
+                            ) : null;
+                          })
+                        ) : (
+                          <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">No dietary info</span>
+                        )
+                      ) : (
+                        <>
+                          <div className={`h-3 w-3 rounded-sm border-2 ${item.food_type === 'veg' ? 'border-green-600' : 'border-red-600'} flex items-center justify-center p-[1px]`}>
+                            <div className={`h-full w-full rounded-full ${item.food_type === 'veg' ? 'bg-green-600' : 'bg-red-600'}`}></div>
+                          </div>
+                          <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">
+                            {item.food_type === 'veg' ? 'Veg' : 'Non-Veg'}
+                          </span>
+                        </>
+                      )}
                     </div>
                     <h3 className="font-bold text-gray-900 leading-tight text-sm truncate">{item.name}</h3>
                     {item.description && <p className="mt-0.5 text-[11px] text-gray-400 line-clamp-1">{item.description}</p>}

@@ -2,13 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
+import { AU_DIETARY_TAGS, AU_TAG_MAP } from '../constants/dietaryTags';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { 
-  Leaf, Drumstick, Egg, Plus, Edit, Trash2, Search, FolderPlus, 
-  Loader, ToggleLeft, ToggleRight, CheckSquare, Square, Percent, 
-  ArrowUpRight, ArrowDownRight, Tag, Camera, Sparkles
+import {
+  Leaf, Drumstick, Egg, Plus, Edit, Trash2, Search, FolderPlus,
+  Loader, ToggleLeft, ToggleRight, CheckSquare, Square, Percent,
+  ArrowUpRight, ArrowDownRight, Tag, Camera, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import AIMenuSyncModal from '../components/Menu/AIMenuSyncModal';
@@ -26,15 +28,17 @@ const EMPTY_ITEM_BASE = {
   name: '', short_code: '', description: '', base_price: '', category_id: '',
   food_type: 'veg', kitchen_station: 'KITCHEN',
   is_available: true, image_url: '',
+  tags: [], allergen_info: '',
   variants: [], addons: [], menu_schedules: []
 };
 
 export default function MenuPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
-  const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
+  const userRegion = useRegion();
+  const isAU = userRegion === 'AU';
   const { symbol, format } = useCurrency();
-  const EMPTY_ITEM = { ...EMPTY_ITEM_BASE, gst_rate: userRegion === 'AU' ? 10 : 5 };
+  const EMPTY_ITEM = { ...EMPTY_ITEM_BASE, gst_rate: isAU ? 10 : 5 };
   const queryClient = useQueryClient();
   
   // Filters
@@ -207,7 +211,13 @@ export default function MenuPage() {
       filtered = filtered.filter(i => i.name.toLowerCase().includes(q) || i.short_code?.toLowerCase().includes(q));
     }
     if (categoryFilter) filtered = filtered.filter(i => String(i.category_id) === String(categoryFilter));
-    if (vegFilter) filtered = filtered.filter(i => i.food_type === vegFilter);
+    if (vegFilter) {
+      if (isAU) {
+        filtered = filtered.filter(i => Array.isArray(i.tags) && i.tags.includes(vegFilter));
+      } else {
+        filtered = filtered.filter(i => i.food_type === vegFilter);
+      }
+    }
     if (gstFilter) filtered = filtered.filter(i => String(i.gst_rate) === gstFilter);
     
     filtered.sort((a,b) => {
@@ -225,7 +235,8 @@ export default function MenuPage() {
      active: dbItems.filter(i=>i.is_available).length,
      inactive: dbItems.filter(i=>!i.is_available).length,
      veg: dbItems.filter(i=>i.food_type==='veg').length,
-     nonVeg: dbItems.filter(i=>i.food_type==='non_veg').length
+     nonVeg: dbItems.filter(i=>i.food_type==='non_veg').length,
+     tagged: dbItems.filter(i=>Array.isArray(i.tags) && i.tags.length > 0).length,
   }), [dbItems]);
 
   const toggleSelection = (id) => {
@@ -243,8 +254,10 @@ export default function MenuPage() {
       id: item.id, name: item.name || '', short_code: item.short_code || '', description: item.description || '',
       base_price: item.base_price || '', category_id: item.category_id || '',
       food_type: item.food_type || 'veg', kitchen_station: item.kitchen_station || 'KITCHEN',
-      gst_rate: item.gst_rate ?? (userRegion === 'AU' ? 10 : 5), is_available: item.is_available ?? true,
+      gst_rate: item.gst_rate ?? (isAU ? 10 : 5), is_available: item.is_available ?? true,
       image_url: item.image_url || '',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      allergen_info: item.allergen_info || '',
       variants: item.variants || [], addons: item.addons || [],
       menu_schedules: item.menu_schedules || []
     });
@@ -266,8 +279,12 @@ export default function MenuPage() {
                <p className="text-lg font-bold"><span className="text-success-400">{stats.active}</span> <span className="text-surface-600">|</span> <span className="text-surface-400">{stats.inactive} Off</span></p>
             </div>
             <div className="border-l border-surface-800 pl-6">
-               <p className="text-[10px] text-surface-500 uppercase font-bold tracking-widest">Dietary Type</p>
-               <p className="text-lg font-bold"><span className="text-green-500">{stats.veg} Veg</span> <span className="text-surface-600">|</span> <span className="text-red-500">{stats.nonVeg} NonVeg</span></p>
+               <p className="text-[10px] text-surface-500 uppercase font-bold tracking-widest">{isAU ? 'Dietary Tags' : 'Dietary Type'}</p>
+               {isAU ? (
+                 <p className="text-lg font-bold"><span className="text-teal-400">{stats.tagged} Tagged</span> <span className="text-surface-600">|</span> <span className="text-surface-400">{stats.total - stats.tagged} Untagged</span></p>
+               ) : (
+                 <p className="text-lg font-bold"><span className="text-green-500">{stats.veg} Veg</span> <span className="text-surface-600">|</span> <span className="text-red-500">{stats.nonVeg} NonVeg</span></p>
+               )}
             </div>
          </div>
          <div className="flex gap-2">
@@ -332,15 +349,22 @@ export default function MenuPage() {
                  <Search className="w-4 h-4 absolute left-3 top-3 text-surface-500" />
                  <input className="input w-full pl-9 bg-surface-950 border-surface-700" placeholder="Search item name or short code..." value={search} onChange={e=>setSearch(e.target.value)} />
                </div>
-               <select className="input w-36 bg-surface-950 border-surface-700 text-sm" value={vegFilter} onChange={e=>setVegFilter(e.target.value)}>
-                 <option value="">Diet: All</option>
-                 <option value="veg">Vegetarian</option>
-                 <option value="non_veg">Non-Veg</option>
-                 <option value="egg">Contains Egg</option>
-               </select>
+               {isAU ? (
+                 <select className="input w-40 bg-surface-950 border-surface-700 text-sm" value={vegFilter} onChange={e=>setVegFilter(e.target.value)}>
+                   <option value="">Tags: All</option>
+                   {AU_DIETARY_TAGS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                 </select>
+               ) : (
+                 <select className="input w-36 bg-surface-950 border-surface-700 text-sm" value={vegFilter} onChange={e=>setVegFilter(e.target.value)}>
+                   <option value="">Diet: All</option>
+                   <option value="veg">Vegetarian</option>
+                   <option value="non_veg">Non-Veg</option>
+                   <option value="egg">Contains Egg</option>
+                 </select>
+               )}
                <select className="input w-32 bg-surface-950 border-surface-700 text-sm" value={gstFilter} onChange={e=>setGstFilter(e.target.value)}>
-                 <option value="">{userRegion === 'AU' ? 'GST: All' : 'GST: All'}</option>
-                 {userRegion === 'AU' ? (
+                 <option value="">{isAU ? 'GST: All' : 'GST: All'}</option>
+                 {isAU ? (
                    <>
                      <option value="10">GST: 10%</option>
                      <option value="0">GST-Free</option>
@@ -398,9 +422,24 @@ export default function MenuPage() {
                        
                        <div className="p-3 relative">
                           <div className="flex justify-between items-start mb-1">
-                             <div className="flex items-center gap-1.5">
-                                {SQUARE_ICONS[item.food_type]}
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-surface-400 px-1 bg-surface-900 rounded">{item.category?.name || 'Uncategorized'}</span>
+                             <div className="flex items-center gap-1.5 flex-wrap">
+                                {isAU ? (
+                                  Array.isArray(item.tags) && item.tags.length > 0 ? (
+                                    item.tags.slice(0, 3).map(tv => {
+                                      const t = AU_TAG_MAP[tv];
+                                      return t ? (
+                                        <span key={tv} className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${t.bg} ${t.text} border ${t.border}`}>{t.abbr}</span>
+                                      ) : null;
+                                    })
+                                  ) : (
+                                    <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-surface-800 text-surface-500 border border-surface-700">No Tags</span>
+                                  )
+                                ) : (
+                                  <>
+                                    {SQUARE_ICONS[item.food_type]}
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-surface-400 px-1 bg-surface-900 rounded">{item.category?.name || 'Uncategorized'}</span>
+                                  </>
+                                )}
                              </div>
                              <button onClick={(e) => { e.stopPropagation(); toggleStatusMutation.mutate(item); }} title="Toggle Availability" className="z-10">
                                 {item.is_available ? <ToggleRight className="w-6 h-6 text-success-500 text-shadow-sm hover:scale-110 transition-transform" /> : <ToggleLeft className="w-6 h-6 text-surface-500 hover:scale-110 transition-transform" />}
@@ -495,14 +534,37 @@ export default function MenuPage() {
                            {(categories||[]).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                      </div>
-                     <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Dietary Type *</label>
-                        <select className="input w-full" value={itemForm.food_type} onChange={e=>setItemForm({...itemForm, food_type: e.target.value})}>
+                     {isAU ? (
+                       <div className="col-span-2">
+                         <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Dietary & Allergen Tags</label>
+                         <div className="flex flex-wrap gap-2">
+                           {AU_DIETARY_TAGS.map(tag => {
+                             const active = (itemForm.tags || []).includes(tag.value);
+                             return (
+                               <button key={tag.value} type="button" onClick={() => {
+                                 const cur = itemForm.tags || [];
+                                 setItemForm({...itemForm, tags: active ? cur.filter(v => v !== tag.value) : [...cur, tag.value]});
+                               }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${active ? `${tag.bg} ${tag.text} ${tag.border}` : 'bg-surface-900 text-surface-500 border-surface-700 hover:border-surface-500'}`}>
+                                 <span className="text-[10px] font-black">{tag.abbr}</span> {tag.label}
+                               </button>
+                             );
+                           })}
+                         </div>
+                         <div className="mt-3">
+                           <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Allergen Notes (optional)</label>
+                           <textarea className="input w-full h-16 resize-none text-sm" placeholder="e.g. May contain traces of sesame..." value={itemForm.allergen_info || ''} onChange={e => setItemForm({...itemForm, allergen_info: e.target.value})} />
+                         </div>
+                       </div>
+                     ) : (
+                       <div>
+                         <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Dietary Type *</label>
+                         <select className="input w-full" value={itemForm.food_type} onChange={e=>setItemForm({...itemForm, food_type: e.target.value})}>
                            <option value="veg">🟢 Vegetarian</option>
                            <option value="non_veg">🔴 Non-Vegetarian</option>
                            <option value="egg">🟡 Contains Egg</option>
-                        </select>
-                     </div>
+                         </select>
+                       </div>
+                     )}
                   </div>
                </div>
 
@@ -515,7 +577,7 @@ export default function MenuPage() {
                   <div>
                      <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">GST Category *</label>
                      <select className="input w-full" value={itemForm.gst_rate} onChange={e=>setItemForm({...itemForm, gst_rate: Number(e.target.value)})}>
-                        {userRegion === 'AU' ? (
+                        {isAU ? (
                           <>
                             <option value={10}>10%</option>
                             <option value={0}>GST-Free (0%)</option>
