@@ -6,10 +6,11 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
-  Settings, Save, ToggleLeft, ToggleRight, IndianRupee,
+  Settings, Save, ToggleLeft, ToggleRight, DollarSign,
   Shield, Globe, Clock, Users, AlertTriangle, CheckCircle2,
   RefreshCw, Building2, Mail, Phone, Lock
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
 
@@ -74,6 +75,7 @@ export default function PlatformSettingsPage() {
     },
   });
 
+  const { symbol } = useCurrency();
   const set = (key, val) => setDraft(d => ({ ...d, [key]: val }));
   const setNested = (key, subKey, val) => setDraft(d => ({ ...d, [key]: { ...d[key], [subKey]: val } }));
 
@@ -177,7 +179,7 @@ export default function PlatformSettingsPage() {
       </SectionCard>
 
       {/* Plan Pricing */}
-      <SectionCard title="Plan Pricing (₹/month)" icon={IndianRupee} color="#22c55e">
+      <SectionCard title={`Plan Pricing (${symbol}/month)`} icon={DollarSign} color="#22c55e">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'].map(plan => (
             <div key={plan} className="rounded-xl p-4" style={{ background: 'var(--bg-primary)', border: `1px solid ${PLAN_COLORS[plan]}40` }}>
@@ -186,7 +188,7 @@ export default function PlatformSettingsPage() {
                 <span className="text-xs font-bold" style={{ color: PLAN_COLORS[plan] }}>{plan}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>₹</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{symbol}</span>
                 <input
                   type="number"
                   value={draft.plan_pricing?.[plan] ?? 0}

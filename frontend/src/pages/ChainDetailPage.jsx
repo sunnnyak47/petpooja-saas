@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
   ArrowLeft, Store, TrendingUp, ShoppingCart, Activity,
-  Clock, IndianRupee, AlertCircle, CheckCircle2, Star,
+  Clock, DollarSign, AlertCircle, CheckCircle2, Star,
   MapPin, Phone, BarChart2, Package
 } from 'lucide-react';
 
@@ -66,7 +66,16 @@ export default function ChainDetailPage() {
   const avgHealth = outlets.length > 0 ? Math.round(outlets.reduce((s, o) => s + o.health_score, 0) / outlets.length) : 0;
   const activeOutlets = outlets.filter(o => o.is_active).length;
 
-  const fmt = (n) => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
+  const isChainAU = chainData?.region === 'AU';
+  const chainSym = isChainAU ? 'A$' : '₹';
+  const fmt = (n) => {
+    if (isChainAU) {
+      if (n >= 1000000) return `A$${(n / 1000000).toFixed(1)}M`;
+      if (n >= 1000) return `A$${(n / 1000).toFixed(1)}K`;
+      return `A$${n}`;
+    }
+    return n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
+  };
   const timeAgo = (dt) => {
     if (!dt) return 'Never';
     const diff = Date.now() - new Date(dt).getTime();
@@ -108,7 +117,7 @@ export default function ChainDetailPage() {
       {/* Chain summary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Store} label="Total Outlets" value={outlets.length} sub={`${activeOutlets} active`} color="#6366f1" />
-        <StatCard icon={IndianRupee} label="Revenue (30d)" value={fmt(totalRevenue30d)} sub="Across all outlets" color="#22c55e" />
+        <StatCard icon={DollarSign} label="Revenue (30d)" value={fmt(totalRevenue30d)} sub="Across all outlets" color="#22c55e" />
         <StatCard icon={ShoppingCart} label="Orders (30d)" value={totalOrders30d.toLocaleString()} sub={`Avg ${outlets.length ? Math.round(totalOrders30d / outlets.length) : 0}/outlet`} color="#f59e0b" />
         <StatCard icon={Activity} label="Avg Health Score" value={`${avgHealth}/100`} sub={SCORE_LABEL(avgHealth)} color={SCORE_COLOR(avgHealth)} />
       </div>

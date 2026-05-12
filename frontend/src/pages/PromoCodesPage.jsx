@@ -8,8 +8,10 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
   Tag, Plus, Trash2, Edit2, Copy, CheckCircle2, X,
-  Percent, IndianRupee, Calendar, Users, ToggleLeft, ToggleRight, AlertCircle
+  Percent, IndianRupee, Calendar, Users, ToggleLeft, ToggleRight, AlertCircle,
+  DollarSign
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
 const ALL_PLANS = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
@@ -25,7 +27,7 @@ function Toggle({ value, onChange }) {
   );
 }
 
-function PromoForm({ initial, onSave, onClose }) {
+function PromoForm({ initial, onSave, onClose, currencySymbol }) {
   const [form, setForm] = useState(initial || {
     code: '', discount_type: 'PERCENT', discount_value: 10,
     applicable_plans: ['STARTER', 'PRO', 'ENTERPRISE'],
@@ -68,12 +70,12 @@ function PromoForm({ initial, onSave, onClose }) {
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                 style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 <option value="PERCENT">Percentage (%)</option>
-                <option value="FLAT">Flat Amount (₹)</option>
+                <option value="FLAT">{`Flat Amount (${currencySymbol})`}</option>
               </select>
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>
-                Discount Value {form.discount_type === 'PERCENT' ? '(%)' : '(₹)'}
+                Discount Value {form.discount_type === 'PERCENT' ? '(%)' : `(${currencySymbol})`}
               </label>
               <input type="number" value={form.discount_value}
                 onChange={e => setForm(f => ({ ...f, discount_value: Number(e.target.value) }))}
@@ -141,6 +143,7 @@ function PromoForm({ initial, onSave, onClose }) {
 }
 
 export default function PromoCodesPage() {
+  const { symbol: currencySymbol } = useCurrency();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -283,7 +286,7 @@ export default function PromoCodesPage() {
                       ? <Percent className="w-3.5 h-3.5" style={{ color: '#4ade80' }} />
                       : <IndianRupee className="w-3.5 h-3.5" style={{ color: '#4ade80' }} />}
                     <span className="text-sm font-bold" style={{ color: '#4ade80' }}>
-                      {p.discount_type === 'PERCENT' ? `${p.discount_value}% off` : `₹${p.discount_value} off`}
+                      {p.discount_type === 'PERCENT' ? `${p.discount_value}% off` : `${currencySymbol}${p.discount_value} off`}
                     </span>
                   </div>
                   {(expired || maxed || !p.is_active) && (
@@ -335,12 +338,13 @@ export default function PromoCodesPage() {
         </div>
       )}
 
-      {showForm && <PromoForm onSave={createMutation.mutate} onClose={() => setShowForm(false)} />}
+      {showForm && <PromoForm onSave={createMutation.mutate} onClose={() => setShowForm(false)} currencySymbol={currencySymbol} />}
       {editing && (
         <PromoForm
           initial={editing}
           onSave={(data) => updateMutation.mutate({ id: editing.id, data })}
           onClose={() => setEditing(null)}
+          currencySymbol={currencySymbol}
         />
       )}
     </div>

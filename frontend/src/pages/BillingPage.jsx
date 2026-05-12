@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { DollarSign, TrendingUp, Users, CreditCard, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PLAN_COLORS = {
   trial:      { bg: 'bg-blue-500/10',   text: 'text-blue-400',   label: 'Trial',      border: 'border-l-blue-400',   dot: 'bg-blue-400' },
@@ -24,6 +25,7 @@ const STAT_ICON_COLORS = {
 };
 
 export default function BillingPage() {
+  const { symbol } = useCurrency();
   const { data, isLoading } = useQuery({
     queryKey: ['saas-chains'],
     queryFn: () => api.get('/superadmin/chains'),
@@ -53,7 +55,7 @@ export default function BillingPage() {
     { label: 'Total Chains',  value: totalChains,  icon: Users,       accent: 'blue' },
     { label: 'Active Chains', value: activeChains, icon: CheckCircle, accent: 'green' },
     { label: 'Trial Chains',  value: trialChains,  icon: Clock,       accent: 'amber' },
-    { label: 'Est. MRR',      value: `₹${mrr.toLocaleString()}`, icon: DollarSign, accent: 'purple' },
+    { label: 'Est. MRR',      value: `${symbol}${mrr.toLocaleString()}`, icon: DollarSign, accent: 'purple' },
   ];
 
   return (
@@ -133,7 +135,7 @@ export default function BillingPage() {
                   className="text-xs font-medium mt-1"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  {price === 0 ? 'Free' : `₹${price}/mo`}
+                  {price === 0 ? 'Free' : `${symbol}${price}/mo`}
                 </p>
               </div>
             );
@@ -241,7 +243,7 @@ export default function BillingPage() {
                       >
                         {revenue === 0
                           ? <span style={{ color: 'var(--text-secondary)', opacity: 0.5 }}>—</span>
-                          : `₹${revenue}`
+                          : `${c.region === 'AU' ? 'A$' : '₹'}${revenue}`
                         }
                       </td>
                     </tr>

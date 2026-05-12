@@ -361,7 +361,9 @@ function Step3({ data, onChange, country }) {
       {data.input_mode === 'ai_text' && (
         <div className="space-y-3">
           <textarea className={inputCls} rows={8}
-            placeholder={"Paste your full menu here — e.g.\nPaneer Butter Masala - ₹250\nChicken Biryani (Half/Full) - ₹180/₹320\nGarlic Naan - ₹40"}
+            placeholder={country === 'AU'
+              ? "Paste your full menu here — e.g.\nGrilled Barramundi - A$28\nLamb Rack (Half/Full) - A$22/A$38\nGarlic Bread - A$8"
+              : "Paste your full menu here — e.g.\nPaneer Butter Masala - ₹250\nChicken Biryani (Half/Full) - ₹180/₹320\nGarlic Naan - ₹40"}
             value={data.menu_text}
             onChange={e => onChange({ menu_text: e.target.value })} />
           <button type="button" onClick={parseMenu} disabled={parsing}

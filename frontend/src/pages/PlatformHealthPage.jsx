@@ -10,6 +10,7 @@ import {
   Zap, Users, Store, ShoppingCart, TrendingUp, RefreshCw, Clock,
   BarChart2, Shield, Globe
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 function StatusBadge({ status }) {
   const isOk = status === 'Operational';
@@ -43,6 +44,7 @@ function MetricCard({ label, value, sub, color, icon: Icon }) {
 }
 
 export default function PlatformHealthPage() {
+  const { symbol, locale } = useCurrency();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const { data: health, isLoading, refetch, dataUpdatedAt } = useQuery({
@@ -161,7 +163,7 @@ export default function PlatformHealthPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
                   <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
-                    ₹{(health.revenue?.last_24h || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    {symbol}{(health.revenue?.last_24h || 0).toLocaleString(locale, { maximumFractionDigits: 0 })}
                   </p>
                   <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Revenue (24h)</p>
                 </div>

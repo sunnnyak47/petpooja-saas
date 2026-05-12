@@ -12,22 +12,25 @@ import {
   Shield, Zap, Globe, Star,
 } from 'lucide-react';
 
-/* ─── mock POS order data shown in hero ─── */
-const MOCK_ORDERS = [
-  { id: '#1042', table: 'T-04', items: 'Butter Chicken, Garlic Naan ×2', amount: '₹560', status: 'preparing', time: '8m' },
-  { id: '#1041', table: 'T-07', items: 'Dal Makhani, Jeera Rice, Raita', amount: '₹380', status: 'ready',     time: '2m' },
-  { id: '#1040', table: 'T-02', items: 'Paneer Tikka, Lassi ×3',         amount: '₹720', status: 'served',    time: '—'  },
-  { id: '#1039', table: 'Swiggy', items: 'Chicken Biryani, Mirchi Salan',amount: '₹490', status: 'preparing', time: '14m'},
+/* ─── mock POS order data shown in hero (currency symbol injected at render) ─── */
+const MOCK_ORDERS_DATA = [
+  { id: '#1042', table: 'T-04', items: 'Butter Chicken, Garlic Naan ×2', amount: 560, status: 'preparing', time: '8m' },
+  { id: '#1041', table: 'T-07', items: 'Dal Makhani, Jeera Rice, Raita', amount: 380, status: 'ready',     time: '2m' },
+  { id: '#1040', table: 'T-02', items: 'Paneer Tikka, Lassi ×3',         amount: 720, status: 'served',    time: '—'  },
+  { id: '#1039', table: 'Swiggy', items: 'Chicken Biryani, Mirchi Salan',amount: 490, status: 'preparing', time: '14m'},
 ];
 
-const MOCK_MENU = [
-  { name: 'Butter Chicken',  price: '₹320', cat: 'Mains',     dot: '#ef4444' },
-  { name: 'Paneer Tikka',    price: '₹280', cat: 'Starters',  dot: '#22c55e' },
-  { name: 'Garlic Naan',     price: '₹60',  cat: 'Breads',    dot: '#22c55e' },
-  { name: 'Dal Makhani',     price: '₹220', cat: 'Mains',     dot: '#22c55e' },
-  { name: 'Chicken Biryani', price: '₹360', cat: 'Specials',  dot: '#ef4444' },
-  { name: 'Mango Lassi',     price: '₹120', cat: 'Beverages', dot: '#22c55e' },
+const MOCK_MENU_DATA = [
+  { name: 'Butter Chicken',  price: 320, cat: 'Mains',     dot: '#ef4444' },
+  { name: 'Paneer Tikka',    price: 280, cat: 'Starters',  dot: '#22c55e' },
+  { name: 'Garlic Naan',     price: 60,  cat: 'Breads',    dot: '#22c55e' },
+  { name: 'Dal Makhani',     price: 220, cat: 'Mains',     dot: '#22c55e' },
+  { name: 'Chicken Biryani', price: 360, cat: 'Specials',  dot: '#ef4444' },
+  { name: 'Mango Lassi',     price: 120, cat: 'Beverages', dot: '#22c55e' },
 ];
+
+const getMockOrders = (sym) => MOCK_ORDERS_DATA.map(o => ({ ...o, amount: `${sym}${o.amount}` }));
+const getMockMenu = (sym) => MOCK_MENU_DATA.map(m => ({ ...m, price: `${sym}${m.price}` }));
 
 const STATUS_STYLE = {
   preparing: { bg: '#fef3c7', color: '#92400e', label: 'Preparing' },
@@ -78,8 +81,10 @@ function Divider() {
 }
 
 /* ─── hero mock UI ─── */
-function HeroMockUI() {
+function HeroMockUI({ currencySymbol = '₹' }) {
   const [activeTab, setActiveTab] = useState('orders');
+  const MOCK_ORDERS = useMemo(() => getMockOrders(currencySymbol), [currencySymbol]);
+  const MOCK_MENU = useMemo(() => getMockMenu(currencySymbol), [currencySymbol]);
 
   return (
     <div style={{

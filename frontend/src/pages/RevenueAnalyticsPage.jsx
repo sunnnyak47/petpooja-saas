@@ -47,7 +47,7 @@ function MetricCard({ icon: Icon, label, value, change, changeLabel, color = '#6
 }
 
 // Mini bar chart rendered with divs
-function MrrChart({ data, symbol = '₹' }) {
+function MrrChart({ data, symbol = '$' }) {
   if (!data?.length) return null;
   const maxMrr = Math.max(...data.map(d => d.mrr), 1);
   return (

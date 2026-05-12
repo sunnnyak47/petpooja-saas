@@ -194,7 +194,7 @@ export default function SuperAdminPage() {
     </div>
   );
 
-  const sym = liveStats?.currency_symbol || '₹';
+  const sym = liveStats?.currency_symbol || REGIONS.IN.symbol;
 
   return (
     <div className="space-y-6 animate-fade-in pb-10" onClick={() => setPlanDropdown(null)}>
