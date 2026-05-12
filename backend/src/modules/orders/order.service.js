@@ -1,6 +1,6 @@
 /**
  * @fileoverview Order service — creates orders, manages items, generates KOTs, processes payments.
- * This is the MOST CRITICAL module in the entire system.
+ * Region-aware tax engine: AU 10% GST inclusive, IN multi-slab GST exclusive.
  * @module modules/orders/order.service
  */
 
