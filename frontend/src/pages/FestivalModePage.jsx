@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import axios from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
 import {
   Sparkles, MapPin, Calendar, ChefHat, Tag, Palette, Gift,
   ToggleLeft, ToggleRight, Zap, Star, Clock, AlertTriangle,
@@ -465,10 +466,12 @@ function ActiveModeBanner({ activeMode, outletId, onToggle, locale }) {
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function FestivalModePage() {
   const { locale, symbol } = useCurrency();
+  const region = useRegion();
+  const isAU = region === 'AU';
   const outletId = useSelector(state => state.auth.user?.outlet_id) || '';
   const [tab, setTab]                         = useState('upcoming');
   const [search, setSearch]                   = useState('');
-  const [countryFilter, setCountryFilter]     = useState('IN');
+  const [countryFilter, setCountryFilter]     = useState(isAU ? 'AU' : 'IN');
   const [viewModal, setViewModal]             = useState(null);
   const [configModal, setConfigModal]         = useState(null);
   const qc = useQueryClient();
@@ -544,11 +547,13 @@ export default function FestivalModePage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-surface-900 border border-surface-800 rounded-2xl p-5">
         <div>
           <h1 className="text-2xl font-black text-surface-50 flex items-center gap-3">
-            <span className="text-3xl">🎊</span>
-            Hyperlocal Festival Mode
+            <span className="text-3xl">{isAU ? '🌴' : '🎊'}</span>
+            {isAU ? 'Holiday Mode' : 'Hyperlocal Festival Mode'}
           </h1>
           <p className="text-surface-400 text-sm mt-1">
-            Auto-detect upcoming festivals · Region-specific menus · Instant theme activation
+            {isAU
+              ? 'Auto-detect upcoming holidays · Seasonal menus · Instant theme activation'
+              : 'Auto-detect upcoming festivals · Region-specific menus · Instant theme activation'}
             {detected?.outlet && (
               <span className="ml-2 text-surface-500">
                 · <MapPin size={10} className="inline" /> {detected.outlet.region} · {detected.outlet.country}

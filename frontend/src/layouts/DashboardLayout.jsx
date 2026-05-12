@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
 import { io } from 'socket.io-client';
 import { logout, updateUser } from '../store/slices/authSlice';
 import api from '../lib/api';
@@ -15,7 +16,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
-  HeartPulse,
+  HeartPulse, Palmtree,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
@@ -104,6 +105,43 @@ const ownerNav = [
   { path: '/settings',      label: 'Settings',        icon: Settings },
 ];
 
+// ── AU-specific sidebar: cleaner categories, fewer items, AU-appropriate labels ──
+const ownerNavAU = [
+  // ── Operations: daily POS + order flow ──
+  { section: 'Operations' },
+  { path: '/',               label: 'Dashboard',       icon: LayoutDashboard },
+  { path: '/pos',            label: 'POS Terminal',     icon: ShoppingCart,   feature: 'pos' },
+  { path: '/running-orders', label: 'Live Orders',      icon: Clock,          isLive: true, feature: 'running_orders' },
+  { path: '/kitchen',        label: 'Kitchen Display',  icon: ChefHat,        feature: 'kitchen' },
+  { path: '/orders',         label: 'Order History',    icon: ClipboardList,  feature: 'orders' },
+  { path: '/qr-orders',     label: 'QR Orders',        icon: BellRing,       isLive: true, feature: 'qr_orders' },
+  { path: '/reservations',  label: 'Reservations',     icon: BookOpen,       feature: 'tables' },
+
+  // ── Management: menu, customers, promotions, staff ──
+  { section: 'Management' },
+  { path: '/menu',           label: 'Menu',             icon: UtensilsCrossed, feature: 'menu' },
+  { path: '/customers',      label: 'Customers',        icon: Users,           feature: 'customers' },
+  { path: '/crm',            label: 'Loyalty & CRM',    icon: Heart,           feature: 'crm' },
+  { path: '/discounts',      label: 'Promotions',       icon: Tag,             feature: 'discounts' },
+  { path: '/festival',       label: 'Holiday Mode',     icon: Palmtree,        feature: 'festival_mode' },
+  { path: '/rostering',     label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
+
+  // ── Analytics: reports, payments, compliance ──
+  { section: 'Analytics' },
+  { path: '/reports',          label: 'Reports',           icon: BarChart3,     feature: 'reports' },
+  { path: '/menu-analytics',   label: 'Menu Analytics',    icon: FlameKindling, feature: 'menu' },
+  { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },
+  { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
+  { path: '/gst-compliance',  label: 'GST & BAS',         icon: Receipt,       feature: 'reports' },
+
+  // ── System: integrations, settings ──
+  { section: 'System' },
+  { path: '/au-integrations',label: 'Integrations',     icon: Link2,    feature: 'integrations', region: 'AU' },
+  { path: '/qr-codes',      label: 'QR Codes',         icon: QrCode,   feature: 'qr_codes' },
+  { path: '/subscription',  label: 'Subscription',     icon: Star },
+  { path: '/settings',      label: 'Settings',         icon: Settings },
+];
+
 // Helper: check if a feature is enabled. Default to ON if not present in user.features
 // (super_admin always sees everything; users without features key see everything)
 function isFeatureEnabled(user, featureKey) {
@@ -189,8 +227,8 @@ export default function DashboardLayout() {
 
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
-  const rawNavItems = user?.role === 'super_admin' ? superAdminNav : ownerNav;
-  const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
+  const userRegion = useRegion();
+  const rawNavItems = user?.role === 'super_admin' ? superAdminNav : (userRegion === 'AU' ? ownerNavAU : ownerNav);
   // Filter out disabled features and region-restricted items. Keep section headers that still have at least one visible item below.
   const navItems = (() => {
     const filtered = rawNavItems.filter(item =>
