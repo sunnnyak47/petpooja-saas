@@ -1120,8 +1120,8 @@ export default function POSPage() {
 
             <div className="flex justify-between items-end mb-3 px-1">
               <div>
-                 <p className="text-xs text-surface-400">Total Tax: {symbol}{cartTotals.tax.toFixed(1)}</p>
-                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">{symbol}{cartTotals.total}</p>
+                 <p className="text-xs text-surface-400">Total Tax: {symbol}{cartTotals.tax.toFixed(isAU ? 2 : 0)}{isAU ? ' incl.' : ''}</p>
+                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">{symbol}{isAU ? cartTotals.total.toFixed(2) : cartTotals.total}</p>
                  {isCompMode && <p className="text-xs text-success-400 mt-1 uppercase font-bold tracking-widest">100% Waived</p>}
               </div>
             </div>
@@ -1158,7 +1158,7 @@ export default function POSPage() {
             </div>
 
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
-              {isBilled ? 'PAY BILL' : `PAY ${symbol}${cartTotals.total}`}
+              {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? cartTotals.total.toFixed(2) : cartTotals.total}`}
             </button>
           </div>
         )}
