@@ -45,6 +45,7 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
       menu_item_id: item.id,
       name: item.name,
       base_price: Number(item.base_price),
+      gst_rate: Number(item.gst_rate) || 0,
       food_type: item.food_type,
       kitchen_station: item.kitchen_station,
       variant_id: selectedVariant?.id || null,

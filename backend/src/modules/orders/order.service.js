@@ -8,9 +8,110 @@ const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../utils/errors');
-const { calculateGST, generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
+const { generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
+const { calculateItemTax } = require('./tax.service');
 const customerService = require('../customers/customer.service');
 const { sendOrderReadySms } = require('../../utils/sms.service');
+
+/**
+ * Fetch the tax configuration for an outlet by reading its HeadOffice settings.
+ * Returns the outletConfig shape expected by calculateItemTax.
+ * @param {object} prismaClient - Prisma client (or transaction)
+ * @param {string} outletId - Outlet UUID
+ * @returns {Promise<{country_code: string, gst_inclusive: boolean, state: string, currency: string}>}
+ */
+async function getOutletTaxConfig(prismaClient, outletId) {
+  const outlet = await prismaClient.outlet.findFirst({
+    where: { id: outletId, is_deleted: false },
+    select: { state: true, country: true, currency: true, head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+  });
+  if (!outlet) return { country_code: 'IN', gst_inclusive: false, state: '', currency: 'INR' };
+
+  const countryCode = outlet.head_office?.country_code || (outlet.country === 'Australia' ? 'AU' : 'IN');
+  const gstInclusive = outlet.head_office?.gst_inclusive || false;
+  const currency = outlet.head_office?.currency || outlet.currency || 'INR';
+
+  return {
+    country_code: countryCode,
+    gst_inclusive: gstInclusive,
+    state: outlet.state || '',
+    currency,
+  };
+}
+
+/**
+ * Compute the rounded grand total based on region.
+ * - IN: round to nearest whole rupee
+ * - AU: round to nearest cent (no rounding) for card; nearest 5 cents for cash
+ * @param {number} totalAmount - Total before rounding
+ * @param {string} countryCode - 'AU' or 'IN'
+ * @returns {{ grandTotal: number, roundOff: number }}
+ */
+function computeGrandTotal(totalAmount, countryCode) {
+  if (countryCode === 'AU') {
+    // AU: keep to 2 decimal places (no whole-number rounding)
+    const grandTotal = Math.round(totalAmount * 100) / 100;
+    const roundOff = Math.round((grandTotal - totalAmount) * 100) / 100;
+    return { grandTotal, roundOff };
+  }
+  // IN (default): round to nearest whole rupee
+  const grandTotal = Math.round(totalAmount);
+  const roundOff = Math.round((grandTotal - totalAmount) * 100) / 100;
+  return { grandTotal, roundOff };
+}
+
+/**
+ * Recalculate tax totals for all items on an order using the proper tax engine.
+ * Used by addItemsToOrder and mergeOrder.
+ * @param {object} tx - Prisma transaction client
+ * @param {string} orderId - Order UUID
+ * @param {object} taxConfig - From getOutletTaxConfig
+ * @returns {Promise<{subtotal:number, cgst:number, sgst:number, igst:number, totalTax:number, totalAmount:number, grandTotal:number, roundOff:number}>}
+ */
+async function recalcOrderTotals(tx, orderId, taxConfig) {
+  const allItems = await tx.orderItem.findMany({
+    where: { order_id: orderId, is_deleted: false },
+  });
+
+  let subtotalPaise = 0;
+  let totalCgstPaise = 0;
+  let totalSgstPaise = 0;
+  let totalIgstPaise = 0;
+  let totalTaxPaise = 0;
+
+  for (const oi of allItems) {
+    const itemTotal = Number(oi.item_total);
+    subtotalPaise += Math.round(itemTotal * 100);
+
+    const tax = calculateItemTax(
+      { base_price: itemTotal / Number(oi.quantity), quantity: Number(oi.quantity), gst_rate: Number(oi.gst_rate), is_inclusive: taxConfig.gst_inclusive },
+      { country_code: taxConfig.country_code, state: taxConfig.state }
+    );
+
+    totalCgstPaise += Math.round(tax.cgst * 100);
+    totalSgstPaise += Math.round(tax.sgst * 100);
+    totalIgstPaise += Math.round(tax.igst * 100);
+    totalTaxPaise += Math.round(tax.total_tax * 100);
+  }
+
+  const subtotal = subtotalPaise / 100;
+  const totalCgst = totalCgstPaise / 100;
+  const totalSgst = totalSgstPaise / 100;
+  const totalIgst = totalIgstPaise / 100;
+  const totalTax = totalTaxPaise / 100;
+
+  let totalAmount;
+  if (taxConfig.gst_inclusive) {
+    // Price already includes tax — total is just the subtotal
+    totalAmount = subtotal;
+  } else {
+    totalAmount = subtotal + totalTax;
+  }
+
+  const { grandTotal, roundOff } = computeGrandTotal(totalAmount, taxConfig.country_code);
+
+  return { subtotal, cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff };
+}
 
 /**
  * Generates the next invoice number for an outlet by incrementing its sequence.
@@ -42,8 +143,14 @@ async function createOrder(data, staffId) {
   try {
     const outlet = await prisma.outlet.findFirst({
       where: { id: data.outlet_id, is_deleted: false, is_active: true },
+      include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
     });
     if (!outlet) throw new NotFoundError('Outlet not found or inactive');
+
+    // Tax config for this outlet
+    const countryCode = outlet.head_office?.country_code || (outlet.country === 'Australia' ? 'AU' : 'IN');
+    const gstInclusive = outlet.head_office?.gst_inclusive || false;
+    const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '' };
 
     if (data.table_id) {
       const table = await prisma.table.findFirst({
@@ -126,26 +233,36 @@ async function createOrder(data, staffId) {
       });
     }
 
-    const isSameState = !data.delivery_address_state ||
-      (outlet.state && data.delivery_address_state &&
-       outlet.state.toLowerCase() === data.delivery_address_state.toLowerCase()) ||
-      true; // default to same-state if no address info
-    let totalCgst = 0;
-    let totalSgst = 0;
-    let totalIgst = 0;
+    // Build tax config — pass customer_state for inter-state detection (IN only)
+    const customerState = data.delivery_address_state || '';
+    const taxCfg = { ...outletTaxConfig, customer_state: customerState };
+
+    let totalCgstPaise = 0;
+    let totalSgstPaise = 0;
+    let totalIgstPaise = 0;
+    let totalTaxPaise = 0;
 
     for (const oi of orderItemsData) {
-      const gst = calculateGST(oi.item_total, Number(oi.gst_rate), isSameState);
-      oi.item_tax = gst.totalTax;
-      totalCgst += gst.cgst;
-      totalSgst += gst.sgst;
-      totalIgst += gst.igst;
+      const tax = calculateItemTax(
+        { base_price: oi.unit_price + oi.variant_price + (oi.addons_total / oi.quantity), quantity: oi.quantity, gst_rate: oi.gst_rate, is_inclusive: gstInclusive },
+        taxCfg
+      );
+      oi.item_tax = tax.total_tax;
+      oi.taxable_amount = tax.taxable_amount;
+      totalCgstPaise += Math.round(tax.cgst * 100);
+      totalSgstPaise += Math.round(tax.sgst * 100);
+      totalIgstPaise += Math.round(tax.igst * 100);
+      totalTaxPaise += Math.round(tax.total_tax * 100);
     }
 
-    const totalTax = totalCgst + totalSgst + totalIgst;
-    const totalAmount = subtotal + totalTax;
-    const roundOff = Math.round(totalAmount) - totalAmount;
-    const grandTotal = Math.round(totalAmount);
+    const totalCgst = totalCgstPaise / 100;
+    const totalSgst = totalSgstPaise / 100;
+    const totalIgst = totalIgstPaise / 100;
+    const totalTax = totalTaxPaise / 100;
+
+    // For inclusive pricing (AU), total is just the subtotal (tax is already inside)
+    const totalAmount = gstInclusive ? subtotal : subtotal + totalTax;
+    const { grandTotal, roundOff } = computeGrandTotal(totalAmount, countryCode);
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
@@ -407,34 +524,22 @@ async function addItemsToOrder(orderId, items, staffId) {
         }
       }
 
-      const allItems = await tx.orderItem.findMany({
-        where: { order_id: orderId, is_deleted: false },
-      });
-
-      let newSubtotal = 0;
-      let newCgst = 0;
-      let newSgst = 0;
-      for (const oi of allItems) {
-        newSubtotal += Number(oi.item_total);
-        const gst = calculateGST(Number(oi.item_total), Number(oi.gst_rate), true);
-        newCgst += gst.cgst;
-        newSgst += gst.sgst;
-      }
-
-      const totalTax = newCgst + newSgst;
-      const totalAmount = newSubtotal + totalTax;
+      // Recalculate full order totals using proper tax engine
+      const taxConfig = await getOutletTaxConfig(tx, order.outlet_id);
+      const totals = await recalcOrderTotals(tx, orderId, taxConfig);
 
       await tx.order.update({
         where: { id: orderId },
         data: {
-          subtotal: newSubtotal,
-          taxable_amount: newSubtotal,
-          cgst: Math.round(newCgst * 100) / 100,
-          sgst: Math.round(newSgst * 100) / 100,
-          total_tax: Math.round(totalTax * 100) / 100,
-          total_amount: Math.round(totalAmount * 100) / 100,
-          round_off: Math.round((Math.round(totalAmount) - totalAmount) * 100) / 100,
-          grand_total: Math.round(totalAmount),
+          subtotal: totals.subtotal,
+          taxable_amount: totals.subtotal,
+          cgst: Math.round(totals.cgst * 100) / 100,
+          sgst: Math.round(totals.sgst * 100) / 100,
+          igst: Math.round(totals.igst * 100) / 100,
+          total_tax: Math.round(totals.totalTax * 100) / 100,
+          total_amount: Math.round(totals.totalAmount * 100) / 100,
+          round_off: Math.round(totals.roundOff * 100) / 100,
+          grand_total: totals.grandTotal,
         },
       });
     });
@@ -1076,7 +1181,7 @@ async function mergeOrder(sourceOrderId, targetOrderId, userId) {
   const prisma = getDbClient();
   if (!targetOrderId || targetOrderId === 'auto') throw new BadRequestError('Valid target order ID required');
   const [source, target] = await Promise.all([
-    prisma.order.findUnique({ where: { id: sourceOrderId }, include: { items: true } }),
+    prisma.order.findUnique({ where: { id: sourceOrderId }, include: { order_items: true } }),
     prisma.order.findUnique({ where: { id: targetOrderId } }),
   ]);
   if (!source || !target) throw new NotFoundError('Source or target order not found');
@@ -1084,10 +1189,23 @@ async function mergeOrder(sourceOrderId, targetOrderId, userId) {
   return prisma.$transaction(async (tx) => {
     // Move items from source to target
     await tx.orderItem.updateMany({ where: { order_id: sourceOrderId }, data: { order_id: targetOrderId } });
-    // Recalculate target totals
-    const items = await tx.orderItem.findMany({ where: { order_id: targetOrderId } });
-    const subtotal = items.reduce((s, i) => s + Number(i.item_total), 0);
-    await tx.order.update({ where: { id: targetOrderId }, data: { subtotal, grand_total: subtotal } });
+    // Recalculate target totals with proper tax engine
+    const taxConfig = await getOutletTaxConfig(tx, target.outlet_id);
+    const totals = await recalcOrderTotals(tx, targetOrderId, taxConfig);
+    await tx.order.update({
+      where: { id: targetOrderId },
+      data: {
+        subtotal: totals.subtotal,
+        taxable_amount: totals.subtotal,
+        cgst: Math.round(totals.cgst * 100) / 100,
+        sgst: Math.round(totals.sgst * 100) / 100,
+        igst: Math.round(totals.igst * 100) / 100,
+        total_tax: Math.round(totals.totalTax * 100) / 100,
+        total_amount: Math.round(totals.totalAmount * 100) / 100,
+        round_off: Math.round(totals.roundOff * 100) / 100,
+        grand_total: totals.grandTotal,
+      },
+    });
     // Cancel source order
     await tx.order.update({ where: { id: sourceOrderId }, data: { status: 'cancelled', notes: `Merged into ${targetOrderId}` } });
     if (source.table_id) {

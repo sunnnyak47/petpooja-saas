@@ -272,17 +272,21 @@ export default function POSPage() {
       const addonsTotal = (c.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
       return sum + (itemBase + addonsTotal) * c.quantity;
     }, 0);
+    const defaultGstRate = isAU ? 10 : 5;
     const tax = isCompMode ? 0 : cart.reduce((sum, item) => {
       const itemBase = Number(item.base_price) + (item.variant_price || 0);
       const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
-      return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || 5) / 100);
+      return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || defaultGstRate) / 100);
     }, 0);
-    return { 
-      subtotal: isCompMode ? 0 : subtotal, 
-      tax, 
-      total: isCompMode ? 0 : Math.round(subtotal + tax) 
+    // AU: keep 2 decimal places (cents). IN: round to nearest whole rupee.
+    const rawTotal = subtotal + tax;
+    const total = isCompMode ? 0 : (isAU ? Math.round(rawTotal * 100) / 100 : Math.round(rawTotal));
+    return {
+      subtotal: isCompMode ? 0 : subtotal,
+      tax,
+      total
     };
-  }, [cart, isCompMode]);
+  }, [cart, isCompMode, isAU]);
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
@@ -344,6 +348,7 @@ export default function POSPage() {
       menu_item_id: item.id,
       name: item.name,
       base_price: Number(item.base_price),
+      gst_rate: Number(item.gst_rate) || (isAU ? 10 : 5),
       food_type: item.food_type,
       kitchen_station: item.kitchen_station,
       variant_id: null,
