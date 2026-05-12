@@ -27,7 +27,10 @@ async function getOutletTaxConfig(prismaClient, outletId) {
   });
   if (!outlet) return { country_code: 'IN', gst_inclusive: false, state: '', currency: 'INR' };
 
-  const countryCode = outlet.head_office?.country_code || (outlet.country === 'Australia' ? 'AU' : 'IN');
+  // Detect country code from multiple signals (head_office > outlet.currency > outlet.country)
+  const hoCountry = outlet.head_office?.country_code;
+  const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
+  const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
   const gstInclusive = outlet.head_office?.gst_inclusive || false;
   const currency = outlet.head_office?.currency || outlet.currency || 'INR';
 
@@ -148,7 +151,9 @@ async function createOrder(data, staffId) {
     if (!outlet) throw new NotFoundError('Outlet not found or inactive');
 
     // Tax config for this outlet
-    const countryCode = outlet.head_office?.country_code || (outlet.country === 'Australia' ? 'AU' : 'IN');
+    const hoCountry = outlet.head_office?.country_code;
+    const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
+    const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
     const gstInclusive = outlet.head_office?.gst_inclusive || false;
     const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '' };
 
