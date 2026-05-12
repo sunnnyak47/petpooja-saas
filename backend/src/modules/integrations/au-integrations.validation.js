@@ -5,7 +5,7 @@
 
 const Joi = require('joi');
 
-/** POST /au/xero/connect */
+/** POST /au/xero/connect — Legacy direct-credential connect (kept for backward compat) */
 const xeroConnectSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
   client_id: Joi.string().required(),
@@ -13,8 +13,21 @@ const xeroConnectSchema = Joi.object({
   org_name: Joi.string().max(150),
 });
 
-/** POST /au/xero/export-sales */
+/** POST /au/xero/export-sales — Sync daily sales to Xero */
 const xeroExportSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  from_date: Joi.date().required(),
+  to_date: Joi.date().required(),
+});
+
+/** POST /au/xero/sync-po — Sync a purchase order to Xero as a Bill */
+const xeroSyncPOSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  po_id: Joi.string().uuid().required(),
+});
+
+/** GET /au/xero/gst-summary */
+const xeroGSTSummarySchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
   from_date: Joi.date().required(),
   to_date: Joi.date().required(),
@@ -49,7 +62,7 @@ const myobExportSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
   from_date: Joi.date(),
   to_date: Joi.date(),
-  type: Joi.string().valid('sales', 'expenses', 'all'),
+  type: Joi.string().valid('sales', 'expenses', 'payroll', 'all'),
 });
 
 /** POST /au/google-reviews/connect */
@@ -82,6 +95,8 @@ const prontoSyncSchema = Joi.object({
 module.exports = {
   xeroConnectSchema,
   xeroExportSchema,
+  xeroSyncPOSchema,
+  xeroGSTSummarySchema,
   squareConnectSchema,
   squarePaymentSchema,
   myobConnectSchema,

@@ -1,5 +1,7 @@
 /**
  * @fileoverview Australian Franchise Integrations — Xero, Square, MYOB, Google Reviews, Pronto
+ * Xero routes delegate to the real OAuth2 xero.service.js
+ * MYOB routes delegate to the real myob.service.js for CSV export & BAS
  */
 const express = require('express');
 const router = express.Router();
@@ -8,6 +10,8 @@ const { validate } = require('../../middleware/validate.middleware');
 const {
   xeroConnectSchema,
   xeroExportSchema,
+  xeroSyncPOSchema,
+  xeroGSTSummarySchema,
   squareConnectSchema,
   squarePaymentSchema,
   myobConnectSchema,
@@ -19,6 +23,8 @@ const {
 } = require('./au-integrations.validation');
 const { sendSuccess } = require('../../utils/response');
 const prisma = require('../../config/database').getDbClient();
+const xeroService = require('./accounting/xero.service');
+const myobService = require('./accounting/myob.service');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function getIntegrationKey(outletId, type) { return `au_integration_${type}_${outletId}`; }
@@ -40,20 +46,37 @@ async function getIntegration(outletId, type) {
   return row ? JSON.parse(row.setting_value) : null;
 }
 
-// ── XERO ──────────────────────────────────────────────────────────────────
-router.get('/xero/status', authenticate, async (req, res, next) => {
+// ── XERO (OAuth2 via xero.service.js) ────────────────────────────────────
+
+// Get OAuth2 authorization URL — frontend redirects browser to this URL
+router.get('/xero/auth-url', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
-    const cfg = await getIntegration(outletId, 'xero');
-    sendSuccess(res, {
-      connected: !!cfg?.connected,
-      organisation: cfg?.org_name || null,
-      last_sync: cfg?.last_sync || null,
-      invoices_exported: cfg?.invoices_exported || 0,
-    }, 'Xero status');
+    const state = `${outletId}:${Date.now()}`;
+    const url = xeroService.getAuthorizationUrl(outletId, state);
+    sendSuccess(res, { url, state }, 'Xero authorization URL');
   } catch (e) { next(e); }
 });
 
+// OAuth2 callback — frontend sends code after Xero redirect
+router.post('/xero/callback', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { code } = req.body;
+    const result = await xeroService.exchangeCodeForTokens(outletId, code);
+    sendSuccess(res, result, 'Connected to Xero');
+  } catch (e) { next(e); }
+});
+
+router.get('/xero/status', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await xeroService.getConnectionStatus(outletId);
+    sendSuccess(res, result, 'Xero status');
+  } catch (e) { next(e); }
+});
+
+// Legacy connect (saves client_id/secret directly — backward compat)
 router.post('/xero/connect', authenticate, validate(xeroConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
@@ -66,34 +89,57 @@ router.post('/xero/connect', authenticate, validate(xeroConnectSchema), async (r
   } catch (e) { next(e); }
 });
 
+// Sync daily sales as Xero invoice
 router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { from_date, to_date } = req.body;
-    // Get completed orders in date range
-    const orders = await prisma.order.findMany({
-      where: {
-        outlet_id: outletId,
-        status: 'completed',
-        created_at: { gte: new Date(from_date), lte: new Date(to_date) }
-      },
-      select: { id: true, order_number: true, total_amount: true, created_at: true }
-    });
-    const cfg = await getIntegration(outletId, 'xero');
-    await saveIntegration(outletId, 'xero', {
-      ...cfg,
-      last_sync: new Date().toISOString(),
-      invoices_exported: (cfg?.invoices_exported || 0) + orders.length
-    });
-    sendSuccess(res, { exported: orders.length, total_amount: orders.reduce((s, o) => s + Number(o.total_amount), 0) }, 'Exported to Xero');
+    // Sync each day in the range
+    const start = new Date(from_date);
+    const end = new Date(to_date);
+    const results = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      const r = await xeroService.syncDailySales(outletId, dateStr);
+      results.push(r);
+    }
+    const totalExported = results.reduce((s, r) => s + r.orders_count, 0);
+    const totalAmount = results.reduce((s, r) => s + r.total_amount, 0);
+    sendSuccess(res, {
+      exported: totalExported,
+      total_amount: totalAmount,
+      days: results.length,
+      mock: results[0]?.mock || false,
+      invoices: results,
+    }, 'Exported to Xero');
+  } catch (e) { next(e); }
+});
+
+// Sync a purchase order as Xero Bill
+router.post('/xero/sync-po', authenticate, validate(xeroSyncPOSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { po_id } = req.body;
+    const result = await xeroService.syncPurchaseOrder(outletId, { id: po_id });
+    sendSuccess(res, result, 'PO synced as Bill in Xero');
+  } catch (e) { next(e); }
+});
+
+// GST / BAS summary
+router.get('/xero/gst-summary', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { from_date, to_date } = req.query;
+    const result = await xeroService.getGSTSummary(outletId, from_date, to_date);
+    sendSuccess(res, result, 'GST summary');
   } catch (e) { next(e); }
 });
 
 router.delete('/xero/disconnect', authenticate, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    await saveIntegration(outletId, 'xero', { connected: false });
-    sendSuccess(res, null, 'Xero disconnected');
+    const result = await xeroService.disconnect(outletId);
+    sendSuccess(res, result, 'Xero disconnected');
   } catch (e) { next(e); }
 });
 
@@ -148,7 +194,7 @@ router.delete('/square/disconnect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── MYOB ──────────────────────────────────────────────────────────────────
+// ── MYOB (CSV export via myob.service.js) ────────────────────────────────
 router.get('/myob/status', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
@@ -174,20 +220,83 @@ router.post('/myob/connect', authenticate, validate(myobConnectSchema), async (r
   } catch (e) { next(e); }
 });
 
+// Export sales/expenses/payroll as MYOB-compatible CSV download
 router.post('/myob/export', authenticate, validate(myobExportSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    const { from_date, to_date, type } = req.body; // type: sales | purchases
-    const orders = type !== 'purchases' ? await prisma.order.findMany({
-      where: { outlet_id: outletId, status: 'completed', created_at: { gte: new Date(from_date), lte: new Date(to_date) } },
-      select: { id: true, order_number: true, total_amount: true }
-    }) : [];
+    const { from_date, to_date, type } = req.body;
+    const fromStr = new Date(from_date).toISOString().split('T')[0];
+    const toStr = new Date(to_date).toISOString().split('T')[0];
+
+    let result;
+    if (type === 'expenses') {
+      result = await myobService.exportExpensesCSV(outletId, fromStr, toStr);
+    } else if (type === 'payroll') {
+      result = await myobService.exportPayrollSummary(outletId, fromStr, toStr);
+    } else {
+      result = await myobService.exportSalesCSV(outletId, fromStr, toStr);
+    }
+
+    // Update export counter
     const cfg = await getIntegration(outletId, 'myob');
-    await saveIntegration(outletId, 'myob', {
-      ...cfg, last_export: new Date().toISOString(),
-      records_exported: (cfg?.records_exported || 0) + orders.length
-    });
-    sendSuccess(res, { type, exported: orders.length }, `Exported ${type} to MYOB`);
+    if (cfg) {
+      await saveIntegration(outletId, 'myob', {
+        ...cfg, last_export: new Date().toISOString(),
+        records_exported: (cfg.records_exported || 0) + result.count
+      });
+    }
+
+    // If CSV is empty (no data), return JSON
+    if (!result.csv) {
+      sendSuccess(res, { type, exported: 0, message: result.message || 'No data found' }, 'No data to export');
+      return;
+    }
+
+    // Return CSV as downloadable file
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.csv);
+  } catch (e) { next(e); }
+});
+
+// Export as JSON (for frontend preview before download)
+router.post('/myob/export-preview', authenticate, validate(myobExportSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { from_date, to_date, type } = req.body;
+    const fromStr = new Date(from_date).toISOString().split('T')[0];
+    const toStr = new Date(to_date).toISOString().split('T')[0];
+
+    let result;
+    if (type === 'expenses') {
+      result = await myobService.exportExpensesCSV(outletId, fromStr, toStr);
+    } else if (type === 'payroll') {
+      result = await myobService.exportPayrollSummary(outletId, fromStr, toStr);
+    } else {
+      result = await myobService.exportSalesCSV(outletId, fromStr, toStr);
+    }
+
+    sendSuccess(res, {
+      type,
+      exported: result.count,
+      totalAmount: result.totalAmount,
+      filename: result.filename,
+      message: result.message || `${result.count} records ready for download`,
+    }, `MYOB ${type} export preview`);
+  } catch (e) { next(e); }
+});
+
+// BAS Worksheet calculation
+router.get('/myob/bas-worksheet', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const quarter = parseInt(req.query.quarter, 10);
+    const year = parseInt(req.query.year, 10);
+    if (!quarter || !year) {
+      return res.status(400).json({ success: false, message: 'quarter and year are required' });
+    }
+    const result = await myobService.generateBASWorksheet(outletId, quarter, year);
+    sendSuccess(res, result, 'BAS worksheet');
   } catch (e) { next(e); }
 });
 

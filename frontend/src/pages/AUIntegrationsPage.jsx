@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp, Download, FileSpreadsheet, Calculator } from 'lucide-react';
 
 const INTEGRATIONS_META = {
   xero: {
@@ -11,11 +11,8 @@ const INTEGRATIONS_META = {
     description: 'Cloud accounting — export invoices, manage P&L, BAS reports',
     logo: '💼',
     color: '#13B5EA',
-    fields: [
-      { key: 'client_id', label: 'Client ID', type: 'text', placeholder: 'Xero App Client ID' },
-      { key: 'client_secret', label: 'Client Secret', type: 'password', placeholder: 'Xero App Client Secret' },
-      { key: 'org_name', label: 'Organisation Name', type: 'text', placeholder: 'e.g. The Corner Café Pty Ltd' },
-    ],
+    useOAuth: true, // OAuth2 flow — no manual fields needed
+    fields: [],
   },
   square: {
     name: 'Square',
@@ -72,6 +69,12 @@ export default function AUIntegrationsPage() {
   const [formData, setFormData] = useState({});
   const [reviewReply, setReviewReply] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [myobExportType, setMyobExportType] = useState('sales');
+  const [myobExportModal, setMyobExportModal] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState({
+    from: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0],
+  });
 
   const { data: status = {} } = useQuery({
     queryKey: ['au-integrations', outletId],
@@ -85,6 +88,40 @@ export default function AUIntegrationsPage() {
     queryFn: () => api.get('/integrations/au/google-reviews/reviews', { params: { outlet_id: outletId } }).then(r => r.data),
     enabled: !!outletId && !!status?.google_reviews?.connected,
   });
+
+  // Xero OAuth2: get auth URL and open in same window
+  const xeroAuthMut = useMutation({
+    mutationFn: () => api.get('/integrations/au/xero/auth-url', { params: { outlet_id: outletId } }).then(r => r.data),
+    onSuccess: (data) => {
+      if (data?.url) {
+        // Store state for callback verification
+        sessionStorage.setItem('xero_oauth_state', data.state);
+        window.open(data.url, '_blank', 'width=600,height=700');
+        toast.success('Xero login window opened — complete authorization there');
+      } else {
+        toast('Xero OAuth not configured — using mock mode', { icon: '⚙️' });
+      }
+    },
+    onError: e => toast.error(e?.response?.data?.message || 'Failed to start Xero OAuth'),
+  });
+
+  // Handle Xero OAuth callback (code from URL params)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (code && state) {
+      // Exchange code for tokens
+      api.post('/integrations/au/xero/callback', { code, outlet_id: outletId })
+        .then(() => {
+          toast.success('Xero connected successfully!');
+          qc.invalidateQueries(['au-integrations']);
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+        })
+        .catch(e => toast.error(e?.response?.data?.message || 'Xero callback failed'));
+    }
+  }, [outletId, qc]);
 
   const connectMut = useMutation({
     mutationFn: ({ type, data }) => api.post(`/integrations/au/${type.replace('_', '-')}/connect`, { ...data, outlet_id: outletId }),
@@ -111,19 +148,44 @@ export default function AUIntegrationsPage() {
       outlet_id: outletId,
       from_date: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
       to_date: new Date().toISOString().split('T')[0],
-    }),
-    onSuccess: d => toast.success(`${d.exported} invoices exported to Xero`),
-    onError: e => toast.error(e.message),
+    }).then(r => r.data),
+    onSuccess: d => {
+      const msg = d?.mock ? 'Mock sync' : 'Synced';
+      toast.success(`${msg}: ${d.exported} orders across ${d.days} day(s) to Xero`);
+      qc.invalidateQueries(['au-integrations']);
+    },
+    onError: e => toast.error(e?.response?.data?.message || 'Xero sync failed'),
   });
 
   const exportMyobMut = useMutation({
-    mutationFn: () => api.post('/integrations/au/myob/export', {
-      outlet_id: outletId, type: 'sales',
-      from_date: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
-      to_date: new Date().toISOString().split('T')[0],
-    }),
-    onSuccess: d => toast.success(`${d.exported} records exported to MYOB`),
-    onError: e => toast.error(e.message),
+    mutationFn: ({ type = 'sales', from_date, to_date } = {}) =>
+      api.post('/integrations/au/myob/export', {
+        outlet_id: outletId,
+        type,
+        from_date: from_date || exportDateRange.from,
+        to_date: to_date || exportDateRange.to,
+      }, { responseType: 'blob' }),
+    onSuccess: (response, variables) => {
+      // Check if response is a JSON (no data) or a CSV blob
+      const contentType = response.headers?.['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        toast('No data found for the selected period', { icon: '📭' });
+        return;
+      }
+      // Trigger CSV download in the browser
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MYOB_${(variables?.type || 'sales').charAt(0).toUpperCase() + (variables?.type || 'sales').slice(1)}_${exportDateRange.from}_${exportDateRange.to}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      toast.success(`MYOB ${variables?.type || 'sales'} CSV downloaded!`);
+      setMyobExportModal(false);
+    },
+    onError: e => toast.error(e?.response?.data?.message || 'Export failed'),
   });
 
   const syncProntoMut = useMutation({
@@ -189,7 +251,7 @@ export default function AUIntegrationsPage() {
                 {isConnected && (
                   <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-2" style={{ borderColor: 'var(--border)' }}>
                     {type === 'xero' && <>
-                      <Stat label="Org" value={st.organisation || '—'} />
+                      <Stat label="Org" value={st.organisation || st.org_name || '—'} />
                       <Stat label="Invoices" value={st.invoices_exported || 0} />
                     </>}
                     {type === 'square' && <>
@@ -219,14 +281,16 @@ export default function AUIntegrationsPage() {
                         <button onClick={() => exportXeroMut.mutate()} disabled={exportXeroMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
                           style={{ background: meta.color }}>
-                          Export Sales
+                          <RefreshCw className={`w-3 h-3 inline mr-1 ${exportXeroMut.isPending ? 'animate-spin' : ''}`} />
+                          Sync Sales
                         </button>
                       )}
                       {type === 'myob' && (
-                        <button onClick={() => exportMyobMut.mutate()} disabled={exportMyobMut.isPending}
+                        <button onClick={() => setMyobExportModal(true)} disabled={exportMyobMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
                           style={{ background: meta.color }}>
-                          Export Sales
+                          <Download className="w-3 h-3 inline mr-1" />
+                          Export CSV
                         </button>
                       )}
                       {type === 'pronto' && (
@@ -249,11 +313,27 @@ export default function AUIntegrationsPage() {
                     </>
                   ) : (
                     <button
-                      onClick={() => { setConnectModal(type); setFormData({}); }}
-                      className="flex-1 py-2 rounded-lg text-xs font-semibold text-white flex items-center justify-center gap-1"
+                      onClick={() => {
+                        if (meta.useOAuth) {
+                          // Xero uses OAuth2 — go directly to auth URL
+                          xeroAuthMut.mutate();
+                        } else {
+                          setConnectModal(type);
+                          setFormData({});
+                        }
+                      }}
+                      disabled={meta.useOAuth && xeroAuthMut.isPending}
+                      className="flex-1 py-2 rounded-lg text-xs font-semibold text-white flex items-center justify-center gap-1 disabled:opacity-60"
                       style={{ background: meta.color }}
                     >
-                      Connect <ArrowRight className="w-3 h-3" />
+                      {meta.useOAuth ? (
+                        <>
+                          <ExternalLink className="w-3 h-3" />
+                          {xeroAuthMut.isPending ? 'Opening...' : 'Connect with Xero'}
+                        </>
+                      ) : (
+                        <>Connect <ArrowRight className="w-3 h-3" /></>
+                      )}
                     </button>
                   )}
                 </div>
@@ -350,6 +430,80 @@ export default function AUIntegrationsPage() {
                   style={{ background: INTEGRATIONS_META[connectModal]?.color }}
                 >
                   {connectMut.isPending ? 'Connecting...' : `Connect ${INTEGRATIONS_META[connectModal]?.name}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MYOB Export Modal */}
+      {myobExportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--bg-card)' }}>
+            <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📊</span>
+                <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>Export to MYOB</h3>
+              </div>
+              <button onClick={() => setMyobExportModal(false)}><X className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Export Type */}
+              <div>
+                <label className="text-xs mb-2 block font-medium" style={{ color: 'var(--text-secondary)' }}>Export Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: 'sales', label: 'Sales', icon: FileSpreadsheet },
+                    { key: 'expenses', label: 'Expenses', icon: Calculator },
+                    { key: 'payroll', label: 'Payroll', icon: Download },
+                  ].map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      onClick={() => setMyobExportType(key)}
+                      className={`p-3 rounded-xl border text-center transition-all ${myobExportType === key ? 'ring-2' : ''}`}
+                      style={{
+                        borderColor: myobExportType === key ? '#7B2FBE' : 'var(--border)',
+                        background: myobExportType === key ? '#7B2FBE15' : 'var(--bg-secondary)',
+                        ringColor: '#7B2FBE',
+                      }}
+                    >
+                      <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: myobExportType === key ? '#7B2FBE' : 'var(--text-secondary)' }} />
+                      <span className="text-xs font-semibold" style={{ color: myobExportType === key ? '#7B2FBE' : 'var(--text-primary)' }}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs mb-1 block font-medium" style={{ color: 'var(--text-secondary)' }}>From Date</label>
+                  <input type="date" value={exportDateRange.from}
+                    onChange={e => setExportDateRange(p => ({ ...p, from: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+                </div>
+                <div>
+                  <label className="text-xs mb-1 block font-medium" style={{ color: 'var(--text-secondary)' }}>To Date</label>
+                  <input type="date" value={exportDateRange.to}
+                    onChange={e => setExportDateRange(p => ({ ...p, to: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+                </div>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                CSV will be formatted for MYOB AccountRight import with AU date format (DD/MM/YYYY) and Inc/Ex Tax columns.
+              </p>
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setMyobExportModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+                <button
+                  onClick={() => exportMyobMut.mutate({ type: myobExportType, from_date: exportDateRange.from, to_date: exportDateRange.to })}
+                  disabled={exportMyobMut.isPending}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
+                  style={{ background: '#7B2FBE' }}
+                >
+                  <Download className="w-4 h-4" />
+                  {exportMyobMut.isPending ? 'Exporting...' : 'Download CSV'}
                 </button>
               </div>
             </div>
