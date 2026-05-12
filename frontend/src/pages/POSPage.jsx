@@ -267,23 +267,43 @@ export default function POSPage() {
   }, [items, search, shortCodeSearch]);
 
   const cartTotals = useMemo(() => {
-    const subtotal = cart.reduce((sum, c) => {
+    const lineTotal = cart.reduce((sum, c) => {
       const itemBase = Number(c.base_price) + (c.variant_price || 0);
       const addonsTotal = (c.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
       return sum + (itemBase + addonsTotal) * c.quantity;
     }, 0);
     const defaultGstRate = isAU ? 10 : 5;
-    const tax = isCompMode ? 0 : cart.reduce((sum, item) => {
-      const itemBase = Number(item.base_price) + (item.variant_price || 0);
-      const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
-      return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || defaultGstRate) / 100);
-    }, 0);
+    // AU prices are GST-inclusive: tax is extracted from (not added to) the price
+    // IN prices are exclusive: tax is added on top
+    let subtotal, tax;
+    if (isCompMode) {
+      subtotal = 0; tax = 0;
+    } else if (isAU) {
+      // Inclusive: lineTotal already contains GST → extract tax
+      tax = cart.reduce((sum, item) => {
+        const itemBase = Number(item.base_price) + (item.variant_price || 0);
+        const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
+        const lineAmt = (itemBase + addonsTotal) * item.quantity;
+        const rate = item.gst_rate || item.tax_rate || defaultGstRate;
+        // tax = lineAmt - lineAmt / (1 + rate/100)
+        return sum + (lineAmt - lineAmt / (1 + rate / 100));
+      }, 0);
+      subtotal = lineTotal - tax;
+    } else {
+      // IN: exclusive — add tax on top
+      subtotal = lineTotal;
+      tax = cart.reduce((sum, item) => {
+        const itemBase = Number(item.base_price) + (item.variant_price || 0);
+        const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
+        return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || defaultGstRate) / 100);
+      }, 0);
+    }
     // AU: keep 2 decimal places (cents). IN: round to nearest whole rupee.
-    const rawTotal = subtotal + tax;
+    const rawTotal = isAU ? lineTotal : subtotal + tax;
     const total = isCompMode ? 0 : (isAU ? Math.round(rawTotal * 100) / 100 : Math.round(rawTotal));
     return {
-      subtotal: isCompMode ? 0 : subtotal,
-      tax,
+      subtotal: Math.round((isCompMode ? 0 : subtotal) * 100) / 100,
+      tax: Math.round(tax * 100) / 100,
       total
     };
   }, [cart, isCompMode, isAU]);
