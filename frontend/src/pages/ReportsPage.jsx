@@ -14,6 +14,8 @@ import {
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
+import { formatCurrencyStatic } from '../hooks/useCurrency';
 import { format, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth } from 'date-fns';
 
 const DATE_PRESETS = [
@@ -45,6 +47,8 @@ export default function ReportsPage() {
   const currency = user?.outlet?.currency || 'INR';
   const { symbol } = useCurrency();
   const navigate = useNavigate();
+  const region = useRegion();
+  const isAU = region === 'AU';
 
   const [dateRange, setDateRange] = useState(DATE_PRESETS[0].getValue());
   const [presetIndex, setPresetIndex] = useState(0);
@@ -116,6 +120,14 @@ export default function ReportsPage() {
     queryKey: ['reports', 'staff', selectedOutlet, fromStr, toStr],
     queryFn: () => api.get('/reports/staffPerformance', { params: { outlet_id: selectedOutlet, from: fromStr, to: toStr } }).then(r => r.data),
     enabled: !!selectedOutlet,
+  });
+
+  // AU-only: Advanced reports (P&L, heatmap, categories)
+  const { data: advancedReports, isLoading: loadingAdvanced } = useQuery({
+    queryKey: ['advanced-reports', 'week'],
+    queryFn: () => api.get('/reports/advanced', { params: { range: 'week' } }).then(r => r.data).catch(() => null),
+    enabled: isAU,
+    staleTime: 120_000,
   });
 
   // --- Processed data ---
@@ -214,9 +226,11 @@ export default function ReportsPage() {
       <div className="flex gap-1 bg-surface-950 p-1 rounded-xl w-fit">
         {[
           { id: 'overview', label: 'Overview', icon: BarChart2 },
+          ...(isAU ? [{ id: 'pl', label: 'P&L Report', icon: DollarSign }] : []),
+          ...(isAU ? [{ id: 'heatmap', label: 'Heatmap', icon: Clock }] : []),
           { id: 'inventory', label: 'Inventory', icon: Package },
           { id: 'staff', label: 'Staff', icon: Users },
-          { id: 'tax', label: currency === 'AUD' ? 'GST (AU)' : 'GST Register', icon: Layers },
+          { id: 'tax', label: isAU ? 'GST (AU)' : 'GST Register', icon: Layers },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-brand-500 text-white shadow-md' : 'text-surface-400 hover:text-white'}`}>
@@ -555,7 +569,7 @@ export default function ReportsPage() {
               <div className="bg-surface-900 border border-surface-800 rounded-2xl overflow-hidden">
                 <div className="flex justify-between items-center p-4 bg-surface-950 border-b border-surface-800">
                   <h3 className="font-bold text-white text-sm uppercase tracking-wider">
-                    {currency === 'AUD' ? 'GST Tax Register (10% AU)' : 'GST Tax Register'}
+                    {isAU ? 'GST Tax Register (10% AU)' : 'GST Tax Register'}
                   </h3>
                   <button onClick={() => handleExport('gst')} className="btn-surface btn-sm"><Download className="w-3.5 h-3.5 mr-1" /> Export</button>
                 </div>
@@ -565,7 +579,7 @@ export default function ReportsPage() {
                       <tr>
                         <th className="p-3">Date</th>
                         <th className="p-3">Taxable Amount</th>
-                        {currency !== 'AUD' && <><th className="p-3">CGST</th><th className="p-3">SGST</th></>}
+                        {!isAU && <><th className="p-3">CGST</th><th className="p-3">SGST</th></>}
                         <th className="p-3 bg-brand-500/10 text-brand-400">Total Tax</th>
                       </tr>
                     </thead>
@@ -574,20 +588,20 @@ export default function ReportsPage() {
                         <tr key={i} className="hover:bg-surface-800/30">
                           <td className="p-3 text-surface-200">{format(new Date(row.date), 'dd MMM yyyy')}</td>
                           <td className="p-3">{fmtCurrency(row.taxable, symbol)}</td>
-                          {currency !== 'AUD' && (
+                          {!isAU && (
                             <><td className="p-3">{fmtCurrency(row.cgst, symbol)}</td><td className="p-3">{fmtCurrency(row.sgst, symbol)}</td></>
                           )}
                           <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmtCurrency(row.total_tax, symbol)}</td>
                         </tr>
                       ))}
                       {(!gstData || gstData.length === 0) && (
-                        <tr><td colSpan={currency !== 'AUD' ? 5 : 3} className="p-8 text-center text-surface-500 italic">No tax data for this period</td></tr>
+                        <tr><td colSpan={!isAU ? 5 : 3} className="p-8 text-center text-surface-500 italic">No tax data for this period</td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
-              {currency === 'AUD' && (
+              {isAU && (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                   <div>
@@ -598,6 +612,105 @@ export default function ReportsPage() {
               )}
             </div>
           )}
+
+          {/* ── P&L TAB (AU only) ── */}
+          {activeTab === 'pl' && isAU && (() => {
+            const pl = advancedReports?.profit_loss || {};
+            const fmtPL = (v) => fmtCurrency(v, symbol);
+            const PLRow = ({ label, value, isRevenue, isExpense, isProfit, indent }) => (
+              <div className={`flex items-center justify-between py-3 border-b border-surface-800 ${indent ? 'pl-6' : ''}`}>
+                <span className={`text-sm ${isProfit ? 'font-bold text-white' : 'text-surface-300'}`}>{label}</span>
+                <span className={`text-sm font-semibold ${isProfit ? (value >= 0 ? 'text-success-400' : 'text-red-400') : isRevenue ? 'text-success-400' : isExpense ? 'text-red-400' : 'text-white'}`}>
+                  {isExpense && value ? '- ' : ''}{fmtPL(Math.abs(value || 0))}
+                </span>
+              </div>
+            );
+            return (
+              <div className="space-y-6">
+                <div className="bg-surface-900 rounded-2xl border border-surface-800 p-6">
+                  <h3 className="text-lg font-black text-white mb-4">Profit & Loss Statement</h3>
+                  <PLRow label="Gross Revenue" value={pl.gross_revenue} isRevenue />
+                  <PLRow label="Discounts Given" value={pl.discounts} isExpense indent />
+                  <PLRow label="Refunds" value={pl.refunds} isExpense indent />
+                  <PLRow label="Net Revenue" value={pl.net_revenue} isRevenue />
+                  <div className="py-2" />
+                  <PLRow label="Food Cost" value={pl.food_cost} isExpense indent />
+                  <PLRow label="Staff Cost" value={pl.staff_cost} isExpense indent />
+                  <PLRow label="Overheads" value={pl.overheads} isExpense indent />
+                  <PLRow label="Total Expenses" value={pl.total_expenses} isExpense />
+                  <div className="py-2" />
+                  <PLRow label="Gross Profit" value={pl.gross_profit} isProfit />
+                  <PLRow label="Tax Provision" value={pl.tax} isExpense indent />
+                  <PLRow label="Net Profit" value={pl.net_profit} isProfit />
+                </div>
+                {loadingAdvanced && <p className="text-surface-500 text-sm text-center">Loading P&L data...</p>}
+              </div>
+            );
+          })()}
+
+          {/* ── HEATMAP TAB (AU only) ── */}
+          {activeTab === 'heatmap' && isAU && (() => {
+            const HOURS = Array.from({ length: 24 }, (_, i) => i);
+            const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const heatData = advancedReports?.hourly_heatmap || [];
+            const heatMatrix = DAYS.map((_, di) =>
+              HOURS.map(h => {
+                const found = heatData.find(e => e.hour === h && e.day === di);
+                return found ? (found.count || 0) : 0;
+              })
+            );
+            const heatMax = Math.max(1, ...heatMatrix.flat());
+            return (
+              <div className="space-y-6">
+                <div className="bg-surface-900 rounded-2xl border border-surface-800 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-black text-white">Order Volume Heatmap</h3>
+                    <span className="text-xs text-surface-500">Darker = more orders</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <div className="flex gap-2">
+                      <div className="flex flex-col gap-1 pt-8">
+                        {DAYS.map(d => (
+                          <div key={d} className="h-8 flex items-center text-xs text-surface-400 pr-2">{d}</div>
+                        ))}
+                      </div>
+                      <div>
+                        <div className="flex gap-1 mb-1">
+                          {HOURS.filter(h => h % 3 === 0).map(h => (
+                            <div key={h} className="text-xs text-surface-500 text-center" style={{ width: `${(8 + 4) * 3 - 4}px` }}>
+                              {h}:00
+                            </div>
+                          ))}
+                        </div>
+                        {DAYS.map((day, di) => (
+                          <div key={day} className="flex gap-1 mb-1">
+                            {HOURS.map(h => {
+                              const val = heatMatrix[di]?.[h] || 0;
+                              const intensity = heatMax > 0 ? val / heatMax : 0;
+                              const alpha = 0.1 + intensity * 0.85;
+                              return (
+                                <div key={h} className="w-8 h-8 rounded-sm flex items-center justify-center text-[10px] font-medium cursor-default"
+                                  title={`${val} orders`}
+                                  style={{ background: `rgba(99,102,241,${alpha})`, color: intensity > 0.5 ? '#fff' : 'var(--text-secondary)' }}>
+                                  {val > 0 ? val : ''}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-4 text-xs text-surface-500">
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ background: 'rgba(99,102,241,0.1)' }} /> Low</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ background: 'rgba(99,102,241,0.5)' }} /> Medium</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm" style={{ background: 'rgba(99,102,241,0.95)' }} /> High</div>
+                  </div>
+                </div>
+                {loadingAdvanced && <p className="text-surface-500 text-sm text-center">Loading heatmap data...</p>}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

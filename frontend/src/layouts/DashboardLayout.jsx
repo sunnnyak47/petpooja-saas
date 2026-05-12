@@ -123,7 +123,6 @@ const ownerNavAU = [
   { path: '/customers',      label: 'Customers',        icon: Users,           feature: 'customers' },
   { path: '/crm',            label: 'Loyalty & CRM',    icon: Heart,           feature: 'crm' },
   { path: '/discounts',      label: 'Promotions',       icon: Tag,             feature: 'discounts' },
-  { path: '/festival',       label: 'Holiday Mode',     icon: Palmtree,        feature: 'festival_mode' },
   { path: '/rostering',     label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
 
   // ── Analytics: reports, payments, compliance ──

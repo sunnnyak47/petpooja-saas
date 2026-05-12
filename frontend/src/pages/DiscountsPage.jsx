@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -10,6 +10,8 @@ import {
   Hash
 } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
+const FestivalModePage = lazy(() => import('./FestivalModePage'));
 
 const TYPE_CONFIG = {
   percentage: { label: 'Percentage Off', icon: <Percent className="w-4 h-4" />, color: 'text-brand-400 bg-brand-500/20' },
@@ -26,6 +28,9 @@ export default function DiscountsPage() {
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
   const { symbol } = useCurrency();
+  const region = useRegion();
+  const isAU = region === 'AU';
+  const [hubTab, setHubTab] = useState('deals'); // deals | holiday
 
   const [showModal, setShowModal] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState(null);
@@ -119,11 +124,35 @@ export default function DiscountsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-3"><Tag className="w-7 h-7 text-brand-400" /> Discounts & Promotions</h1>
-          <p className="text-sm text-surface-400 mt-1">Manage coupon codes, happy hours, and auto-discounts</p>
+          <h1 className="text-2xl font-black text-white flex items-center gap-3"><Tag className="w-7 h-7 text-brand-400" /> {isAU ? 'Promotions Hub' : 'Discounts & Promotions'}</h1>
+          <p className="text-sm text-surface-400 mt-1">{isAU ? 'Deals, holiday specials & seasonal promotions' : 'Manage coupon codes, happy hours, and auto-discounts'}</p>
         </div>
-        <button onClick={() => { resetForm(); setShowModal(true); }} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> New Promotion</button>
+        {(!isAU || hubTab === 'deals') && (
+          <button onClick={() => { resetForm(); setShowModal(true); }} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> New Promotion</button>
+        )}
       </div>
+
+      {/* AU Hub Tabs */}
+      {isAU && (
+        <div className="flex bg-surface-950 p-1 rounded-xl w-fit">
+          <button onClick={() => setHubTab('deals')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${hubTab === 'deals' ? 'bg-brand-500 text-white shadow-md' : 'text-surface-400 hover:text-white'}`}>
+            <Tag className="w-4 h-4" /> Deals & Coupons
+          </button>
+          <button onClick={() => setHubTab('holiday')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${hubTab === 'holiday' ? 'bg-brand-500 text-white shadow-md' : 'text-surface-400 hover:text-white'}`}>
+            <Zap className="w-4 h-4" /> Holiday Mode
+          </button>
+        </div>
+      )}
+
+      {/* Holiday Mode Tab (AU only) */}
+      {isAU && hubTab === 'holiday' ? (
+        <div className="flex-1 -mx-6 -mb-6 overflow-y-auto">
+          <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+            <FestivalModePage />
+          </Suspense>
+        </div>
+      ) : (
+      <>
 
       {/* Tabs & Search */}
       <div className="flex items-center gap-4">
@@ -265,6 +294,8 @@ export default function DiscountsPage() {
           <button onClick={handleSubmit} className="btn-primary w-full py-3 mt-2">{editingDiscount ? 'Update' : 'Create'} Promotion</button>
         </div>
       </Modal>
+      </>
+      )}
     </div>
   );
 }
