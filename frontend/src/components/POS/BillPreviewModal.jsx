@@ -65,10 +65,10 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
                <span>{symbol}{Number(order.subtotal).toFixed(2)}</span>
             </div>
             {isAU ? (
-              (Number(order.cgst) > 0 || Number(order.sgst) > 0 || Number(order.gst) > 0) && (
+              (Number(order.igst) > 0 || Number(order.cgst) > 0 || Number(order.sgst) > 0 || Number(order.gst) > 0) && (
                 <div className="flex justify-between text-[10px] opacity-70">
-                  <span>GST (10%)</span>
-                  <span>{symbol}{Number(order.gst || (Number(order.cgst || 0) + Number(order.sgst || 0))).toFixed(2)}</span>
+                  <span>GST (10%) incl.</span>
+                  <span>{symbol}{Number(order.igst || order.gst || (Number(order.cgst || 0) + Number(order.sgst || 0))).toFixed(2)}</span>
                 </div>
               )
             ) : (
