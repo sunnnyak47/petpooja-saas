@@ -680,7 +680,7 @@ async function processPayment(orderId, paymentData, staffId) {
 
     if (Math.abs(paymentData.amount - Number(order.grand_total)) > 1) {
       throw new BadRequestError(
-        `Payment amount ₹${paymentData.amount} does not match order total ₹${order.grand_total}`
+        `Payment amount ${paymentData.amount} does not match order total ${order.grand_total}`
       );
     }
 
@@ -737,7 +737,10 @@ async function processPayment(orderId, paymentData, staffId) {
             where: { menu_item_id: orderItem.menu_item_id, is_deleted: false },
             include: { ingredients: { include: { inventory_item: true } } },
           });
-          if (!recipe) continue;
+          if (!recipe) {
+            logger.warn('No recipe found for menu item — skipping inventory deduction', { menuItemId: orderItem.menu_item_id, itemName: orderItem.name, orderId });
+            continue;
+          }
           for (const ingredient of recipe.ingredients) {
             const consumeQty = Number(ingredient.quantity) * orderItem.quantity;
             const stock = await tx.inventoryStock.upsert({

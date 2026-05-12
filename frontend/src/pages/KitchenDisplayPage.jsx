@@ -298,11 +298,17 @@ export default function KitchenDisplayPage() {
     staleTime: isOnline ? 5000 : Infinity,
   });
 
+  /* ── socket connection state (for reconnecting banner) ── */
+  const [socketConnected, setSocketConnected] = useState(true);
+
   /* ── socket (only when online) ── */
   useEffect(() => {
-    if (!outletId || !isOnline) return;
+    if (!outletId || !isOnline) {
+      setSocketConnected(false);
+      return;
+    }
     const socket = io(`${SOCKET_URL}/kitchen`, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],  // Allow polling fallback for proxy compatibility
       withCredentials: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -314,13 +320,30 @@ export default function KitchenDisplayPage() {
 
     // Join outlet room on every connect + reconnect
     socket.on('connect', () => {
+      setSocketConnected(true);
       socket.emit('join_outlet', outletId);
+    });
+
+    // Handle disconnect — show reconnecting banner and force HTTP refresh
+    socket.on('disconnect', (reason) => {
+      setSocketConnected(false);
+      console.warn('[KDS] Socket disconnected:', reason);
+      // Immediately refresh data via HTTP to avoid stale screen
+      refresh();
     });
 
     // Refresh KOT list on reconnect — may have missed events while offline
     socket.io.on('reconnect', () => {
+      setSocketConnected(true);
       refresh();
     });
+
+    // Client-side heartbeat to keep connection alive through proxies (every 20s)
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('ping_keepalive');
+      }
+    }, 20000);
 
     socket.on('new_kot', () => {
       refresh();
@@ -342,8 +365,11 @@ export default function KitchenDisplayPage() {
       ), { duration: 10000, position: 'top-center' });
       if (soundEnabledRef.current) { try { new Audio('/cancel_alert.mp3').play().catch(() => {}); } catch {} }
     });
-    return () => socket.disconnect();
-  }, [outletId, queryClient]);
+    return () => {
+      clearInterval(heartbeatInterval);
+      socket.disconnect();
+    };
+  }, [outletId, queryClient, isOnline]);
 
   /* ── mutations ── */
   const bumpMutation = useMutation({
@@ -523,6 +549,19 @@ export default function KitchenDisplayPage() {
           </button>
         </div>
       </div>
+
+      {/* ═══ RECONNECTING BANNER ═══ */}
+      {!socketConnected && isOnline && (
+        <div style={{
+          flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '8px 24px', background: 'rgba(245,158,11,0.15)',
+          borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b',
+          fontSize: 13, fontWeight: 700,
+        }}>
+          <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          Reconnecting to kitchen... Orders are still updating via polling.
+        </div>
+      )}
 
       {/* ═══ STATION TABS ═══ */}
       <div style={{

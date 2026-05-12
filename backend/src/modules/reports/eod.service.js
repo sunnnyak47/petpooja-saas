@@ -11,6 +11,10 @@ const logger = require('../../config/logger');
 
 function toNum(d) { return Number(d ?? 0); }
 
+/** Convert to integer cents/paise to avoid IEEE 754 drift */
+function toCents(d) { return Math.round(toNum(d) * 100); }
+function toMajor(cents) { return Math.round(cents) / 100; }
+
 /** Build a date range for a single calendar day (outlet local midnight) */
 function dayRange(date) {
   const d  = new Date(date);
@@ -66,98 +70,105 @@ async function generateSnapshot(outletId, date = new Date()) {
       select: { refund_amount: true },
     });
 
-    /* ── Aggregate totals ── */
-    let totalRevenue = 0, totalTax = 0, totalDiscount = 0;
-    let cashSystem = 0, cardSystem = 0, upiSystem = 0, otherSystem = 0;
-    let dineInOrders = 0, dineInRevenue = 0;
-    let takeawayOrders = 0, takeawayRevenue = 0;
-    let deliveryOrders = 0, deliveryRevenue = 0;
-    let onlineOrders = 0, onlineRevenue = 0;
+    /* ── Aggregate totals using integer cents/paise to prevent float drift ── */
+    let totalRevenueCents = 0, totalTaxCents = 0, totalDiscountCents = 0;
+    let cashSystemCents = 0, cardSystemCents = 0, upiSystemCents = 0, otherSystemCents = 0;
+    let dineInOrders = 0, dineInRevenueCents = 0;
+    let takeawayOrders = 0, takeawayRevenueCents = 0;
+    let deliveryOrders = 0, deliveryRevenueCents = 0;
+    let onlineOrders = 0, onlineRevenueCents = 0;
 
-    // Item frequency map
+    // Item frequency map (revenue tracked in cents)
     const itemMap = {};
 
     for (const order of orders) {
-      const gt = toNum(order.grand_total);
-      totalRevenue  += gt;
-      totalTax      += toNum(order.total_tax);
-      totalDiscount += toNum(order.discount_amount) + toNum(order.loyalty_discount);
+      const gtCents = toCents(order.grand_total);
+      totalRevenueCents  += gtCents;
+      totalTaxCents      += toCents(order.total_tax);
+      totalDiscountCents += toCents(order.discount_amount) + toCents(order.loyalty_discount);
 
       // By order type
       switch (order.order_type) {
-        case 'dine_in':   dineInOrders++;   dineInRevenue   += gt; break;
-        case 'takeaway':  takeawayOrders++;  takeawayRevenue += gt; break;
-        case 'delivery':  deliveryOrders++;  deliveryRevenue += gt; break;
-        default:          onlineOrders++;    onlineRevenue   += gt; break;
+        case 'dine_in':   dineInOrders++;   dineInRevenueCents   += gtCents; break;
+        case 'takeaway':  takeawayOrders++;  takeawayRevenueCents += gtCents; break;
+        case 'delivery':  deliveryOrders++;  deliveryRevenueCents += gtCents; break;
+        default:          onlineOrders++;    onlineRevenueCents   += gtCents; break;
       }
 
-      // Payment method breakdown
+      // Payment method breakdown — use integer math
       for (const p of order.payments) {
-        const amt = toNum(p.amount) - toNum(p.refund_amount);
+        const amtCents = toCents(p.amount) - toCents(p.refund_amount);
         const m   = (p.method || '').toLowerCase();
 
         if (m === 'split') {
           // Break split payments into their per-method portions
           const splits = (p.splits || []).filter(s => !s.is_deleted);
           if (splits.length > 0) {
+            // Distribute refund proportionally across splits
+            const splitTotal = splits.reduce((s, sp) => s + toCents(sp.amount), 0);
+            const refundCents = toCents(p.refund_amount);
+
             for (const s of splits) {
-              const sAmt = toNum(s.amount);
+              const rawCents = toCents(s.amount);
+              // Subtract proportional refund from each split
+              const splitRefund = splitTotal > 0 ? Math.round((rawCents / splitTotal) * refundCents) : 0;
+              const sAmtCents = rawCents - splitRefund;
               const sM   = (s.method || '').toLowerCase();
-              if (sM === 'cash')        cashSystem  += sAmt;
-              else if (sM === 'card' || sM === 'credit_card' || sM === 'debit_card') cardSystem += sAmt;
-              else if (sM === 'upi' || sM === 'gpay' || sM === 'phonepe' || sM === 'paytm') upiSystem += sAmt;
-              else                       otherSystem += sAmt;
+              if (sM === 'cash')        cashSystemCents  += sAmtCents;
+              else if (sM === 'card' || sM === 'credit_card' || sM === 'debit_card') cardSystemCents += sAmtCents;
+              else if (sM === 'upi' || sM === 'gpay' || sM === 'phonepe' || sM === 'paytm') upiSystemCents += sAmtCents;
+              else                       otherSystemCents += sAmtCents;
             }
           } else {
             // No split records found — fall back to otherSystem
-            otherSystem += amt;
+            otherSystemCents += amtCents;
           }
         } else if (m === 'cash') {
-          cashSystem  += amt;
+          cashSystemCents  += amtCents;
         } else if (m === 'card' || m === 'credit_card' || m === 'debit_card') {
-          cardSystem += amt;
+          cardSystemCents += amtCents;
         } else if (m === 'upi' || m === 'gpay' || m === 'phonepe' || m === 'paytm') {
-          upiSystem += amt;
+          upiSystemCents += amtCents;
         } else {
-          otherSystem += amt;
+          otherSystemCents += amtCents;
         }
       }
 
       // Top items
       for (const oi of order.order_items) {
         const key = oi.name;
-        if (!itemMap[key]) itemMap[key] = { name: key, qty: 0, revenue: 0 };
-        itemMap[key].qty     += oi.quantity;
-        itemMap[key].revenue += toNum(oi.item_total);
+        if (!itemMap[key]) itemMap[key] = { name: key, qty: 0, revenueCents: 0 };
+        itemMap[key].qty          += oi.quantity;
+        itemMap[key].revenueCents += toCents(oi.item_total);
       }
     }
 
     const topItems = Object.values(itemMap)
-      .sort((a, b) => b.revenue - a.revenue)
+      .sort((a, b) => b.revenueCents - a.revenueCents)
       .slice(0, 10)
-      .map(i => ({ ...i, revenue: Math.round(i.revenue * 100) / 100 }));
+      .map(i => ({ name: i.name, qty: i.qty, revenue: toMajor(i.revenueCents) }));
 
-    const voidAmount  = voidedOrders.reduce((s, o) => s + toNum(o.grand_total), 0);
-    const refundTotal = refunds.reduce((s, r) => s + toNum(r.refund_amount), 0);
+    const voidAmountCents = voidedOrders.reduce((s, o) => s + toCents(o.grand_total), 0);
+    const refundTotalCents = refunds.reduce((s, r) => s + toCents(r.refund_amount), 0);
 
     return {
       report_date:      new Date(date).toISOString().slice(0, 10),
       total_orders:     orders.length,
-      total_revenue:    Math.round(totalRevenue  * 100) / 100,
-      total_tax:        Math.round(totalTax       * 100) / 100,
-      total_discount:   Math.round(totalDiscount  * 100) / 100,
+      total_revenue:    toMajor(totalRevenueCents),
+      total_tax:        toMajor(totalTaxCents),
+      total_discount:   toMajor(totalDiscountCents),
       void_count:       voidedOrders.length,
-      void_amount:      Math.round(voidAmount     * 100) / 100,
+      void_amount:      toMajor(voidAmountCents),
       refund_count:     refunds.length,
-      refund_amount:    Math.round(refundTotal    * 100) / 100,
-      dine_in_orders:   dineInOrders,    dine_in_revenue:  Math.round(dineInRevenue  * 100) / 100,
-      takeaway_orders:  takeawayOrders,  takeaway_revenue: Math.round(takeawayRevenue * 100) / 100,
-      delivery_orders:  deliveryOrders,  delivery_revenue: Math.round(deliveryRevenue * 100) / 100,
-      online_orders:    onlineOrders,    online_revenue:   Math.round(onlineRevenue   * 100) / 100,
-      cash_system:      Math.round(cashSystem  * 100) / 100,
-      card_system:      Math.round(cardSystem  * 100) / 100,
-      upi_system:       Math.round(upiSystem   * 100) / 100,
-      other_system:     Math.round(otherSystem * 100) / 100,
+      refund_amount:    toMajor(refundTotalCents),
+      dine_in_orders:   dineInOrders,    dine_in_revenue:  toMajor(dineInRevenueCents),
+      takeaway_orders:  takeawayOrders,  takeaway_revenue: toMajor(takeawayRevenueCents),
+      delivery_orders:  deliveryOrders,  delivery_revenue: toMajor(deliveryRevenueCents),
+      online_orders:    onlineOrders,    online_revenue:   toMajor(onlineRevenueCents),
+      cash_system:      toMajor(cashSystemCents),
+      card_system:      toMajor(cardSystemCents),
+      upi_system:       toMajor(upiSystemCents),
+      other_system:     toMajor(otherSystemCents),
       top_items:        topItems,
     };
   } catch (err) {
@@ -168,17 +179,42 @@ async function generateSnapshot(outletId, date = new Date()) {
 
 /* ─── 2. Compute cash reconciliation ────────────────────────────── */
 
-/** DENOM_LIST: Indian currency denominations in descending order */
-const DENOM_LIST = [2000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+/** Region-specific cash denominations */
+const IN_DENOMS = [2000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+const AU_DENOMS = [100, 50, 20, 10, 5, 2, 1, 0.50, 0.20, 0.10, 0.05];
 
-function computeCashActual(denominationCount = {}) {
-  return DENOM_LIST.reduce((sum, d) => sum + d * (Number(denominationCount[String(d)] || 0)), 0);
+/** Default export for backwards compatibility */
+const DENOM_LIST = IN_DENOMS;
+
+/**
+ * Get the appropriate denomination list for a currency.
+ * @param {string} currency - 'AUD' or 'INR'
+ * @returns {number[]}
+ */
+function getDenomsForCurrency(currency) {
+  return (currency || '').toUpperCase() === 'AUD' ? AU_DENOMS : IN_DENOMS;
+}
+
+/**
+ * Compute actual cash from denomination counts, using integer math.
+ * @param {object} denominationCount - { "50": 3, "20": 2, "0.50": 5, ... }
+ * @param {string} [currency='INR'] - 'AUD' or 'INR'
+ * @returns {number} Cash total in major currency units
+ */
+function computeCashActual(denominationCount = {}, currency = 'INR') {
+  const denoms = getDenomsForCurrency(currency);
+  // Use integer cents/paise to avoid float drift with AU coins (0.05, 0.10, etc.)
+  const totalCents = denoms.reduce((sum, d) => {
+    const count = Number(denominationCount[String(d)] || 0);
+    return sum + Math.round(d * 100) * count;
+  }, 0);
+  return toMajor(totalCents);
 }
 
 function computeDifference(cashActual, openingCash, cashSystem) {
-  // Expected in drawer = opening float + all cash sales
-  const expected = openingCash + cashSystem;
-  return Math.round((cashActual - expected) * 100) / 100;
+  // Use integer math: expected in drawer = opening float + all cash sales
+  const expectedCents = toCents(openingCash) + toCents(cashSystem);
+  return toMajor(toCents(cashActual) - expectedCents);
 }
 
 /* ─── 3. Upsert draft EOD report ─────────────────────────────────── */
@@ -186,8 +222,12 @@ function computeDifference(cashActual, openingCash, cashSystem) {
 async function saveDraft(outletId, userId, { date, openingCash, denominationCount, notes, discrepancyReason }) {
   const prisma = getDbClient();
   try {
+    // Fetch outlet currency for region-aware cash denomination handling
+    const outlet = await prisma.outlet.findFirst({ where: { id: outletId }, select: { currency: true } });
+    const currency = outlet?.currency || 'INR';
+
     const snapshot    = await generateSnapshot(outletId, date);
-    const cashActual  = computeCashActual(denominationCount);
+    const cashActual  = computeCashActual(denominationCount, currency);
     const cashDiff    = computeDifference(cashActual, toNum(openingCash), snapshot.cash_system);
 
     const data = {
@@ -345,5 +385,8 @@ module.exports = {
   previewToday,
   computeCashActual,
   computeDifference,
+  getDenomsForCurrency,
   DENOM_LIST,
+  IN_DENOMS,
+  AU_DENOMS,
 };

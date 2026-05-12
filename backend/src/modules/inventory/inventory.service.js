@@ -542,7 +542,7 @@ async function restockFromCancelledOrder(orderId) {
 
   // Get all stock transactions caused by this order
   const transactions = await prisma.stockTransaction.findMany({
-    where: { reference_id: orderId, reference_type: 'ORDER', transaction_type: 'USAGE', is_deleted: false },
+    where: { reference_id: orderId, reference_type: 'order', transaction_type: 'consumption', is_deleted: false },
     include: { inventory_item: { include: { stock: true } } },
   });
 
@@ -564,9 +564,9 @@ async function restockFromCancelledOrder(orderId) {
       data: {
         outlet_id: outletId,
         inventory_item_id: tx.inventory_item_id,
-        transaction_type: 'RESTOCK',
+        transaction_type: 'restock',
         quantity: qty,
-        reference_type: 'ORDER_CANCEL',
+        reference_type: 'order_cancel',
         reference_id: orderId,
         reason: `Order cancelled — restocked ${qty} ${tx.inventory_item?.unit}`,
       },
