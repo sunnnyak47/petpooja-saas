@@ -235,7 +235,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
         await api.post(`/orders/${order.id}/items`, {
           items: pendingItems.map(p => ({ menu_item_id: p.menu_item_id, quantity: p.quantity, addons: [] }))
         });
-        await api.post(`/orders/${order.id}/kot`);
+        await api.post(`/orders/${order.id}/kot`, { outlet_id: outletId });
       }
       toast.success('KOT sent to kitchen!');
       setPendingItems([]);
@@ -349,7 +349,7 @@ export default function RunningOrdersPage() {
       if (IS_ELECTRON && !isOnline) {
         return hybridAPI.generateBill(id);
       }
-      const res = await api.post(`/orders/${id}/bill`);
+      const res = await api.post(`/orders/${id}/bill`, { outlet_id: outletId });
       return res.data?.data || res.data;
     },
     onSuccess: (billData) => {

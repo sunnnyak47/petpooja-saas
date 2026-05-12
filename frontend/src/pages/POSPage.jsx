@@ -728,6 +728,8 @@ export default function POSPage() {
                 placeholder="Search menu items by name…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
+                name="pos-search"
               />
             </div>
             <input
@@ -736,6 +738,8 @@ export default function POSPage() {
               placeholder="Short code…"
               value={shortCodeSearch}
               onChange={(e) => setShortCodeSearch(e.target.value)}
+              autoComplete="off"
+              name="pos-shortcode"
             />
             <button
               onClick={voice.toggleListening}

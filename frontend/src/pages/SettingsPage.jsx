@@ -9,6 +9,7 @@ import {
   Store, Barcode, DollarSign
 } from 'lucide-react';
 import ThemeSelector from '../themes/ThemeSelector';
+import { useRegion } from '../hooks/useRegion';
 
 const SECTIONS = [
   { id: 'general', label: 'General', icon: <Store className="w-5 h-5" /> },
@@ -27,6 +28,8 @@ const SECTIONS = [
 export default function SettingsPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
+  const region = useRegion();
+  const isAU = region === 'AU';
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('general');
   // ThemeSelector component handles theme switching via its own useTheme hook.
@@ -202,7 +205,7 @@ export default function SettingsPage() {
           </div>
         );
       case 'tax': {
-        const isAUSett = settings.currency === 'AUD';
+        const isAUSett = settings.currency === 'AUD' || isAU;
         return (
           <div className="space-y-5">
             <SectionTitle title={isAUSett ? 'Tax & Compliance (AU)' : 'Tax & GST'} subtitle={isAUSett ? 'Configure ABN/ACN and GST settings for Australian operations' : 'Configure GST registration and applicable tax slabs'} />
@@ -229,10 +232,19 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Default GST Slab">
                 <select value={settings.default_gst_slab} onChange={(e) => updateSetting('default_gst_slab', e.target.value)} className="input">
-                  <option value="0">0% — Exempt</option>
-                  <option value="5">5% — Non-AC Restaurant</option>
-                  <option value="12">12%</option>
-                  <option value="18">18% — AC Restaurant</option>
+                  {isAUSett ? (
+                    <>
+                      <option value="0">0% — GST Free</option>
+                      <option value="10">10% — Standard GST</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="0">0% — Exempt</option>
+                      <option value="5">5% — Non-AC Restaurant</option>
+                      <option value="12">12%</option>
+                      <option value="18">18% — AC Restaurant</option>
+                    </>
+                  )}
                 </select>
               </Field>
               <Field label="Service Charge (%)">
@@ -303,9 +315,13 @@ export default function SettingsPage() {
             <div className="space-y-1">
               <ToggleSwitch label="Cash" checked={settings.accept_cash} onChange={(v) => updateSetting('accept_cash', v)} />
               <ToggleSwitch label="Card / POS Machine" checked={settings.accept_card} onChange={(v) => updateSetting('accept_card', v)} />
-              <ToggleSwitch label="UPI" checked={settings.accept_upi} onChange={(v) => updateSetting('accept_upi', v)} />
+              {isAU ? (
+                <ToggleSwitch label="EFTPOS" checked={settings.accept_eftpos} onChange={(v) => updateSetting('accept_eftpos', v)} />
+              ) : (
+                <ToggleSwitch label="UPI" checked={settings.accept_upi} onChange={(v) => updateSetting('accept_upi', v)} />
+              )}
             </div>
-            {settings.accept_upi && (
+            {!isAU && settings.accept_upi && (
               <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: 'var(--accent)' }}>
                 <Field label="UPI VPA">
                   <input type="text" value={settings.upi_vpa} onChange={(e) => updateSetting('upi_vpa', e.target.value)} className="input" placeholder="yourstore@ybl" />
@@ -315,15 +331,23 @@ export default function SettingsPage() {
                 </Field>
               </div>
             )}
-            <div className="pt-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Razorpay Gateway</p>
-              <ToggleSwitch label="Enable Razorpay" description="Online payment collection via Razorpay" checked={settings.razorpay_enabled} onChange={(v) => updateSetting('razorpay_enabled', v)} />
-              {settings.razorpay_enabled && (
-                <Field label="Razorpay Key ID">
-                  <input type="password" value={settings.razorpay_key} onChange={(e) => updateSetting('razorpay_key', e.target.value)} className="input font-mono" placeholder="rzp_live_..." />
-                </Field>
-              )}
-            </div>
+            {!isAU && (
+              <div className="pt-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Razorpay Gateway</p>
+                <ToggleSwitch label="Enable Razorpay" description="Online payment collection via Razorpay" checked={settings.razorpay_enabled} onChange={(v) => updateSetting('razorpay_enabled', v)} />
+                {settings.razorpay_enabled && (
+                  <Field label="Razorpay Key ID">
+                    <input type="password" value={settings.razorpay_key} onChange={(e) => updateSetting('razorpay_key', e.target.value)} className="input font-mono" placeholder="rzp_live_..." />
+                  </Field>
+                )}
+              </div>
+            )}
+            {isAU && (
+              <div className="pt-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Square Payments</p>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Configure Square payments via the <a href="#/au-integrations" style={{ color: 'var(--accent)' }}>Integrations</a> page.</p>
+              </div>
+            )}
           </div>
         );
       case 'notifications':

@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useRegion } from '../hooks/useRegion';
 import {
   Calendar, Clock, Users, Plus, Phone, Mail,
   CheckCircle2, XCircle, AlertCircle, ChevronDown,
@@ -37,6 +38,8 @@ const EMPTY_FORM = {
 
 export default function ReservationsPage() {
   const qc = useQueryClient();
+  const region = useRegion();
+  const phonePlaceholder = region === 'AU' ? '+61 412345678' : '+91 9876543210';
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState(EMPTY_FORM);
   const [search, setSearch]     = useState('');
@@ -183,7 +186,7 @@ export default function ReservationsPage() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { key: 'customer_name', label: 'Customer Name *', type: 'text', placeholder: 'John Doe' },
-                { key: 'customer_phone', label: 'Phone *', type: 'tel', placeholder: '+91 9876543210' },
+                { key: 'customer_phone', label: 'Phone *', type: 'tel', placeholder: phonePlaceholder },
                 { key: 'customer_email', label: 'Email', type: 'email', placeholder: 'john@example.com' },
                 { key: 'party_size', label: 'Party Size *', type: 'number', placeholder: '2' },
                 { key: 'reservation_date', label: 'Date *', type: 'date', placeholder: '' },

@@ -5,11 +5,12 @@ import api from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
 import HealthScoreWidget from '../components/HealthScoreWidget';
 import {
-  TrendingUp, ShoppingBag, IndianRupee, Users,
+  TrendingUp, ShoppingBag, IndianRupee, DollarSign, Users,
   ArrowUpRight, ArrowDownRight, ShoppingCart,
   BarChart3, UtensilsCrossed, Clock, CheckCircle2,
   AlertCircle, Loader2, Sparkles, ChevronRight,
 } from 'lucide-react';
+import { useRegion } from '../hooks/useRegion';
 
 /* ── Confidence badge colours ─────────────────────────────── */
 const CONFIDENCE_META = {
@@ -104,6 +105,9 @@ export default function DashboardPage() {
   });
 
   const { format, locale } = useCurrency();
+  const userRegion = useRegion();
+  const isAU = userRegion === 'AU';
+  const CurrencyIcon = isAU ? DollarSign : IndianRupee;
 
   const d             = dashboard || { today: {}, comparison: {}, live: {} };
   const recentOrders  = (Array.isArray(recentOrdersRes?.data) ? recentOrdersRes.data : null)
@@ -115,7 +119,7 @@ export default function DashboardPage() {
       label:  "Today's Revenue",
       value:  format(d.today?.revenue || 0),
       change: d.comparison?.revenue_growth_pct || 0,
-      icon:   IndianRupee,
+      icon:   CurrencyIcon,
       accent: 'var(--accent)',
     },
     {

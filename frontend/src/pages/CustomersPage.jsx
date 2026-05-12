@@ -2,6 +2,7 @@ import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
 import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
@@ -46,6 +47,8 @@ export default function CustomersPage() {
   const { user }  = useSelector(s => s.auth);
   const outletId  = user?.outlet_id;
   const { format, locale } = useCurrency();
+  const region    = useRegion();
+  const isAU      = region === 'AU';
   const qc        = useQueryClient();
 
   const [search, setSearch]   = useState('');
@@ -493,6 +496,8 @@ export default function CustomersPage() {
 
 // ── Reusable customer form ──────────────────────────────────────
 function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, submitLabel }) {
+  const region = useRegion();
+  const isAU = region === 'AU';
   const set = (key) => e => setFormData(f => ({ ...f, [key]: e.target.value }));
 
   function handleSubmit(e) {
@@ -509,15 +514,15 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Full Name</label>
-          <input className="input w-full" placeholder="Rahul Sharma" value={formData.full_name} onChange={set('full_name')} />
+          <input className="input w-full" placeholder={isAU ? 'James Smith' : 'Rahul Sharma'} value={formData.full_name} onChange={set('full_name')} />
         </div>
         <div>
           <label className="label">Phone *</label>
-          <input required className="input w-full" type="tel" placeholder="9876543210" value={formData.phone} onChange={set('phone')} />
+          <input required className="input w-full" type="tel" placeholder={isAU ? '0412345678' : '9876543210'} value={formData.phone} onChange={set('phone')} />
         </div>
         <div>
           <label className="label">Email</label>
-          <input className="input w-full" type="email" placeholder="rahul@email.com" value={formData.email} onChange={set('email')} />
+          <input className="input w-full" type="email" placeholder={isAU ? 'james@email.com' : 'rahul@email.com'} value={formData.email} onChange={set('email')} />
         </div>
         <div>
           <label className="label">Gender</label>

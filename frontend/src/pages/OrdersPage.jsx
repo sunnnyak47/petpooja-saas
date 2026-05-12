@@ -4,6 +4,7 @@ import api from '../lib/api';
 import hybridAPI from '../api/offlineAPI';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -36,6 +37,8 @@ export default function OrdersPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, locale } = useCurrency();
+  const region = useRegion();
+  const isAU = region === 'AU';
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
   const [statusFilter, setStatusFilter] = useState('');
@@ -241,7 +244,7 @@ export default function OrdersPage() {
             {/* Totals */}
             <div className="rounded-xl p-4 space-y-2" style={{ background: 'var(--bg-hover)' }}>
               <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Subtotal</span><span style={{ color: 'var(--text-primary)' }}>{format(selectedOrder.subtotal || selectedOrder.sub_total || 0)}</span></div>
-              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Tax</span><span style={{ color: 'var(--text-primary)' }}>{format(selectedOrder.total_tax || 0)}</span></div>
+              <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>{isAU ? 'GST (incl.)' : 'Tax'}</span><span style={{ color: 'var(--text-primary)' }}>{format(selectedOrder.total_tax || 0)}</span></div>
               {selectedOrder.discount_amount > 0 && <div className="flex justify-between text-sm"><span style={{ color: 'var(--text-secondary)' }}>Discount</span><span style={{ color: 'var(--success)' }}>-{format(selectedOrder.discount_amount)}</span></div>}
               <div className="flex justify-between text-base font-bold pt-2" style={{ borderTop: `1px solid var(--border)` }}>
                 <span style={{ color: 'var(--text-primary)' }}>Grand Total</span><span style={{ color: 'var(--accent)' }}>{format(selectedOrder.grand_total || 0)}</span>
