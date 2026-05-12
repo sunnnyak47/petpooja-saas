@@ -9,6 +9,7 @@ import {
   Percent, Gift, ShoppingBag, ToggleLeft, ToggleRight, Search,
   Hash
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 const TYPE_CONFIG = {
   percentage: { label: 'Percentage Off', icon: <Percent className="w-4 h-4" />, color: 'text-brand-400 bg-brand-500/20' },
@@ -24,6 +25,7 @@ export default function DiscountsPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
+  const { symbol } = useCurrency();
 
   const [showModal, setShowModal] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState(null);
@@ -167,7 +169,7 @@ export default function DiscountsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-surface-400">Value</span>
                   <span className="text-lg font-black text-brand-400">
-                    {d.type === 'percentage' ? `${d.value}%` : `₹${d.value}`}
+                    {d.type === 'percentage' ? `${d.value}%` : `${symbol}${d.value}`}
                   </span>
                 </div>
                 {d.code && (
@@ -181,7 +183,7 @@ export default function DiscountsPage() {
                 {d.min_order_value > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-surface-400">Min Order</span>
-                    <span className="text-xs text-surface-300">₹{d.min_order_value}</span>
+                    <span className="text-xs text-surface-300">{symbol}{d.min_order_value}</span>
                   </div>
                 )}
                 {d.auto_apply && (

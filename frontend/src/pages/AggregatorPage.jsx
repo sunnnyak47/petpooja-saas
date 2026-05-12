@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useRegion } from '../hooks/useRegion';
+import { useCurrency } from '../hooks/useCurrency';
 import Modal from '../components/Modal';
 import {
   Zap, ZapOff, UploadCloud, RefreshCw, CheckCircle2, XCircle,
@@ -25,8 +26,6 @@ const PLATFORM_META = {
   menulog:  { name: 'Menulog AU',   emoji: '🍽️',  color: '#E8172B', bg: 'rgba(232,23,43,0.12)',  region: 'AU', hint: 'Australia' },
 };
 
-const CURRENCY = { IN: '₹', AU: 'A$' };
-
 function platformWebhookUrl(platformId) {
   const base = import.meta.env.VITE_API_URL || 'https://petpooja-saas.onrender.com/api';
   return `${base}/aggregators/webhook/${platformId}`;
@@ -37,6 +36,7 @@ export default function AggregatorPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const userRegion = useRegion();
+  const { symbol } = useCurrency();
   const qc = useQueryClient();
 
   /* Only show platforms matching the user's region */
@@ -177,11 +177,11 @@ export default function AggregatorPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Today's Orders", value: totalOrders, icon: ShoppingBag, color: '#3b82f6' },
-          { label: "Today's Revenue", value: `${CURRENCY[userRegion]}${Number(totalRevenue).toLocaleString(userRegion === 'AU' ? 'en-AU' : 'en-IN')}`, icon: TrendingUp, color: '#22c55e' },
+          { label: "Today's Revenue", value: `${symbol}${Number(totalRevenue).toLocaleString(userRegion === 'AU' ? 'en-AU' : 'en-IN')}`, icon: TrendingUp, color: '#22c55e' },
           ...Object.entries(REGION_PLATFORMS).map(([id, m]) => ({
             label: m.name,
             value: `${stats?.by_platform?.[id]?.count || 0} orders`,
-            sub: `${CURRENCY[m.region]}${Number(stats?.by_platform?.[id]?.revenue || 0).toLocaleString()} rev`,
+            sub: `${symbol}${Number(stats?.by_platform?.[id]?.revenue || 0).toLocaleString()} rev`,
             color: m.color,
           })),
         ].slice(0, 4).map((s, i) => (
@@ -563,7 +563,7 @@ export default function AggregatorPage() {
                             <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold">SOLD OUT</span>
                           )}
                         </div>
-                        <span className="font-mono font-bold text-sm text-white">₹{item.base_price}</span>
+                        <span className="font-mono font-bold text-sm text-white">{symbol}{item.base_price}</span>
                       </div>
                     ))}
                   </div>
@@ -694,6 +694,7 @@ function OrdersTab({ outletId, qc, regionPlatforms }) {
 
 function AggOrderCard({ order, onAccept, onReject, onReady }) {
   const [prep, setPrep] = useState(20);
+  const { symbol } = useCurrency();
   const meta = PLATFORM_META[order.aggregator] || { name: order.aggregator, color: '#64748b', emoji: '📦' };
 
   return (
@@ -718,14 +719,14 @@ function AggOrderCard({ order, onAccept, onReject, onReady }) {
         {(order.order_items || []).map((item, i) => (
           <div key={i} className="flex justify-between text-sm">
             <span className="text-white">{item.quantity}× {item.name}</span>
-            <span className="text-surface-400 font-mono text-xs">₹{item.item_total}</span>
+            <span className="text-surface-400 font-mono text-xs">{symbol}{item.item_total}</span>
           </div>
         ))}
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-surface-800">
         <span className="text-xs text-surface-400">{order.customer_name || 'Online Order'}</span>
-        <span className="font-black text-white">₹{order.grand_total}</span>
+        <span className="font-black text-white">{symbol}{order.grand_total}</span>
       </div>
 
       {order.status === 'created' && (

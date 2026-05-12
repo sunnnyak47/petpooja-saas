@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 import { X, Search, Plus, Minus, Check, Loader2, Zap, Truck, Trash2, Settings, Sparkles } from 'lucide-react';
 
 /* ─── Bottom Sheet wrapper ──────────────────────────────────── */
@@ -393,6 +394,7 @@ export function AdjustStockSheet({ outletId, prefillItem, onClose }) {
    CREATE PO SHEET  (AI-assisted)
 ══════════════════════════════════════════════════════════════ */
 export function CreatePOSheet({ outletId, onClose }) {
+  const { symbol } = useCurrency();
   const qc = useQueryClient();
   const [poItems, setPOItems] = useState([]);
   const [supplierId, setSupplierId] = useState('');
@@ -480,7 +482,7 @@ export function CreatePOSheet({ outletId, onClose }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      Stock: {item.current} {item.unit} · ₹{item.unit_cost}/{item.unit}
+                      Stock: {item.current} {item.unit} · {symbol}{item.unit_cost}/{item.unit}
                     </p>
                   </div>
                   <input type="number" min="0" step="0.1"
@@ -518,7 +520,7 @@ export function CreatePOSheet({ outletId, onClose }) {
               style={{ background: 'var(--bg-secondary)' }}>
               <span className="text-sm font-bold" style={{ color: 'var(--text-secondary)' }}>Estimated Total</span>
               <span className="text-lg font-black" style={{ color: 'var(--text-primary)' }}>
-                ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
+                {symbol}{total.toLocaleString(undefined, { minimumFractionDigits: 0 })}
               </span>
             </div>
 

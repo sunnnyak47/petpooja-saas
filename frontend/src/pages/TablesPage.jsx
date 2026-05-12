@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import { useCurrency } from '../hooks/useCurrency';
 
 /* ─── constants ─────────────────────────────────────── */
 const STATUS_CFG = {
@@ -58,6 +59,7 @@ export default function TablesPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const qc = useQueryClient();
+  const { symbol } = useCurrency();
 
   /* ── server data ── */
   const { data: serverTables = [], isLoading } = useQuery({
@@ -628,7 +630,7 @@ export default function TablesPage() {
                               <ElapsedTimer timestamp={order.created_at} />
                             </span>
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                              ₹{Number(order.grand_total || 0).toFixed(0)}
+                              {symbol}{Number(order.grand_total || 0).toFixed(0)}
                             </span>
                           </div>
                         )}
@@ -881,7 +883,7 @@ export default function TablesPage() {
                 <p className="text-xs text-surface-400 mb-1">Active Order</p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-white">#{focusTable.orders[0].order_number}</span>
-                  <span className="text-sm font-bold text-brand-400">₹{Number(focusTable.orders[0].grand_total || 0).toFixed(2)}</span>
+                  <span className="text-sm font-bold text-brand-400">{symbol}{Number(focusTable.orders[0].grand_total || 0).toFixed(2)}</span>
                 </div>
                 <p className="text-xs text-surface-500 mt-1"><ElapsedTimer timestamp={focusTable.orders[0].created_at} /> elapsed</p>
               </div>

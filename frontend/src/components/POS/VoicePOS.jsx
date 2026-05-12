@@ -7,6 +7,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '../../store/slices/posSlice';
+import { useCurrency } from '../../hooks/useCurrency';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -95,6 +96,7 @@ function ChatBubble({ role, text, changes, unmatched }) {
 
 /* ─── Cart item row ──────────────────────────────────────────── */
 function CartItemRow({ item, onQtyChange, onRemove }) {
+  const { symbol } = useCurrency();
   const isVeg = item.food_type === 'veg';
   return (
     <div className="flex items-center gap-2 py-2 border-b border-border last:border-0">
@@ -118,7 +120,7 @@ function CartItemRow({ item, onQtyChange, onRemove }) {
         </button>
       </div>
       <div className="text-right w-16">
-        <p className="text-xs font-semibold text-accent">₹{((item.unit_price || 0) * item.quantity).toFixed(0)}</p>
+        <p className="text-xs font-semibold text-accent">{symbol}{((item.unit_price || 0) * item.quantity).toFixed(0)}</p>
       </div>
       <button onClick={() => onRemove(item.menu_item_id, item.variant_id)}
         className="text-red-400 hover:text-red-600 flex-shrink-0">
@@ -130,6 +132,7 @@ function CartItemRow({ item, onQtyChange, onRemove }) {
 
 /* ─── Upsell chip ────────────────────────────────────────────── */
 function UpsellChip({ item, onAdd }) {
+  const { symbol } = useCurrency();
   const isVeg = item.food_type === 'veg';
   return (
     <button
@@ -140,7 +143,7 @@ function UpsellChip({ item, onAdd }) {
         <div className={`w-1.5 h-1.5 rounded-full m-px ${isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
       </div>
       <span className="font-medium text-accent">{item.name}</span>
-      <span className="text-secondary">₹{item.unit_price}</span>
+      <span className="text-secondary">{symbol}{item.unit_price}</span>
       <Plus size={10} className="text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
     </button>
   );
@@ -148,6 +151,7 @@ function UpsellChip({ item, onAdd }) {
 
 /* ─── Order Confirmation Screen ──────────────────────────────── */
 function OrderConfirmScreen({ order, onClose }) {
+  const { symbol } = useCurrency();
   return (
     <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-2xl">
       <div className="text-center space-y-3 px-8">
@@ -176,7 +180,7 @@ function OrderConfirmScreen({ order, onClose }) {
           </div>
           <div className="flex justify-between border-t border-border pt-2">
             <span className="text-secondary">Total</span>
-            <span className="font-bold text-accent">₹{Number(order.grand_total || order.net_amount || order.subtotal || 0).toFixed(0)}</span>
+            <span className="font-bold text-accent">{symbol}{Number(order.grand_total || order.net_amount || order.subtotal || 0).toFixed(0)}</span>
           </div>
         </div>
         <p className="text-xs text-green-600 font-medium">✓ KOT sent to kitchen</p>
@@ -194,6 +198,7 @@ function OrderConfirmScreen({ order, onClose }) {
 export default function VoicePOS({ onClose }) {
   const dispatch = useDispatch();
   const { user } = useSelector(s => s.auth);
+  const { symbol } = useCurrency();
   const outletId = user?.outlet_id;
 
   /* ── Core state ── */
@@ -867,7 +872,7 @@ export default function VoicePOS({ onClose }) {
               <div className="p-3 border-t border-border space-y-2 shrink-0">
                 <div className="flex justify-between text-sm">
                   <span className="text-secondary">{cartCount} item{cartCount !== 1 ? 's' : ''}</span>
-                  <span className="font-bold text-accent">₹{cartTotal.toFixed(0)}</span>
+                  <span className="font-bold text-accent">{symbol}{cartTotal.toFixed(0)}</span>
                 </div>
 
                 {/* Order metadata summary */}

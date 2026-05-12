@@ -21,6 +21,7 @@ import {
   AdjustStockSheet,
   CreatePOSheet,
 } from '../components/Inventory/QuickActionSheet';
+import { useCurrency } from '../hooks/useCurrency';
 
 const UNIT_OPTIONS = ['kg','gm','ltr','ml','pcs','pkt','box','dozen'];
 const CAT_OPTIONS  = ['Vegetables','Dairy','Meat','Seafood','Groceries','Beverages','Packaging','Cleaning','Other'];
@@ -168,7 +169,7 @@ function AddMaterialModal({ outletId, editItem, onClose }) {
 
         <div className="grid grid-cols-2 gap-3">
           {[
-            { key: 'cost_per_unit', label: 'Cost/Unit (₹)' },
+            { key: 'cost_per_unit', label: `Cost/Unit (${symbol})` },
             { key: 'min_threshold', label: `Min Stock (${form.unit})` },
             { key: 'max_threshold', label: `Max Stock (${form.unit})` },
             { key: 'reorder_qty',   label: `Reorder Qty (${form.unit})` },
@@ -221,6 +222,7 @@ export default function InventoryPage() {
   const { user } = useSelector(s => s.auth);
   const outletId = user?.outlet_id;
   const qc = useQueryClient();
+  const { symbol } = useCurrency();
 
   // Sheets / modals
   const [sheet, setSheet] = useState(null);  // 'delivery' | 'wastage' | 'adjust' | 'po'
@@ -475,7 +477,7 @@ export default function InventoryPage() {
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>
-                      ₹{parseFloat(po.grand_total || 0).toLocaleString('en-IN')}
+                      {symbol}{parseFloat(po.grand_total || 0).toLocaleString()}
                     </span>
                     <div className="flex gap-2">
                       {po.status === 'draft' && (

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCurrency } from '../hooks/useCurrency';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -11,7 +12,7 @@ import {
 } from 'lucide-react';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+const fmt = (n, sym = '₹') => `${sym}${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const fmtPts = (n) => Number(n || 0).toLocaleString('en-IN');
 const SEGMENT_META = {
   new:     { label: 'New',     color: 'bg-blue-500/20 text-blue-400',    icon: Star },
@@ -327,6 +328,7 @@ function CampaignModal({ outletId, onClose }) {
 // ─── tabs ─────────────────────────────────────────────────────────────────────
 function DashboardTab({ outletId }) {
   const qc = useQueryClient();
+  const { symbol } = useCurrency();
   const { data, isLoading } = useQuery({
     queryKey: ['crm-dashboard', outletId],
     queryFn: () => api.get(`/customers/crm/dashboard?outlet_id=${outletId}`).then(r => r.data),
@@ -412,11 +414,11 @@ function DashboardTab({ outletId }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-surface-400 text-xs mb-1">Earn Rate</p>
-            <p className="font-bold text-warning-400">{loyaltyCfg.earn_rate} pt per ₹{loyaltyCfg.earn_per_amount}</p>
+            <p className="font-bold text-warning-400">{loyaltyCfg.earn_rate} pt per {symbol}{loyaltyCfg.earn_per_amount}</p>
           </div>
           <div>
             <p className="text-surface-400 text-xs mb-1">Redemption Value</p>
-            <p className="font-bold text-green-400">1 pt = ₹{loyaltyCfg.redeem_value}</p>
+            <p className="font-bold text-green-400">1 pt = {symbol}{loyaltyCfg.redeem_value}</p>
           </div>
           <div>
             <p className="text-surface-400 text-xs mb-1">Min Redemption</p>
@@ -442,7 +444,7 @@ function DashboardTab({ outletId }) {
                   <p className="text-xs text-surface-500">{c.total_visits} visits</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-sm">{fmt(c.total_spend)}</p>
+                  <p className="font-bold text-sm">{fmt(c.total_spend, symbol)}</p>
                   <p className="text-xs text-warning-400">{fmtPts(c.loyalty_points?.current_balance)} pts</p>
                 </div>
                 <SEGMENT_BADGE segment={c.segment} />
@@ -515,6 +517,7 @@ function DashboardTab({ outletId }) {
 
 function CustomersTab({ outletId }) {
   const qc = useQueryClient();
+  const { symbol } = useCurrency();
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -588,7 +591,7 @@ function CustomersTab({ outletId }) {
                 </td>
                 <td className="py-3 px-4"><SEGMENT_BADGE segment={c.segment} /></td>
                 <td className="py-3 px-4 text-right">{c.total_visits}</td>
-                <td className="py-3 px-4 text-right font-medium">{fmt(c.total_spend)}</td>
+                <td className="py-3 px-4 text-right font-medium">{fmt(c.total_spend, symbol)}</td>
                 <td className="py-3 px-4 text-right">
                   <span className="text-warning-400 font-bold">{fmtPts(c.loyalty_points?.current_balance)}</span>
                 </td>
@@ -626,6 +629,7 @@ function CustomersTab({ outletId }) {
 }
 
 function LoyaltyTab({ outletId }) {
+  const { symbol } = useCurrency();
   const { data } = useQuery({
     queryKey: ['crm-dashboard', outletId],
     queryFn: () => api.get(`/customers/crm/dashboard?outlet_id=${outletId}`).then(r => r.data),
@@ -652,21 +656,21 @@ function LoyaltyTab({ outletId }) {
             <div className="flex items-center justify-between p-4 bg-surface-800 rounded-xl">
               <div>
                 <p className="text-xs text-surface-400 mb-1">Earning Rule</p>
-                <p className="font-bold text-warning-400 text-lg">{cfg.earn_rate} point per ₹{cfg.earn_per_amount} spent</p>
+                <p className="font-bold text-warning-400 text-lg">{cfg.earn_rate} point per {symbol}{cfg.earn_per_amount} spent</p>
               </div>
               <Gift className="w-8 h-8 text-warning-400/40" />
             </div>
             <div className="flex items-center justify-between p-4 bg-surface-800 rounded-xl">
               <div>
                 <p className="text-xs text-surface-400 mb-1">Redemption Value</p>
-                <p className="font-bold text-green-400 text-lg">1 point = ₹{cfg.redeem_value} off</p>
+                <p className="font-bold text-green-400 text-lg">1 point = {symbol}{cfg.redeem_value} off</p>
               </div>
               <TrendingUp className="w-8 h-8 text-green-400/40" />
             </div>
             <div className="flex items-center justify-between p-4 bg-surface-800 rounded-xl">
               <div>
                 <p className="text-xs text-surface-400 mb-1">Minimum to Redeem</p>
-                <p className="font-bold text-lg">{cfg.min_redemption} points (≥ ₹{(cfg.min_redemption * cfg.redeem_value).toFixed(0)} discount)</p>
+                <p className="font-bold text-lg">{cfg.min_redemption} points (≥ {symbol}{(cfg.min_redemption * cfg.redeem_value).toFixed(0)} discount)</p>
               </div>
               <Award className="w-8 h-8 text-brand-400/40" />
             </div>
@@ -675,7 +679,7 @@ function LoyaltyTab({ outletId }) {
             <div className="card bg-surface-800 text-center">
               <p className="text-2xl font-black text-warning-400">{fmtPts(stats.total_points_outstanding)}</p>
               <p className="text-xs text-surface-500 mt-1">Outstanding Balance</p>
-              <p className="text-xs text-surface-600">≈ {fmt((stats.total_points_outstanding || 0) * (cfg.redeem_value || 0))} liability</p>
+              <p className="text-xs text-surface-600">≈ {fmt((stats.total_points_outstanding || 0) * (cfg.redeem_value || 0), symbol)} liability</p>
             </div>
             <div className="card bg-surface-800 text-center">
               <p className="text-2xl font-black text-green-400">{fmtPts(stats.total_points_earned)}</p>
@@ -716,7 +720,7 @@ function LoyaltyTab({ outletId }) {
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-warning-400">{fmtPts(c.loyalty_points?.current_balance)} pts</p>
-                  <p className="text-xs text-surface-500">≈ {fmt(c.loyalty_points?.current_balance * (cfg.redeem_value || 0.25))}</p>
+                  <p className="text-xs text-surface-500">≈ {fmt(c.loyalty_points?.current_balance * (cfg.redeem_value || 0.25), symbol)}</p>
                 </div>
                 <SEGMENT_BADGE segment={c.segment} />
               </div>

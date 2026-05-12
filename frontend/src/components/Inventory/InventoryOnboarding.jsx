@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 import {
   Sparkles, ChefHat, Package, Users, Layers, Zap,
   ArrowRight, ArrowLeft, Check, Loader2, Plus, Trash2,
@@ -27,6 +28,7 @@ const STEPS = [
 ];
 
 export default function InventoryOnboarding({ outletId, onComplete }) {
+  const { symbol } = useCurrency();
   const qc = useQueryClient();
   const [step, setStep] = useState(1);
   const [restaurantType, setRestaurantType] = useState('');
@@ -314,7 +316,7 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
                             type="number"
                             className="px-2 py-1.5 rounded-xl text-xs font-bold outline-none border"
                             style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
-                            placeholder="Cost ₹"
+                            placeholder={`Cost ${symbol}`}
                             value={item.cost_per_unit}
                             onChange={e => updateItem(item._id, 'cost_per_unit', e.target.value)}
                           />
@@ -349,7 +351,7 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
                             {item.name || '(unnamed)'}
                           </p>
                           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                            {item.category} · {item.unit} · ₹{item.cost_per_unit}/unit
+                            {item.category} · {item.unit} · {symbol}{item.cost_per_unit}/unit
                           </p>
                         </div>
 

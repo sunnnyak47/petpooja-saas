@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 import {
   X, History, Edit3, Trash2, Check, Loader2, Plus, Minus,
   TrendingDown, TrendingUp, AlertCircle, Sparkles,
@@ -22,6 +23,7 @@ const TX_ICONS = {
 };
 
 export default function ItemDetailPanel({ item, outletId, onClose }) {
+  const { symbol } = useCurrency();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -118,7 +120,7 @@ export default function ItemDetailPanel({ item, outletId, onClose }) {
               {[
                 { label: 'Current Stock', value: `${item.current_stock ?? 0} ${item.unit}`, highlight: true },
                 { label: 'Min Threshold', value: `${item.min_threshold ?? 0} ${item.unit}` },
-                { label: 'Cost/Unit', value: `₹${item.cost_per_unit ?? 0}` },
+                { label: 'Cost/Unit', value: `${symbol}${item.cost_per_unit ?? 0}` },
               ].map(({ label, value, highlight }) => (
                 <div key={label} className="px-3 py-2 rounded-2xl text-center"
                   style={{ background: highlight ? 'var(--bg-card)' : 'color-mix(in srgb, var(--bg-card) 60%, transparent)' }}>
@@ -182,7 +184,7 @@ export default function ItemDetailPanel({ item, outletId, onClose }) {
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { key: 'cost_per_unit', label: 'Cost/Unit (₹)', type: 'number' },
+                    { key: 'cost_per_unit', label: `Cost/Unit (${symbol})`, type: 'number' },
                     { key: 'min_threshold', label: `Min Threshold (${item.unit})`, type: 'number' },
                     { key: 'max_threshold', label: `Max Threshold (${item.unit})`, type: 'number' },
                     { key: 'reorder_qty',   label: `Reorder Qty (${item.unit})`, type: 'number' },

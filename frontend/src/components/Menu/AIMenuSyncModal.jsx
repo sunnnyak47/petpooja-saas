@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
 import Modal from '../Modal';
 import {
   Camera, Upload, Sparkles, Loader2, CheckCircle2,
@@ -19,6 +20,7 @@ const SCAN_STEPS = [
 ];
 
 export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
+  const { symbol } = useCurrency();
   const queryClient = useQueryClient();
   const [step, setStep] = useState('upload');
   const [file, setFile] = useState(null);
@@ -160,7 +162,7 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
             </div>
 
             <div className="w-full max-w-sm grid grid-cols-3 gap-2 text-center">
-              {[['Categories', '🗂️'], ['Items + Prices', '₹'], ['Variants', '📐']].map(([label, icon]) => (
+              {[['Categories', '🗂️'], ['Items + Prices', symbol], ['Variants', '📐']].map(([label, icon]) => (
                 <div key={label} className="px-3 py-2 rounded-xl text-xs font-semibold"
                   style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
                   <div className="text-base mb-0.5">{icon}</div>{label}
@@ -280,7 +282,7 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
 
                           <div className="col-span-4 flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
                             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                            <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>₹</span>
+                            <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>{symbol}</span>
                             <input type="number"
                               className="bg-transparent border-none outline-none w-16 text-sm font-black p-0"
                               style={{ color: 'var(--text-primary)' }}

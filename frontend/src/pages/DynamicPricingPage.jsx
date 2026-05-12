@@ -128,7 +128,7 @@ function RuleModal({ rule, categories, outletId, onClose }) {
     { label: '🔥 Friday night surge 15%',        fields: { name:'Friday Night Surge', trigger_type:'day_of_week', time_start:'19:00', time_end:'23:00', days_of_week:[5], item_target:'bestsellers', action_type:'surcharge', action_value:15, action_unit:'percent' } },
     { label: '🌧 Monsoon hot bev 20% off',       fields: { name:'Monsoon Hot Beverages', trigger_type:'weather', season_trigger:'monsoon', item_target:'tag', target_tag:'hot_beverage', action_type:'discount', action_value:20, action_unit:'percent' } },
     { label: '☀️ Summer cold drinks 12% off',   fields: { name:'Summer Coolers Promo', trigger_type:'weather', season_trigger:'summer', item_target:'tag', target_tag:'cold_beverage', action_type:'discount', action_value:12, action_unit:'percent' } },
-    { label: '🌄 Weekend breakfast ₹30 off',     fields: { name:'Weekend Breakfast Deal', trigger_type:'time_slot', time_start:'08:00', time_end:'11:00', days_of_week:[6,0], item_target:'all', action_type:'discount', action_value:30, action_unit:'flat' } },
+    { label: `🌄 Weekend breakfast ${symbol}30 off`,     fields: { name:'Weekend Breakfast Deal', trigger_type:'time_slot', time_start:'08:00', time_end:'11:00', days_of_week:[6,0], item_target:'all', action_type:'discount', action_value:30, action_unit:'flat' } },
   ];
 
   return (

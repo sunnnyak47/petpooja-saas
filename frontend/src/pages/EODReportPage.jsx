@@ -236,7 +236,7 @@ export default function EODReportPage() {
   const outletId  = user?.outlet_id;
   const navigate  = useNavigate();
   const qc        = useQueryClient();
-  const { format, locale, isAU } = useCurrency();
+  const { format, symbol, locale, isAU } = useCurrency();
   const userRegion = user?.head_office?.region || (user?.outlet?.currency === 'AUD' ? 'AU' : 'IN');
   const fmt = (n) => format(n ?? 0);
   const upiLabel = userRegion === 'AU' ? 'EFTPOS' : 'UPI';
@@ -528,7 +528,7 @@ export default function EODReportPage() {
                 <h2 className="font-semibold mb-3">Opening Float</h2>
                 <p className="text-sm text-secondary mb-3">Enter the cash amount in the drawer at the start of the day (petty cash float).</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl font-bold text-secondary">{isAU ? 'A$' : '₹'}</span>
+                  <span className="text-xl font-bold text-secondary">{symbol}</span>
                   <input type="number" min="0" step="0.01" value={openingCash}
                     onChange={e => setOpeningCash(e.target.value)}
                     placeholder="e.g. 1000"

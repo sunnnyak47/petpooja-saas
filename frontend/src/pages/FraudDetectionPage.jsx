@@ -8,6 +8,7 @@ import {
   Filter, Search, Zap, MessageCircle, BarChart3, Shield,
   XCircle, Flag, Trash2, Check, MoreVertical, Activity,
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 
 /* ─── API ─────────────────────────────────────────────────── */
 const fraudApi = {
@@ -141,7 +142,7 @@ function AlertCard({ alert, outletId, onAction }) {
                   <span className="text-xs bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full border border-surface-700">{ev.cancel_pct}% cancel rate</span>
                 )}
                 {ev.total_amount !== undefined && (
-                  <span className="text-xs bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full border border-surface-700">₹{Number(ev.total_amount).toFixed(0)} at risk</span>
+                  <span className="text-xs bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full border border-surface-700">{symbol}{Number(ev.total_amount).toFixed(0)} at risk</span>
                 )}
                 {ev.discount_count !== undefined && (
                   <span className="text-xs bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full border border-surface-700">{ev.discount_count} discounted orders</span>
@@ -263,6 +264,7 @@ function StaffRiskCard({ staff }) {
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function FraudDetectionPage() {
   const outletId = localStorage.getItem('outlet_id') || '';
+  const { symbol } = useCurrency();
   const [tab, setTab]                       = useState('alerts');
   const [severityFilter, setSeverityFilter] = useState('');
   const [typeFilter, setTypeFilter]         = useState('');

@@ -13,6 +13,7 @@ import {
   Download, Printer, Package, DollarSign, BarChart2, Layers,
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
+import { useCurrency } from '../hooks/useCurrency';
 import { format, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth } from 'date-fns';
 
 const DATE_PRESETS = [
@@ -23,10 +24,9 @@ const DATE_PRESETS = [
   { label: 'Last Month', getValue: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
 ];
 
-function fmtCurrency(val, currency) {
+function fmtCurrency(val, sym) {
   if (!val && val !== 0) return '—';
-  const sym = currency === 'AUD' ? 'A$' : '₹';
-  return `${sym}${Number(val).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return `${sym}${Number(val).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function GrowthBadge({ value }) {
@@ -43,6 +43,7 @@ function GrowthBadge({ value }) {
 export default function ReportsPage() {
   const { user } = useSelector((s) => s.auth);
   const currency = user?.outlet?.currency || 'INR';
+  const { symbol } = useCurrency();
   const navigate = useNavigate();
 
   const [dateRange, setDateRange] = useState(DATE_PRESETS[0].getValue());
@@ -238,11 +239,11 @@ export default function ReportsPage() {
               {/* Franchise KPI Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 {[
-                  { label: 'Revenue', value: fmtCurrency(k.revenue, currency), sub: <GrowthBadge value={k.revenue_growth} />, color: 'bg-brand-500' },
+                  { label: 'Revenue', value: fmtCurrency(k.revenue, symbol), sub: <GrowthBadge value={k.revenue_growth} />, color: 'bg-brand-500' },
                   { label: 'Orders', value: k.total_orders || 0, sub: <GrowthBadge value={k.orders_growth} />, color: 'bg-brand-500' },
-                  { label: 'Avg Check', value: fmtCurrency(k.avg_check, currency), sub: <span className="text-xs text-surface-400">per order</span>, color: 'bg-brand-500' },
-                  { label: 'Food Cost %', value: k.food_cost_pct ? `${k.food_cost_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.food_cost, currency)}</span>, color: 'bg-brand-500' },
-                  { label: 'Waste %', value: k.waste_pct ? `${k.waste_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.waste_value, currency)}</span>, color: 'bg-brand-500' },
+                  { label: 'Avg Check', value: fmtCurrency(k.avg_check, symbol), sub: <span className="text-xs text-surface-400">per order</span>, color: 'bg-brand-500' },
+                  { label: 'Food Cost %', value: k.food_cost_pct ? `${k.food_cost_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.food_cost, symbol)}</span>, color: 'bg-brand-500' },
+                  { label: 'Waste %', value: k.waste_pct ? `${k.waste_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.waste_value, symbol)}</span>, color: 'bg-brand-500' },
                   { label: 'Gross Margin', value: k.gross_margin_pct ? `${k.gross_margin_pct}%` : '—', sub: <span className="text-xs text-surface-400">net of COGS</span>, color: 'bg-brand-500' },
                 ].map((card, i) => (
                   <div key={i} className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden group">
@@ -279,10 +280,10 @@ export default function ReportsPage() {
                           <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false}
                             tickFormatter={d => format(new Date(d), 'dd MMM')} />
                           <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false}
-                            tickFormatter={v => fmtCurrency(v, currency)} />
+                            tickFormatter={v => fmtCurrency(v, symbol)} />
                           <Tooltip
                             contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                            formatter={v => [fmtCurrency(v, currency), 'Revenue']}
+                            formatter={v => [fmtCurrency(v, symbol), 'Revenue']}
                             labelFormatter={d => format(new Date(d), 'dd MMM yyyy')}
                           />
                           <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#revGrad)" strokeWidth={2} dot={false} />
@@ -306,7 +307,7 @@ export default function ReportsPage() {
                               {costPieData.map((_, i) => <Cell key={i} fill={pieColors[i % pieColors.length]} />)}
                             </Pie>
                             <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                              formatter={v => [fmtCurrency(v, currency)]} />
+                              formatter={v => [fmtCurrency(v, symbol)]} />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
@@ -317,7 +318,7 @@ export default function ReportsPage() {
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[i % pieColors.length] }}></span>
                               {d.name}
                             </span>
-                            <span className="text-xs font-bold text-white">{fmtCurrency(d.value, currency)}</span>
+                            <span className="text-xs font-bold text-white">{fmtCurrency(d.value, symbol)}</span>
                           </div>
                         ))}
                       </div>
@@ -339,9 +340,9 @@ export default function ReportsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={processedHourly} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, currency)} />
+                        <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, symbol)} />
                         <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                          formatter={(v, n) => [fmtCurrency(v, currency), 'Revenue']} cursor={{ fill: '#1e293b' }} />
+                          formatter={(v, n) => [fmtCurrency(v, symbol), 'Revenue']} cursor={{ fill: '#1e293b' }} />
                         <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                           {processedHourly.map((entry, i) => <Cell key={i} fill={entry.isPeak ? '#ef4444' : '#3b82f6'} />)}
                         </Bar>
@@ -365,7 +366,7 @@ export default function ReportsPage() {
                               {paymentData.map((_, i) => <Cell key={i} fill={pieColors[i % pieColors.length]} />)}
                             </Pie>
                             <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                              formatter={v => [fmtCurrency(v, currency)]} />
+                              formatter={v => [fmtCurrency(v, symbol)]} />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
@@ -376,7 +377,7 @@ export default function ReportsPage() {
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[i % pieColors.length] }}></span>
                               {d.name}
                             </span>
-                            <span className="text-xs font-bold text-white">{fmtCurrency(d.value, currency)}</span>
+                            <span className="text-xs font-bold text-white">{fmtCurrency(d.value, symbol)}</span>
                           </div>
                         ))}
                       </div>
@@ -409,7 +410,7 @@ export default function ReportsPage() {
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-sm font-bold text-surface-200 truncate max-w-[60%]">{item.name}</span>
                             <span className="text-sm font-black text-brand-400">
-                              {topItemsBy === 'revenue' ? fmtCurrency(item.revenue, currency) : `${item.quantity} qty`}
+                              {topItemsBy === 'revenue' ? fmtCurrency(item.revenue, symbol) : `${item.quantity} qty`}
                             </span>
                           </div>
                           <div className="h-1.5 w-full bg-surface-950 rounded-full overflow-hidden">
@@ -431,10 +432,10 @@ export default function ReportsPage() {
                     {categoryData && categoryData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 10, left: 20, bottom: 0 }}>
-                          <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, currency)} />
+                          <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, symbol)} />
                           <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 600 }} axisLine={false} tickLine={false} width={80} />
                           <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                            formatter={v => [fmtCurrency(v, currency), 'Revenue']} cursor={{ fill: '#1e293b' }} />
+                            formatter={v => [fmtCurrency(v, symbol), 'Revenue']} cursor={{ fill: '#1e293b' }} />
                           <Bar dataKey="revenue" fill="#10b981" radius={[0, 6, 6, 0]} barSize={18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -454,13 +455,13 @@ export default function ReportsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-surface-900 border border-surface-800 rounded-2xl p-5 md:col-span-1">
                   <h3 className="font-bold text-white text-sm uppercase tracking-wider mb-4">Stock Valuation</h3>
-                  <div className="text-4xl font-black text-white mb-1">{fmtCurrency(invValuation?.total_value, currency)}</div>
+                  <div className="text-4xl font-black text-white mb-1">{fmtCurrency(invValuation?.total_value, symbol)}</div>
                   <p className="text-surface-400 text-sm">{invValuation?.total_items || 0} active items</p>
                   <div className="mt-4 space-y-2">
                     {(invValuation?.by_category || []).map((cat, i) => (
                       <div key={i} className="flex justify-between items-center">
                         <span className="text-xs text-surface-400 capitalize font-bold">{cat.category}</span>
-                        <span className="text-xs font-black text-white">{fmtCurrency(cat.value, currency)}</span>
+                        <span className="text-xs font-black text-white">{fmtCurrency(cat.value, symbol)}</span>
                       </div>
                     ))}
                     {(!invValuation || invValuation.by_category?.length === 0) && (
@@ -475,10 +476,10 @@ export default function ReportsPage() {
                     {invValuation?.by_category?.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={invValuation.by_category} layout="vertical" margin={{ top: 0, right: 10, left: 20, bottom: 0 }}>
-                          <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, currency)} />
+                          <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => fmtCurrency(v, symbol)} />
                           <YAxis dataKey="category" type="category" tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 600 }} axisLine={false} tickLine={false} width={80} />
                           <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', fontSize: '12px' }}
-                            formatter={v => [fmtCurrency(v, currency), 'Stock Value']} cursor={{ fill: '#1e293b' }} />
+                            formatter={v => [fmtCurrency(v, symbol), 'Stock Value']} cursor={{ fill: '#1e293b' }} />
                           <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={18} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -494,9 +495,9 @@ export default function ReportsPage() {
               {/* Food Cost vs Revenue */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { label: 'Food Cost', value: fmtCurrency(k.food_cost, currency), pct: `${k.food_cost_pct || 0}% of revenue`, color: 'text-amber-400', bg: 'bg-amber-500/10', icon: Package },
-                  { label: 'Waste Value', value: fmtCurrency(k.waste_value, currency), pct: `${k.waste_pct || 0}% of revenue`, color: 'text-red-400', bg: 'bg-red-500/10', icon: AlertTriangle },
-                  { label: 'Gross Margin', value: `${k.gross_margin_pct || 0}%`, pct: fmtCurrency((k.revenue || 0) - (k.food_cost || 0), currency) + ' gross profit', color: 'text-success-400', bg: 'bg-success-500/10', icon: TrendingUp },
+                  { label: 'Food Cost', value: fmtCurrency(k.food_cost, symbol), pct: `${k.food_cost_pct || 0}% of revenue`, color: 'text-amber-400', bg: 'bg-amber-500/10', icon: Package },
+                  { label: 'Waste Value', value: fmtCurrency(k.waste_value, symbol), pct: `${k.waste_pct || 0}% of revenue`, color: 'text-red-400', bg: 'bg-red-500/10', icon: AlertTriangle },
+                  { label: 'Gross Margin', value: `${k.gross_margin_pct || 0}%`, pct: fmtCurrency((k.revenue || 0) - (k.food_cost || 0), symbol) + ' gross profit', color: 'text-success-400', bg: 'bg-success-500/10', icon: TrendingUp },
                 ].map((card, i) => (
                   <div key={i} className={`${card.bg} border border-surface-800 rounded-2xl p-5`}>
                     <div className="flex items-center gap-2 mb-2">
@@ -534,8 +535,8 @@ export default function ReportsPage() {
                       <tr key={i} className="hover:bg-surface-800/30">
                         <td className="p-3 font-medium text-surface-100">{row.name}</td>
                         <td className="p-3 text-center bg-surface-950">{row.orders}</td>
-                        <td className="p-3 font-bold text-success-400">{fmtCurrency(row.revenue, currency)}</td>
-                        <td className="p-3 text-surface-300">{fmtCurrency(row.orders > 0 ? row.revenue / row.orders : 0, currency)}</td>
+                        <td className="p-3 font-bold text-success-400">{fmtCurrency(row.revenue, symbol)}</td>
+                        <td className="p-3 text-surface-300">{fmtCurrency(row.orders > 0 ? row.revenue / row.orders : 0, symbol)}</td>
                         <td className="p-3 font-bold text-red-400">{row.voids}</td>
                       </tr>
                     ))}
@@ -572,11 +573,11 @@ export default function ReportsPage() {
                       {(gstData || []).map((row, i) => (
                         <tr key={i} className="hover:bg-surface-800/30">
                           <td className="p-3 text-surface-200">{format(new Date(row.date), 'dd MMM yyyy')}</td>
-                          <td className="p-3">{fmtCurrency(row.taxable, currency)}</td>
+                          <td className="p-3">{fmtCurrency(row.taxable, symbol)}</td>
                           {currency !== 'AUD' && (
-                            <><td className="p-3">{fmtCurrency(row.cgst, currency)}</td><td className="p-3">{fmtCurrency(row.sgst, currency)}</td></>
+                            <><td className="p-3">{fmtCurrency(row.cgst, symbol)}</td><td className="p-3">{fmtCurrency(row.sgst, symbol)}</td></>
                           )}
-                          <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmtCurrency(row.total_tax, currency)}</td>
+                          <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmtCurrency(row.total_tax, symbol)}</td>
                         </tr>
                       ))}
                       {(!gstData || gstData.length === 0) && (
