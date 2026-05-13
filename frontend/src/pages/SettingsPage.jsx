@@ -37,10 +37,10 @@ export default function SettingsPage() {
 
 
   const [settings, setSettings] = useState({
-    // General
+    // General — region-aware defaults
     outlet_name: '',
-    currency: 'INR',
-    timezone: 'Asia/Kolkata',
+    currency: isAU ? 'AUD' : 'INR',
+    timezone: isAU ? 'Australia/Sydney' : 'Asia/Kolkata',
     language: 'en',
     // Tax / Compliance
     default_gst_slab: '5',
@@ -101,12 +101,31 @@ export default function SettingsPage() {
     staleTime: 60000,
   });
 
+  // Also fetch the outlet record itself for name/branding fallbacks
+  const { data: outletInfo } = useQuery({
+    queryKey: ['outlet-info', outletId],
+    queryFn: async () => {
+      if (!outletId) return null;
+      try {
+        const res = await api.get(`/ho/outlets/${outletId}`);
+        return res.data?.data || res.data;
+      } catch { return null; }
+    },
+    enabled: !!outletId,
+    staleTime: 60000,
+  });
+
   // Merge saved settings into local state once they load
   useEffect(() => {
-    if (savedSettings) {
-      setSettings(prev => ({ ...prev, ...savedSettings }));
+    if (savedSettings || outletInfo) {
+      setSettings(prev => ({
+        ...prev,
+        // Outlet name from outlet record if settings doesn't have it
+        outlet_name: savedSettings?.outlet_name || outletInfo?.name || prev.outlet_name,
+        ...(savedSettings || {}),
+      }));
     }
-  }, [savedSettings]);
+  }, [savedSettings, outletInfo]);
 
   // Theme preference is saved locally (localStorage) by ThemeContext.
   // All other settings are persisted via the API.

@@ -3,7 +3,7 @@ services:
     name: petpooja-saas
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npx prisma db seed
+    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss && npx prisma db seed
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
