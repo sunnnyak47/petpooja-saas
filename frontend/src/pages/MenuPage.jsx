@@ -179,25 +179,63 @@ export default function MenuPage() {
     onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to create combo'),
   });
 
-  // Photo Upload
+  // Photo Upload — compress to base64 data URL so it persists in DB
+  const [imageUploading, setImageUploading] = useState(false);
+  const compressImage = (file, maxW = 480, maxH = 480, quality = 0.75) =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          if (w > maxW || h > maxH) {
+            const ratio = Math.min(maxW / w, maxH / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
   const handleImageUpload = async (e) => {
      const file = e.target.files[0];
      if(!file) return;
 
-     const formData = new FormData();
-     formData.append('image', file);
-
-     const loadingToast = toast.loading('Uploading image...');
+     setImageUploading(true);
      try {
-        const { data } = await api.post('/menu/upload-image', formData, {
-           headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        setItemForm(prev => ({ ...prev, image_url: data.url }));
-        toast.dismiss(loadingToast);
-        toast.success('Image uploaded!');
+        // Compress and convert to base64 data URL (stored directly in DB)
+        const dataUrl = await compressImage(file);
+        setItemForm(prev => ({ ...prev, image_url: dataUrl }));
+        toast.success('Photo added!');
+
+        // Also try server upload for a proper URL (optional, best-effort)
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+           const { data } = await api.post('/menu/upload-image', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+           });
+           const serverUrl = data?.url || data?.data?.url;
+           if (serverUrl) {
+              // Verify the server URL actually loads before using it
+              const testImg = new Image();
+              testImg.onload = () => setItemForm(prev => ({ ...prev, image_url: serverUrl }));
+              testImg.onerror = () => {}; // keep data URL
+              testImg.src = serverUrl;
+           }
+        } catch { /* server upload failed — data URL is already set, no problem */ }
      } catch(err) {
-        toast.dismiss(loadingToast);
-        toast.error('Upload failed: ' + (err.response?.data?.message || err.message));
+        toast.error('Photo processing failed');
+     } finally {
+        setImageUploading(false);
      }
   };
 
@@ -410,12 +448,15 @@ export default function MenuPage() {
                           </button>
                        )}
                        
-                       {/* Image Stub */}
-                       <div className="h-24 bg-surface-950 flex items-center justify-center relative overflow-hidden">
+                       {/* Image */}
+                       <div className="h-36 bg-surface-950 flex items-center justify-center relative overflow-hidden">
                           {item.image_url ? (
-                             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }} />
                           ) : (
-                             <Camera className="w-8 h-8 text-surface-700/50" />
+                             <div className="flex flex-col items-center gap-1">
+                                <Camera className="w-8 h-8 text-surface-700/40" />
+                                <span className="text-[9px] text-surface-700/40 font-medium">No photo</span>
+                             </div>
                           )}
                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${BORDER_COLORS[item.food_type] || 'bg-surface-600'}`}></div>
                        </div>
@@ -590,18 +631,26 @@ export default function MenuPage() {
                         )}
                      </select>
                   </div>
-                  <div className="p-4 border-2 border-dashed border-surface-600 hover:border-brand-500 hover:bg-surface-800 transition-colors rounded-xl text-center cursor-pointer relative overflow-hidden group">
+                  <div className="border-2 border-dashed border-surface-600 hover:border-brand-500 transition-colors rounded-xl text-center cursor-pointer relative overflow-hidden group" style={{ minHeight: '160px' }}>
                      {itemForm.image_url ? (
                         <>
-                           <img src={itemForm.image_url} alt="Item" className="absolute inset-0 w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
-                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-white text-xs font-bold px-3 py-1 bg-black/50 rounded-full">Change</span>
+                           <img src={itemForm.image_url} alt="Item" className="w-full h-full object-cover rounded-lg" style={{ minHeight: '160px', maxHeight: '200px' }} />
+                           {imageUploading && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
+                                 <Loader className="w-6 h-6 text-white animate-spin" />
+                              </div>
+                           )}
+                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                              <span className="text-white text-xs font-bold px-4 py-1.5 bg-black/60 rounded-full backdrop-blur-sm">Change Photo</span>
                            </div>
                         </>
                      ) : (
-                        <div className="py-2">
-                           <Camera className="w-6 h-6 text-surface-500 mx-auto mb-2" />
-                           <p className="text-xs text-surface-400 font-medium">Upload Image</p>
+                        <div className="flex flex-col items-center justify-center py-8">
+                           <div className="w-12 h-12 rounded-full bg-surface-800 flex items-center justify-center mb-3">
+                              <Camera className="w-6 h-6 text-surface-400" />
+                           </div>
+                           <p className="text-sm font-semibold text-surface-300">Upload Photo</p>
+                           <p className="text-[10px] text-surface-500 mt-1">JPG, PNG — max 5 MB</p>
                         </div>
                      )}
                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
