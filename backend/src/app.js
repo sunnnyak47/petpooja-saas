@@ -305,16 +305,15 @@ async function startApp() {
     }
 
     // ── Widen image_url columns to TEXT (were VARCHAR(500), too short for base64) ─
-    try {
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE menu_items ALTER COLUMN image_url TYPE TEXT;
-        ALTER TABLE item_combo ALTER COLUMN image_url TYPE TEXT;
-        ALTER TABLE menu_templates ALTER COLUMN image_url TYPE TEXT;
-      `);
-      logger.info('image_url columns widened to TEXT.');
-    } catch (imgErr) {
-      // Non-fatal: column may already be TEXT
-      logger.warn('image_url column migration warning (non-fatal):', { error: imgErr.message });
+    // Run each ALTER separately so one missing column doesn't block the others
+    for (const tbl of ['menu_items', 'item_combo', 'menu_templates']) {
+      try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE ${tbl} ALTER COLUMN image_url TYPE TEXT`);
+        logger.info(`${tbl}.image_url widened to TEXT.`);
+      } catch (e) {
+        // Non-fatal: column may already be TEXT or may not exist on this table
+        logger.warn(`${tbl}.image_url migration skipped:`, { error: e.message });
+      }
     }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
