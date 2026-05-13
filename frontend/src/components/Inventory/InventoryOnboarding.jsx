@@ -3,16 +3,23 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useRegion } from '../../hooks/useRegion';
 import {
   Sparkles, ChefHat, Package, Users, Layers, Zap,
   ArrowRight, ArrowLeft, Check, Loader2, Plus, Trash2,
   X, Edit3, RefreshCw,
 } from 'lucide-react';
 
-const CUISINE_PRESETS = [
+const CUISINE_PRESETS_IN = [
   'North Indian', 'South Indian', 'Chinese', 'Pizza & Pasta',
   'Biryani & Mughlai', 'Fast Food & Burgers', 'Bakery & Cafe',
   'Seafood', 'Multi-Cuisine', 'Street Food',
+];
+
+const CUISINE_PRESETS_AU = [
+  'Modern Australian', 'Cafe & Brunch', 'Pizza & Pasta', 'Burgers & Grill',
+  'Asian Fusion', 'Thai', 'Japanese / Sushi', 'Indian',
+  'Seafood', 'Bakery & Pastries', 'Coffee Shop', 'Pub Food',
 ];
 
 const UNIT_OPTIONS = ['kg', 'gm', 'ltr', 'ml', 'pcs', 'pkt', 'box', 'dozen'];
@@ -29,6 +36,8 @@ const STEPS = [
 
 export default function InventoryOnboarding({ outletId, onComplete }) {
   const { symbol } = useCurrency();
+  const region = useRegion();
+  const CUISINE_PRESETS = region === 'AU' ? CUISINE_PRESETS_AU : CUISINE_PRESETS_IN;
   const qc = useQueryClient();
   const [step, setStep] = useState(1);
   const [restaurantType, setRestaurantType] = useState('');

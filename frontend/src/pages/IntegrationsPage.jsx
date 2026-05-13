@@ -3,12 +3,13 @@ import { useSelector } from 'react-redux';
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useRegion } from '../hooks/useRegion';
 import {
   Puzzle, ToggleLeft, ToggleRight, Settings, CheckCircle2,
   AlertTriangle, ArrowRight
 } from 'lucide-react';
 
-const INTEGRATIONS = [
+const INTEGRATIONS_IN = [
   {
     id: 'zomato', name: 'Zomato', category: 'Delivery',
     description: 'Sync menus and receive orders from Zomato',
@@ -62,7 +63,68 @@ const INTEGRATIONS = [
   },
 ];
 
-const CATEGORIES = ['All', ...new Set(INTEGRATIONS.map(i => i.category))];
+const INTEGRATIONS_AU = [
+  {
+    id: 'ubereats', name: 'Uber Eats', category: 'Delivery',
+    description: 'Sync menus and receive orders from Uber Eats',
+    logo: '🛵', color: 'bg-black/20 text-gray-300 border-gray-500/30',
+    fields: [{ key: 'ubereats_store_id', label: 'Store ID', placeholder: 'store_xxxxx' }],
+  },
+  {
+    id: 'doordash', name: 'DoorDash', category: 'Delivery',
+    description: 'Sync menus and receive orders from DoorDash',
+    logo: '🚪', color: 'bg-red-500/20 text-red-400 border-red-500/30',
+    fields: [{ key: 'doordash_store_id', label: 'Store ID', placeholder: 'xxxxx' }],
+  },
+  {
+    id: 'menulog', name: 'Menulog', category: 'Delivery',
+    description: 'Sync menus and receive orders from Menulog',
+    logo: '🍔', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    fields: [{ key: 'menulog_id', label: 'Restaurant ID', placeholder: 'xxxxx' }],
+  },
+  {
+    id: 'tyro', name: 'Tyro', category: 'Payment',
+    description: 'Accept card payments via Tyro EFTPOS terminal',
+    logo: '💳', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    fields: [{ key: 'tyro_mid', label: 'Merchant ID', placeholder: 'TYR-xxxxx' }],
+  },
+  {
+    id: 'square', name: 'Square', category: 'Payment',
+    description: 'Accept card payments via Square terminal',
+    logo: '◼️', color: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    fields: [{ key: 'square_location_id', label: 'Location ID', placeholder: 'L-xxxxx' }],
+  },
+  {
+    id: 'xero', name: 'Xero', category: 'Accounting',
+    description: 'Sync daily sales, GST, and BAS to Xero',
+    logo: '🔵', color: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+    fields: [{ key: 'xero_tenant_id', label: 'Tenant ID', placeholder: 'org_xxxxx' }],
+  },
+  {
+    id: 'myob', name: 'MYOB', category: 'Accounting',
+    description: 'Sync sales and invoices to MYOB AccountRight',
+    logo: '📒', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    fields: [{ key: 'myob_company_file', label: 'Company File ID', placeholder: 'cf_xxxxx' }],
+  },
+  {
+    id: 'whatsapp', name: 'WhatsApp Business', category: 'Communication',
+    description: 'Send order confirmations and bills via WhatsApp',
+    logo: '📱', color: 'bg-green-500/20 text-green-400 border-green-500/30',
+    fields: [{ key: 'whatsapp_number', label: 'Business Number', placeholder: '+61xxxxxxxxx' }],
+  },
+  {
+    id: 'google_reviews', name: 'Google Reviews', category: 'Marketing',
+    description: 'Auto-request reviews after successful orders',
+    logo: '⭐', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    fields: [{ key: 'google_place_id', label: 'Place ID', placeholder: 'ChIJ...' }],
+  },
+  {
+    id: 'ato_bas', name: 'ATO BAS', category: 'Tax',
+    description: 'Auto-generate BAS returns and lodge to ATO',
+    logo: '🏛️', color: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+    fields: [{ key: 'abn', label: 'ABN', placeholder: '11 222 333 444' }],
+  },
+];
 
 /**
  * M14: Integrations Hub Page
@@ -70,6 +132,9 @@ const CATEGORIES = ['All', ...new Set(INTEGRATIONS.map(i => i.category))];
 export default function IntegrationsPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
+  const region = useRegion();
+  const INTEGRATIONS = region === 'AU' ? INTEGRATIONS_AU : INTEGRATIONS_IN;
+  const CATEGORIES = ['All', ...new Set(INTEGRATIONS.map(i => i.category))];
   const [activeCategory, setActiveCategory] = useState('All');
   const [enabledMap, setEnabledMap] = useState({});
   const [configMap, setConfigMap] = useState({});

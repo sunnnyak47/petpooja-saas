@@ -357,7 +357,13 @@ function DashboardTab({ outletId }) {
   const d = data?.data || {};
   const segments = d.segments || {};
   const loyaltyStats = d.loyalty_stats || {};
-  const loyaltyCfg = d.loyalty_config || {};
+  const loyaltyCfg = {
+    earn_rate: 1,
+    earn_per_amount: 10,
+    redeem_value: 1,
+    min_redemption: 100,
+    ...(d.loyalty_config || {}),
+  };
   const topSpenders = d.top_spenders || [];
   const birthdayList = bdays?.data || [];
   const recentTxns = d.recent_transactions || [];

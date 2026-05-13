@@ -169,7 +169,7 @@ export default function OrdersPage() {
             ) : (
               orders.map(order => (
                 <tr key={order.id} className="transition-colors group cursor-pointer" style={{}} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background = ''} onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}>
-                  <td className="px-4 py-3 font-mono text-sm font-semibold" style={{ color: 'var(--accent)' }}>{formatOrderNo(order.order_number)}</td>
+                  <td className="px-4 py-3 font-mono text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--accent)' }}>{formatOrderNo(order.order_number)}</td>
                   <td className="px-4 py-3 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{order.order_type?.replace('_', ' ')}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order.table?.table_number || '—'}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order._count?.order_items || 0}</td>
@@ -183,7 +183,7 @@ export default function OrdersPage() {
                       {STATUS_FLOW.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleReorder(order); }}

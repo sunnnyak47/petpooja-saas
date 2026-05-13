@@ -452,8 +452,9 @@ export default function KitchenDisplayPage() {
       <div style={{
         flexShrink: 0, background: 'var(--bg-card)',
         borderBottom: `1px solid var(--border)`,
-        padding: '0 24px', height: 62,
+        padding: '8px 24px', minHeight: 62,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 12,
         boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
       }}>
         {/* left: branding + clock */}

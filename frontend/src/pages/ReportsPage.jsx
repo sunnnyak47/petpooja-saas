@@ -210,7 +210,7 @@ export default function ReportsPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3 w-full lg:w-auto">
+        <div className="flex items-center flex-wrap gap-3 w-full lg:w-auto">
           {outlets?.length > 1 && (
             <select className="input font-bold" value={selectedOutlet} onChange={e => setSelectedOutlet(e.target.value)}>
               {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
