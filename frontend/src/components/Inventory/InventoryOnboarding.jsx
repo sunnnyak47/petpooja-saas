@@ -254,7 +254,9 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
                     color: 'var(--text-primary)',
                     borderColor: customType ? 'var(--accent)' : 'var(--border)',
                   }}
-                  placeholder="e.g. Punjabi Dhaba, Dessert Shop, Juice Bar…"
+                  placeholder={region === 'AU'
+                    ? 'e.g. Sushi Train, Steakhouse, Gelato Bar…'
+                    : 'e.g. Punjabi Dhaba, Dessert Shop, Juice Bar…'}
                   value={customType}
                   onChange={e => { setCustomType(e.target.value); setRestaurantType(''); }}
                 />
