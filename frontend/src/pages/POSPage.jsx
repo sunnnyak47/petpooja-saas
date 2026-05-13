@@ -742,9 +742,20 @@ export default function POSPage() {
               name="pos-shortcode"
             />
             <button
-              onClick={voice.toggleListening}
+              onClick={() => {
+                // In Electron (desktop app) speech recognition isn't available —
+                // open the text input as a fallback instead.
+                if (!voice.supported) {
+                  setShowVoiceInput(true);
+                  if (voice.isElectron) {
+                    toast('Voice mic isn’t available in desktop app — type your order instead', { icon: '⌨️', duration: 3500 });
+                  }
+                  return;
+                }
+                voice.toggleListening();
+              }}
               disabled={voice.isThinking}
-              title={voice.isListening ? 'Tap to stop listening' : 'Tap to start voice order'}
+              title={!voice.supported ? 'Voice mic unavailable in desktop app — click to type instead' : voice.isListening ? 'Tap to stop listening' : 'Tap to start voice order'}
               className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold shadow shrink-0 transition-all ${
                 voice.isListening
                   ? 'ring-2 ring-red-400 animate-pulse'
@@ -882,7 +893,7 @@ export default function POSPage() {
             </div>
 
             {/* Menu Grid */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 content-start">
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 content-start">
               {filteredItems.map((item) => {
                 const hasNoPrice = !Number(item.base_price) || Number(item.base_price) <= 0;
                 return (
@@ -939,7 +950,7 @@ export default function POSPage() {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-[380px] flex flex-col border rounded-2xl overflow-hidden relative shadow-xl"
+      <div className="w-[320px] xl:w-[380px] shrink-0 flex flex-col border rounded-2xl overflow-hidden relative shadow-xl"
         style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
         <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-hover)" }}>
            <div className="flex items-center justify-between mb-2">

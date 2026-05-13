@@ -45,15 +45,24 @@ export default function useVoiceOrder(langOverride) {
   const silenceTimer = useRef(null);
   const safetyTimer = useRef(null);  // force-reset if stuck
 
+  // Detect Electron — Web Speech API doesn't work without a Google API key bundled
+  const isElectron = typeof window !== 'undefined' && (
+    !!window.electron ||
+    /electron/i.test(navigator.userAgent || '') ||
+    !!window.process?.versions?.electron
+  );
+
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setSupported(!!SR);
+    // In Electron, the SR object exists but throws/never fires onresult.
+    // Mark as unsupported so the UI auto-falls back to text input.
+    setSupported(!!SR && !isElectron);
     return () => {
       clearTimeout(silenceTimer.current);
       clearTimeout(safetyTimer.current);
       try { recognitionRef.current?.abort(); } catch (_) {}
     };
-  }, []);
+  }, [isElectron]);
 
   /* ── Convert LLM cart items → Redux addToCart dispatches ── */
   const syncCartToRedux = useCallback((llmCart, action) => {
@@ -273,6 +282,7 @@ export default function useVoiceOrder(langOverride) {
     transcript,
     lastResponse,
     supported,
+    isElectron,
     lang,
     toggleListening,
     resetConversation,
