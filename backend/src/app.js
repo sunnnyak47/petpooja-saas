@@ -303,6 +303,19 @@ async function startApp() {
       // Non-fatal: log but do not crash startup
       logger.warn('Schema drift migration warning (non-fatal):', { error: migErr.message });
     }
+
+    // ── Widen image_url columns to TEXT (were VARCHAR(500), too short for base64) ─
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE menu_items ALTER COLUMN image_url TYPE TEXT;
+        ALTER TABLE item_combo ALTER COLUMN image_url TYPE TEXT;
+        ALTER TABLE menu_templates ALTER COLUMN image_url TYPE TEXT;
+      `);
+      logger.info('image_url columns widened to TEXT.');
+    } catch (imgErr) {
+      // Non-fatal: column may already be TEXT
+      logger.warn('image_url column migration warning (non-fatal):', { error: imgErr.message });
+    }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
     logger.error('Failed to establish database connection during startup:', err.message);
