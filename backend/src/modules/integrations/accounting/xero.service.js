@@ -15,14 +15,18 @@ const XERO_TOKEN_URL = 'https://identity.xero.com/connect/token';
 const XERO_API_BASE = 'https://api.xero.com/api.xro/2.0';
 const XERO_CONNECTIONS_URL = 'https://api.xero.com/connections';
 
+// Minimal scope set guaranteed to work on a freshly-created Xero app.
+// We do NOT request openid/profile/email — those are OIDC identity scopes
+// that new apps don't have enabled by default and would trigger
+// `invalid_scope` errors. Identity isn't needed for our integration; we
+// only consume the org's accounting data, not the user's Xero profile.
 const SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'accounting.transactions',
-  'accounting.contacts',
-  'accounting.settings',
-  'offline_access',
+  'offline_access',              // mandatory — issues refresh tokens
+  'accounting.transactions',     // read/write invoices, bills, bank txns
+  'accounting.contacts',         // customers + suppliers
+  'accounting.settings',         // org info, chart of accounts
+  'accounting.reports.read',     // P&L, balance sheet, BAS reports
+  'accounting.attachments.read', // invoice & bill attachments
 ].join(' ');
 
 /** Token is refreshed this many ms before actual expiry to avoid races. */
