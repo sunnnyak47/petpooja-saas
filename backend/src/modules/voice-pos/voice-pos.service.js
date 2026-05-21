@@ -66,8 +66,35 @@ async function getMenuItems(outletId) {
   return items;
 }
 
+/* ── Language style guide for the LLM ────────────────────────── */
+// Maps the BCP-47 locale chosen by the operator into a strict
+// "respond ONLY in X" directive plus a fluency style note so the
+// model doesn't slip into Hinglish when the user picked English.
+const LANG_DIRECTIVES = {
+  'en-IN': { name: 'English',           style: "Use clear, professional Indian English. Do NOT mix in Hindi, Hinglish, or Devanagari script. No 'kya', 'aur', 'theek hai', 'haan ji' etc. Confirmations should sound like a polished waiter." },
+  'en-AU': { name: 'Australian English', style: 'Use polite Australian English. Friendly but professional, no slang heavier than "mate" or "no worries". No language mixing.' },
+  'en-US': { name: 'American English',   style: 'Use clear American English. Professional, no language mixing.' },
+  'en-GB': { name: 'British English',    style: 'Use polite British English. Professional, no language mixing.' },
+  'hi-IN': { name: 'Hindi',              style: 'Use natural conversational Hindi (Devanagari script preferred when possible, transliteration acceptable). Do NOT mix in English unless you are quoting an item name that has no Hindi equivalent.' },
+  'pa-IN': { name: 'Punjabi',            style: 'Use natural Punjabi. Do NOT mix in other languages.' },
+  'ta-IN': { name: 'Tamil',              style: 'Use natural Tamil. Do NOT mix in other languages.' },
+  'te-IN': { name: 'Telugu',             style: 'Use natural Telugu. Do NOT mix in other languages.' },
+  'kn-IN': { name: 'Kannada',            style: 'Use natural Kannada. Do NOT mix in other languages.' },
+  'ml-IN': { name: 'Malayalam',          style: 'Use natural Malayalam. Do NOT mix in other languages.' },
+  'mr-IN': { name: 'Marathi',            style: 'Use natural Marathi. Do NOT mix in other languages.' },
+  'gu-IN': { name: 'Gujarati',           style: 'Use natural Gujarati. Do NOT mix in other languages.' },
+  'bn-IN': { name: 'Bengali',            style: 'Use natural Bengali. Do NOT mix in other languages.' },
+  'ur-IN': { name: 'Urdu',               style: 'Use natural Urdu. Do NOT mix in other languages.' },
+  'ar-SA': { name: 'Arabic',             style: 'Use natural Modern Standard Arabic. Do NOT mix in other languages.' },
+};
+
+function languageDirective(lang) {
+  const d = LANG_DIRECTIVES[lang] || LANG_DIRECTIVES['en-IN'];
+  return { name: d.name, style: d.style, code: lang };
+}
+
 /* ── Build system prompt ────────────────────────────────────── */
-function buildSystemPrompt(menuItems) {
+function buildSystemPrompt(menuItems, langCode = 'en-IN') {
   const menuText = menuItems.map(item => {
     let line = `- ID:${item.id} | "${item.name}" | ₹${item.base_price} | ${item.food_type}`;
     if (item.variants?.length > 0) {
@@ -77,38 +104,44 @@ function buildSystemPrompt(menuItems) {
     return line;
   }).join('\n');
 
+  const lang = languageDirective(langCode);
+
   return `You are a restaurant POS voice ordering assistant. Your job is to manage a customer's cart based on what the waiter says.
+
+OUTPUT LANGUAGE (HARD RULE — overrides every other instruction):
+- Every word of the "response" field MUST be written in ${lang.name} (locale ${lang.code}).
+- ${lang.style}
+- The waiter may speak in a different language; still match items by meaning, but write the reply ONLY in ${lang.name}.
+- The "changes" array entries should also be in ${lang.name}.
+- Item names from the MENU are kept verbatim (do not translate menu item names).
 
 MENU:
 ${menuText}
 
 RULES:
-1. Parse the waiter's speech in ANY language (Hindi, English, Tamil, Hinglish mix, etc.)
-2. Match spoken item names to menu items — handle typos, abbreviations, regional names
-3. Extract quantities: ek/do/teen=1/2/3, one/two/three, onnu/rendu/moonu, etc.
-4. If an item has variants and none is specified, ask which variant in "response" and set action="needs_variant"
-5. Handle corrections naturally:
+1. Parse the waiter's speech in any language and match items to the menu — handle typos, abbreviations, and regional names.
+2. Extract quantities (one/two/three, ek/do/teen, onnu/rendu/moonu, etc.).
+3. If an item has variants and none is specified, ask which variant in "response" (in ${lang.name}) and set action="needs_variant".
+4. Handle corrections:
    - "remove paneer" → remove from cart
-   - "make it 3" or "teen karo" → update last mentioned item quantity
-   - "no that one, butter chicken" → correct last item
+   - "make it 3" / "teen karo" → update last item quantity
    - "sab hatao" / "clear cart" / "start over" → empty cart, action="cleared"
    - "confirm" / "ho gaya" / "done" / "order karo" / "yes" → action="confirm"
-6. Extract item-level notes: "no onion", "extra spicy", "thoda kam mirch", "bina pyaz"
-7. If completely unclear, ask for clarification in "response"
-8. Always respond in the SAME language the waiter used (Hindi reply for Hindi input, etc.)
-9. Keep responses SHORT and conversational — max 2 sentences
-10. ALWAYS return valid JSON matching the schema exactly
-11. Detect TABLE NUMBER: if waiter says "table 3", "table number 5", "teen number table", "number 7 pe", extract the number into table_number field
-12. Detect ORDER TYPE: if waiter says "takeaway", "parcel", "to go", "packing", "ghar ke liye" → order_type="takeaway"; "dine in", "andar baithenge", "yahan khayenge" → order_type="dine_in"
-13. Detect CUSTOMER NAME: if waiter says "Ram ka order", "Priya ke liye" → extract name into customer_name field
+5. Extract item-level notes ("no onion", "extra spicy", "bina pyaz") and put them in the item's notes field — translate the note INTO ${lang.name} so the kitchen receipt reads cleanly.
+6. If unclear, ask one short clarifying question in ${lang.name}.
+7. Keep "response" SHORT — at most one or two sentences.
+8. ALWAYS return valid JSON matching the schema exactly.
+9. Detect TABLE NUMBER: "table 3", "table number 5", "teen number table" → number into table_number.
+10. Detect ORDER TYPE: "takeaway"/"parcel"/"packing"/"ghar ke liye" → "takeaway"; "dine in"/"andar baithenge" → "dine_in".
+11. Detect CUSTOMER NAME: "Ram ka order", "Priya ke liye" → customer_name.
 
 RESPONSE SCHEMA:
 {
   "cart": [{"menu_item_id":"...","name":"...","quantity":1,"variant_id":null,"variant_name":null,"unit_price":0,"notes":"","food_type":"veg"}],
-  "response": "spoken reply to waiter",
+  "response": "reply in ${lang.name} only",
   "action": "continue|needs_variant|confirm|cleared",
   "unmatched": ["words not on menu"],
-  "changes": ["human readable list of what changed"],
+  "changes": ["human readable list of what changed, in ${lang.name}"],
   "table_number": null,
   "order_type": null,
   "customer_name": null
@@ -116,7 +149,7 @@ RESPONSE SCHEMA:
 }
 
 /* ── Main conversational parse function ─────────────────────── */
-async function conversationalParse(outletId, transcript, conversationHistory, currentCart) {
+async function conversationalParse(outletId, transcript, conversationHistory, currentCart, language = 'en-IN') {
   const menuItems = await getMenuItems(outletId);
 
   if (!menuItems.length) {
@@ -129,7 +162,7 @@ async function conversationalParse(outletId, transcript, conversationHistory, cu
     };
   }
 
-  const systemPrompt = buildSystemPrompt(menuItems);
+  const systemPrompt = buildSystemPrompt(menuItems, language);
 
   // Build cart context message
   const cartContext = currentCart?.length > 0

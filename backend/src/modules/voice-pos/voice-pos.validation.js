@@ -11,6 +11,8 @@ const converseSchema = Joi.object({
   conversation_history: Joi.array(),
   current_cart: Joi.array(),
   outlet_id: Joi.string().uuid().required(),
+  // BCP-47 locale (e.g. "en-IN", "en-AU", "hi-IN"). Optional; defaults to en-IN.
+  language: Joi.string().max(10).allow('', null),
 });
 
 /** POST /api/voice-pos/upsell */

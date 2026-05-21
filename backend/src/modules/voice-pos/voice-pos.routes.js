@@ -18,7 +18,7 @@ const { sendSuccess, sendCreated } = require('../../utils/response');
 router.post('/converse', authenticate, validate(converseSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    const { transcript, conversation_history = [], current_cart = [] } = req.body;
+    const { transcript, conversation_history = [], current_cart = [], language = 'en-IN' } = req.body;
 
     if (!transcript?.trim()) {
       return res.status(400).json({ success: false, message: 'Transcript is required' });
@@ -27,7 +27,7 @@ router.post('/converse', authenticate, validate(converseSchema), async (req, res
       return res.status(400).json({ success: false, message: 'Outlet ID required' });
     }
 
-    const result = await conversationalParse(outletId, transcript.trim(), conversation_history, current_cart);
+    const result = await conversationalParse(outletId, transcript.trim(), conversation_history, current_cart, language);
     sendSuccess(res, result, 'Conversation turn processed');
   } catch (e) { next(e); }
 });

@@ -194,6 +194,7 @@ export default function useVoiceOrder(langOverride) {
         conversation_history: newHistory,
         current_cart: currentCart,
         outlet_id: outletId,
+        language: lang,
       });
 
       const data = res.data?.data || res.data || res;
