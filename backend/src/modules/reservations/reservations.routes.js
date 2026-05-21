@@ -22,7 +22,7 @@ router.get('/', async (req, res, next) => {
     }
     const reservations = await getDbClient().tableReservation.findMany({
       where,
-      include: { table: { select: { id: true, table_number: true, capacity: true } } },
+      include: { table: { select: { id: true, table_number: true, seating_capacity: true } } },
       orderBy: [{ reservation_date: 'asc' }, { reservation_time: 'asc' }],
     });
     sendSuccess(res, reservations.map(r => ({

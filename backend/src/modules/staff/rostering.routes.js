@@ -35,23 +35,29 @@ router.get('/', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/:id', authenticate, async (req, res, next) => {
+// UUID guard so non-UUID path segments (e.g. /certifications) fall through
+// to a more specific route below instead of being treated as a roster id.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+router.get('/:id([0-9a-f-]{36})', authenticate, async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return next();
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const result = await svc.getRosterById(req.params.id, outletId);
     sendSuccess(res, result, 'Roster retrieved');
   } catch (e) { next(e); }
 });
 
-router.patch('/:id', authenticate, validate(updateRosterSchema), async (req, res, next) => {
+router.patch('/:id([0-9a-f-]{36})', authenticate, validate(updateRosterSchema), async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) return next();
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.updateRoster(req.params.id, outletId, req.body);
     sendSuccess(res, result, 'Roster updated');
   } catch (e) { next(e); }
 });
 
-router.post('/:id/publish', authenticate, validate(publishRosterSchema), async (req, res, next) => {
+router.post('/:id([0-9a-f-]{36})/publish', authenticate, validate(publishRosterSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await svc.publishRoster(req.params.id, outletId);
@@ -59,7 +65,7 @@ router.post('/:id/publish', authenticate, validate(publishRosterSchema), async (
   } catch (e) { next(e); }
 });
 
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id([0-9a-f-]{36})', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     await svc.deleteRoster(req.params.id, outletId);
@@ -68,7 +74,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 });
 
 // ── Assignments ──────────────────────────────────────────────────────────
-router.post('/:id/assignments', authenticate, validate(addAssignmentSchema), async (req, res, next) => {
+router.post('/:id([0-9a-f-]{36})/assignments', authenticate, validate(addAssignmentSchema), async (req, res, next) => {
   try {
     const result = await svc.addAssignment(req.params.id, req.body);
     sendSuccess(res, result, 'Assignment added');
