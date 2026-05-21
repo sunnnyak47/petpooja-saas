@@ -109,6 +109,17 @@ function errorHandler(err, req, res, _next) {
     response.stack = err.stack;
   }
 
+  // Diagnostics: any authenticated request can append ?debug=1 to receive
+  // the raw error message + Prisma code on 500s. Helps owners surface
+  // schema-drift / missing-column errors without redeploying for logs.
+  if (statusCode === 500 && req.query?.debug === '1' && req.user) {
+    response.debug = {
+      raw_message: err.message,
+      code: err.code || err.name || null,
+      meta: err.meta || null,
+    };
+  }
+
   res.status(statusCode).json(response);
 }
 
