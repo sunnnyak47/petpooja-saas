@@ -25,6 +25,7 @@ import {
 import TableGrid from '../components/POS/TableGrid';
 import useVoiceOrder, { VOICE_LANGUAGES, saveVoiceSettings } from '../hooks/useVoiceOrder';
 import Modal from '../components/Modal';
+import VoiceConfirmModal from '../components/Voice/VoiceConfirmModal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
 import BillPreviewModal from '../components/POS/BillPreviewModal';
@@ -1384,7 +1385,8 @@ export default function POSPage() {
         />
       )}
 
-      {/* Voice POS is now inline — no modal needed */}
+      {/* Voice POS — confirm-before-add modal (only renders when voice.pendingOrder exists) */}
+      <VoiceConfirmModal voice={voice} />
     </div>
   );
 }

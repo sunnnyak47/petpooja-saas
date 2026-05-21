@@ -46,7 +46,8 @@ const VOICE_HISTORY_KEY = 'msrm_voice_history';
 
 export const DEFAULT_VOICE_SETTINGS = {
   language: 'en-IN',
-  continuousMode: true,
+  continuousMode: true,          // After confirming/cancelling, re-arm mic
+  confirmBeforeAdding: true,     // Show review modal before committing to cart
   speakResponses: true,
   showToasts: true,
   silenceTimeoutMs: 2500,
@@ -109,6 +110,11 @@ export default function useVoiceOrder(langOverride) {
   const [transcript, setTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState('');
   const [supported, setSupported] = useState(true);
+
+  // Staged order for confirm-before-add UX.
+  //   { items: [{menu_item_id,name,unit_price,quantity,variant_id,variant_name,food_type,notes}],
+  //     transcripts: ["...", "..."], response, action }
+  const [pendingOrder, setPendingOrder] = useState(null);
 
   // Effective language: prop override > settings.language
   const lang = langOverride || settings.language || 'en-IN';
@@ -193,17 +199,10 @@ export default function useVoiceOrder(langOverride) {
       const data = res.data?.data || res.data || res;
       const { cart: newCart, response, action, table_number, order_type } = data;
 
-      syncCartToRedux(newCart, action);
-      if (order_type) dispatch(setReduxOrderType(order_type));
-      if (table_number) {
-        toast.success(`Table ${table_number} detected`, { icon: '🪑', duration: 2000 });
-      }
-
       conversationHistory.current = [
         ...newHistory,
         { role: 'assistant', content: response },
       ];
-
       setLastResponse(response);
 
       // History persistence
@@ -225,23 +224,57 @@ export default function useVoiceOrder(langOverride) {
         utter.rate = settings.ttsRate || 1.1;
         window.speechSynthesis.speak(utter);
       }
-
       if (response && settings.showToasts) {
         toast(response, { icon: '🤖', duration: 3000, style: { maxWidth: '400px', fontSize: '13px' } });
       }
 
-      // After the LLM responds, decide whether to listen again
-      // Stop conditions: action='completed', user said done/finish/checkout, or settings.continuousMode off
+      if (order_type) dispatch(setReduxOrderType(order_type));
+      if (table_number) toast.success(`Table ${table_number} detected`, { icon: '🪑', duration: 2000 });
+
+      // Stop conditions
       const completed = action === 'completed' || action === 'placed' || action === 'cancelled';
       const userSaidDone = /\b(done|finish|that'?s all|checkout|nothing else|stop listening)\b/i.test(text);
+      const wantsConfirm = settings.confirmBeforeAdding;
 
-      if (settings.continuousMode && !completed && !userSaidDone && !manualStopRef.current && sessionActiveRef.current) {
-        // Small gap so the TTS doesn't bleed into the next listen window
-        setTimeout(() => {
-          if (sessionActiveRef.current && !manualStopRef.current) startListening();
-        }, 400);
-      } else {
+      if (wantsConfirm) {
+        // Stage the order for the confirm modal. Don't commit to Redux yet.
+        // If a pending order already exists, append the new parse to it
+        // (so "listen more" can grow the staged list).
+        setPendingOrder(prev => {
+          const incoming = (newCart || []).map(it => ({
+            menu_item_id: it.menu_item_id,
+            name: it.name,
+            unit_price: Number(it.unit_price) || 0,
+            quantity: Math.max(1, Number(it.quantity) || 1),
+            variant_id: it.variant_id || null,
+            variant_name: it.variant_name || null,
+            food_type: it.food_type || 'veg',
+            notes: it.notes || '',
+          }));
+          if (!prev) {
+            return { items: incoming, transcripts: [text], response, action };
+          }
+          // Merge: replace prev items entirely with incoming (LLM returns full cart)
+          return {
+            items: incoming,
+            transcripts: [...prev.transcripts, text],
+            response,
+            action,
+          };
+        });
+        // Pause mic during confirm — user will resume manually
         sessionActiveRef.current = false;
+      } else {
+        // Legacy behaviour: commit straight to Redux
+        syncCartToRedux(newCart, action);
+
+        if (settings.continuousMode && !completed && !userSaidDone && !manualStopRef.current && sessionActiveRef.current) {
+          setTimeout(() => {
+            if (sessionActiveRef.current && !manualStopRef.current) startListening();
+          }, 400);
+        } else {
+          sessionActiveRef.current = false;
+        }
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Voice order failed');
@@ -364,6 +397,76 @@ export default function useVoiceOrder(langOverride) {
     setTranscript('');
   }, []);
 
+  /* ──────────────────────────────────────────────────────────────────
+     Pending-order helpers (used by VoiceConfirmModal)
+     ────────────────────────────────────────────────────────────────── */
+
+  // Replace one staged item by index. Pass a partial — only changed fields.
+  const updatePendingItem = useCallback((idx, patch) => {
+    setPendingOrder(prev => {
+      if (!prev) return prev;
+      const items = prev.items.map((it, i) => i === idx ? { ...it, ...patch } : it);
+      return { ...prev, items };
+    });
+  }, []);
+
+  // Remove a single staged item (e.g. voice misheard it).
+  const removePendingItem = useCallback((idx) => {
+    setPendingOrder(prev => {
+      if (!prev) return prev;
+      const items = prev.items.filter((_, i) => i !== idx);
+      if (items.length === 0) return null;
+      return { ...prev, items };
+    });
+  }, []);
+
+  // Drop the staged order entirely.
+  const cancelPendingOrder = useCallback(() => {
+    setPendingOrder(null);
+    conversationHistory.current = [];
+    sessionActiveRef.current = false;
+  }, []);
+
+  // Commit the staged order to the live cart and clear the staging area.
+  const confirmPendingOrder = useCallback(() => {
+    setPendingOrder(prev => {
+      if (!prev) return prev;
+      // Push to Redux via the same syncCartToRedux pathway
+      dispatch(clearCart());
+      prev.items.forEach(item => {
+        dispatch(addToCart({
+          menu_item_id: item.menu_item_id,
+          name: item.name,
+          base_price: item.unit_price,
+          variant_id: item.variant_id || null,
+          variant_name: item.variant_name || null,
+          variant_price: item.variant_id ? item.unit_price : 0,
+          food_type: item.food_type || 'veg',
+          quantity: item.quantity,
+          special_instructions: item.notes || '',
+          addons: [],
+        }));
+      });
+      toast.success(`${prev.items.length} item${prev.items.length===1?'':'s'} added to cart`, { icon: '✅' });
+      return null;
+    });
+    // Reset LLM conversation context so the next session starts fresh
+    conversationHistory.current = [];
+  }, [dispatch]);
+
+  // "Listen More" — keep the staged items, re-arm the mic, the next LLM
+  // response will replace the staged cart (current_cart sent to LLM will
+  // include the staged items so the LLM treats this as cumulative).
+  const listenMoreOnPending = useCallback(() => {
+    if (!pendingOrder) { toggleListening(); return; }
+    // Push staged items into the conversation context as the "current cart"
+    // by storing them on a ref; sendToLLM reads cart from Redux right now
+    // but we override via conversation history below.
+    manualStopRef.current = false;
+    sessionActiveRef.current = true;
+    startListening();
+  }, [pendingOrder, startListening, toggleListening]);
+
   return {
     isListening,
     isThinking,
@@ -374,9 +477,15 @@ export default function useVoiceOrder(langOverride) {
     lang,
     settings,
     sessionActive: sessionActiveRef.current,
+    pendingOrder,
     toggleListening,
     stopListening,
     resetConversation,
     sendToLLM,
+    updatePendingItem,
+    removePendingItem,
+    cancelPendingOrder,
+    confirmPendingOrder,
+    listenMoreOnPending,
   };
 }

@@ -571,6 +571,12 @@ function VoicePOSSection() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: 'var(--border)' }}>
         <div className="md:pr-6">
           <SettingRow
+            label="Confirm Before Adding to Cart"
+            description="After you finish speaking, show a review modal with every parsed item. Bump quantities, fix variants, remove anything the mic misheard, then tap Confirm. Strongly recommended for busy counters."
+            checked={v.confirmBeforeAdding}
+            onChange={x => update('confirmBeforeAdding', x)}
+          />
+          <SettingRow
             label="Continuous Multi-Item Mode"
             description="After each command, the mic re-arms automatically so you can keep adding items. Say 'done' or 'checkout' to stop."
             checked={v.continuousMode}
