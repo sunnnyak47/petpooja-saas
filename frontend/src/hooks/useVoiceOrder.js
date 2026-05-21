@@ -1,30 +1,93 @@
 /**
- * useVoiceOrder — lightweight hook for inline voice ordering on POS page.
- * Tap mic → listen → send transcript to Groq LLM → dispatch items to Redux cart.
- * No popup, no modal. Just voice-to-cart.
+ * useVoiceOrder — voice ordering hook for POS page.
+ *
+ * Multi-turn continuous mode: after the LLM replies, listening auto-restarts
+ * so the operator can chain commands ("Add 2 burgers" → "And a coke" →
+ * "Make that medium spicy" → "Done") without re-tapping the mic.
+ *
+ * Settings (synced from localStorage 'msrm_voice_settings'):
+ *   language          — recognition + TTS locale (default 'en-IN')
+ *   continuousMode    — auto-restart listening after each utterance (default true)
+ *   speakResponses    — TTS the LLM reply (default true)
+ *   showToasts        — show toast notifications for LLM replies (default true)
+ *   silenceTimeoutMs  — auto-stop after this much silence (default 2500)
+ *   maxSessionSec     — hard cap on a single mic session (default 60s)
+ *   saveHistory       — persist conversation transcripts locally (default true)
+ *   wakeOnOpen        — start listening as soon as voice mode is enabled
+ *   ttsRate           — speech synthesis rate (default 1.1)
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addToCart, clearCart, setOrderType as setReduxOrderType, setSelectedTable } from '../store/slices/posSlice';
+import { addToCart, clearCart, setOrderType as setReduxOrderType } from '../store/slices/posSlice';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
 // Supported languages for voice recognition
 export const VOICE_LANGUAGES = [
-  { code: 'en-IN',  label: 'English (India)',  short: 'EN-IN' },
-  { code: 'hi-IN',  label: 'Hindi',            short: 'हिंदी' },
-  { code: 'en-US',  label: 'English (US)',      short: 'EN-US' },
-  { code: 'pa-IN',  label: 'Punjabi',           short: 'ਪੰਜਾਬੀ' },
-  { code: 'ta-IN',  label: 'Tamil',             short: 'தமிழ்' },
-  { code: 'te-IN',  label: 'Telugu',            short: 'తెలుగు' },
-  { code: 'kn-IN',  label: 'Kannada',           short: 'ಕನ್ನಡ' },
-  { code: 'ml-IN',  label: 'Malayalam',          short: 'മലയാളം' },
-  { code: 'mr-IN',  label: 'Marathi',           short: 'मराठी' },
-  { code: 'gu-IN',  label: 'Gujarati',          short: 'ગુજરાતી' },
-  { code: 'bn-IN',  label: 'Bengali',           short: 'বাংলা' },
-  { code: 'ur-IN',  label: 'Urdu',              short: 'اردو' },
-  { code: 'ar-SA',  label: 'Arabic',            short: 'عربي' },
+  { code: 'en-IN',  label: 'English (India)',    short: 'EN-IN' },
+  { code: 'en-AU',  label: 'English (Australia)', short: 'EN-AU' },
+  { code: 'en-US',  label: 'English (US)',        short: 'EN-US' },
+  { code: 'en-GB',  label: 'English (UK)',        short: 'EN-GB' },
+  { code: 'hi-IN',  label: 'Hindi',               short: 'हिंदी' },
+  { code: 'pa-IN',  label: 'Punjabi',             short: 'ਪੰਜਾਬੀ' },
+  { code: 'ta-IN',  label: 'Tamil',               short: 'தமிழ்' },
+  { code: 'te-IN',  label: 'Telugu',              short: 'తెలుగు' },
+  { code: 'kn-IN',  label: 'Kannada',             short: 'ಕನ್ನಡ' },
+  { code: 'ml-IN',  label: 'Malayalam',           short: 'മലയാളം' },
+  { code: 'mr-IN',  label: 'Marathi',             short: 'मराठी' },
+  { code: 'gu-IN',  label: 'Gujarati',            short: 'ગુજરાતી' },
+  { code: 'bn-IN',  label: 'Bengali',             short: 'বাংলা' },
+  { code: 'ur-IN',  label: 'Urdu',                short: 'اردو' },
+  { code: 'ar-SA',  label: 'Arabic',              short: 'عربي' },
 ];
+
+const VOICE_SETTINGS_KEY = 'msrm_voice_settings';
+const VOICE_HISTORY_KEY = 'msrm_voice_history';
+
+export const DEFAULT_VOICE_SETTINGS = {
+  language: 'en-IN',
+  continuousMode: true,
+  speakResponses: true,
+  showToasts: true,
+  silenceTimeoutMs: 2500,
+  maxSessionSec: 60,
+  saveHistory: true,
+  wakeOnOpen: false,
+  ttsRate: 1.1,
+};
+
+export function loadVoiceSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOICE_SETTINGS_KEY) || '{}');
+    return { ...DEFAULT_VOICE_SETTINGS, ...saved };
+  } catch { return { ...DEFAULT_VOICE_SETTINGS }; }
+}
+export function saveVoiceSettings(patch) {
+  const cur = loadVoiceSettings();
+  const next = { ...cur, ...patch };
+  localStorage.setItem(VOICE_SETTINGS_KEY, JSON.stringify(next));
+  // Notify subscribers
+  window.dispatchEvent(new CustomEvent('voice-settings-changed', { detail: next }));
+  return next;
+}
+export function loadVoiceHistory() {
+  try { return JSON.parse(localStorage.getItem(VOICE_HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+export function clearVoiceHistory() {
+  localStorage.removeItem(VOICE_HISTORY_KEY);
+  window.dispatchEvent(new CustomEvent('voice-history-changed'));
+}
+function appendVoiceHistory(entry) {
+  try {
+    const cur = loadVoiceHistory();
+    cur.unshift({ ...entry, ts: Date.now() });
+    // Keep latest 100
+    const trimmed = cur.slice(0, 100);
+    localStorage.setItem(VOICE_HISTORY_KEY, JSON.stringify(trimmed));
+    window.dispatchEvent(new CustomEvent('voice-history-changed'));
+  } catch {}
+}
 
 export default function useVoiceOrder(langOverride) {
   const dispatch = useDispatch();
@@ -32,20 +95,33 @@ export default function useVoiceOrder(langOverride) {
   const cart = useSelector(s => s.pos.cart);
   const outletId = user?.outlet_id;
 
+  // Live-reloadable settings (subscribe to storage events)
+  const [settings, setSettings] = useState(loadVoiceSettings());
+  useEffect(() => {
+    const onChange = () => setSettings(loadVoiceSettings());
+    window.addEventListener('voice-settings-changed', onChange);
+    window.addEventListener('storage', (e) => { if (e.key === VOICE_SETTINGS_KEY) onChange(); });
+    return () => window.removeEventListener('voice-settings-changed', onChange);
+  }, []);
+
   const [isListening, setIsListening] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState('');
-  const lang = langOverride || 'en-IN';
   const [supported, setSupported] = useState(true);
 
-  // Conversation history for multi-turn
+  // Effective language: prop override > settings.language
+  const lang = langOverride || settings.language || 'en-IN';
+
+  // Multi-turn state
   const conversationHistory = useRef([]);
   const recognitionRef = useRef(null);
   const silenceTimer = useRef(null);
-  const safetyTimer = useRef(null);  // force-reset if stuck
+  const safetyTimer = useRef(null);
+  const sessionActiveRef = useRef(false);   // True while the user wants continuous voice mode on
+  const manualStopRef   = useRef(false);    // True when user explicitly toggled off
 
-  // Detect Electron — Web Speech API doesn't work without a Google API key bundled
+  // Detect Electron
   const isElectron = typeof window !== 'undefined' && (
     !!window.electron ||
     /electron/i.test(navigator.userAgent || '') ||
@@ -54,25 +130,22 @@ export default function useVoiceOrder(langOverride) {
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    // In Electron, the SR object exists but throws/never fires onresult.
-    // Mark as unsupported so the UI auto-falls back to text input.
     setSupported(!!SR && !isElectron);
     return () => {
+      sessionActiveRef.current = false;
       clearTimeout(silenceTimer.current);
       clearTimeout(safetyTimer.current);
       try { recognitionRef.current?.abort(); } catch (_) {}
     };
   }, [isElectron]);
 
-  /* ── Convert LLM cart items → Redux addToCart dispatches ── */
+  /* ── Convert LLM cart items → Redux cart ── */
   const syncCartToRedux = useCallback((llmCart, action) => {
     if (action === 'cleared' && (!llmCart || !llmCart.length)) {
       dispatch(clearCart());
       return;
     }
     if (!llmCart || !llmCart.length) return;
-
-    // Clear existing cart and replace with LLM's updated cart
     dispatch(clearCart());
     llmCart.forEach(item => {
       dispatch(addToCart({
@@ -96,7 +169,6 @@ export default function useVoiceOrder(langOverride) {
     setIsThinking(true);
     setLastResponse('');
 
-    // Build current_cart from what LLM needs (not Redux shape)
     const currentCart = cart.map(c => ({
       menu_item_id: c.menu_item_id,
       name: c.name,
@@ -119,20 +191,14 @@ export default function useVoiceOrder(langOverride) {
       });
 
       const data = res.data?.data || res.data || res;
-      const { cart: newCart, response, action, table_number, order_type, customer_name } = data;
+      const { cart: newCart, response, action, table_number, order_type } = data;
 
-      // Sync cart
       syncCartToRedux(newCart, action);
-
-      // Apply detected metadata
       if (order_type) dispatch(setReduxOrderType(order_type));
       if (table_number) {
-        // Try to resolve table — POS page's table list isn't accessible here,
-        // so we just toast about it
         toast.success(`Table ${table_number} detected`, { icon: '🪑', duration: 2000 });
       }
 
-      // Update conversation history
       conversationHistory.current = [
         ...newHistory,
         { role: 'assistant', content: response },
@@ -140,44 +206,68 @@ export default function useVoiceOrder(langOverride) {
 
       setLastResponse(response);
 
-      // Speak the response
-      if (response && window.speechSynthesis) {
+      // History persistence
+      if (settings.saveHistory) {
+        appendVoiceHistory({
+          user: text,
+          assistant: response,
+          action: action || null,
+          cart_after: newCart || [],
+          lang,
+        });
+      }
+
+      // TTS — optional
+      if (response && settings.speakResponses && window.speechSynthesis) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(response);
         utter.lang = lang;
-        utter.rate = 1.1;
+        utter.rate = settings.ttsRate || 1.1;
         window.speechSynthesis.speak(utter);
       }
 
-      // Toast the response for visual feedback
-      if (response) {
+      if (response && settings.showToasts) {
         toast(response, { icon: '🤖', duration: 3000, style: { maxWidth: '400px', fontSize: '13px' } });
+      }
+
+      // After the LLM responds, decide whether to listen again
+      // Stop conditions: action='completed', user said done/finish/checkout, or settings.continuousMode off
+      const completed = action === 'completed' || action === 'placed' || action === 'cancelled';
+      const userSaidDone = /\b(done|finish|that'?s all|checkout|nothing else|stop listening)\b/i.test(text);
+
+      if (settings.continuousMode && !completed && !userSaidDone && !manualStopRef.current && sessionActiveRef.current) {
+        // Small gap so the TTS doesn't bleed into the next listen window
+        setTimeout(() => {
+          if (sessionActiveRef.current && !manualStopRef.current) startListening();
+        }, 400);
+      } else {
+        sessionActiveRef.current = false;
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Voice order failed');
+      sessionActiveRef.current = false;
     } finally {
       setIsThinking(false);
     }
-  }, [isThinking, cart, outletId, syncCartToRedux, dispatch]);
+  }, [isThinking, cart, outletId, syncCartToRedux, dispatch, settings, lang]);
 
-  /* ── Start listening ── */
+  /* ── Start a recognition session ── */
   const startListening = useCallback(() => {
     if (isThinking || isListening) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast.error('Speech not supported. Use Chrome.'); return; }
 
-    // Abort any lingering previous instance
     try { recognitionRef.current?.abort(); } catch (_) {}
 
     const recognition = new SR();
     recognitionRef.current = recognition;
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = false;   // false = auto-stops after silence, more reliable
+    recognition.continuous = false;
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
-    let ended = false;  // guard against double onend/onerror
+    let ended = false;
 
     const cleanup = (text) => {
       if (ended) return;
@@ -188,10 +278,16 @@ export default function useVoiceOrder(langOverride) {
       setIsListening(false);
       setTranscript('');
       if (text) sendToLLM(text);
+      else if (sessionActiveRef.current && !manualStopRef.current && settings.continuousMode) {
+        // Empty result — listen again after a brief pause unless user stopped
+        setTimeout(() => {
+          if (sessionActiveRef.current && !manualStopRef.current) startListening();
+        }, 300);
+      }
     };
 
     recognition.onstart = () => {
-      if (import.meta.env.DEV) console.log('[Voice] Recognition started, lang:', lang);
+      if (import.meta.env.DEV) console.log('[Voice] started, lang:', lang);
       setIsListening(true);
     };
 
@@ -203,73 +299,65 @@ export default function useVoiceOrder(langOverride) {
         else interim += t;
       }
       setTranscript(finalTranscript + interim);
-      if (import.meta.env.DEV) console.log('[Voice] Transcript:', finalTranscript + interim);
 
-      // Auto-stop after 3s silence (safety net, continuous=false handles most cases)
+      // Reset silence timer on every result chunk
       clearTimeout(silenceTimer.current);
       silenceTimer.current = setTimeout(() => {
         try { recognition.stop(); } catch (_) {}
-      }, 3000);
+      }, Math.max(800, Number(settings.silenceTimeoutMs) || 2500));
     };
 
-    recognition.onend = () => {
-      if (import.meta.env.DEV) console.log('[Voice] Recognition ended, transcript:', finalTranscript.trim());
-      cleanup(finalTranscript.trim());
-    };
+    recognition.onend = () => cleanup(finalTranscript.trim());
 
     recognition.onerror = (e) => {
-      if (import.meta.env.DEV) console.warn('[Voice] Recognition error:', e.error);
-      if (e.error === 'not-allowed') {
-        toast.error('Microphone not allowed. Check browser permissions.');
-      } else if (e.error === 'no-speech') {
-        toast('No speech detected. Try again.', { icon: '🎤', duration: 2000 });
-      } else if (e.error === 'audio-capture') {
-        toast.error('No microphone found. Check your device.');
-      } else if (e.error === 'network') {
-        toast.error('Network error during speech recognition.');
-      }
-      // onerror is usually followed by onend, but force cleanup as safety
+      if (e.error === 'not-allowed') toast.error('Microphone not allowed. Check browser permissions.');
+      else if (e.error === 'no-speech') toast('No speech detected.', { icon: '🎤', duration: 1500 });
+      else if (e.error === 'audio-capture') toast.error('No microphone found.');
+      else if (e.error === 'network') toast.error('Network error during speech recognition.');
       cleanup('');
     };
 
     try {
       recognition.start();
-      // Safety: force-reset after 15s if somehow stuck
       clearTimeout(safetyTimer.current);
       safetyTimer.current = setTimeout(() => {
         if (!ended) {
-          if (import.meta.env.DEV) console.warn('[Voice] Safety timeout — force stopping');
           try { recognition.abort(); } catch (_) {}
           cleanup('');
         }
-      }, 15000);
+      }, (Number(settings.maxSessionSec) || 60) * 1000);
     } catch (err) {
-      if (import.meta.env.DEV) console.error('[Voice] Failed to start recognition:', err);
       toast.error('Could not start voice recognition.');
       cleanup('');
     }
-  }, [isListening, isThinking, lang, sendToLLM]);
+  }, [isListening, isThinking, lang, sendToLLM, settings]);
 
-  /* ── Stop listening ── */
+  /* ── Stop listening (manual) ── */
   const stopListening = useCallback(() => {
+    manualStopRef.current = true;
+    sessionActiveRef.current = false;
     clearTimeout(silenceTimer.current);
     try {
       recognitionRef.current?.stop();
     } catch (_) {
-      // If stop fails, force reset
       setIsListening(false);
       setTranscript('');
       recognitionRef.current = null;
     }
   }, []);
 
-  /* ── Toggle ── */
+  /* ── Toggle a multi-turn session on/off ── */
   const toggleListening = useCallback(() => {
-    if (isListening) stopListening();
-    else startListening();
+    if (isListening || sessionActiveRef.current) {
+      stopListening();
+    } else {
+      manualStopRef.current = false;
+      sessionActiveRef.current = true;
+      startListening();
+    }
   }, [isListening, startListening, stopListening]);
 
-  /* ── Reset conversation ── */
+  /* ── Reset conversation context (clears LLM memory) ── */
   const resetConversation = useCallback(() => {
     conversationHistory.current = [];
     setLastResponse('');
@@ -284,8 +372,11 @@ export default function useVoiceOrder(langOverride) {
     supported,
     isElectron,
     lang,
+    settings,
+    sessionActive: sessionActiveRef.current,
     toggleListening,
+    stopListening,
     resetConversation,
-    sendToLLM,  // for text input fallback
+    sendToLLM,
   };
 }

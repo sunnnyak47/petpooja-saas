@@ -23,7 +23,7 @@ import {
   Phone, ChevronDown, Keyboard, Globe,
 } from 'lucide-react';
 import TableGrid from '../components/POS/TableGrid';
-import useVoiceOrder, { VOICE_LANGUAGES } from '../hooks/useVoiceOrder';
+import useVoiceOrder, { VOICE_LANGUAGES, saveVoiceSettings } from '../hooks/useVoiceOrder';
 import Modal from '../components/Modal';
 import ModifierModal from '../components/POS/ModifierModal';
 import CancelOrderModal from '../components/POS/CancelOrderModal';
@@ -47,7 +47,13 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState('menu'); // 'menu' or 'tables'
   const [voiceText, setVoiceText] = useState('');
   const [showVoiceInput, setShowVoiceInput] = useState(false);
-  const [voiceLang, setVoiceLang] = useState('en-IN');
+  // Initial language: persisted Voice POS setting, else en-IN
+  const [voiceLang, setVoiceLang] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('msrm_voice_settings') || '{}');
+      return s.language || 'en-IN';
+    } catch { return 'en-IN'; }
+  });
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   
   // UI states
@@ -776,7 +782,7 @@ export default function POSPage() {
               <Globe className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: 'var(--text-secondary)' }} />
               <select
                 value={voiceLang}
-                onChange={(e) => setVoiceLang(e.target.value)}
+                onChange={(e) => { setVoiceLang(e.target.value); saveVoiceSettings({ language: e.target.value }); }}
                 className="pl-7 pr-2 py-2.5 rounded-xl text-xs font-medium border outline-none appearance-none cursor-pointer"
                 style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)', minWidth: '70px' }}
               >

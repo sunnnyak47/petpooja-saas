@@ -6,14 +6,20 @@ import toast from 'react-hot-toast';
 import {
   Settings, Printer, Monitor, CreditCard, Palette, Bell,
   Save, RotateCcw, ChevronRight, CheckCircle2,
-  Store, Barcode, DollarSign
+  Store, Barcode, DollarSign, Mic, History, Trash2
 } from 'lucide-react';
 import ThemeSelector from '../themes/ThemeSelector';
 import { useRegion } from '../hooks/useRegion';
+import {
+  VOICE_LANGUAGES, DEFAULT_VOICE_SETTINGS,
+  loadVoiceSettings, saveVoiceSettings,
+  loadVoiceHistory, clearVoiceHistory
+} from '../hooks/useVoiceOrder';
 
 const SECTIONS = [
   { id: 'general', label: 'General', icon: <Store className="w-5 h-5" /> },
   { id: 'tax', label: 'Tax & GST', icon: <DollarSign className="w-5 h-5" /> },
+  { id: 'voice', label: 'Voice POS', icon: <Mic className="w-5 h-5" /> },
   { id: 'receipt', label: 'Receipt Printer', icon: <Printer className="w-5 h-5" /> },
   { id: 'kds', label: 'KDS Display', icon: <Monitor className="w-5 h-5" /> },
   { id: 'payment', label: 'Payment', icon: <CreditCard className="w-5 h-5" /> },
@@ -276,6 +282,8 @@ export default function SettingsPage() {
           </div>
         );
       }
+      case 'voice':
+        return <VoicePOSSection />;
       case 'receipt':
         return (
           <div className="space-y-5">
@@ -474,6 +482,224 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   VOICE POS SECTION
+   ============================================================ */
+function VoicePOSSection() {
+  const [v, setV] = useState(loadVoiceSettings());
+  const [history, setHistory] = useState(loadVoiceHistory());
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    const refresh = () => setHistory(loadVoiceHistory());
+    window.addEventListener('voice-history-changed', refresh);
+    return () => window.removeEventListener('voice-history-changed', refresh);
+  }, []);
+
+  const update = (key, value) => {
+    const next = { ...v, [key]: value };
+    setV(next);
+    saveVoiceSettings({ [key]: value });
+  };
+
+  const resetDefaults = () => {
+    saveVoiceSettings(DEFAULT_VOICE_SETTINGS);
+    setV({ ...DEFAULT_VOICE_SETTINGS });
+    toast.success('Voice settings reset to defaults');
+  };
+
+  const testMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      toast.success('Microphone access OK');
+    } catch (e) {
+      toast.error('Microphone blocked. Please allow mic access in browser settings.');
+    }
+  };
+
+  const testTTS = () => {
+    if (!window.speechSynthesis) {
+      toast.error('Speech synthesis not supported in this browser');
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(
+      v.language?.startsWith('hi') ? 'नमस्ते, यह आवाज़ का परीक्षण है।' :
+      v.language?.startsWith('en-AU') ? "G'day! This is your voice POS speaking." :
+      'Hello! This is your voice POS speaking.'
+    );
+    utter.lang = v.language || 'en-IN';
+    utter.rate = Number(v.ttsRate) || 1.1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-4 mb-2 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div>
+          <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <Mic className="w-4 h-4" /> Voice POS
+          </h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Configure how voice ordering listens, speaks, and remembers your conversations.
+          </p>
+        </div>
+        <button onClick={resetDefaults} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+          <RotateCcw className="w-3.5 h-3.5" /> Reset to defaults
+        </button>
+      </div>
+
+      {/* Language */}
+      <div>
+        <label className="label">Recognition & Speech Language</label>
+        <select value={v.language} onChange={e => update('language', e.target.value)} className="input">
+          {VOICE_LANGUAGES.map(l => (
+            <option key={l.code} value={l.code}>{l.label} ({l.short})</option>
+          ))}
+        </select>
+        <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+          Used for speech-to-text and the assistant's spoken reply. POS terminal language picker stays in sync.
+        </p>
+      </div>
+
+      {/* Behaviour toggles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: 'var(--border)' }}>
+        <div className="md:pr-6">
+          <SettingRow
+            label="Continuous Multi-Item Mode"
+            description="After each command, the mic re-arms automatically so you can keep adding items. Say 'done' or 'checkout' to stop."
+            checked={v.continuousMode}
+            onChange={x => update('continuousMode', x)}
+          />
+          <SettingRow
+            label="Speak Responses Aloud"
+            description="Use device speakers to read back the assistant's confirmation."
+            checked={v.speakResponses}
+            onChange={x => update('speakResponses', x)}
+          />
+          <SettingRow
+            label="Show Toast Notifications"
+            description="Pop-up the assistant's reply on screen too (helpful in noisy kitchens)."
+            checked={v.showToasts}
+            onChange={x => update('showToasts', x)}
+          />
+        </div>
+        <div className="md:pl-6">
+          <SettingRow
+            label="Save Conversation History"
+            description="Keep the last 100 voice orders on this device for review and audit."
+            checked={v.saveHistory}
+            onChange={x => update('saveHistory', x)}
+          />
+          <SettingRow
+            label="Wake On Open"
+            description="Start listening automatically when you tap the Voice button (otherwise it waits for a second tap)."
+            checked={v.wakeOnOpen}
+            onChange={x => update('wakeOnOpen', x)}
+          />
+        </div>
+      </div>
+
+      {/* Numeric controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="label">Silence Timeout</label>
+          <div className="flex items-center gap-2">
+            <input type="range" min="800" max="6000" step="200" value={v.silenceTimeoutMs}
+              onChange={e => update('silenceTimeoutMs', Number(e.target.value))} className="flex-1" />
+            <span className="text-xs font-mono w-14 text-right" style={{ color: 'var(--text-secondary)' }}>{(v.silenceTimeoutMs/1000).toFixed(1)}s</span>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>How long the mic waits in silence before submitting what you said.</p>
+        </div>
+        <div>
+          <label className="label">Max Session Length</label>
+          <div className="flex items-center gap-2">
+            <input type="range" min="15" max="180" step="15" value={v.maxSessionSec}
+              onChange={e => update('maxSessionSec', Number(e.target.value))} className="flex-1" />
+            <span className="text-xs font-mono w-14 text-right" style={{ color: 'var(--text-secondary)' }}>{v.maxSessionSec}s</span>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>Hard cap on a single mic session; resets if you keep talking.</p>
+        </div>
+        <div>
+          <label className="label">Speech Rate</label>
+          <div className="flex items-center gap-2">
+            <input type="range" min="0.6" max="1.6" step="0.05" value={v.ttsRate}
+              onChange={e => update('ttsRate', Number(e.target.value))} className="flex-1" />
+            <span className="text-xs font-mono w-14 text-right" style={{ color: 'var(--text-secondary)' }}>{Number(v.ttsRate).toFixed(2)}×</span>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>Speed at which the assistant speaks back.</p>
+        </div>
+      </div>
+
+      {/* Diagnostics */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={testMic} className="btn-surface btn-sm">Test Microphone</button>
+        <button onClick={testTTS} className="btn-surface btn-sm">Test Speech Output</button>
+        <button onClick={() => setShowHistory(s => !s)} className="btn-surface btn-sm flex items-center gap-1.5">
+          <History className="w-3.5 h-3.5" />
+          {showHistory ? 'Hide' : 'Show'} History ({history.length})
+        </button>
+        {history.length > 0 && (
+          <button onClick={() => { clearVoiceHistory(); toast.success('History cleared'); }}
+            className="btn-surface btn-sm flex items-center gap-1.5 text-red-400">
+            <Trash2 className="w-3.5 h-3.5" /> Clear History
+          </button>
+        )}
+      </div>
+
+      {/* History panel */}
+      {showHistory && (
+        <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+          <h4 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Recent Voice Orders</h4>
+          {history.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>No voice conversations yet. Try the Voice button on the POS Terminal.</p>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {history.map((h, i) => (
+                <div key={i} className="rounded-lg p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                  <div className="text-[10px] uppercase tracking-wider opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                    {new Date(h.ts).toLocaleString()} · {h.lang}{h.action ? ` · ${h.action}` : ''}
+                  </div>
+                  <div className="mt-1 text-sm">
+                    <span className="font-semibold" style={{ color: 'var(--accent)' }}>You:</span> <span style={{ color: 'var(--text-primary)' }}>{h.user}</span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-semibold" style={{ color: 'var(--success)' }}>Assistant:</span> <span style={{ color: 'var(--text-primary)' }}>{h.assistant}</span>
+                  </div>
+                  {Array.isArray(h.cart_after) && h.cart_after.length > 0 && (
+                    <div className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      Cart after: {h.cart_after.map(c => `${c.name}×${c.quantity}`).join(', ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingRow({ label, description, checked, onChange }) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div className="flex-1 min-w-0 pr-4">
+        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{label}</div>
+        {description && <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{description}</div>}
+      </div>
+      <button
+        onClick={() => onChange(!checked)}
+        className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200"
+        style={{ background: checked ? 'var(--accent)' : 'var(--border)' }}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 shadow-sm ${checked ? 'translate-x-5' : ''}`} />
+      </button>
     </div>
   );
 }
