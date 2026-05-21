@@ -315,6 +315,36 @@ async function startApp() {
         logger.warn(`${tbl}.image_url migration skipped:`, { error: e.message });
       }
     }
+
+    // ── Targeted schema drift: AU/regional columns added after initial deploy ─
+    // Each ALTER is wrapped in its own try-catch so missing tables don't block.
+    const driftFixes = [
+      // suppliers: AU support added abn/pan/payment_terms, soft-delete + active flag
+      ['suppliers',         `ADD COLUMN IF NOT EXISTS abn VARCHAR(11),
+                             ADD COLUMN IF NOT EXISTS pan VARCHAR(12),
+                             ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(50),
+                             ADD COLUMN IF NOT EXISTS gstin VARCHAR(20),
+                             ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
+                             ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false`],
+      // table_reservations: duration_minutes was added later
+      ['table_reservations', `ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 90,
+                              ADD COLUMN IF NOT EXISTS notes TEXT,
+                              ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false`],
+      // staff_certifications: the entire table was added with the rostering module
+      // The CREATE TABLE will be a no-op if it exists.
+      // We can't easily create a new table from raw SQL safely, so just ALTER known cols.
+      ['staff_certifications', `ADD COLUMN IF NOT EXISTS provider VARCHAR(200),
+                                ADD COLUMN IF NOT EXISTS cert_number VARCHAR(100),
+                                ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`],
+    ];
+    for (const [tbl, sql] of driftFixes) {
+      try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE ${tbl} ${sql}`);
+        logger.info(`Schema drift patched: ${tbl}`);
+      } catch (e) {
+        logger.warn(`Schema drift skipped (${tbl}):`, { error: e.message });
+      }
+    }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
     logger.error('Failed to establish database connection during startup:', err.message);
