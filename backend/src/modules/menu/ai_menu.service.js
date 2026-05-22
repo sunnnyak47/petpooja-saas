@@ -343,31 +343,31 @@ async function parseMenuFromText(text) {
   return structureMenuFromText(text, 'pasted text from owner');
 }
 
-/**
- * Mode 4: Fetch URL → strip HTML → parse with Gemini.
- */
-async function parseMenuFromUrl(url) {
-  if (!/^https?:\/\//i.test(url || '')) {
-    throw new Error('URL must start with http:// or https://');
-  }
-  let html;
+/* ─────────────────────────────────────────────────────────────
+   URL crawler internals
+───────────────────────────────────────────────────────────── */
+
+/** One-shot fetch with timeout. Returns the HTML string or null on failure. */
+async function fetchHtml(url, timeoutMs = 12000) {
   try {
-    // 12s timeout, give-up early if the page is huge or slow
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: { 'User-Agent': 'Mozilla/5.0 MSRM-MenuBot/1.0' },
+      redirect: 'follow',
     });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`Fetch returned HTTP ${res.status}`);
-    html = await res.text();
-  } catch (err) {
-    if (err.name === 'AbortError') throw new Error('URL took too long to load (>12s). Try a different page.');
-    throw new Error(`Could not fetch URL: ${err.message}`);
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (_) {
+    return null;
   }
-  // Crude HTML → text: strip script/style/comments, collapse whitespace.
-  const text = html
+}
+
+/** Convert HTML → plain text by stripping scripts/styles/tags. */
+function stripHtml(html) {
+  return (html || '')
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -377,8 +377,171 @@ async function parseMenuFromUrl(url) {
     .replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (text.length < 50) throw new Error('Page had almost no text — the menu may be loaded by JavaScript and unreachable.');
-  return structureMenuFromText(text, `webpage: ${url}`);
+}
+
+// Path tokens that strongly suggest a menu page (multilingual considered later).
+const MENU_KEYWORDS = [
+  'menu', 'menus', 'food', 'eat', 'eats',
+  'lunch', 'dinner', 'breakfast', 'brunch',
+  'starters', 'entrees', 'mains', 'sides', 'desserts', 'dessert',
+  'specials', 'kids', 'drinks', 'beverages', 'cocktails', 'wine', 'beer',
+  'pizza', 'pizzas', 'pasta', 'burgers', 'salads', 'sandwiches',
+  'snacks', 'coffee', 'tea', 'order',
+];
+
+// Anti-patterns — paths that look menu-ish but aren't (cart/checkout/blog/auth).
+const MENU_BLOCKLIST = [
+  'cart', 'checkout', 'account', 'login', 'signin', 'signup', 'register',
+  'contact', 'about', 'blog', 'news', 'careers', 'jobs', 'press',
+  'gallery', 'reservation', 'reservations', 'book', 'booking',
+  'privacy', 'terms', 'faq', 'help', 'support',
+  'instagram', 'facebook', 'twitter', 'tiktok', 'youtube', 'linkedin',
+];
+
+/**
+ * Returns true if a URL is likely a menu sub-page.
+ * Considers path tokens, link text, and excludes obvious non-menu paths.
+ */
+function looksLikeMenuLink(href, linkText, basePath) {
+  const path = (href || '').toLowerCase();
+  const text = (linkText || '').toLowerCase();
+
+  // Exclude if path or text matches a blocklist token.
+  for (const bad of MENU_BLOCKLIST) {
+    const re = new RegExp(`(?:^|[\\/_-])${bad}(?:[\\/_-]|$)`, 'i');
+    if (re.test(path) || re.test(text)) return false;
+  }
+  // Include if path or text contains a menu keyword.
+  for (const good of MENU_KEYWORDS) {
+    const re = new RegExp(`(?:^|[\\/_-])${good}(?:[\\/_-]|$|\\b)`, 'i');
+    if (re.test(path) || re.test(text)) return true;
+  }
+  return false;
+}
+
+/**
+ * Discover menu sub-pages by scraping <a href> elements from the seed HTML.
+ * Filters to same-origin, dedupes, scores by likelihood, and caps the list.
+ *
+ * @param {string} seedUrl  URL the user pasted
+ * @param {string} html     HTML of the seed page
+ * @param {number} cap      Maximum sub-pages to follow
+ * @returns {string[]} ordered list of candidate menu URLs (excluding seed)
+ */
+function discoverMenuLinks(seedUrl, html, cap = 10) {
+  const base = new URL(seedUrl);
+  const found = new Map();   // canonical href → linkText
+
+  // Extract <a> tags. Tolerant regex — Gemini doesn't need perfection.
+  const re = /<a\b[^>]*\bhref\s*=\s*(['"])([^'"]+)\1[^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const rawHref = m[2];
+    const innerText = m[3].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    let absolute;
+    try {
+      absolute = new URL(rawHref, seedUrl).toString();
+    } catch (_) { continue; }
+    // Same origin only.
+    const u = new URL(absolute);
+    if (u.origin !== base.origin) continue;
+    // Drop fragment + trailing slash for dedup.
+    u.hash = '';
+    const canonical = u.toString().replace(/\/+$/, '');
+    if (canonical === seedUrl.replace(/\/+$/, '')) continue;
+    if (found.has(canonical)) continue;
+    if (!looksLikeMenuLink(u.pathname + u.search, innerText, base.pathname)) continue;
+    found.set(canonical, innerText);
+    if (found.size >= cap * 3) break; // hard limit to avoid huge pages
+  }
+
+  // Rank: paths containing 'menu' first, then by ascending depth (shorter paths
+  // usually mean main category pages), capped at `cap`.
+  return [...found.keys()]
+    .sort((a, b) => {
+      const aM = /menu/i.test(a) ? 0 : 1;
+      const bM = /menu/i.test(b) ? 0 : 1;
+      if (aM !== bM) return aM - bM;
+      const aDepth = new URL(a).pathname.split('/').filter(Boolean).length;
+      const bDepth = new URL(b).pathname.split('/').filter(Boolean).length;
+      return aDepth - bDepth;
+    })
+    .slice(0, cap);
+}
+
+/**
+ * Mode 4: Fetch URL → strip HTML → parse with Gemini.
+ * When `crawl=true`, also discovers and fetches up to 10 menu sub-pages on
+ * the same domain, then concatenates all text into one prompt.
+ *
+ * @param {string} url
+ * @param {object} opts
+ * @param {boolean} [opts.crawl=true]   follow menu-like links on the same domain
+ * @param {number}  [opts.maxPages=10]
+ * @returns {Promise<object>} structured menu
+ */
+async function parseMenuFromUrl(url, opts = {}) {
+  const { crawl = true, maxPages = 10 } = opts;
+  if (!/^https?:\/\//i.test(url || '')) {
+    throw new Error('URL must start with http:// or https://');
+  }
+
+  // ── Seed page ─────────────────────────────────────────────
+  const seedHtml = await fetchHtml(url, 12000);
+  if (!seedHtml) throw new Error('Could not fetch the URL (4xx/5xx or network error).');
+  const seedText = stripHtml(seedHtml);
+  const seedTitleMatch = seedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const seedTitle = seedTitleMatch ? stripHtml(seedTitleMatch[1]) : '';
+
+  if (!crawl) {
+    if (seedText.length < 50) {
+      throw new Error('Page had almost no text — menu may be loaded by JavaScript. Try the URL of the actual menu page.');
+    }
+    return structureMenuFromText(seedText, `webpage: ${url}`);
+  }
+
+  // ── Discover + fetch sub-pages in parallel ────────────────
+  const subUrls = discoverMenuLinks(url, seedHtml, maxPages);
+  logger.info('Crawler: discovered sub-pages', { seed: url, count: subUrls.length, urls: subUrls });
+
+  let combinedText = `[Source: ${url}]\n[Page title: ${seedTitle}]\n\n${seedText}`;
+  const visitedPages = [{ url, chars: seedText.length, ok: true }];
+
+  if (subUrls.length > 0) {
+    const results = await Promise.allSettled(
+      subUrls.map(u => fetchHtml(u, 10000).then(html => ({ url: u, html })))
+    );
+    for (const r of results) {
+      if (r.status !== 'fulfilled' || !r.value?.html) {
+        visitedPages.push({ url: r.value?.url || '?', chars: 0, ok: false });
+        continue;
+      }
+      const t = stripHtml(r.value.html);
+      if (t.length < 80) {
+        visitedPages.push({ url: r.value.url, chars: t.length, ok: false });
+        continue;
+      }
+      const title = (r.value.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [, ''])[1];
+      combinedText += `\n\n────────\n[Source: ${r.value.url}]\n[Page title: ${stripHtml(title)}]\n\n${t}`;
+      visitedPages.push({ url: r.value.url, chars: t.length, ok: true });
+    }
+  }
+
+  if (combinedText.length < 200) {
+    throw new Error('All fetched pages were almost empty — the menu is likely rendered by JavaScript.');
+  }
+
+  // Cap total payload sent to Gemini.
+  if (combinedText.length > 200000) combinedText = combinedText.slice(0, 200000);
+
+  logger.info('Crawler: combined text ready', { totalChars: combinedText.length, pages: visitedPages.filter(p => p.ok).length });
+  const result = await structureMenuFromText(
+    combinedText,
+    `${visitedPages.filter(p => p.ok).length} page(s) crawled from ${new URL(url).origin}`
+  );
+  // Surface which pages contributed (frontend can show this in the review screen)
+  result._crawl = { seedUrl: url, visitedPages };
+  return result;
 }
 
 /**

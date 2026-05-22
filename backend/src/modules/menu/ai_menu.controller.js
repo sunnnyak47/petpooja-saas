@@ -41,12 +41,15 @@ async function parseText(req, res, next) {
   } catch (err) { next(err); }
 }
 
-/** POST /api/menu/ai/parse-url — body: { url } */
+/** POST /api/menu/ai/parse-url — body: { url, crawl?, max_pages? } */
 async function parseUrl(req, res, next) {
   try {
-    const { url } = req.body || {};
+    const { url, crawl, max_pages } = req.body || {};
     if (!url || !url.trim()) return sendError(res, 400, 'URL is required');
-    const data = await aiService.parseMenuFromUrl(url.trim());
+    const data = await aiService.parseMenuFromUrl(url.trim(), {
+      crawl: crawl !== false,                                          // default true
+      maxPages: Math.max(1, Math.min(20, Number(max_pages) || 10)),    // clamp 1..20
+    });
     sendSuccess(res, data, 'Menu extracted from URL');
   } catch (err) { next(err); }
 }

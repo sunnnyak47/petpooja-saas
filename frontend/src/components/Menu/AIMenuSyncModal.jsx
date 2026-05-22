@@ -51,6 +51,9 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
   const [previewUrl, setPreviewUrl] = useState(null);  // image preview only
   const [pasteText, setPasteText] = useState('');
   const [urlInput, setUrlInput] = useState('');
+  // URL crawler: when on, the backend also follows up to 10 menu-related
+  // sub-pages on the same domain and merges them into one extraction.
+  const [urlCrawl, setUrlCrawl] = useState(true);
 
   // Result
   const [extractedData, setExtractedData] = useState(null);
@@ -84,7 +87,10 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
           resp = await api.post('/menu/ai/parse-text', { text: pasteText });
         } else if (mode === 'url') {
           if (!urlInput.trim()) throw new Error('Please enter a URL');
-          resp = await api.post('/menu/ai/parse-url', { url: urlInput.trim() });
+          resp = await api.post('/menu/ai/parse-url', {
+            url: urlInput.trim(),
+            crawl: urlCrawl,
+          });
         } else if (mode === 'csv') {
           if (!file) throw new Error('Please choose a spreadsheet');
           const fd = new FormData();
@@ -150,7 +156,7 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
   const resetAndClose = () => {
     setStep('upload'); setMode('image');
     setFile(null); setPreviewUrl(null);
-    setPasteText(''); setUrlInput('');
+    setPasteText(''); setUrlInput(''); setUrlCrawl(true);
     setExtractedData(null); setScanStep(0);
     onClose();
   };
@@ -258,17 +264,40 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
               {/* URL mode */}
               {mode === 'url' && (
                 <ModeBlock title="Import from Website URL"
-                  subtitle="Paste the URL of your existing menu page — we fetch and structure it.">
+                  subtitle="Paste any page on the restaurant's website — homepage or menu landing page works.">
                   <input
                     type="url"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    placeholder="https://my-restaurant.com.au/menu"
+                    placeholder="https://my-restaurant.com.au"
                     className="w-full p-3 rounded-xl border text-sm outline-none"
                     style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                   />
-                  <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                    Works best with static HTML menus. JavaScript-rendered SPAs may return no content.
+
+                  <label
+                    className="mt-2 flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+                    style={{
+                      borderColor: urlCrawl ? 'var(--accent)' : 'var(--border)',
+                      background: urlCrawl ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--bg-secondary)',
+                    }}>
+                    <input
+                      type="checkbox"
+                      checked={urlCrawl}
+                      onChange={(e) => setUrlCrawl(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                        Also follow menu sub-pages (recommended)
+                      </div>
+                      <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                        Auto-discovers up to 10 same-domain pages like /starters, /mains, /drinks, /lunch and merges them into one extraction. Turn off for a faster single-page scan.
+                      </div>
+                    </div>
+                  </label>
+
+                  <p className="text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>
+                    Works best with static HTML menus. JavaScript-rendered SPAs (Squarespace newer themes, Wix) may return no content.
                   </p>
                 </ModeBlock>
               )}
