@@ -3,7 +3,8 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRegion } from '../hooks/useRegion';
-import { AU_DIETARY_TAGS, AU_TAG_MAP } from '../constants/dietaryTags';
+import { AU_DIETARY_TAGS, AU_TAG_MAP, getTagMap } from '../constants/dietaryTags';
+import DietaryTagPicker from '../components/Menu/DietaryTagPicker';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -578,32 +579,40 @@ export default function MenuPage() {
                      {isAU ? (
                        <div className="col-span-2">
                          <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Dietary & Allergen Tags</label>
-                         <div className="flex flex-wrap gap-2">
-                           {AU_DIETARY_TAGS.map(tag => {
-                             const active = (itemForm.tags || []).includes(tag.value);
-                             return (
-                               <button key={tag.value} type="button" onClick={() => {
-                                 const cur = itemForm.tags || [];
-                                 setItemForm({...itemForm, tags: active ? cur.filter(v => v !== tag.value) : [...cur, tag.value]});
-                               }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${active ? `${tag.bg} ${tag.text} ${tag.border}` : 'bg-surface-900 text-surface-500 border-surface-700 hover:border-surface-500'}`}>
-                                 <span className="text-[10px] font-black">{tag.abbr}</span> {tag.label}
-                               </button>
-                             );
-                           })}
-                         </div>
+                         <DietaryTagPicker
+                           region="AU"
+                           outletId={outletId}
+                           selectedTags={itemForm.tags || []}
+                           onChange={(newTags) => setItemForm({ ...itemForm, tags: newTags })}
+                         />
                          <div className="mt-3">
                            <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Allergen Notes (optional)</label>
                            <textarea className="input w-full h-16 resize-none text-sm" placeholder="e.g. May contain traces of sesame..." value={itemForm.allergen_info || ''} onChange={e => setItemForm({...itemForm, allergen_info: e.target.value})} />
                          </div>
                        </div>
                      ) : (
-                       <div>
-                         <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Dietary Type *</label>
-                         <select className="input w-full" value={itemForm.food_type} onChange={e=>setItemForm({...itemForm, food_type: e.target.value})}>
-                           <option value="veg">🟢 Vegetarian</option>
-                           <option value="non_veg">🔴 Non-Vegetarian</option>
-                           <option value="egg">🟡 Contains Egg</option>
-                         </select>
+                       <div className="col-span-2 space-y-3">
+                         <div>
+                           <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Dietary Type *</label>
+                           <select className="input w-full" value={itemForm.food_type} onChange={e=>setItemForm({...itemForm, food_type: e.target.value})}>
+                             <option value="veg">🟢 Vegetarian</option>
+                             <option value="non_veg">🔴 Non-Vegetarian</option>
+                             <option value="egg">🟡 Contains Egg</option>
+                           </select>
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Additional Tags &amp; Allergens</label>
+                           <DietaryTagPicker
+                             region="IN"
+                             outletId={outletId}
+                             selectedTags={itemForm.tags || []}
+                             onChange={(newTags) => setItemForm({ ...itemForm, tags: newTags })}
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Allergen Notes (optional)</label>
+                           <textarea className="input w-full h-16 resize-none text-sm" placeholder="e.g. May contain traces of nuts..." value={itemForm.allergen_info || ''} onChange={e => setItemForm({...itemForm, allergen_info: e.target.value})} />
+                         </div>
                        </div>
                      )}
                   </div>
