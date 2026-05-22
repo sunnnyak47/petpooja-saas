@@ -218,12 +218,7 @@ async function getCRMDashboard(outletId) {
       total_points_earned: loyaltyStats._sum.total_earned || 0,
       total_points_redeemed: loyaltyStats._sum.total_redeemed || 0,
     },
-    loyalty_config: {
-      earn_per_amount: appConfig.loyalty.earnPerAmount,
-      earn_rate: appConfig.loyalty.earnRate,
-      redeem_value: appConfig.loyalty.redeemValue,
-      min_redemption: appConfig.loyalty.minRedemption,
-    },
+    loyalty_config: await getLoyaltyConfig(outletId),
   };
 }
 
@@ -253,8 +248,10 @@ async function getBirthdayCustomers(daysAhead = 7) {
 
 async function earnPoints(customerId, outletId, orderId, orderAmount) {
   const prisma = getDbClient();
-  // earnRate points per earnPerAmount rupees
-  const pointsEarned = Math.floor((orderAmount / appConfig.loyalty.earnPerAmount) * appConfig.loyalty.earnRate);
+  // Use per-outlet config so each outlet can run their own programme.
+  const cfg = await getLoyaltyConfig(outletId);
+  if (!cfg.enabled) return { points_earned: 0, new_balance: 0 };
+  const pointsEarned = Math.floor((orderAmount / cfg.earn_per_amount) * cfg.earn_rate);
   if (pointsEarned <= 0) return { points_earned: 0, new_balance: 0 };
 
   const result = await prisma.$transaction(async (tx) => {
@@ -294,11 +291,12 @@ async function redeemPoints(customerId, outletId, orderId, points) {
   if (!loyalty || loyalty.current_balance < points) {
     throw new BadRequestError(`Insufficient points. Available: ${loyalty?.current_balance || 0}`);
   }
-  if (points < appConfig.loyalty.minRedemption) {
-    throw new BadRequestError(`Minimum ${appConfig.loyalty.minRedemption} points required to redeem`);
+  const cfg = await getLoyaltyConfig(outletId);
+  if (points < cfg.min_redemption) {
+    throw new BadRequestError(`Minimum ${cfg.min_redemption} points required to redeem`);
   }
 
-  const discountAmount = points * appConfig.loyalty.redeemValue;
+  const discountAmount = points * cfg.redeem_value;
 
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.loyaltyPoints.update({
@@ -524,10 +522,92 @@ async function sendBirthdayCampaign(outletId, messageTemplate) {
   return { sent: customers.length, campaign_id: campaign.id };
 }
 
+/* ============================
+   LOYALTY PROGRAMME CONFIG
+   ============================ */
+
+// Setting key shape we persist to OutletSetting.
+const LOYALTY_CONFIG_KEY = 'loyalty_config';
+
+// Validated whitelist — only these keys are accepted from the request body.
+const LOYALTY_CONFIG_FIELDS = [
+  'enabled',                 // boolean — programme on/off
+  'earn_rate',               // number  — points earned per `earn_per_amount`
+  'earn_per_amount',         // number  — currency unit a customer must spend to earn 1×earn_rate
+  'redeem_value',            // number  — currency value of 1 point at redemption
+  'min_redemption',          // number  — minimum points required to redeem
+  'max_redemption_pct',      // number  — cap (%) on what a single order can be paid in points
+  'signup_bonus',            // number  — points awarded on customer signup
+  'birthday_bonus',          // number  — points awarded on customer birthday
+  'referral_bonus',          // number  — points awarded for referrals
+  'vip_threshold',           // number  — total spend to reach VIP tier
+  'vip_multiplier',          // number  — VIP earn multiplier
+  'expiry_months',           // number  — months until points expire (0 = no expiry)
+  'eligible_categories',     // array   — empty = all categories; otherwise list of category IDs
+];
+
+function defaultLoyaltyConfig() {
+  return {
+    enabled:             true,
+    earn_rate:           Number(appConfig.loyalty?.earnRate)        || 1,
+    earn_per_amount:     Number(appConfig.loyalty?.earnPerAmount)   || 100,
+    redeem_value:        Number(appConfig.loyalty?.redeemValue)     || 1,
+    min_redemption:      Number(appConfig.loyalty?.minRedemption)   || 100,
+    max_redemption_pct:  50,
+    signup_bonus:        0,
+    birthday_bonus:      0,
+    referral_bonus:      0,
+    vip_threshold:       10000,
+    vip_multiplier:      2,
+    expiry_months:       12,
+    eligible_categories: [],
+  };
+}
+
+async function getLoyaltyConfig(outletId) {
+  const prisma = getDbClient();
+  const row = await prisma.outletSetting.findUnique({
+    where: { outlet_id_setting_key: { outlet_id: outletId, setting_key: LOYALTY_CONFIG_KEY } },
+  }).catch(() => null);
+  let saved = {};
+  if (row?.setting_value) {
+    try { saved = JSON.parse(row.setting_value); } catch { /* ignore */ }
+  }
+  return { ...defaultLoyaltyConfig(), ...saved };
+}
+
+async function updateLoyaltyConfig(outletId, patch) {
+  if (!outletId) throw new BadRequestError('outlet_id is required');
+  // Whitelist + coerce types
+  const next = { ...await getLoyaltyConfig(outletId) };
+  for (const k of LOYALTY_CONFIG_FIELDS) {
+    if (patch[k] === undefined) continue;
+    if (k === 'enabled') next[k] = !!patch[k];
+    else if (k === 'eligible_categories') next[k] = Array.isArray(patch[k]) ? patch[k] : [];
+    else next[k] = Number(patch[k]) || 0;
+  }
+  // Sanity guards
+  if (next.earn_rate < 0) next.earn_rate = 0;
+  if (next.earn_per_amount <= 0) next.earn_per_amount = 1;
+  if (next.redeem_value < 0) next.redeem_value = 0;
+  if (next.min_redemption < 0) next.min_redemption = 0;
+  if (next.max_redemption_pct < 0 || next.max_redemption_pct > 100) next.max_redemption_pct = 50;
+  if (next.expiry_months < 0) next.expiry_months = 0;
+
+  const prisma = getDbClient();
+  await prisma.outletSetting.upsert({
+    where: { outlet_id_setting_key: { outlet_id: outletId, setting_key: LOYALTY_CONFIG_KEY } },
+    create: { outlet_id: outletId, setting_key: LOYALTY_CONFIG_KEY, setting_value: JSON.stringify(next) },
+    update: { setting_value: JSON.stringify(next) },
+  });
+  return next;
+}
+
 module.exports = {
   createCustomer, listCustomers, getCustomer, findByPhone, updateCustomer, deleteCustomer,
   addAddress,
   getCRMDashboard, getBirthdayCustomers,
   earnPoints, redeemPoints, adjustPoints, getLoyaltyHistory, updateSegment,
   createCampaign, getCampaigns, getCampaignDetail, sendBirthdayCampaign,
+  getLoyaltyConfig, updateLoyaltyConfig, defaultLoyaltyConfig,
 };

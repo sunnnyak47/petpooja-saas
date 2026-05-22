@@ -28,6 +28,11 @@ router.get('/campaigns/:id', authenticate, hasPermission('VIEW_CUSTOMERS'), c.ge
 /** Search by phone (POS lookup) */
 router.get('/phone/:phone', authenticate, c.findByPhone);
 
+/** Loyalty programme config (must be declared BEFORE the `/:id` routes below
+    so a literal 'loyalty' isn't mistaken for a customer UUID). */
+router.get('/loyalty/config', authenticate, hasPermission('VIEW_CUSTOMERS'),    c.getLoyaltyConfig);
+router.put('/loyalty/config', authenticate, hasPermission('MANAGE_CUSTOMERS'),  c.updateLoyaltyConfig);
+
 /** Customer CRUD */
 router.post('/', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(createCustomerSchema), c.createCustomer);
 router.get('/', authenticate, hasPermission('VIEW_CUSTOMERS'), c.listCustomers);

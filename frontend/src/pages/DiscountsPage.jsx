@@ -256,18 +256,64 @@ export default function DiscountsPage() {
             </div>
             <div>
               <label className="text-xs text-surface-400 font-bold mb-1 block">Value *</label>
-              <input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className="input w-full" placeholder={form.type === 'percentage' ? '20' : '100'} />
+              <div className="relative">
+                {form.type === 'percentage' ? (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">%</span>
+                ) : (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">{symbol}</span>
+                )}
+                <input
+                  type="number"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  className={form.type === 'percentage' ? 'input w-full pr-8' : 'input w-full pl-9'}
+                  placeholder={form.type === 'percentage' ? '20' : '100'}
+                />
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-surface-400 font-bold mb-1 block">Min Order Value</label>
-              <input type="number" value={form.min_order_value} onChange={(e) => setForm({ ...form, min_order_value: e.target.value })} className="input w-full" placeholder="0" />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">{symbol}</span>
+                <input
+                  type="number"
+                  value={form.min_order_value}
+                  onChange={(e) => setForm({ ...form, min_order_value: e.target.value })}
+                  className="input w-full pl-9"
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-[11px] text-surface-500 mt-1">Order must reach this amount to qualify.</p>
             </div>
-            <div>
-              <label className="text-xs text-surface-400 font-bold mb-1 block">Max Discount</label>
-              <input type="number" value={form.max_discount} onChange={(e) => setForm({ ...form, max_discount: e.target.value })} className="input w-full" placeholder="No limit" />
-            </div>
+
+            {/* Max Discount — only meaningful for percentage type. Hidden for flat-amount
+                discounts because there the value IS the discount, no cap needed. */}
+            {form.type === 'percentage' ? (
+              <div>
+                <label className="text-xs text-surface-400 font-bold mb-1 block">Max Discount (cap)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">{symbol}</span>
+                  <input
+                    type="number"
+                    value={form.max_discount}
+                    onChange={(e) => setForm({ ...form, max_discount: e.target.value })}
+                    className="input w-full pl-9"
+                    placeholder={`e.g. ${symbol}30 — leave empty for no cap`}
+                  />
+                </div>
+                <p className="text-[11px] text-surface-500 mt-1">
+                  Don't take off more than this even when the % is bigger. Blank = no cap.
+                </p>
+              </div>
+            ) : (
+              <div className="self-end">
+                <p className="text-[11px] text-surface-500 italic mt-6">
+                  Max Discount cap only applies to percentage discounts.
+                </p>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

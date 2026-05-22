@@ -111,10 +111,29 @@ async function sendBirthdayCampaign(req, res, next) {
   } catch (e) { next(e); }
 }
 
+/** GET /api/customers/loyalty/config?outlet_id=... */
+async function getLoyaltyConfig(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const cfg = await customerService.getLoyaltyConfig(outletId);
+    sendSuccess(res, cfg, 'Loyalty config retrieved');
+  } catch (e) { next(e); }
+}
+
+/** PUT /api/customers/loyalty/config — body is partial; whitelist enforced in service */
+async function updateLoyaltyConfig(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const cfg = await customerService.updateLoyaltyConfig(outletId, req.body);
+    sendSuccess(res, cfg, 'Loyalty config saved');
+  } catch (e) { next(e); }
+}
+
 module.exports = {
   createCustomer, listCustomers, getCustomer, findByPhone,
   updateCustomer, deleteCustomer, addAddress,
   redeemPoints, adjustPoints, getLoyaltyHistory,
   getCRMDashboard, getBirthdayCustomers,
   createCampaign, getCampaigns, getCampaignDetail, sendBirthdayCampaign,
+  getLoyaltyConfig, updateLoyaltyConfig,
 };

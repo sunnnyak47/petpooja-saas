@@ -74,7 +74,7 @@ const ownerNav = [
   // ── Customers & Promos ──
   { section: 'Customers' },
   { path: '/customers',      label: 'Customers',       icon: Users, feature: 'customers' },
-  { path: '/crm',            label: 'Loyalty & CRM',   icon: Heart, feature: 'crm' },
+  { path: '/crm',            label: 'Loyalty & Rewards',   icon: Heart, feature: 'crm' },
   { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
   { path: '/pricing',        label: 'Dynamic Pricing', icon: Zap, feature: 'dynamic_pricing' },
   { path: '/festival',       label: 'Festival Mode',   icon: Sparkles, feature: 'festival_mode' },
@@ -121,7 +121,7 @@ const ownerNavAU = [
   { section: 'Management' },
   { path: '/menu',           label: 'Menu',             icon: UtensilsCrossed, feature: 'menu' },
   { path: '/customers',      label: 'Customers',        icon: Users,           feature: 'customers' },
-  { path: '/crm',            label: 'Loyalty & CRM',    icon: Heart,           feature: 'crm' },
+  { path: '/crm',            label: 'Loyalty & Rewards',    icon: Heart,           feature: 'crm' },
   { path: '/discounts',      label: 'Promotions',       icon: Tag,             feature: 'discounts' },
   { path: '/rostering',     label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
 

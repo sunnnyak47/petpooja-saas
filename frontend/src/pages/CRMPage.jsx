@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCurrency } from '../hooks/useCurrency';
@@ -35,6 +35,7 @@ const TAB_ITEMS = [
   { id: 'customers', label: 'Customers',  icon: Users },
   { id: 'loyalty',   label: 'Loyalty',    icon: Gift },
   { id: 'campaigns', label: 'Campaigns',  icon: Megaphone },
+  { id: 'settings',  label: 'Settings',   icon: Award },
 ];
 
 // ─── modals ───────────────────────────────────────────────────────────────────
@@ -326,7 +327,7 @@ function CampaignModal({ outletId, onClose }) {
 }
 
 // ─── tabs ─────────────────────────────────────────────────────────────────────
-function DashboardTab({ outletId }) {
+function DashboardTab({ outletId, onEditConfig }) {
   const qc = useQueryClient();
   const { symbol } = useCurrency();
   const { data, isLoading } = useQuery({
@@ -416,7 +417,19 @@ function DashboardTab({ outletId }) {
 
       {/* Loyalty config */}
       <div className="card">
-        <h3 className="font-bold mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-warning-400" />Loyalty Programme Config</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold flex items-center gap-2"><Zap className="w-4 h-4 text-warning-400" />Loyalty Programme Config</h3>
+          {onEditConfig && (
+            <button
+              type="button"
+              onClick={onEditConfig}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-surface-700 hover:border-brand-500 hover:text-brand-400 text-surface-300 transition-colors"
+              title="Edit loyalty programme settings"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-surface-400 text-xs mb-1">Earn Rate</p>
@@ -431,8 +444,10 @@ function DashboardTab({ outletId }) {
             <p className="font-bold">{loyaltyCfg.min_redemption} pts</p>
           </div>
           <div>
-            <p className="text-surface-400 text-xs mb-1">Auto Segment Update</p>
-            <p className="font-bold text-green-400">Active ✓</p>
+            <p className="text-surface-400 text-xs mb-1">Programme</p>
+            <p className={`font-bold ${loyaltyCfg.enabled !== false ? 'text-green-400' : 'text-red-400'}`}>
+              {loyaltyCfg.enabled !== false ? 'Active ✓' : 'Disabled'}
+            </p>
           </div>
         </div>
       </div>
@@ -885,7 +900,7 @@ export default function CRMPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2">
-            <Users className="w-7 h-7 text-brand-400" />Loyalty &amp; CRM
+            <Users className="w-7 h-7 text-brand-400" />Loyalty &amp; Rewards
           </h1>
           <p className="text-surface-400 text-sm mt-1">Customer relationships, loyalty points &amp; marketing campaigns</p>
         </div>
@@ -907,10 +922,225 @@ export default function CRMPage() {
       </div>
 
       {/* Tab content */}
-      {tab === 'dashboard' && <DashboardTab outletId={outletId} />}
+      {tab === 'dashboard' && <DashboardTab outletId={outletId} onEditConfig={() => setTab('settings')} />}
       {tab === 'customers' && <CustomersTab outletId={outletId} />}
       {tab === 'loyalty'   && <LoyaltyTab   outletId={outletId} />}
       {tab === 'campaigns' && <CampaignsTab  outletId={outletId} />}
+      {tab === 'settings'  && <LoyaltySettingsTab outletId={outletId} />}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LOYALTY SETTINGS TAB — configure earn/redeem/tiers/bonuses
+───────────────────────────────────────────────────────────── */
+function LoyaltySettingsTab({ outletId }) {
+  const qc = useQueryClient();
+  const { symbol } = useCurrency();
+
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ['loyalty-config', outletId],
+    queryFn: () => api.get(`/customers/loyalty/config?outlet_id=${outletId}`).then(r => r.data),
+  });
+
+  const [form, setForm] = useState(null);
+  // Pull server defaults into local form once they arrive
+  useEffect(() => {
+    if (cfg && !form) setForm({ ...cfg });
+  }, [cfg, form]);
+
+  const save = useMutation({
+    mutationFn: (body) => api.put('/customers/loyalty/config', { outlet_id: outletId, ...body }),
+    onSuccess: () => {
+      toast.success('Loyalty settings saved');
+      qc.invalidateQueries({ queryKey: ['loyalty-config', outletId] });
+      qc.invalidateQueries({ queryKey: ['crm-dashboard', outletId] });
+    },
+    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Save failed'),
+  });
+
+  if (isLoading || !form) {
+    return (
+      <div className="card animate-pulse"><div className="h-6 bg-surface-700/50 rounded w-1/3 mb-4" />
+        <div className="grid grid-cols-2 gap-4">{Array(6).fill().map((_,i)=>(<div key={i} className="h-16 bg-surface-700/30 rounded" />))}</div>
+      </div>
+    );
+  }
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const NumberInput = ({ label, value, onChange, prefix, suffix, min = 0, step = 1, hint }) => (
+    <div>
+      <label className="text-xs text-surface-400 font-bold mb-1 block">{label}</label>
+      <div className="relative">
+        {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">{prefix}</span>}
+        <input
+          type="number"
+          min={min}
+          step={step}
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+          className={`input w-full ${prefix ? 'pl-9' : ''} ${suffix ? 'pr-10' : ''}`}
+        />
+        {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-surface-400 pointer-events-none">{suffix}</span>}
+      </div>
+      {hint && <p className="text-[11px] text-surface-500 mt-1">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Programme toggle */}
+      <div className="card flex items-center justify-between">
+        <div>
+          <h3 className="font-bold flex items-center gap-2"><Gift className="w-4 h-4 text-warning-400" />Loyalty Programme</h3>
+          <p className="text-xs text-surface-400 mt-0.5">
+            When off, no points are earned or redeemed at checkout.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => set('enabled', !form.enabled)}
+          className={`relative w-12 h-7 rounded-full transition-colors ${form.enabled ? 'bg-brand-500' : 'bg-surface-700'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform shadow ${form.enabled ? 'translate-x-5' : ''}`} />
+        </button>
+      </div>
+
+      {/* Earning */}
+      <div className="card">
+        <h3 className="font-bold mb-4 flex items-center gap-2"><Coins className="w-4 h-4 text-warning-400" />Earning Rules</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <NumberInput
+            label="Points per spend (earn rate)"
+            value={form.earn_rate}
+            onChange={(v) => set('earn_rate', v)}
+            suffix="pts"
+            hint={`Customer earns this many points each time they spend ${symbol}${form.earn_per_amount}.`}
+            step={1}
+          />
+          <NumberInput
+            label="Per spend amount"
+            value={form.earn_per_amount}
+            onChange={(v) => set('earn_per_amount', v)}
+            prefix={symbol}
+            min={1}
+            hint={`e.g. ${form.earn_rate} pts per ${symbol}${form.earn_per_amount}`}
+          />
+          <NumberInput
+            label="VIP tier threshold"
+            value={form.vip_threshold}
+            onChange={(v) => set('vip_threshold', v)}
+            prefix={symbol}
+            hint="Lifetime spend required to reach VIP."
+          />
+          <NumberInput
+            label="VIP earn multiplier"
+            value={form.vip_multiplier}
+            onChange={(v) => set('vip_multiplier', v)}
+            suffix="×"
+            step={0.1}
+            hint="VIP customers earn this many times the normal rate."
+          />
+        </div>
+      </div>
+
+      {/* Redemption */}
+      <div className="card">
+        <h3 className="font-bold mb-4 flex items-center gap-2"><Gift className="w-4 h-4 text-green-400" />Redemption Rules</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <NumberInput
+            label="Value per point"
+            value={form.redeem_value}
+            onChange={(v) => set('redeem_value', v)}
+            prefix={symbol}
+            step={0.01}
+            hint={`1 point = ${symbol}${(form.redeem_value || 0).toFixed(2)} discount`}
+          />
+          <NumberInput
+            label="Minimum points to redeem"
+            value={form.min_redemption}
+            onChange={(v) => set('min_redemption', v)}
+            suffix="pts"
+            hint="Customer must hold at least this many points before they can redeem."
+          />
+          <NumberInput
+            label="Max redemption per order"
+            value={form.max_redemption_pct}
+            onChange={(v) => set('max_redemption_pct', v)}
+            suffix="%"
+            min={0}
+            hint="Cap on what fraction of an order can be paid with points (e.g. 50% means max half the bill)."
+          />
+          <NumberInput
+            label="Point expiry"
+            value={form.expiry_months}
+            onChange={(v) => set('expiry_months', v)}
+            suffix="months"
+            hint="Set to 0 if points never expire."
+          />
+        </div>
+      </div>
+
+      {/* Bonuses */}
+      <div className="card">
+        <h3 className="font-bold mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-yellow-400" />Bonus Points</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <NumberInput
+            label="Signup bonus"
+            value={form.signup_bonus}
+            onChange={(v) => set('signup_bonus', v)}
+            suffix="pts"
+            hint="Given the first time a customer is added."
+          />
+          <NumberInput
+            label="Birthday bonus"
+            value={form.birthday_bonus}
+            onChange={(v) => set('birthday_bonus', v)}
+            suffix="pts"
+            hint="Awarded automatically on the customer's birthday."
+          />
+          <NumberInput
+            label="Referral bonus"
+            value={form.referral_bonus}
+            onChange={(v) => set('referral_bonus', v)}
+            suffix="pts"
+            hint="Awarded when a referred customer places their first order."
+          />
+        </div>
+      </div>
+
+      {/* Live preview */}
+      <div className="card bg-surface-900/60 border border-brand-500/20">
+        <h3 className="font-bold mb-2 flex items-center gap-2 text-brand-400"><Zap className="w-4 h-4" />Preview</h3>
+        <p className="text-sm text-surface-300">
+          A customer who spends <span className="font-bold text-white">{symbol}{form.earn_per_amount * 10}</span> earns{' '}
+          <span className="font-bold text-warning-400">{form.earn_rate * 10} pts</span> · those points are worth{' '}
+          <span className="font-bold text-green-400">{symbol}{(form.earn_rate * 10 * form.redeem_value).toFixed(2)}</span> in store credit.
+        </p>
+        <p className="text-xs text-surface-500 mt-1.5">
+          Effective discount rate: ~{((form.earn_rate * form.redeem_value / form.earn_per_amount) * 100).toFixed(2)}% on every order.
+        </p>
+      </div>
+
+      {/* Footer actions */}
+      <div className="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setForm({ ...cfg })}
+          disabled={save.isPending}
+          className="px-4 py-2 rounded-xl text-sm font-semibold border border-surface-700 text-surface-300 hover:border-surface-500"
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={() => save.mutate(form)}
+          disabled={save.isPending}
+          className="btn-primary px-6 py-2 font-bold flex items-center gap-2 disabled:opacity-50"
+        >
+          {save.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
     </div>
   );
 }
