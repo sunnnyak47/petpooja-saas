@@ -226,6 +226,15 @@ async function structureMenuFromText(rawText, sourceHint = 'menu text') {
   const model = getGeminiModel();
   const prompt = `${MENU_PROMPT}
 
+CRITICAL PRICE RULE for the input below:
+- Prices in the input may use any currency symbol: A$, AU$, $, ₹, Rs., £, €.
+- "A$8" means 8 dollars (base_price: 8) — NOT 800 cents.
+- "A$22" means 22 dollars (base_price: 22) — NOT 2200.
+- "A$8.50" means 8.50 dollars (base_price: 8.50).
+- "Rs.100" or "₹100" means 100 (base_price: 100).
+- Treat base_price as a whole-currency-unit number (dollars or rupees), NEVER in cents/paise.
+- Strip the currency symbol; output only the numeric value.
+
 INPUT (${sourceHint}):
 """
 ${rawText.slice(0, 50000)}
