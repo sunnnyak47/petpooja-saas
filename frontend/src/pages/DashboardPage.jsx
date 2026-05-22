@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
-import HealthScoreWidget from '../components/HealthScoreWidget';
 import {
   TrendingUp, ShoppingBag, IndianRupee, DollarSign, Users,
   ArrowUpRight, ArrowDownRight, ShoppingCart,
@@ -170,7 +169,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-5">
+    // Centered max-width container — balanced whitespace, modern SaaS look.
+    <div className="max-w-7xl mx-auto space-y-5">
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
@@ -215,11 +215,83 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── Middle row ── */}
+      {/* ── Middle row — AI Forecast (replaces Health Score) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Health Score Widget */}
-        <HealthScoreWidget />
+        {/* AI Forecast — primary widget for daily ops */}
+        <div className="card lg:col-span-1">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI Forecast</p>
+            </div>
+            {forecastData && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{
+                  background: (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color + '18',
+                  color:      (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color,
+                }}
+              >
+                {forecastData.day_of_week}
+              </span>
+            )}
+          </div>
+
+          {forecastLoading ? (
+            <div className="flex items-center justify-center py-8 gap-2" style={{ color: 'var(--text-secondary)' }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Forecasting…</span>
+            </div>
+          ) : !forecastData ? (
+            <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>Forecast unavailable</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="px-3 py-3 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
+                <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Predicted Revenue</p>
+                <p className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                  {format(forecastData.predicted_revenue)}
+                </p>
+                {forecastData.revenue_range && (
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    Range: {format(forecastData.revenue_range.low)} – {format(forecastData.revenue_range.high)}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Orders</p>
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{forecastData.predicted_orders}</p>
+                </div>
+                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
+                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Avg Order</p>
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{format(forecastData.avg_order_value)}</p>
+                </div>
+              </div>
+              {forecastData.top_predicted_items?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Expected top sellers</p>
+                  <div className="space-y-1.5">
+                    {forecastData.top_predicted_items.slice(0, 3).map((item, idx) => (
+                      <div key={item.menu_item_id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg" style={{ background: 'var(--bg-hover)' }}>
+                        <span className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                          style={{ background: 'var(--accent)' + '22', color: 'var(--accent)' }}>{idx + 1}</span>
+                        <span className="text-xs font-medium flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</span>
+                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>~{item.predicted_qty}/day</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                <span className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color }} />
+                {(CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).label}
+                {' · '}{forecastData.data_points} day{forecastData.data_points !== 1 ? 's' : ''} of data
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Live status */}
         <div className="card">
@@ -244,7 +316,49 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Recent Orders (replaces "vs Yesterday") ── */}
+        {/* Top selling items — now beside Live Status */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Top Selling Items</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>This Month</span>
+          </div>
+          <div className="space-y-2">
+            {topItems?.map((item, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                style={{ background: 'var(--bg-hover)' }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={{ background: 'var(--accent)', color: '#fff', opacity: 1 - idx * 0.12 }}
+                >
+                  {idx + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{item.category}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold" style={{ color: 'var(--accent)' }}>
+                    {item.count} <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>sold</span>
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{format(Number(item.revenue || 0))}</p>
+                </div>
+              </div>
+            ))}
+            {(!topItems || topItems.length === 0) && (
+              <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>No sales data yet</p>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Bottom row — Recent Orders (2/3) + Quick Actions (1/3) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Recent Orders */}
         <div className="card lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -307,10 +421,7 @@ export default function DashboardPage() {
                     onMouseEnter={e  => e.currentTarget.style.background = 'var(--bg-active)'}
                     onMouseLeave={e  => e.currentTarget.style.background = 'var(--bg-hover)'}
                   >
-                    {/* icon */}
                     <Icon className="w-4 h-4 flex-shrink-0" style={{ color: iconColor }} />
-
-                    {/* order number + table */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -326,8 +437,6 @@ export default function DashboardPage() {
                         {' · '}{timeAgo(order.created_at)}
                       </p>
                     </div>
-
-                    {/* amount + status */}
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                         {format(order.grand_total || order.total_amount || order.net_amount || 0)}
@@ -337,136 +446,6 @@ export default function DashboardPage() {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Bottom row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Top selling items */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Top Selling Items</p>
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>This Month</span>
-          </div>
-          <div className="space-y-2">
-            {topItems?.map((item, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                style={{ background: 'var(--bg-hover)' }}
-              >
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
-                  style={{ background: 'var(--accent)', color: '#fff', opacity: 1 - idx * 0.12 }}
-                >
-                  {idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{item.category}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold" style={{ color: 'var(--accent)' }}>
-                    {item.count} <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>sold</span>
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{format(Number(item.revenue || 0))}</p>
-                </div>
-              </div>
-            ))}
-            {(!topItems || topItems.length === 0) && (
-              <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>No sales data yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* ── AI Demand Forecast ── */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI Forecast</p>
-            </div>
-            {forecastData && (
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                style={{
-                  background: (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color + '18',
-                  color:      (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color,
-                }}
-              >
-                {forecastData.day_of_week}
-              </span>
-            )}
-          </div>
-
-          {forecastLoading ? (
-            <div className="flex items-center justify-center py-8 gap-2" style={{ color: 'var(--text-secondary)' }}>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Forecasting…</span>
-            </div>
-          ) : !forecastData ? (
-            <p className="text-center py-8 text-sm" style={{ color: 'var(--text-secondary)' }}>Forecast unavailable</p>
-          ) : (
-            <div className="space-y-3">
-              {/* Revenue prediction */}
-              <div className="px-3 py-3 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
-                <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Predicted Revenue</p>
-                <p className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-                  {format(forecastData.predicted_revenue)}
-                </p>
-                {forecastData.revenue_range && (
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                    Range: {format(forecastData.revenue_range.low)} – {format(forecastData.revenue_range.high)}
-                  </p>
-                )}
-              </div>
-
-              {/* Orders + AOV */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Orders</p>
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{forecastData.predicted_orders}</p>
-                </div>
-                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'var(--bg-hover)' }}>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Avg Order</p>
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{format(forecastData.avg_order_value)}</p>
-                </div>
-              </div>
-
-              {/* Top predicted items */}
-              {forecastData.top_predicted_items?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Expected top sellers</p>
-                  <div className="space-y-1.5">
-                    {forecastData.top_predicted_items.slice(0, 3).map((item, idx) => (
-                      <div key={item.menu_item_id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg" style={{ background: 'var(--bg-hover)' }}>
-                        <span
-                          className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                          style={{ background: 'var(--accent)' + '22', color: 'var(--accent)' }}
-                        >
-                          {idx + 1}
-                        </span>
-                        <span className="text-xs font-medium flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</span>
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>~{item.predicted_qty}/day</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Confidence + note */}
-              <p className="text-[10px] flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full"
-                  style={{ background: (CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).color }}
-                />
-                {(CONFIDENCE_META[forecastData.confidence] || CONFIDENCE_META.low).label}
-                {' · '}
-                {forecastData.data_points} day{forecastData.data_points !== 1 ? 's' : ''} of data
-              </p>
             </div>
           )}
         </div>
