@@ -71,31 +71,34 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
         setScanStep(s);
       }, 2000);
       try {
+        // Multi-page crawl + Gemini parse can easily take 30–60s.
+        // Override the default axios 20s timeout for every AI extraction call.
+        const aiTimeout = { timeout: 120000 };
         let resp;
         if (mode === 'image') {
           if (!file) throw new Error('Please choose an image');
           const fd = new FormData();
           fd.append('image', file);
-          resp = await api.post('/menu/ai/scan-menu', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          resp = await api.post('/menu/ai/scan-menu', fd, { ...aiTimeout, headers: { 'Content-Type': 'multipart/form-data' } });
         } else if (mode === 'pdf') {
           if (!file) throw new Error('Please choose a PDF');
           const fd = new FormData();
           fd.append('pdf', file);
-          resp = await api.post('/menu/ai/scan-pdf', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          resp = await api.post('/menu/ai/scan-pdf', fd, { ...aiTimeout, headers: { 'Content-Type': 'multipart/form-data' } });
         } else if (mode === 'text') {
           if (!pasteText.trim()) throw new Error('Please paste some menu text');
-          resp = await api.post('/menu/ai/parse-text', { text: pasteText });
+          resp = await api.post('/menu/ai/parse-text', { text: pasteText }, aiTimeout);
         } else if (mode === 'url') {
           if (!urlInput.trim()) throw new Error('Please enter a URL');
           resp = await api.post('/menu/ai/parse-url', {
             url: urlInput.trim(),
             crawl: urlCrawl,
-          });
+          }, aiTimeout);
         } else if (mode === 'csv') {
           if (!file) throw new Error('Please choose a spreadsheet');
           const fd = new FormData();
           fd.append('file', file);
-          resp = await api.post('/menu/ai/parse-csv', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          resp = await api.post('/menu/ai/parse-csv', fd, { ...aiTimeout, headers: { 'Content-Type': 'multipart/form-data' } });
         }
         // api interceptor unwraps to {success, data, message}; data is our menu
         return resp?.data ?? resp;
