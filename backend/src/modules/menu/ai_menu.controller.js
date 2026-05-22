@@ -1,45 +1,73 @@
 /**
  * @fileoverview AI Menu Sync Controller.
- * Handles the flow of menu extraction and confirmation.
+ * Handles five input modes (image, pdf, text, url, csv) plus the
+ * final review-then-sync step.
  * @module modules/menu/ai_menu.controller
  */
 
-const aiService = require("./ai_menu.service");
-const { sendSuccess, sendError } = require("../../utils/response");
+const aiService = require('./ai_menu.service');
+const { sendSuccess, sendError } = require('../../utils/response');
 
-/**
- * Scan a menu photo and return structured draft.
- */
+/** POST /api/menu/ai/scan-menu — multipart "image" field */
 async function scanMenu(req, res, next) {
   try {
-    if (!req.file) {
-      return sendError(res, 400, "Please upload a menu image");
-    }
-
+    if (!req.file) return sendError(res, 400, 'Please upload a menu image');
     const { buffer, mimetype } = req.file;
-    const extractedData = await aiService.scanMenuImage(buffer, mimetype);
-    
-    sendSuccess(res, extractedData, "Menu scanned and extracted successfully");
-  } catch (error) {
-    next(error);
-  }
+    const data = await aiService.scanMenuImage(buffer, mimetype);
+    sendSuccess(res, data, 'Menu extracted from image');
+  } catch (err) { next(err); }
 }
 
-/**
- * Confirm and sync the draft menu to the database.
- */
+/** POST /api/menu/ai/scan-pdf — multipart "pdf" field */
+async function scanPdf(req, res, next) {
+  try {
+    if (!req.file) return sendError(res, 400, 'Please upload a PDF file');
+    if (!/pdf/i.test(req.file.mimetype || '') && !/\.pdf$/i.test(req.file.originalname || '')) {
+      return sendError(res, 400, 'Uploaded file is not a PDF.');
+    }
+    const data = await aiService.scanMenuPdf(req.file.buffer);
+    sendSuccess(res, data, 'Menu extracted from PDF');
+  } catch (err) { next(err); }
+}
+
+/** POST /api/menu/ai/parse-text — body: { text } */
+async function parseText(req, res, next) {
+  try {
+    const { text } = req.body || {};
+    if (!text || !text.trim()) return sendError(res, 400, 'Menu text is required');
+    if (text.length > 200000) return sendError(res, 400, 'Text is too long (max ~200k chars)');
+    const data = await aiService.parseMenuFromText(text);
+    sendSuccess(res, data, 'Menu extracted from pasted text');
+  } catch (err) { next(err); }
+}
+
+/** POST /api/menu/ai/parse-url — body: { url } */
+async function parseUrl(req, res, next) {
+  try {
+    const { url } = req.body || {};
+    if (!url || !url.trim()) return sendError(res, 400, 'URL is required');
+    const data = await aiService.parseMenuFromUrl(url.trim());
+    sendSuccess(res, data, 'Menu extracted from URL');
+  } catch (err) { next(err); }
+}
+
+/** POST /api/menu/ai/parse-csv — multipart "file" field */
+async function parseCsv(req, res, next) {
+  try {
+    if (!req.file) return sendError(res, 400, 'Please upload a CSV / TSV / XLSX file');
+    const data = await aiService.parseMenuFromCsv(req.file.buffer, req.file.mimetype);
+    sendSuccess(res, data, 'Menu extracted from spreadsheet');
+  } catch (err) { next(err); }
+}
+
+/** POST /api/menu/ai/confirm-sync — body: { outlet_id, menu_data } */
 async function confirmSync(req, res, next) {
   try {
     const { outlet_id, menu_data } = req.body;
-    if (!outlet_id || !menu_data) {
-      return sendError(res, 400, "Outlet ID and Menu Data are required");
-    }
-
+    if (!outlet_id || !menu_data) return sendError(res, 400, 'Outlet ID and Menu Data are required');
     const results = await aiService.syncMenu(outlet_id, menu_data);
-    sendSuccess(res, results, "Menu synced successfully to production");
-  } catch (error) {
-    next(error);
-  }
+    sendSuccess(res, results, 'Menu synced successfully to production');
+  } catch (err) { next(err); }
 }
 
-module.exports = { scanMenu, confirmSync };
+module.exports = { scanMenu, scanPdf, parseText, parseUrl, parseCsv, confirmSync };

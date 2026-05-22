@@ -21,9 +21,13 @@ const {
 } = require('./menu.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 
-/* -- AI Menu Sync -- */
-router.post('/ai/scan-menu', authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), auditLog('menu'), aiMenuController.scanMenu);
-router.post('/ai/confirm-sync', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), aiMenuController.confirmSync);
+/* -- AI Menu Sync -- five input modes, all funnel into the same review/confirm step -- */
+router.post('/ai/scan-menu',   authenticate, hasPermission('MANAGE_MENU'), upload.single('image'), auditLog('menu'), aiMenuController.scanMenu);
+router.post('/ai/scan-pdf',    authenticate, hasPermission('MANAGE_MENU'), upload.single('pdf'),   auditLog('menu'), aiMenuController.scanPdf);
+router.post('/ai/parse-text',  authenticate, hasPermission('MANAGE_MENU'),                          auditLog('menu'), aiMenuController.parseText);
+router.post('/ai/parse-url',   authenticate, hasPermission('MANAGE_MENU'),                          auditLog('menu'), aiMenuController.parseUrl);
+router.post('/ai/parse-csv',   authenticate, hasPermission('MANAGE_MENU'), upload.single('file'),  auditLog('menu'), aiMenuController.parseCsv);
+router.post('/ai/confirm-sync',authenticate, hasPermission('MANAGE_MENU'),                          auditLog('menu'), aiMenuController.confirmSync);
 
 /* -- Categories -- */
 router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), auditLog('menu'), menuController.createCategory);

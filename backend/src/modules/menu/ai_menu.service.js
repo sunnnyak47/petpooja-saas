@@ -210,4 +210,188 @@ async function syncMenu(outletId, data) {
   return results;
 }
 
-module.exports = { scanMenuImage, syncMenu };
+/* ═════════════════════════════════════════════════════════════
+   ADDITIONAL INPUT MODES — all funnel into the same JSON schema
+   so the frontend Review screen handles every result the same way.
+═════════════════════════════════════════════════════════════ */
+
+/**
+ * Shared Gemini text-prompt → structured-menu helper.
+ * Used by the text / URL / CSV importers.
+ */
+async function structureMenuFromText(rawText, sourceHint = 'menu text') {
+  if (!rawText || !rawText.trim()) {
+    throw new Error('No text content was extracted to parse.');
+  }
+  const model = getGeminiModel();
+  const prompt = `${MENU_PROMPT}
+
+INPUT (${sourceHint}):
+"""
+${rawText.slice(0, 50000)}
+"""
+
+Treat the input above the same way you would a photo of a menu. Extract every item.`;
+
+  let result;
+  try {
+    result = await model.generateContent([prompt]);
+  } catch (err) {
+    if (err.message?.includes('429') || err.message?.includes('quota')) {
+      throw new Error('Gemini rate limit hit — wait 1 minute and try again');
+    }
+    if (err.message?.includes('leaked') || err.message?.includes('403')) {
+      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
+    }
+    throw err;
+  }
+
+  const raw = result.response.text().trim();
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  let structured;
+  try {
+    structured = JSON.parse(jsonStr);
+  } catch (e) {
+    logger.error('Gemini text→JSON parse failed', { raw: raw.slice(0, 500) });
+    throw new Error('Gemini returned invalid JSON — try again with cleaner input.');
+  }
+  if (!structured.categories || !Array.isArray(structured.categories)) {
+    structured = { categories: [] };
+  }
+
+  // Sanitise — same shape as scanMenuImage
+  for (const cat of structured.categories) {
+    cat.items = (cat.items || []).map(item => ({
+      ...item,
+      base_price: parseFloat(item.base_price) || 0,
+      variants: (item.variants || []).map((v, i) => ({
+        name: v.name || `Size ${i + 1}`,
+        price: parseFloat(v.price) || 0,
+        price_addition: parseFloat(v.price_addition ?? 0) || 0,
+      })),
+      food_type: item.food_type === 'non_veg' ? 'non_veg' : 'veg',
+      description: item.description || '',
+      addons: [],
+    }));
+  }
+  return structured;
+}
+
+/**
+ * Mode 2: PDF upload. Gemini Vision handles application/pdf natively.
+ */
+async function scanMenuPdf(pdfBuffer) {
+  if (!pdfBuffer || pdfBuffer.length === 0) {
+    throw new Error('Empty PDF upload.');
+  }
+  logger.info('AI Menu Scan started via Gemini PDF', { bytes: pdfBuffer.length });
+
+  const model = getGeminiModel();
+  let result;
+  try {
+    result = await model.generateContent([
+      MENU_PROMPT,
+      { inlineData: { data: pdfBuffer.toString('base64'), mimeType: 'application/pdf' } },
+    ]);
+  } catch (err) {
+    if (err.message?.includes('429') || err.message?.includes('quota')) {
+      throw new Error('Gemini rate limit hit — wait 1 minute and try again');
+    }
+    if (err.message?.includes('leaked') || err.message?.includes('403')) {
+      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
+    }
+    throw err;
+  }
+
+  const raw = result.response.text().trim();
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  let structured;
+  try { structured = JSON.parse(jsonStr); }
+  catch (e) { throw new Error('Gemini returned invalid JSON from the PDF — try a different file.'); }
+  if (!structured.categories || !Array.isArray(structured.categories)) structured = { categories: [] };
+
+  for (const cat of structured.categories) {
+    cat.items = (cat.items || []).map(item => ({
+      ...item,
+      base_price: parseFloat(item.base_price) || 0,
+      variants: (item.variants || []).map((v, i) => ({
+        name: v.name || `Size ${i + 1}`,
+        price: parseFloat(v.price) || 0,
+        price_addition: parseFloat(v.price_addition ?? 0) || 0,
+      })),
+      food_type: item.food_type === 'non_veg' ? 'non_veg' : 'veg',
+      description: item.description || '',
+      addons: [],
+    }));
+  }
+  return structured;
+}
+
+/**
+ * Mode 3: Paste / typed text — owner pastes a menu from email, Word, etc.
+ */
+async function parseMenuFromText(text) {
+  return structureMenuFromText(text, 'pasted text from owner');
+}
+
+/**
+ * Mode 4: Fetch URL → strip HTML → parse with Gemini.
+ */
+async function parseMenuFromUrl(url) {
+  if (!/^https?:\/\//i.test(url || '')) {
+    throw new Error('URL must start with http:// or https://');
+  }
+  let html;
+  try {
+    // 12s timeout, give-up early if the page is huge or slow
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 MSRM-MenuBot/1.0' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Fetch returned HTTP ${res.status}`);
+    html = await res.text();
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('URL took too long to load (>12s). Try a different page.');
+    throw new Error(`Could not fetch URL: ${err.message}`);
+  }
+  // Crude HTML → text: strip script/style/comments, collapse whitespace.
+  const text = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length < 50) throw new Error('Page had almost no text — the menu may be loaded by JavaScript and unreachable.');
+  return structureMenuFromText(text, `webpage: ${url}`);
+}
+
+/**
+ * Mode 5: CSV/TSV upload. Convert tabular text → Gemini text prompt.
+ * We don't try to guess columns ourselves — Gemini reads it like a menu.
+ */
+async function parseMenuFromCsv(csvBuffer, mimetype = 'text/csv') {
+  if (!csvBuffer || csvBuffer.length === 0) throw new Error('Empty file.');
+  const text = csvBuffer.toString('utf8');
+  if (!text.trim()) throw new Error('File contained no text.');
+  // Hint Gemini about the structure
+  const hint = `tabular data (likely CSV or TSV export from another POS / spreadsheet).
+Common column names include: name, item, category, price, base_price, type, food_type, variant, size, description, veg, half, full, regular, medium, large.
+If you see Half/Full or R/M/L columns, treat them as variants of the same item.`;
+  return structureMenuFromText(`${hint}\n\nDATA:\n${text}`, mimetype);
+}
+
+module.exports = {
+  scanMenuImage,
+  scanMenuPdf,
+  parseMenuFromText,
+  parseMenuFromUrl,
+  parseMenuFromCsv,
+  syncMenu,
+};
