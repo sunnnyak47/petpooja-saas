@@ -174,6 +174,8 @@ async function syncMenu(outletId, data) {
   const prisma = getDbClient();
   const results = { categoriesCreated: 0, itemsCreated: 0, variantsCreated: 0, addonsCreated: 0 };
 
+  // Large menu imports (250+ items × variants) can exceed Prisma's default
+  // 5s interactive transaction timeout. Bump both the wait + max-run timeouts.
   await prisma.$transaction(async (tx) => {
     for (const catData of data.categories) {
       let category = await tx.menuCategory.findFirst({
@@ -233,6 +235,9 @@ async function syncMenu(outletId, data) {
         }
       }
     }
+  }, {
+    maxWait: 30000,      // wait up to 30s to acquire a connection
+    timeout: 240000,     // allow the tx itself to run up to 4 min for large bulk imports
   });
 
   logger.info('Menu sync complete', results);
