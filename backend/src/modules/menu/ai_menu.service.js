@@ -20,6 +20,48 @@ function getGeminiModel() {
   return genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 }
 
+/**
+ * Wrap a Gemini generateContent call with:
+ *  - one automatic retry on transient 503 (model overloaded)
+ *  - clear error messages for the common failure modes
+ *
+ * @param {object} model           the GenerativeModel returned by getGeminiModel()
+ * @param {Array}  parts           array passed straight to model.generateContent
+ * @returns {Promise<any>}         the Gemini response object
+ */
+async function geminiCall(model, parts) {
+  const attempt = async () => model.generateContent(parts);
+  try {
+    return await attempt();
+  } catch (err) {
+    const msg = err?.message || '';
+    // 503: Gemini overloaded — quick retry once with backoff
+    if (msg.includes('503') || /currently experiencing high demand|overloaded/i.test(msg)) {
+      logger.warn('Gemini 503 — retrying once after 2s');
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        return await attempt();
+      } catch (err2) {
+        const msg2 = err2?.message || '';
+        if (msg2.includes('503') || /high demand|overloaded/i.test(msg2)) {
+          throw new Error('Gemini AI is overloaded right now — please try again in a minute.');
+        }
+        throw err2;
+      }
+    }
+    if (msg.includes('429') || /quota|rate limit/i.test(msg)) {
+      throw new Error('Gemini rate limit hit — wait 1 minute and try again (1500 free scans/day).');
+    }
+    if (msg.includes('leaked') || msg.includes('403')) {
+      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
+    }
+    if (/API_KEY|not set/i.test(msg)) {
+      throw new Error('GEMINI_API_KEY not set in backend .env — get a free key at aistudio.google.com/app/apikey');
+    }
+    throw err;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    VISION EXTRACTION PROMPT
 ───────────────────────────────────────────────────────────── */
@@ -72,24 +114,10 @@ async function scanMenuImage(imageBuffer, mimeType) {
   const model = getGeminiModel();
   const mime = mimeType || 'image/jpeg';
 
-  let result;
-  try {
-    result = await model.generateContent([
-      MENU_PROMPT,
-      { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
-    ]);
-  } catch (err) {
-    if (err.message?.includes('limit: 0') || err.message?.includes('free_tier')) {
-      throw new Error('Gemini API key has no free quota. Get a fresh key from aistudio.google.com/app/apikey and set GEMINI_API_KEY in .env');
-    }
-    if (err.message?.includes('429') || err.message?.includes('quota')) {
-      throw new Error('Gemini rate limit hit — wait 1 minute and try again (1500 free scans/day)');
-    }
-    if (err.message?.includes('API_KEY') || err.message?.includes('not set')) {
-      throw new Error('GEMINI_API_KEY not set in backend .env — get a free key at aistudio.google.com/app/apikey');
-    }
-    throw err;
-  }
+  const result = await geminiCall(model, [
+    MENU_PROMPT,
+    { inlineData: { data: imageBuffer.toString('base64'), mimeType: mime } },
+  ]);
 
   const raw = result.response.text().trim();
   logger.info('Gemini response received', { chars: raw.length, preview: raw.slice(0, 200) });
@@ -242,18 +270,7 @@ ${rawText.slice(0, 50000)}
 
 Treat the input above the same way you would a photo of a menu. Extract every item.`;
 
-  let result;
-  try {
-    result = await model.generateContent([prompt]);
-  } catch (err) {
-    if (err.message?.includes('429') || err.message?.includes('quota')) {
-      throw new Error('Gemini rate limit hit — wait 1 minute and try again');
-    }
-    if (err.message?.includes('leaked') || err.message?.includes('403')) {
-      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
-    }
-    throw err;
-  }
+  const result = await geminiCall(model, [prompt]);
 
   const raw = result.response.text().trim();
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
@@ -296,21 +313,10 @@ async function scanMenuPdf(pdfBuffer) {
   logger.info('AI Menu Scan started via Gemini PDF', { bytes: pdfBuffer.length });
 
   const model = getGeminiModel();
-  let result;
-  try {
-    result = await model.generateContent([
-      MENU_PROMPT,
-      { inlineData: { data: pdfBuffer.toString('base64'), mimeType: 'application/pdf' } },
-    ]);
-  } catch (err) {
-    if (err.message?.includes('429') || err.message?.includes('quota')) {
-      throw new Error('Gemini rate limit hit — wait 1 minute and try again');
-    }
-    if (err.message?.includes('leaked') || err.message?.includes('403')) {
-      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
-    }
-    throw err;
-  }
+  const result = await geminiCall(model, [
+    MENU_PROMPT,
+    { inlineData: { data: pdfBuffer.toString('base64'), mimeType: 'application/pdf' } },
+  ]);
 
   const raw = result.response.text().trim();
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
