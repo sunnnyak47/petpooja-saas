@@ -8,6 +8,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger = require('../../config/logger');
 const { getDbClient } = require('../../config/database');
+const { BadRequestError, RateLimitError, UnauthorizedError } = require('../../utils/errors');
 
 /* ─────────────────────────────────────────────────────────────
    GEMINI CLIENT
@@ -15,7 +16,7 @@ const { getDbClient } = require('../../config/database');
 
 function getGeminiModel() {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set in .env — get a free key at https://aistudio.google.com');
+  if (!apiKey) throw new BadRequestError('GEMINI_API_KEY is not set in .env — get a free key at https://aistudio.google.com');
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 }
@@ -44,19 +45,19 @@ async function geminiCall(model, parts) {
       } catch (err2) {
         const msg2 = err2?.message || '';
         if (msg2.includes('503') || /high demand|overloaded/i.test(msg2)) {
-          throw new Error('Gemini AI is overloaded right now — please try again in a minute.');
+          throw new RateLimitError('Gemini AI is overloaded right now — please try again in a minute.');
         }
         throw err2;
       }
     }
     if (msg.includes('429') || /quota|rate limit/i.test(msg)) {
-      throw new Error('Gemini rate limit hit — wait 1 minute and try again (1500 free scans/day).');
+      throw new RateLimitError('Gemini rate limit hit — wait 1 minute and try again (1500 free scans/day).');
     }
     if (msg.includes('leaked') || msg.includes('403')) {
-      throw new Error('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
+      throw new UnauthorizedError('GEMINI_API_KEY is invalid or revoked. Get a fresh key at aistudio.google.com/app/apikey');
     }
     if (/API_KEY|not set/i.test(msg)) {
-      throw new Error('GEMINI_API_KEY not set in backend .env — get a free key at aistudio.google.com/app/apikey');
+      throw new BadRequestError('GEMINI_API_KEY not set in backend .env — get a free key at aistudio.google.com/app/apikey');
     }
     throw err;
   }
@@ -133,7 +134,7 @@ async function scanMenuImage(imageBuffer, mimeType) {
     structured = JSON.parse(jsonStr);
   } catch (e) {
     logger.error('JSON parse failed', { raw: raw.slice(0, 500) });
-    throw new Error('Gemini returned invalid JSON — try again or use a clearer photo.');
+    throw new BadRequestError('Gemini returned invalid JSON — try again or use a clearer photo.');
   }
 
   if (!structured.categories || !Array.isArray(structured.categories)) {
@@ -249,7 +250,7 @@ async function syncMenu(outletId, data) {
  */
 async function structureMenuFromText(rawText, sourceHint = 'menu text') {
   if (!rawText || !rawText.trim()) {
-    throw new Error('No text content was extracted to parse.');
+    throw new BadRequestError('No text content was extracted to parse.');
   }
   const model = getGeminiModel();
   const prompt = `${MENU_PROMPT}
@@ -279,7 +280,7 @@ Treat the input above the same way you would a photo of a menu. Extract every it
     structured = JSON.parse(jsonStr);
   } catch (e) {
     logger.error('Gemini text→JSON parse failed', { raw: raw.slice(0, 500) });
-    throw new Error('Gemini returned invalid JSON — try again with cleaner input.');
+    throw new BadRequestError('Gemini returned invalid JSON — try again with cleaner input.');
   }
   if (!structured.categories || !Array.isArray(structured.categories)) {
     structured = { categories: [] };
@@ -308,7 +309,7 @@ Treat the input above the same way you would a photo of a menu. Extract every it
  */
 async function scanMenuPdf(pdfBuffer) {
   if (!pdfBuffer || pdfBuffer.length === 0) {
-    throw new Error('Empty PDF upload.');
+    throw new BadRequestError('Empty PDF upload.');
   }
   logger.info('AI Menu Scan started via Gemini PDF', { bytes: pdfBuffer.length });
 
@@ -322,7 +323,7 @@ async function scanMenuPdf(pdfBuffer) {
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   let structured;
   try { structured = JSON.parse(jsonStr); }
-  catch (e) { throw new Error('Gemini returned invalid JSON from the PDF — try a different file.'); }
+  catch (e) { throw new BadRequestError('Gemini returned invalid JSON from the PDF — try a different file.'); }
   if (!structured.categories || !Array.isArray(structured.categories)) structured = { categories: [] };
 
   for (const cat of structured.categories) {
@@ -489,19 +490,19 @@ function discoverMenuLinks(seedUrl, html, cap = 10) {
 async function parseMenuFromUrl(url, opts = {}) {
   const { crawl = true, maxPages = 10 } = opts;
   if (!/^https?:\/\//i.test(url || '')) {
-    throw new Error('URL must start with http:// or https://');
+    throw new BadRequestError('URL must start with http:// or https://');
   }
 
   // ── Seed page ─────────────────────────────────────────────
   const seedHtml = await fetchHtml(url, 12000);
-  if (!seedHtml) throw new Error('Could not fetch the URL (4xx/5xx or network error).');
+  if (!seedHtml) throw new BadRequestError('Could not fetch the URL (4xx/5xx or network error).');
   const seedText = stripHtml(seedHtml);
   const seedTitleMatch = seedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const seedTitle = seedTitleMatch ? stripHtml(seedTitleMatch[1]) : '';
 
   if (!crawl) {
     if (seedText.length < 50) {
-      throw new Error('Page had almost no text — menu may be loaded by JavaScript. Try the URL of the actual menu page.');
+      throw new BadRequestError('Page had almost no text — menu may be loaded by JavaScript. Try the URL of the actual menu page.');
     }
     return structureMenuFromText(seedText, `webpage: ${url}`);
   }
@@ -534,7 +535,7 @@ async function parseMenuFromUrl(url, opts = {}) {
   }
 
   if (combinedText.length < 200) {
-    throw new Error('All fetched pages were almost empty — the menu is likely rendered by JavaScript.');
+    throw new BadRequestError('All fetched pages were almost empty — the menu is likely rendered by JavaScript.');
   }
 
   // Cap total payload sent to Gemini.
@@ -555,9 +556,9 @@ async function parseMenuFromUrl(url, opts = {}) {
  * We don't try to guess columns ourselves — Gemini reads it like a menu.
  */
 async function parseMenuFromCsv(csvBuffer, mimetype = 'text/csv') {
-  if (!csvBuffer || csvBuffer.length === 0) throw new Error('Empty file.');
+  if (!csvBuffer || csvBuffer.length === 0) throw new BadRequestError('Empty file.');
   const text = csvBuffer.toString('utf8');
-  if (!text.trim()) throw new Error('File contained no text.');
+  if (!text.trim()) throw new BadRequestError('File contained no text.');
   // Hint Gemini about the structure
   const hint = `tabular data (likely CSV or TSV export from another POS / spreadsheet).
 Common column names include: name, item, category, price, base_price, type, food_type, variant, size, description, veg, half, full, regular, medium, large.
