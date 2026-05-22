@@ -1,6 +1,6 @@
 {
   "name": "petpooja-erp-desktop",
-  "version": "2.0.47",
+  "version": "2.0.48",
   "description": "Petpooja ERP — Restaurant Management Desktop App (Auto-Update Enabled)",
   "main": "src/main.js",
   "homepage": "./",
