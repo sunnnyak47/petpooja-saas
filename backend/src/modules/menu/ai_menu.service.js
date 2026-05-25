@@ -93,11 +93,21 @@ Format:
   ]
 }
 
+CRITICAL PRICE RULE (overrides everything else):
+- base_price MUST be the whole-currency-unit value shown on the menu — rupees or dollars, NEVER cents/paise.
+- The "/-" suffix used in Indian menus is just a style marker meaning "rupees only". Strip it. "40/-" means 40, not 4000.
+- "Rs.100", "₹100", "₹ 100", "100/-", "INR 100" → base_price: 100.
+- "A$8", "AU$8", "$8" → base_price: 8 (NOT 800).
+- "A$6.50", "$6.50" → base_price: 6.50.
+- "Rs.10.50" → base_price: 10.50.
+- Strip currency symbols and decorative suffixes; output only the numeric value as-shown.
+- NEVER multiply by 100 or add zeros. If you read "40", base_price is 40 — full stop.
+
 Rules:
 - Extract EVERY item visible — do not skip any.
 - For pizzas with R / M / L columns: use variants named Regular, Medium, Large.
 - For 2-size items: use Half / Full.
-- base_price = the lowest / first price shown.
+- base_price = the lowest / first price shown (still in whole units per the rule above).
 - food_type: "non_veg" if item contains chicken, mutton, egg, fish, prawn; otherwise "veg".
 - description: the ingredient line shown in parentheses or below the item name, if any.
 - Ignore promotional text, daily offers, address, phone numbers, logos, QR codes.
