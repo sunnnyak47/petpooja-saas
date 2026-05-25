@@ -170,69 +170,172 @@ async function scanMenuImage(imageBuffer, mimeType) {
    SYNC REVIEWED MENU TO DB
 ───────────────────────────────────────────────────────────── */
 
+/* ─── small input sanitisers — schema has tight VarChars + Decimals.
+       Bad Gemini output (long descriptions in the food_type field,
+       names over 200 chars, etc.) is silently truncated/normalised
+       so the whole sync doesn't abort on one ugly row. */
+const VALID_FOOD_TYPES = new Set(['veg', 'non_veg', 'egg']);
+const trimTo = (s, n) => {
+  if (!s && s !== 0) return '';
+  const str = String(s).trim();
+  return str.length > n ? str.slice(0, n) : str;
+};
+const cleanFoodType = (v) => VALID_FOOD_TYPES.has(String(v || '').toLowerCase())
+  ? String(v).toLowerCase() : 'veg';
+const cleanPrice = (v) => {
+  const n = parseFloat(v);
+  if (!isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100) / 100;   // 2dp
+};
+
 async function syncMenu(outletId, data) {
   const prisma = getDbClient();
-  const results = { categoriesCreated: 0, itemsCreated: 0, variantsCreated: 0, addonsCreated: 0 };
+  const results = {
+    categoriesCreated: 0,
+    itemsCreated: 0,
+    variantsCreated: 0,
+    addonsCreated: 0,
+    combosCreated: 0,
+    errors: [],
+  };
 
   // Large menu imports (250+ items × variants) can exceed Prisma's default
   // 5s interactive transaction timeout. Bump both the wait + max-run timeouts.
   await prisma.$transaction(async (tx) => {
-    for (const catData of data.categories) {
+    for (const catData of (data.categories || [])) {
+      const catName = trimTo(catData.name, 100) || 'Uncategorised';
+
       let category = await tx.menuCategory.findFirst({
-        where: { outlet_id: outletId, name: catData.name },
+        where: { outlet_id: outletId, name: catName, is_deleted: false },
       });
       if (!category) {
         category = await tx.menuCategory.create({
-          data: { name: catData.name, outlet_id: outletId, display_order: results.categoriesCreated },
+          data: {
+            name: catName,
+            outlet_id: outletId,
+            display_order: results.categoriesCreated,
+          },
         });
         results.categoriesCreated++;
       }
 
-      for (const itemData of catData.items) {
-        const item = await tx.menuItem.create({
+      for (const itemData of (catData.items || [])) {
+        const itemName = trimTo(itemData.name, 200);
+        if (!itemName) {
+          results.errors.push(`Empty item name skipped in "${catName}"`);
+          continue;
+        }
+
+        let item;
+        try {
+          item = await tx.menuItem.create({
+            data: {
+              name: itemName,
+              description: trimTo(itemData.description || '', 2000),
+              short_code: trimTo(itemData.short_code || '', 20) || null,
+              image_url: itemData.image_url || null,
+              base_price: cleanPrice(itemData.base_price),
+              category_id: category.id,
+              outlet_id: outletId,
+              food_type: cleanFoodType(itemData.food_type),
+              kitchen_station: 'KITCHEN',
+              is_active: true,
+              is_available: true,
+            },
+          });
+          results.itemsCreated++;
+        } catch (err) {
+          results.errors.push(`${itemName}: ${err.message?.split('\n')[0]?.slice(0, 200)}`);
+          continue;
+        }
+
+        // ── Variants (R/M/L, Half/Full, etc.) ─────────────────────
+        let variantIdx = 0;
+        for (const v of (itemData.variants || [])) {
+          const vName = trimTo(v.name, 100) || `Size ${variantIdx + 1}`;
+          try {
+            await tx.itemVariant.create({
+              data: {
+                menu_item_id: item.id,
+                name: vName,
+                price_addition: cleanPrice(v.price_addition ?? v.price ?? 0),
+                is_active: true,
+                is_default: variantIdx === 0,
+                display_order: variantIdx,
+              },
+            });
+            results.variantsCreated++;
+          } catch (err) {
+            results.errors.push(`${itemName} / variant ${vName}: ${err.message?.split('\n')[0]?.slice(0, 150)}`);
+          }
+          variantIdx++;
+        }
+
+        // ── Addons — one AddonGroup per item, populated with ItemAddons.
+        //     Schema fields are min_selection/max_selection (NOT min_select),
+        //     and the Prisma model name is itemAddon (NOT addonItem).
+        if (itemData.addons?.length > 0) {
+          let group;
+          try {
+            group = await tx.addonGroup.create({
+              data: {
+                name: 'Add-ons',
+                outlet_id: outletId,
+                is_required: false,
+                min_selection: 0,
+                max_selection: itemData.addons.length,
+              },
+            });
+          } catch (err) {
+            results.errors.push(`${itemName} addon-group: ${err.message?.slice(0, 150)}`);
+            continue;
+          }
+
+          let addonIdx = 0;
+          for (const a of itemData.addons) {
+            const aName = trimTo(a.name, 100);
+            if (!aName) continue;
+            try {
+              await tx.itemAddon.create({
+                data: {
+                  addon_group_id: group.id,
+                  menu_item_id: item.id,   // required FK
+                  name: aName,
+                  price: cleanPrice(a.price),
+                  is_active: true,
+                  display_order: addonIdx,
+                },
+              });
+              results.addonsCreated++;
+            } catch (err) {
+              results.errors.push(`${itemName} / addon ${aName}: ${err.message?.slice(0, 150)}`);
+            }
+            addonIdx++;
+          }
+        }
+      }
+    }
+
+    // ── Combos — handled separately if Gemini returned a top-level
+    //    combos array (some templates use {categories:[…], combos:[…]}).
+    //    We also catch "Combos" or "Combo" categories and treat their
+    //    items as combos pointing back at the rest of the menu.
+    for (const c of (data.combos || [])) {
+      const comboName = trimTo(c.name, 200);
+      if (!comboName) continue;
+      try {
+        await tx.itemCombo.create({
           data: {
-            name: itemData.name,
-            description: itemData.description || '',
-            base_price: parseFloat(itemData.base_price) || 0,
-            category_id: category.id,
             outlet_id: outletId,
-            food_type: itemData.food_type || 'veg',
-            kitchen_station: 'KITCHEN',
+            name: comboName,
+            description: trimTo(c.description || '', 2000),
+            combo_price: cleanPrice(c.price ?? c.combo_price ?? 0),
             is_active: true,
           },
         });
-        results.itemsCreated++;
-
-        for (const v of (itemData.variants || [])) {
-          await tx.itemVariant.create({
-            data: {
-              menu_item_id: item.id,
-              name: v.name,
-              price_addition: parseFloat(v.price_addition ?? v.price ?? 0),
-              is_active: true,
-            },
-          });
-          results.variantsCreated++;
-        }
-
-        if (itemData.addons?.length > 0) {
-          const group = await tx.addonGroup.create({
-            data: {
-              name: 'Add-ons',
-              outlet_id: outletId,
-              is_required: false,
-              min_select: 0,
-              max_select: itemData.addons.length,
-              menu_items: { connect: { id: item.id } },
-            },
-          });
-          for (const a of itemData.addons) {
-            await tx.addonItem.create({
-              data: { addon_group_id: group.id, name: a.name, price: parseFloat(a.price || 0), is_active: true },
-            });
-            results.addonsCreated++;
-          }
-        }
+        results.combosCreated++;
+      } catch (err) {
+        results.errors.push(`combo ${comboName}: ${err.message?.slice(0, 150)}`);
       }
     }
   }, {
