@@ -191,10 +191,15 @@ export default function POSPage() {
     enabled: !!outletId && !IS_ELECTRON,
   });
 
+  // Always fetch the full menu in one shot. With the backend pagination
+  // cap raised to 500, even Siena's-class restaurants (249 items) fit in
+  // a single response. Cache it forever within the session — categories
+  // tab filtering happens client-side so we never refetch on tab change.
   const { data: cloudMenuData } = useQuery({
-    queryKey: ['menuItems', outletId, activeCategory],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=100${activeCategory ? `&category_id=${activeCategory}` : ''}`).then((r) => r.data),
+    queryKey: ['menuItems', outletId],
+    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=500`).then((r) => r.data),
     enabled: !!outletId && !IS_ELECTRON,
+    staleTime: 60_000,
   });
 
   // Merge: Electron uses hybridMenuData, browser uses cloud
@@ -206,8 +211,19 @@ export default function POSPage() {
     ? (hybridMenuData?.items || [])
     : (cloudMenuData?.items || cloudMenuData?.data || cloudMenuData || []);
 
-  // Apply category filter client-side for Electron (SQLite returns all items)
-  const menuData = IS_ELECTRON && activeCategory
+  // Counts per category — used for the badges on the tab strip.
+  const itemCountByCategory = (() => {
+    const m = {};
+    for (const it of rawMenuItems) {
+      if (!it?.category_id) continue;
+      m[String(it.category_id)] = (m[String(it.category_id)] || 0) + 1;
+    }
+    return m;
+  })();
+  const totalItemCount = rawMenuItems.length;
+
+  // Apply category filter client-side (both Electron and cloud now)
+  const menuData = activeCategory
     ? rawMenuItems.filter(i => String(i.category_id) === String(activeCategory))
     : rawMenuItems;
 
@@ -891,12 +907,55 @@ export default function POSPage() {
 
         {viewMode === 'menu' ? (
           <>
-            {/* Categories */}
+            {/* Categories — each tab shows its item count so operators
+                see at a glance how many items live under each section. */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
-              <button onClick={() => setActiveCategory(null)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${!activeCategory ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'}`}>All</button>
-              {(categories || []).map((cat) => (
-                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeCategory === cat.id ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'}`}>{cat.name}</button>
-              ))}
+              <button
+                onClick={() => setActiveCategory(null)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                  !activeCategory ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'
+                }`}
+              >
+                All
+                <span
+                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold tabular-nums ${
+                    !activeCategory
+                      ? 'bg-white/25 text-white'
+                      : 'bg-surface-700/70 text-surface-300'
+                  }`}
+                  aria-label={`${totalItemCount} items in total`}
+                >
+                  {totalItemCount}
+                </span>
+              </button>
+
+              {(categories || []).map((cat) => {
+                const count = itemCountByCategory[String(cat.id)] || 0;
+                const active = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                      active ? 'tab-btn-active' : 'bg-surface-800 text-surface-400'
+                    }`}
+                  >
+                    {cat.name}
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold tabular-nums ${
+                        active
+                          ? 'bg-white/25 text-white'
+                          : count === 0
+                          ? 'bg-surface-700/40 text-surface-500'
+                          : 'bg-surface-700/70 text-surface-300'
+                      }`}
+                      aria-label={`${count} items in ${cat.name}`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Menu Grid */}
