@@ -3,7 +3,7 @@
  * Expo SDK 54 · Expo Router 6 · Reanimated v4 · JSX
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import {
   Switch,
   KeyboardAvoidingView,
   Alert,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +31,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
+import {
+  useReservations,
+  useCreateReservation,
+  useUpdateReservation,
+  useDeleteReservation,
+} from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
 const C = {
@@ -47,101 +56,12 @@ const C = {
   grey: '#9CA3AF',
 };
 
-// ─── Mock Data ──────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 const today = new Date();
-const tomorrow = new Date(today);
-tomorrow.setDate(tomorrow.getDate() + 1);
 
 function dateKey(d) {
   return d.toISOString().split('T')[0];
 }
-
-const INITIAL_RESERVATIONS = [
-  {
-    id: 'r1',
-    guestName: 'Arjun Sharma',
-    phone: '9811234567',
-    partySize: 4,
-    date: dateKey(today),
-    time: '7:30 PM',
-    status: 'Confirmed',
-    table: 'T-5',
-    notes: 'Birthday celebration — need a cake',
-    type: 'Reservation',
-  },
-  {
-    id: 'r2',
-    guestName: 'Priya Mehta',
-    phone: '9867456789',
-    partySize: 2,
-    date: dateKey(today),
-    time: '8:00 PM',
-    status: 'Pending',
-    table: '',
-    notes: 'Anniversary dinner, window seat preferred',
-    type: 'Reservation',
-  },
-  {
-    id: 'r3',
-    guestName: 'Rahul Gupta',
-    phone: '9998887776',
-    partySize: 6,
-    date: dateKey(today),
-    time: '1:00 PM',
-    status: 'Seated',
-    table: 'T-2',
-    notes: 'Corporate lunch',
-    type: 'Reservation',
-  },
-  {
-    id: 'r4',
-    guestName: 'Sneha Patel',
-    phone: '9123456780',
-    partySize: 3,
-    date: dateKey(today),
-    time: '2:30 PM',
-    status: 'No-Show',
-    table: 'T-7',
-    notes: '',
-    type: 'Reservation',
-  },
-  {
-    id: 'r5',
-    guestName: 'Walk-in',
-    phone: '',
-    partySize: 5,
-    date: dateKey(today),
-    time: '12:30 PM',
-    status: 'Seated',
-    table: 'T-3',
-    notes: 'Family lunch',
-    type: 'Walk-in',
-  },
-  {
-    id: 'r6',
-    guestName: 'Vikram Nair',
-    phone: '9765432100',
-    partySize: 2,
-    date: dateKey(tomorrow),
-    time: '7:00 PM',
-    status: 'Confirmed',
-    table: 'T-6',
-    notes: 'Allergic to peanuts',
-    type: 'Reservation',
-  },
-  {
-    id: 'r7',
-    guestName: 'Kavya Reddy',
-    phone: '9876543211',
-    partySize: 8,
-    date: dateKey(tomorrow),
-    time: '8:30 PM',
-    status: 'Pending',
-    table: '',
-    notes: 'Office party',
-    type: 'Reservation',
-  },
-];
 
 const TABLES = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8'];
 
@@ -152,6 +72,32 @@ const STATUS_META = {
   Seated:    { color: C.blue,    bg: '#EFF6FF', icon: 'person' },
   'No-Show': { color: C.grey,    bg: '#F3F4F6', icon: 'ban' },
 };
+
+// Map API status values (snake_case/lowercase) to display values
+function toDisplayStatus(status) {
+  if (!status) return 'Confirmed';
+  const map = {
+    confirmed: 'Confirmed',
+    seated: 'Seated',
+    cancelled: 'Cancelled',
+    no_show: 'No-Show',
+    completed: 'Seated',
+    pending: 'Pending',
+  };
+  return map[status.toLowerCase()] ?? (status.charAt(0).toUpperCase() + status.slice(1));
+}
+
+// Map display status back to API status value
+function toApiStatus(displayStatus) {
+  const map = {
+    'Confirmed': 'confirmed',
+    'Seated': 'seated',
+    'Cancelled': 'cancelled',
+    'No-Show': 'no_show',
+    'Pending': 'confirmed', // pending is treated as confirmed on update
+  };
+  return map[displayStatus] ?? displayStatus.toLowerCase();
+}
 
 function buildNext7Days() {
   const days = [];
@@ -185,40 +131,120 @@ const EMPTY_FORM = {
   type: 'Reservation',
 };
 
+// ─── Skeleton ───────────────────────────────────────────────────────────────
+function SkeletonBox({ style }) {
+  return <View style={[{ backgroundColor: '#E5E7EB', borderRadius: 12 }, style]} />;
+}
+
+function ReservationSkeleton() {
+  return (
+    <View style={[styles.resCard, { marginBottom: 12 }]}>
+      <SkeletonBox style={{ height: 14, width: '40%', marginBottom: 12 }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <SkeletonBox style={{ width: 38, height: 38, borderRadius: 19 }} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <SkeletonBox style={{ height: 14, width: '60%' }} />
+          <SkeletonBox style={{ height: 11, width: '40%' }} />
+        </View>
+        <SkeletonBox style={{ height: 28, width: 50, borderRadius: 10 }} />
+      </View>
+      <SkeletonBox style={{ height: 11, width: '30%' }} />
+    </View>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 export default function ReservationsScreen() {
   const insets = useSafeAreaInsets();
-  const [reservations, setReservations] = useState(INITIAL_RESERVATIONS);
+  const { outletId } = useOutlet();
+
   const [selectedDay, setSelectedDay] = useState(dateKey(today));
   const [filterType, setFilterType] = useState('All'); // 'All' | 'Walk-in' | 'Reservation'
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
+  // ── Real API ──────────────────────────────────────────────────────────────
+  const { data, isLoading, isError, refetch, isFetching } = useReservations({
+    outlet_id: outletId,
+    date: selectedDay,
+  });
+
+  const createReservation = useCreateReservation();
+  const updateReservation = useUpdateReservation();
+  const deleteReservation = useDeleteReservation();
+
+  // ── Optimistic local state ─────────────────────────────────────────────────
+  const [localReservations, setLocalReservations] = useState(null);
+
+  // Seed from server data whenever it changes
+  useEffect(() => {
+    if (data) {
+      setLocalReservations(data);
+    }
+  }, [data]);
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const allReservations = localReservations ?? [];
+
   const filtered = useMemo(() => {
-    return reservations.filter(r => {
-      if (r.date !== selectedDay) return false;
+    return allReservations.filter(r => {
+      const dateMatch = !r.date || r.date === selectedDay;
+      if (!dateMatch) return false;
       if (filterType === 'All') return true;
-      return r.type === filterType;
+      if (filterType === 'Walk-in') return r.type === 'Walk-in';
+      if (filterType === 'Reservation') return r.type !== 'Walk-in';
+      return true;
     });
-  }, [reservations, selectedDay, filterType]);
+  }, [allReservations, selectedDay, filterType]);
 
   const stats = useMemo(() => {
-    const todayAll = reservations.filter(r => r.date === dateKey(today));
+    const todayAll = allReservations.filter(r => r.date === dateKey(today));
     return {
       total: todayAll.length,
       confirmed: todayAll.filter(r => r.status === 'Confirmed').length,
       pending: todayAll.filter(r => r.status === 'Pending').length,
     };
-  }, [reservations]);
+  }, [allReservations]);
 
   const formatDate = useCallback(() => {
     const opts = { weekday: 'long', day: 'numeric', month: 'long' };
     return today.toLocaleDateString('en-IN', opts);
   }, []);
 
-  function updateStatus(id, status) {
-    setReservations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  // ── Actions ───────────────────────────────────────────────────────────────
+  function updateStatus(id, displayStatus) {
+    // Optimistic update
+    setLocalReservations(prev =>
+      prev ? prev.map(r => r.id === id ? { ...r, status: displayStatus } : r) : prev
+    );
+    // Persist to server
+    updateReservation.mutate(
+      { id, status: toApiStatus(displayStatus) },
+      {
+        onError: () => {
+          // Rollback on error — re-seed from server data
+          if (data) setLocalReservations(data);
+          Alert.alert('Error', 'Failed to update reservation status. Please try again.');
+        },
+      }
+    );
+  }
+
+  function handleCancelReservation(id) {
+    // Optimistic: mark as cancelled
+    setLocalReservations(prev =>
+      prev ? prev.map(r => r.id === id ? { ...r, status: 'Cancelled' } : r) : prev
+    );
+    deleteReservation.mutate(
+      { id },
+      {
+        onError: () => {
+          if (data) setLocalReservations(data);
+          Alert.alert('Error', 'Failed to cancel reservation. Please try again.');
+        },
+      }
+    );
   }
 
   function openWhatsApp(phone, name, time, date) {
@@ -237,25 +263,62 @@ export default function ReservationsScreen() {
       Alert.alert('Required', 'Please enter time');
       return;
     }
-    const newR = {
-      id: 'r' + Date.now(),
+
+    const payload = {
+      customer_name: form.guestName.trim(),
+      customer_phone: form.phone.trim(),
+      party_size: form.partySize,
+      reservation_date: form.date,
+      reservation_time: form.time.trim(),
+      special_requests: form.notes.trim(),
+      outlet_id: outletId,
+    };
+
+    // Optimistic add with a temp id
+    const tempId = `temp_${Date.now()}`;
+    const optimisticItem = {
+      id: tempId,
       guestName: form.guestName.trim(),
       phone: form.phone.trim(),
       partySize: form.partySize,
+      guests: form.partySize,
       date: form.date,
       time: form.time.trim(),
       status: 'Pending',
       table: form.table,
       notes: form.notes.trim(),
       type: form.type,
+      // snake_case copies
+      customer_name: form.guestName.trim(),
+      customer_phone: form.phone.trim(),
+      party_size: form.partySize,
+      reservation_date: form.date,
+      reservation_time: form.time.trim(),
+      special_requests: form.notes.trim(),
     };
-    setReservations(prev => [newR, ...prev]);
+
+    setLocalReservations(prev => [optimisticItem, ...(prev ?? [])]);
+
     if (form.sendWhatsApp && form.phone) {
       openWhatsApp(form.phone, form.guestName, form.time, form.date);
     }
+
     setForm(EMPTY_FORM);
     setModalVisible(false);
+
+    createReservation.mutate(payload, {
+      onError: () => {
+        // Remove the optimistic item on failure
+        setLocalReservations(prev =>
+          prev ? prev.filter(r => r.id !== tempId) : prev
+        );
+        Alert.alert('Error', 'Failed to create reservation. Please try again.');
+      },
+    });
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const showSkeleton = isLoading && !localReservations?.length;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -274,6 +337,13 @@ export default function ReservationsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={refetch}
+            tintColor={C.indigo}
+          />
+        }
       >
         {/* ── Stats Row ── */}
         {Platform.OS !== 'web' ? (
@@ -330,30 +400,50 @@ export default function ReservationsScreen() {
           ))}
         </View>
 
+        {/* ── Error State ── */}
+        {isError && !localReservations?.length && (
+          <View style={styles.errorWrap}>
+            <Ionicons name="wifi-outline" size={32} color={C.text3} />
+            <Text style={styles.errorText}>Failed to load reservations</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={refetch}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Loading Skeleton ── */}
+        {showSkeleton && (
+          <>
+            <ReservationSkeleton />
+            <ReservationSkeleton />
+            <ReservationSkeleton />
+          </>
+        )}
+
         {/* ── Reservation List ── */}
-        {filtered.length === 0 ? (
+        {!showSkeleton && filtered.length === 0 && !isError && (
           <EmptyState
             icon="📅"
             title="No bookings"
             subtitle="No reservations found for this day."
             action={{ label: '+ Add Reservation', onPress: () => setModalVisible(true) }}
           />
-        ) : (
-          filtered.map((r, i) => (
-            <ReservationCard
-              key={r.id}
-              reservation={r}
-              index={i}
-              expanded={expandedId === r.id}
-              onExpand={() => setExpandedId(expandedId === r.id ? null : r.id)}
-              onConfirm={() => updateStatus(r.id, 'Confirmed')}
-              onCancel={() => updateStatus(r.id, 'Cancelled')}
-              onSeat={() => updateStatus(r.id, 'Seated')}
-              onNoShow={() => updateStatus(r.id, 'No-Show')}
-              onWhatsApp={() => openWhatsApp(r.phone, r.guestName, r.time, r.date)}
-            />
-          ))
         )}
+
+        {!showSkeleton && filtered.map((r, i) => (
+          <ReservationCard
+            key={r.id}
+            reservation={r}
+            index={i}
+            expanded={expandedId === r.id}
+            onExpand={() => setExpandedId(expandedId === r.id ? null : r.id)}
+            onConfirm={() => updateStatus(r.id, 'Confirmed')}
+            onCancel={() => handleCancelReservation(r.id)}
+            onSeat={() => updateStatus(r.id, 'Seated')}
+            onNoShow={() => updateStatus(r.id, 'No-Show')}
+            onWhatsApp={() => openWhatsApp(r.phone, r.guestName, r.time, r.date)}
+          />
+        ))}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -465,8 +555,14 @@ export default function ReservationsScreen() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.saveBtn} onPress={saveReservation}>
-                <Text style={styles.saveBtnText}>Save Reservation</Text>
+              <TouchableOpacity
+                style={[styles.saveBtn, createReservation.isPending && { opacity: 0.7 }]}
+                onPress={saveReservation}
+                disabled={createReservation.isPending}
+              >
+                <Text style={styles.saveBtnText}>
+                  {createReservation.isPending ? 'Saving…' : 'Save Reservation'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -524,7 +620,7 @@ function ReservationCard({
       {/* Guest info */}
       <View style={styles.resGuestRow}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{r.guestName.charAt(0).toUpperCase()}</Text>
+          <Text style={styles.avatarText}>{(r.guestName || 'G').charAt(0).toUpperCase()}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.resGuestName}>{r.guestName}</Text>
@@ -706,6 +802,18 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: C.text1, borderColor: C.text1 },
   filterPillText: { fontSize: 13, fontWeight: '600', color: C.text2 },
   filterPillTextActive: { color: '#FFFFFF' },
+
+  // Error
+  errorWrap: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  errorText: { fontSize: 15, color: C.text3 },
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: C.indigo,
+    marginTop: 4,
+  },
+  retryBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
 
   // Reservation Card
   resCardWrap: { marginBottom: 12 },

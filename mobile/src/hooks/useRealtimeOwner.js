@@ -6,11 +6,13 @@ import { OWNER_KEYS } from './useOwnerApi';
 
 const WS_URL = 'wss://petpooja-saas.onrender.com/ws';
 
-export function useRealtimeOwner(outletId) {
+export function useRealtimeOwner(outletId, onLiveStats) {
   const qc = useQueryClient();
   const ws = useRef(null);
   const reconnectTimer = useRef(null);
   const appState = useRef(AppState.currentState);
+  const onLiveStatsRef = useRef(onLiveStats);
+  useEffect(() => { onLiveStatsRef.current = onLiveStats; }, [onLiveStats]);
 
   async function connect() {
     if (!outletId) return;
@@ -49,6 +51,14 @@ export function useRealtimeOwner(outletId) {
 
             case 'APPROVAL_NEW':
               qc.invalidateQueries({ queryKey: OWNER_KEYS.approvals(outletId) });
+              break;
+
+            case 'LIVE_STATS':
+              if (msg.data && typeof onLiveStatsRef.current === 'function') {
+                onLiveStatsRef.current(msg.data);
+              }
+              // Also invalidate dashboard to keep React Query cache consistent
+              qc.invalidateQueries({ queryKey: OWNER_KEYS.dashboard(outletId) });
               break;
 
             default:

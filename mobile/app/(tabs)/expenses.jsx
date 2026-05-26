@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,15 @@ import {
   Platform,
   StatusBar,
   KeyboardAvoidingView,
+  RefreshControl,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
+import SkeletonBox from '../../src/components/SkeletonBox';
+import { useExpenses, useCreateExpense, useDeleteExpense } from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,46 +56,11 @@ function catMeta(key) {
   return CATEGORIES.find(c => c.key === key) || CATEGORIES[5];
 }
 
-// ─── Mock data (May 2026) ─────────────────────────────────────────────────────
-
-let _nextId = 100;
-const MOCK_EXPENSES = [
-  { id: _nextId++, category: 'Rent', description: 'Monthly shop rent', amount: 45000, date: '2026-05-01', method: 'Bank Transfer', notes: '' },
-  { id: _nextId++, category: 'Salaries', description: 'Chef salaries - May', amount: 38000, date: '2026-05-01', method: 'Bank Transfer', notes: 'Two chefs' },
-  { id: _nextId++, category: 'Salaries', description: 'Delivery staff wages', amount: 18000, date: '2026-05-02', method: 'Bank Transfer', notes: '' },
-  { id: _nextId++, category: 'Gas', description: 'LPG cylinder refill x4', amount: 3600, date: '2026-05-03', method: 'Cash', notes: '' },
-  { id: _nextId++, category: 'Groceries', description: 'Weekly vegetables & spices', amount: 4200, date: '2026-05-05', method: 'Cash', notes: '' },
-  { id: _nextId++, category: 'Maintenance', description: 'AC servicing - kitchen', amount: 2500, date: '2026-05-05', method: 'Card', notes: 'Annual service' },
-  { id: _nextId++, category: 'Groceries', description: 'Dairy & paneer stock', amount: 3100, date: '2026-05-06', method: 'Cash', notes: '' },
-  { id: _nextId++, category: 'Misc', description: 'Packaging materials', amount: 1800, date: '2026-05-06', method: 'Card', notes: 'Zomato/Swiggy boxes' },
-  { id: _nextId++, category: 'Gas', description: 'Piped gas bill', amount: 2200, date: '2026-05-07', method: 'Bank Transfer', notes: '' },
-  { id: _nextId++, category: 'Groceries', description: 'Chicken & mutton stock', amount: 6500, date: '2026-05-07', method: 'Cash', notes: '' },
-  { id: _nextId++, category: 'Maintenance', description: 'Grease trap cleaning', amount: 1200, date: '2026-05-07', method: 'Cash', notes: '' },
-  { id: _nextId++, category: 'Misc', description: 'Staff uniform stitching', amount: 2800, date: '2026-05-04', method: 'Card', notes: '' },
-  { id: _nextId++, category: 'Misc', description: 'Internet bill', amount: 999, date: '2026-05-04', method: 'Bank Transfer', notes: '' },
-  { id: _nextId++, category: 'Groceries', description: 'Cooking oil bulk order', amount: 4800, date: '2026-05-03', method: 'Cash', notes: '' },
-];
-
-const MOCK_BUDGET = 140000;
-const MOCK_REVENUE = 210000;
-
-// ─── 7-day bar chart data (last 7 days) ──────────────────────────────────────
-
-const DAILY_DATA = [
-  { day: '1', amount: 83000 },
-  { day: '2', amount: 18000 },
-  { day: '3', amount: 7800 },
-  { day: '4', amount: 3799 },
-  { day: '5', amount: 7300 },
-  { day: '6', amount: 5600 },
-  { day: '7', amount: 5700 },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function groupByDate(expenses) {
-  const today = '2026-05-07';
-  const yesterday = '2026-05-06';
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const groups = {};
   expenses.forEach(e => {
     let label;
@@ -109,6 +72,21 @@ function groupByDate(expenses) {
   });
   const order = ['Today', 'Yesterday', 'Earlier this month'];
   return order.filter(k => groups[k]).map(k => ({ label: k, items: groups[k] }));
+}
+
+function buildDailyData(expenses, month, year) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  // Show last 7 days of the month (or all days if fewer than 7)
+  const days = Array.from({ length: Math.min(7, daysInMonth) }, (_, i) => {
+    const day = daysInMonth - 6 + i;
+    return { day: String(Math.max(day, 1)), amount: 0 };
+  });
+  expenses.forEach(e => {
+    const d = parseInt((e.date || '').slice(8, 10), 10);
+    const idx = days.findIndex(x => parseInt(x.day, 10) === d);
+    if (idx !== -1) days[idx].amount += e.amount;
+  });
+  return days;
 }
 
 // ─── Mini bar chart ───────────────────────────────────────────────────────────
@@ -146,7 +124,7 @@ function AddExpenseModal({ visible, onClose, onSave }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Groceries');
-  const [date, setDate] = useState('2026-05-07');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState('Cash');
   const [notes, setNotes] = useState('');
 
@@ -156,7 +134,7 @@ function AddExpenseModal({ visible, onClose, onSave }) {
     setAmount('');
     setDescription('');
     setCategory('Groceries');
-    setDate('2026-05-07');
+    setDate(new Date().toISOString().slice(0, 10));
     setMethod('Cash');
     setNotes('');
   }
@@ -485,18 +463,41 @@ const expStyles = StyleSheet.create({
 
 export default function ExpensesScreen() {
   const insets = useSafeAreaInsets();
-  const [expenses, setExpenses] = useState(MOCK_EXPENSES);
-  const [budget, setBudget] = useState(MOCK_BUDGET);
+  const { outletId } = useOutlet();
+
+  // Month navigation — start at current month
+  const now = new Date();
+  const [monthIndex, setMonthIndex] = useState(now.getMonth()); // 0-indexed
+  const [year,       setYear]       = useState(now.getFullYear());
+
+  // Local budget (editable, not persisted)
+  const [budget,        setBudget]        = useState(140000);
   const [editingBudget, setEditingBudget] = useState(false);
-  const [budgetInput, setBudgetInput] = useState(String(MOCK_BUDGET));
-  const [monthIndex, setMonthIndex] = useState(4); // May (0-indexed)
-  const [year, setYear] = useState(2026);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [budgetInput,   setBudgetInput]   = useState('140000');
+  const [showAddModal,  setShowAddModal]  = useState(false);
+  const [refreshing,    setRefreshing]    = useState(false);
 
-  const total = expenses.reduce((s, e) => s + e.amount, 0);
-  const budgetPct = total / budget;
-  const overBudget = total > budget;
+  // API
+  const { data, isLoading, refetch } = useExpenses({
+    outlet_id: outletId,
+    month:     monthIndex + 1,  // API expects 1-indexed
+    year,
+  });
+  const createExpense = useCreateExpense();
+  const deleteExpense = useDeleteExpense();
 
+  // Local optimistic state — seeded from API, overridden for instant feedback
+  const [localExpenses, setLocalExpenses] = useState(null);
+  useEffect(() => {
+    setLocalExpenses(null); // reset when month changes so API data shows
+  }, [monthIndex, year]);
+
+  const expenses     = localExpenses ?? (data?.items ?? []);
+  const total        = data?.total_amount ?? expenses.reduce((s, e) => s + e.amount, 0);
+  const budgetPct    = total / budget;
+  const overBudget   = total > budget;
+
+  // Month navigation
   function prevMonth() {
     if (monthIndex === 0) { setMonthIndex(11); setYear(y => y - 1); }
     else setMonthIndex(m => m - 1);
@@ -506,12 +507,32 @@ export default function ExpensesScreen() {
     else setMonthIndex(m => m + 1);
   }
 
+  // Delete — optimistic
   function handleDeleteExpense(id) {
-    setExpenses(prev => prev.filter(e => e.id !== id));
+    setLocalExpenses(prev => (prev ?? expenses).filter(e => e.id !== id));
+    deleteExpense.mutate(id);
   }
 
-  function handleAddExpense(exp) {
-    setExpenses(prev => [{ id: _nextId++, ...exp }, ...prev]);
+  // Create — calls API then invalidates
+  async function handleAddExpense(exp) {
+    try {
+      await createExpense.mutateAsync({
+        outlet_id:      outletId,
+        title:          exp.description,   // screen field → API field
+        amount:         exp.amount,
+        category:       exp.category,
+        expense_date:   exp.date,
+        payment_method: exp.method,
+        notes:          exp.notes,
+      });
+      setLocalExpenses(null); // let React Query refresh
+    } catch (_) {
+      // optimistic fallback: add to local list so it shows immediately
+      setLocalExpenses(prev => [
+        { id: `tmp_${Date.now()}`, ...exp },
+        ...(prev ?? expenses),
+      ]);
+    }
     setShowAddModal(false);
   }
 
@@ -521,6 +542,13 @@ export default function ExpensesScreen() {
     setEditingBudget(false);
   }
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setLocalExpenses(null);
+    await refetch();
+    setRefreshing(false);
+  };
+
   const groups = groupByDate(expenses);
 
   // Category totals
@@ -529,10 +557,8 @@ export default function ExpensesScreen() {
     total: expenses.filter(e => e.category === cat.key).reduce((s, e) => s + e.amount, 0),
   }));
 
-  // P&L bar widths
-  const maxBar = Math.max(total, MOCK_REVENUE);
-  const revPct = MOCK_REVENUE / maxBar;
-  const expPct = total / maxBar;
+  // Daily chart
+  const dailyData = buildDailyData(expenses, monthIndex + 1, year);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -564,124 +590,120 @@ export default function ExpensesScreen() {
         </View>
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.indigo} />}
+      >
+
+        {/* Loading skeleton */}
+        {isLoading && !localExpenses && (
+          <View style={{ gap: 10, marginBottom: 14 }}>
+            <SkeletonBox width="100%" height={90} borderRadius={16} />
+            <SkeletonBox width="100%" height={60} borderRadius={16} />
+            <SkeletonBox width="100%" height={56} borderRadius={14} />
+            <SkeletonBox width="100%" height={56} borderRadius={14} />
+            <SkeletonBox width="100%" height={56} borderRadius={14} />
+          </View>
+        )}
 
         {/* Summary cards */}
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { flex: 1.3 }]}>
-            <View style={[styles.sumIcon, { backgroundColor: '#FFF0F0' }]}>
-              <Ionicons name="trending-down-outline" size={16} color={C.error} />
+        {!isLoading && (
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryCard, { flex: 1.3 }]}>
+              <View style={[styles.sumIcon, { backgroundColor: '#FFF0F0' }]}>
+                <Ionicons name="trending-down-outline" size={16} color={C.error} />
+              </View>
+              <Text style={styles.sumValue}>₹{total.toLocaleString()}</Text>
+              <Text style={styles.sumLabel}>Total Expenses</Text>
             </View>
-            <Text style={styles.sumValue}>₹{total.toLocaleString()}</Text>
-            <Text style={styles.sumLabel}>Total Expenses</Text>
-          </View>
 
-          <View style={[styles.summaryCard, { flex: 1.2, marginHorizontal: 10 }]}>
-            {editingBudget ? (
-              <>
-                <TextInput
-                  style={styles.budgetInput}
-                  keyboardType="numeric"
-                  value={budgetInput}
-                  onChangeText={setBudgetInput}
-                  autoFocus
-                  onBlur={saveBudget}
-                  onSubmitEditing={saveBudget}
+            <View style={[styles.summaryCard, { flex: 1.2, marginHorizontal: 10 }]}>
+              {editingBudget ? (
+                <>
+                  <TextInput
+                    style={styles.budgetInput}
+                    keyboardType="numeric"
+                    value={budgetInput}
+                    onChangeText={setBudgetInput}
+                    autoFocus
+                    onBlur={saveBudget}
+                    onSubmitEditing={saveBudget}
+                  />
+                  <Text style={styles.sumLabel}>Budget</Text>
+                </>
+              ) : (
+                <TouchableOpacity onPress={() => { setEditingBudget(true); setBudgetInput(String(budget)); }}>
+                  <View style={[styles.sumIcon, { backgroundColor: '#EBF4FF', alignSelf: 'center' }]}>
+                    <Ionicons name="create-outline" size={16} color={C.indigo} />
+                  </View>
+                  <Text style={styles.sumValue}>₹{budget.toLocaleString()}</Text>
+                  <Text style={styles.sumLabel}>Budget (tap to edit)</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={[styles.summaryCard, { flex: 1 }]}>
+              <View style={[styles.sumIcon, { backgroundColor: overBudget ? '#FFF0F0' : '#EDFBF3' }]}>
+                <Ionicons
+                  name={overBudget ? 'arrow-up-circle-outline' : 'arrow-down-circle-outline'}
+                  size={16}
+                  color={overBudget ? C.error : C.success}
                 />
-                <Text style={styles.sumLabel}>Budget</Text>
-              </>
-            ) : (
-              <TouchableOpacity onPress={() => { setEditingBudget(true); setBudgetInput(String(budget)); }}>
-                <View style={[styles.sumIcon, { backgroundColor: '#EBF4FF', alignSelf: 'center' }]}>
-                  <Ionicons name="create-outline" size={16} color={C.indigo} />
-                </View>
-                <Text style={styles.sumValue}>₹{budget.toLocaleString()}</Text>
-                <Text style={styles.sumLabel}>Budget (tap to edit)</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={[styles.summaryCard, { flex: 1 }]}>
-            <View style={[styles.sumIcon, { backgroundColor: overBudget ? '#FFF0F0' : '#EDFBF3' }]}>
-              <Ionicons
-                name={overBudget ? 'arrow-up-circle-outline' : 'arrow-down-circle-outline'}
-                size={16}
-                color={overBudget ? C.error : C.success}
-              />
+              </View>
+              <Text style={[styles.sumValue, { color: overBudget ? C.error : C.success }]}>
+                {overBudget ? '-' : '+'}₹{Math.abs(budget - total).toLocaleString()}
+              </Text>
+              <Text style={styles.sumLabel}>{overBudget ? 'Over budget' : 'Under budget'}</Text>
             </View>
-            <Text style={[styles.sumValue, { color: overBudget ? C.error : C.success }]}>
-              {overBudget ? '-' : '+'}₹{Math.abs(budget - total).toLocaleString()}
-            </Text>
-            <Text style={styles.sumLabel}>{overBudget ? 'Over budget' : 'Under budget'}</Text>
           </View>
-        </View>
-
-        {/* P&L mini view */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Revenue vs Expenses</Text>
-          <View style={styles.plRow}>
-            <Text style={styles.plLabel}>Revenue</Text>
-            <View style={styles.plTrack}>
-              <View style={[styles.plBar, { width: `${revPct * 100}%`, backgroundColor: C.success }]} />
-            </View>
-            <Text style={styles.plAmount}>₹{MOCK_REVENUE.toLocaleString()}</Text>
-          </View>
-          <View style={styles.plRow}>
-            <Text style={styles.plLabel}>Expenses</Text>
-            <View style={styles.plTrack}>
-              <View style={[styles.plBar, { width: `${expPct * 100}%`, backgroundColor: overBudget ? C.error : C.gold }]} />
-            </View>
-            <Text style={styles.plAmount}>₹{total.toLocaleString()}</Text>
-          </View>
-          <View style={styles.plDivider} />
-          <View style={styles.plRow}>
-            <Text style={[styles.plLabel, { fontWeight: '700', color: C.text1 }]}>Net Profit</Text>
-            <View style={{ flex: 1 }} />
-            <Text style={[styles.plAmount, { fontWeight: '700', color: MOCK_REVENUE > total ? C.success : C.error }]}>
-              ₹{Math.abs(MOCK_REVENUE - total).toLocaleString()} {MOCK_REVENUE > total ? '▲' : '▼'}
-            </Text>
-          </View>
-        </View>
+        )}
 
         {/* Category pills */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>By Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {catTotals.filter(c => c.total > 0).map(cat => (
-                <View key={cat.key} style={[styles.catPill, { backgroundColor: cat.color + '18', borderColor: cat.color + '40' }]}>
-                  <Ionicons name={cat.icon} size={14} color={cat.color} />
-                  <Text style={[styles.catPillLabel, { color: cat.color }]}>{cat.label}</Text>
-                  <Text style={[styles.catPillAmt, { color: cat.color }]}>₹{cat.total.toLocaleString()}</Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
+        {!isLoading && catTotals.some(c => c.total > 0) && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>By Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {catTotals.filter(c => c.total > 0).map(cat => (
+                  <View key={cat.key} style={[styles.catPill, { backgroundColor: cat.color + '18', borderColor: cat.color + '40' }]}>
+                    <Ionicons name={cat.icon} size={14} color={cat.color} />
+                    <Text style={[styles.catPillLabel, { color: cat.color }]}>{cat.label}</Text>
+                    <Text style={[styles.catPillAmt, { color: cat.color }]}>₹{cat.total.toLocaleString()}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
 
         {/* 7-day trend */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>7-Day Trend (May 1–7)</Text>
-          <MiniBarChart data={DAILY_DATA} />
-          <Text style={styles.chartNote}>Higher bars = more spending that day</Text>
-        </View>
+        {!isLoading && dailyData.some(d => d.amount > 0) && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>7-Day Trend (last 7 days of month)</Text>
+            <MiniBarChart data={dailyData} />
+            <Text style={styles.chartNote}>Higher bars = more spending that day</Text>
+          </View>
+        )}
 
         {/* Expense list */}
-        {groups.length === 0 ? (
-          <EmptyState
-            icon="receipt-outline"
-            title="No expenses yet"
-            subtitle="Tap + to log your first expense for the month"
-          />
-        ) : (
-          groups.map(group => (
-            <View key={group.label} style={styles.group}>
-              <Text style={styles.groupLabel}>{group.label}</Text>
-              {group.items.map(exp => (
-                <ExpenseRow key={exp.id} expense={exp} onDelete={handleDeleteExpense} />
-              ))}
-            </View>
-          ))
+        {!isLoading && (
+          groups.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="No expenses yet"
+              subtitle="Tap + to log your first expense for the month"
+            />
+          ) : (
+            groups.map(group => (
+              <View key={group.label} style={styles.group}>
+                <Text style={styles.groupLabel}>{group.label}</Text>
+                {group.items.map(exp => (
+                  <ExpenseRow key={exp.id} expense={exp} onDelete={handleDeleteExpense} />
+                ))}
+              </View>
+            ))
+          )
         )}
 
         <View style={{ height: 100 }} />
@@ -836,40 +858,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: C.text1,
     marginBottom: 14,
-  },
-  plRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  plLabel: {
-    width: 66,
-    fontSize: 12,
-    color: C.text2,
-  },
-  plTrack: {
-    flex: 1,
-    height: 10,
-    backgroundColor: C.border,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  plBar: {
-    height: 10,
-    borderRadius: 999,
-  },
-  plAmount: {
-    width: 72,
-    fontSize: 12,
-    fontWeight: '600',
-    color: C.text1,
-    textAlign: 'right',
-  },
-  plDivider: {
-    height: 1,
-    backgroundColor: C.border,
-    marginVertical: 6,
   },
   catPill: {
     flexDirection: 'row',

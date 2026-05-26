@@ -2,7 +2,7 @@
  * Outlet Settings — Owner App
  * Business info, tax config, operating hours (read-only view with key info)
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,12 @@ import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useOutletDetails } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import {
+  getPrinterSettings,
+  savePrinterSettings,
+  discoverBluetoothPrinters,
+  printKot,
+} from '../../src/lib/printer';
 
 function InfoRow({ icon, label, value, colors }) {
   return (
@@ -44,6 +51,37 @@ export default function OutletSettingsScreen() {
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  // ── Printer settings state ─────────────────────────────────────────────────
+  const [printerSettings, setPrinterSettings] = useState({
+    enabled: false,
+    type: 'none',
+    device: null,
+    autoPrintKot: false,
+  });
+
+  useEffect(() => {
+    getPrinterSettings().then(setPrinterSettings);
+  }, []);
+
+  const updatePrinterSettings = useCallback(async (patch) => {
+    const next = { ...printerSettings, ...patch };
+    setPrinterSettings(next);
+    await savePrinterSettings(next);
+  }, [printerSettings]);
+
+  const handleTestPrint = useCallback(async () => {
+    try {
+      await printKot({
+        outletName: outlet.name || 'PetPooja',
+        table: 'T1',
+        items: [{ name: 'Test Item', qty: 1 }],
+        notes: 'Printer test',
+      });
+    } catch (err) {
+      Alert.alert('Print Failed', err.message || 'Could not complete test print.');
+    }
+  }, [outlet]);
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
@@ -114,6 +152,111 @@ export default function OutletSettingsScreen() {
         <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <InfoRow icon="grid" label="Tables" value={`${outlet.tables || 0}`} colors={colors} />
           <InfoRow icon="tablet-landscape" label="POS Terminals" value={`${outlet.terminals || 0}`} colors={colors} />
+        </View>
+
+        {/* ── Printer Section ── */}
+        <Text style={[s.sectionLabel, { color: colors.textMuted }]}>PRINTER</Text>
+        <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Current printer type badge */}
+          <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={s.rowIcon}>
+              <Ionicons name="print-outline" size={16} color={colors.textMuted} />
+            </View>
+            <Text style={[s.rowLabel, { color: colors.text }]}>Status</Text>
+            <View style={[s.printerBadge, { backgroundColor: printerSettings.enabled ? '#E6F9ED' : '#F3F3F3' }]}>
+              <Text style={[s.printerBadgeText, { color: printerSettings.enabled ? '#00B341' : '#888' }]}>
+                {printerSettings.enabled
+                  ? printerSettings.type === 'bluetooth' ? 'Bluetooth' : 'AirPrint'
+                  : 'Disabled'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Enable Printing toggle */}
+          <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={s.rowIcon}>
+              <Ionicons name="power-outline" size={16} color={colors.textMuted} />
+            </View>
+            <Text style={[s.rowLabel, { color: colors.text }]}>Enable Printing</Text>
+            <TouchableOpacity
+              onPress={() => updatePrinterSettings({ enabled: !printerSettings.enabled })}
+              style={[
+                s.pillToggle,
+                { backgroundColor: printerSettings.enabled ? '#6366f1' : '#E0E0E0' },
+              ]}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                s.pillThumb,
+                { transform: [{ translateX: printerSettings.enabled ? 18 : 0 }] },
+              ]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Auto-print KOT toggle — only shown when enabled */}
+          {printerSettings.enabled && (
+            <View style={[s.row, { borderBottomColor: colors.borderLight }]}>
+              <View style={s.rowIcon}>
+                <Ionicons name="receipt-outline" size={16} color={colors.textMuted} />
+              </View>
+              <Text style={[s.rowLabel, { color: colors.text }]}>Auto-print KOT</Text>
+              <TouchableOpacity
+                onPress={() => updatePrinterSettings({ autoPrintKot: !printerSettings.autoPrintKot })}
+                style={[
+                  s.pillToggle,
+                  { backgroundColor: printerSettings.autoPrintKot ? '#6366f1' : '#E0E0E0' },
+                ]}
+                activeOpacity={0.8}
+              >
+                <View style={[
+                  s.pillThumb,
+                  { transform: [{ translateX: printerSettings.autoPrintKot ? 18 : 0 }] },
+                ]} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Printer Type selector */}
+          {printerSettings.enabled && (
+            <View style={[s.row, { borderBottomColor: colors.borderLight, flexWrap: 'wrap', gap: 6 }]}>
+              <View style={s.rowIcon}>
+                <Ionicons name="options-outline" size={16} color={colors.textMuted} />
+              </View>
+              <Text style={[s.rowLabel, { color: colors.text }]}>Printer Type</Text>
+              <View style={s.typeRow}>
+                {['airprint', 'bluetooth', 'none'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => updatePrinterSettings({ type: t })}
+                    style={[
+                      s.typeChip,
+                      printerSettings.type === t && s.typeChipActive,
+                    ]}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[
+                      s.typeChipText,
+                      printerSettings.type === t && s.typeChipTextActive,
+                    ]}>
+                      {t === 'airprint' ? 'AirPrint' : t === 'bluetooth' ? 'Bluetooth' : 'None'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Test Print button */}
+          {printerSettings.enabled && (
+            <TouchableOpacity
+              style={s.testPrintBtn}
+              onPress={handleTestPrint}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="print-outline" size={16} color="#6366f1" style={{ marginRight: 6 }} />
+              <Text style={s.testPrintText}>Test Print</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={s.noteCard}>
@@ -198,6 +341,77 @@ const s = StyleSheet.create({
     borderRadius: 12,
   },
   noteText: { ...TYPE.small, color: '#0070F3', flex: 1, lineHeight: 18 },
+
+  // Printer section
+  printerBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  printerBadgeText: {
+    ...TYPE.smallMed,
+    fontWeight: '700',
+  },
+  pillToggle: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  pillThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexShrink: 1,
+  },
+  typeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    backgroundColor: '#F7F7F7',
+  },
+  typeChipActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  typeChipText: {
+    ...TYPE.small,
+    color: '#555',
+    fontWeight: '600',
+  },
+  typeChipTextActive: {
+    color: '#FFF',
+  },
+  testPrintBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#6366f1',
+    backgroundColor: '#F3F0FF',
+  },
+  testPrintText: {
+    ...TYPE.smallMed,
+    color: '#6366f1',
+    fontWeight: '700',
+  },
   centerState: {
     flex: 1,
     alignItems: 'center',

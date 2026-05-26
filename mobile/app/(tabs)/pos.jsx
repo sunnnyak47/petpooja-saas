@@ -58,6 +58,8 @@ import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useCreateOfflineOrder } from '../../src/hooks/useCreateOfflineOrder';
 import { T, R, FS, FW } from '../../src/constants/theme';
+import { printKot, getPrinterSettings } from '../../src/lib/printer';
+import QRScanner from '../../src/components/QRScanner';
 
 // ─── Safe haptics import ──────────────────────────────────────────────────────
 let Haptics = null;
@@ -203,7 +205,7 @@ function CartItemRow({ item, onAdd, onRemove, onRemoveAll }) {
 }
 
 // ─── Table picker modal ───────────────────────────────────────────────────────
-function TablePickerModal({ visible, tables, selectedId, onSelect, onClose }) {
+function TablePickerModal({ visible, tables, selectedId, onSelect, onClose, onQRScan }) {
   const available = tables.filter(
     (t) => !['occupied', 'bill_pending'].includes(t.status?.toLowerCase())
   );
@@ -215,6 +217,16 @@ function TablePickerModal({ visible, tables, selectedId, onSelect, onClose }) {
         <View style={styles.pickerHandle} />
         <Text style={styles.pickerTitle}>Select Table</Text>
         <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+          {/* QR scan shortcut */}
+          {onQRScan && (
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, backgroundColor: '#EEF2FF', marginHorizontal: 16, marginBottom: 8 }}
+              onPress={() => { onClose(); onQRScan(); }}
+            >
+              <Ionicons name="qr-code-outline" size={20} color="#6366f1" />
+              <Text style={{ color: '#6366f1', fontWeight: '600', fontSize: 14 }}>Scan Table QR</Text>
+            </TouchableOpacity>
+          )}
           {available.length === 0 ? (
             <Text style={styles.pickerEmpty}>No available tables right now.</Text>
           ) : (
@@ -289,6 +301,24 @@ export default function POSScreen() {
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
   const searchRef = useRef(null);
+  const [autoPrintKot, setAutoPrintKot] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
+  // QR scanner handler — finds scanned table and auto-selects it
+  const handleQRScan = useCallback((tableId) => {
+    const found = tables?.find((t) => t.id === tableId);
+    if (found) {
+      setSelectedTable({ id: found.id, name: found.name || `T${found.id.slice(-2)}` });
+      setOrderType('dine_in');
+    }
+  }, [tables]);
+
+  // Load printer settings on mount
+  useEffect(() => {
+    getPrinterSettings().then((s) => {
+      if (s.autoPrintKot) setAutoPrintKot(true);
+    });
+  }, []);
 
   // ── Computed values ────────────────────────────────────────────────────────
   const cartCount = useMemo(
@@ -396,12 +426,25 @@ export default function POSScreen() {
       });
 
       setShowCart(false);
+
+      // Auto-print KOT if enabled
+      if (autoPrintKot) {
+        printKot({
+          table: selectedTable?.name || null,
+          orderType: orderType,
+          items: cart.map((c) => ({ name: c.name, qty: c.qty, variant: c.variant || null })),
+          notes: orderNotes.trim() || null,
+          outletName: null,
+          orderId: order.id || order.local_id,
+        });
+      }
+
       clearCart();
       setOrderNotes('');
 
       // Brief success feedback
       Alert.alert(
-        '✅ Order Placed',
+        'Order Placed',
         `Order #${String(order.id).slice(-6).toUpperCase()} sent to kitchen.`,
         [
           {
@@ -774,6 +817,20 @@ export default function POSScreen() {
 
           <View style={styles.cartDivider} />
 
+          {/* KOT auto-print toggle */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 }}>
+            <Text style={{ fontSize: 14, color: '#666' }}>Auto-print KOT</Text>
+            <TouchableOpacity
+              onPress={() => setAutoPrintKot((v) => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: autoPrintKot ? '#6366f1' : '#E0E0E0', justifyContent: 'center', paddingHorizontal: 2 }}
+              activeOpacity={0.8}
+            >
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', transform: [{ translateX: autoPrintKot ? 18 : 0 }] }} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cartDivider} />
+
           {/* Totals */}
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
@@ -821,6 +878,14 @@ export default function POSScreen() {
         selectedId={selectedTable?.id}
         onSelect={(t) => setSelectedTable({ id: t.id, name: t.name || `T${t.id.slice(-2)}` })}
         onClose={() => setShowTablePicker(false)}
+        onQRScan={() => setShowQRScanner(true)}
+      />
+
+      {/* QR Table Scanner */}
+      <QRScanner
+        visible={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
       />
     </SafeAreaView>
   );

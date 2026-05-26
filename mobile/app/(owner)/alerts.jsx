@@ -26,6 +26,8 @@ import { useOutlet } from '../../src/context/OutletContext';
 import {
   useOwnerAlerts,
   useMarkAlertRead,
+  useMarkAllAlertsRead,
+  useDismissAlert,
   useAlertBadges,
 } from '../../src/hooks/useOwnerApi';
 
@@ -53,7 +55,7 @@ const FILTER_TABS = [
 ];
 
 // ─── Animated Alert Card ────────────────────────────────────────────────────
-function AlertCard({ alert, index, onMarkRead }) {
+function AlertCard({ alert, index, onMarkRead, onDismiss }) {
   const { colors } = useTheme();
   const typeCfg = ALERT_TYPES[alert.type] || ALERT_TYPES.system;
   const opacity = useSharedValue(0);
@@ -123,6 +125,16 @@ function AlertCard({ alert, index, onMarkRead }) {
                   </Text>
                 </View>
               )}
+
+              {/* Spacer + dismiss button */}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={() => onDismiss(alert.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={s.dismissBtn}
+              >
+                <Text style={[TYPE.caption, { color: colors.textMuted }]}>Dismiss</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -157,7 +169,9 @@ export default function AlertsScreen() {
 
   const { data, isLoading, isError, refetch } = useOwnerAlerts(outletId);
   const { data: badges } = useAlertBadges(outletId);
-  const markAlertRead = useMarkAlertRead();
+  const markAlertRead    = useMarkAlertRead();
+  const markAllRead      = useMarkAllAlertsRead();
+  const dismissAlert     = useDismissAlert();
 
   // Use API data with safe defaults
   const sourceAlerts = data || [];
@@ -200,18 +214,31 @@ export default function AlertsScreen() {
     }
   }, [alerts, activeFilter]);
 
-  // Mark as read handler — optimistic update
+  // Mark single alert as read — optimistic update
   const handleMarkRead = useCallback(
     (alertId) => {
       setLocalAlerts((prev) =>
-        (prev || []).map((a) =>
-          a.id === alertId ? { ...a, read: true } : a,
-        ),
+        (prev || []).map((a) => (a.id === alertId ? { ...a, read: true } : a)),
       );
-      markAlertRead.mutate({ alertId, data: { read: true } });
+      markAlertRead.mutate({ alertId });
     },
     [markAlertRead],
   );
+
+  // Dismiss an alert — remove from list optimistically
+  const handleDismiss = useCallback(
+    (alertId) => {
+      setLocalAlerts((prev) => (prev || []).filter((a) => a.id !== alertId));
+      dismissAlert.mutate({ alertId, outletId });
+    },
+    [dismissAlert, outletId],
+  );
+
+  // Mark all visible unread as read — optimistic update
+  const handleMarkAllRead = useCallback(() => {
+    setLocalAlerts((prev) => (prev || []).map((a) => ({ ...a, read: true })));
+    markAllRead.mutate({ outletId });
+  }, [markAllRead, outletId]);
 
   // Pull-to-refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -252,13 +279,33 @@ export default function AlertsScreen() {
     <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]} edges={['top']}>
       {/* Header */}
       <View style={[s.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
-        <Text style={[TYPE.h2, { color: colors.text, flex: 1 }]}>Alerts</Text>
-        <TouchableOpacity
-          onPress={() => router.push('/(owner)/alert-settings')}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={s.headerLeft}>
+          <Text style={[TYPE.h2, { color: colors.text }]}>Alerts</Text>
+          {alerts.filter((a) => !a.read).length > 0 && (
+            <View style={s.headerBadge}>
+              <Text style={s.headerBadgeText}>
+                {alerts.filter((a) => !a.read).length}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={s.headerActions}>
+          {alerts.filter((a) => !a.read).length > 0 && (
+            <TouchableOpacity
+              onPress={handleMarkAllRead}
+              style={s.markAllBtn}
+              disabled={markAllRead.isPending}
+            >
+              <Text style={s.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => router.push('/(owner)/alert-settings')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -340,6 +387,7 @@ export default function AlertsScreen() {
                 alert={alert}
                 index={idx}
                 onMarkRead={handleMarkRead}
+                onDismiss={handleDismiss}
               />
             ))}
           </View>
@@ -490,6 +538,50 @@ const s = StyleSheet.create({
   staffTag: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+
+  // Header
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  headerBadge: {
+    backgroundColor: LC.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  headerBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  markAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: LC.accentLight,
+  },
+  markAllText: {
+    color: LC.accent,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Dismiss button inside alert card
+  dismissBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
 
   // Empty state

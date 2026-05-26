@@ -24,6 +24,7 @@ import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
+import { printReceipt } from '../../src/lib/printer';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -609,6 +610,22 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
     );
   }, [table, items, subtotal, cgst, sgst, discountAmt, grandTotal, paymentMode]);
 
+  const handlePrintReceipt = useCallback(() => {
+    printReceipt({
+      outletName: RESTAURANT_NAME,
+      table: table?.number ? `Table ${table.number}` : null,
+      items: items.map((i) => ({ name: i.name, qty: i.qty, price: i.price })),
+      subtotal,
+      tax: cgst + sgst,
+      discount: discountAmt > 0 ? discountAmt : null,
+      total: grandTotal,
+      paymentMode: paymentMode.toUpperCase(),
+      orderId: billNumber,
+    }).catch((err) => {
+      console.warn('[Printer] Receipt print failed:', err?.message);
+    });
+  }, [table, items, subtotal, cgst, sgst, discountAmt, grandTotal, paymentMode, billNumber]);
+
   const PAYMENT_MODES = [
     { id: 'cash', label: 'Cash', icon: 'cash-outline' },
     { id: 'card', label: 'Card', icon: 'card-outline' },
@@ -842,6 +859,11 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
               <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
               <Text style={styles.actionBtnWhatsappText}>Share on WhatsApp</Text>
             </PressCard>
+
+            <TouchableOpacity style={styles.actionBtnPrint} onPress={handlePrintReceipt} activeOpacity={0.8}>
+              <Ionicons name="print-outline" size={18} color="#6366f1" />
+              <Text style={styles.actionBtnPrintText}>Print Receipt</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionBtnHold} activeOpacity={0.8}>
               <Ionicons name="pause-circle-outline" size={18} color="#444" />
@@ -1521,6 +1543,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#25D366', borderRadius: 14, minHeight: 52, marginBottom: 10,
   },
   actionBtnWhatsappText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  actionBtnPrint: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#F3F0FF', borderRadius: 14, minHeight: 52, marginBottom: 10,
+    borderWidth: 1.5, borderColor: '#6366f1',
+  },
+  actionBtnPrintText: { fontSize: 15, fontWeight: '700', color: '#6366f1' },
   actionBtnHold: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#FFFFFF', borderRadius: 14, minHeight: 52,

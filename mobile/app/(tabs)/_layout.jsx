@@ -9,6 +9,7 @@ import { Colors } from '../../src/constants/colors';
 import { useRealtimeOrders } from '../../src/hooks/useRealtimeOrders';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { SyncStatusBar } from '../../src/components/SyncStatusBar';
+import { NotificationBanner } from '../../src/components/NotificationBanner';
 
 // Safe haptics import — gracefully degrades when expo-haptics is absent
 let Haptics = null;
@@ -70,8 +71,13 @@ function RealtimeBridge() {
 }
 
 function NotificationBridge() {
-  useNotifications(); // Registers push token, sets up notification listeners
-  return null;
+  const { foregroundNotification, dismissNotification } = useNotifications();
+  return (
+    <NotificationBanner
+      notification={foregroundNotification}
+      onDismiss={dismissNotification}
+    />
+  );
 }
 
 export default function TabLayout() {

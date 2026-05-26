@@ -3,11 +3,12 @@
  * Expo 54 · RN 0.81 · Reanimated 4 · JSX
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   Switch,
@@ -28,160 +29,12 @@ import Animated, {
 import PressCard from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import EmptyState from '../../src/components/EmptyState';
+import { useDiscounts, useCreateDiscount, useUpdateDiscount, useDeleteDiscount } from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const INITIAL_OFFERS = [
-  {
-    id: '1',
-    name: 'Happy Hour Special',
-    type: 'Happy Hour',
-    discountType: 'percent',
-    discountValue: 20,
-    timeRange: '3:00 PM – 6:00 PM',
-    dateRange: 'Daily',
-    usageLimit: 999,
-    usageCount: 72,
-    active: true,
-    appliedOn: 'Dine-in',
-    conditions: 'Min order ₹300. Beverages only.',
-    items: ['Mocktails', 'Fresh Juices', 'Lassi', 'Cold Coffee'],
-    redemptionHistory: [
-      { date: 'Today', count: 14, savings: 1280 },
-      { date: 'Yesterday', count: 18, savings: 1640 },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Thali Combo Deal',
-    type: 'Combo',
-    discountType: 'flat',
-    discountValue: 120,
-    timeRange: '12:00 PM – 3:30 PM',
-    dateRange: 'Mon – Fri',
-    usageLimit: 50,
-    usageCount: 31,
-    active: true,
-    appliedOn: 'All',
-    conditions: 'Thali + Dessert only.',
-    items: ['Rajasthani Thali', 'South Indian Thali', 'Gulab Jamun', 'Kheer'],
-    redemptionHistory: [
-      { date: 'Today', count: 9, savings: 1080 },
-      { date: 'Yesterday', count: 12, savings: 1440 },
-    ],
-  },
-  {
-    id: '3',
-    name: 'WELCOME100',
-    type: 'Coupon',
-    discountType: 'flat',
-    discountValue: 100,
-    timeRange: 'All Day',
-    dateRange: '01 May – 31 May 2026',
-    usageLimit: 200,
-    usageCount: 68,
-    active: true,
-    appliedOn: 'Delivery',
-    conditions: 'Min order ₹500. New users only.',
-    items: ['All Menu'],
-    redemptionHistory: [
-      { date: 'Today', count: 7, savings: 700 },
-      { date: 'Yesterday', count: 11, savings: 1100 },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Eid Mubarak Feast',
-    type: 'Festival',
-    discountType: 'percent',
-    discountValue: 15,
-    timeRange: 'All Day',
-    dateRange: '01 Apr – 15 Apr 2026',
-    usageLimit: 300,
-    usageCount: 300,
-    active: false,
-    appliedOn: 'All',
-    conditions: 'Above ₹800.',
-    items: ['Biryani Section', 'Kebab Section'],
-    redemptionHistory: [
-      { date: '15 Apr', count: 44, savings: 8800 },
-    ],
-  },
-  {
-    id: '5',
-    name: 'Loyalty Gold Reward',
-    type: 'Loyalty',
-    discountType: 'flat',
-    discountValue: 200,
-    timeRange: 'All Day',
-    dateRange: 'Ongoing',
-    usageLimit: null,
-    usageCount: 142,
-    active: true,
-    appliedOn: 'All',
-    conditions: 'Gold members only. Min ₹1000.',
-    items: ['All Menu'],
-    redemptionHistory: [
-      { date: 'Today', count: 3, savings: 600 },
-      { date: 'Yesterday', count: 5, savings: 1000 },
-    ],
-  },
-  {
-    id: '6',
-    name: 'Weekend Brunch Special',
-    type: 'Combo',
-    discountType: 'percent',
-    discountValue: 25,
-    timeRange: '9:00 AM – 12:00 PM',
-    dateRange: 'Sat & Sun',
-    usageLimit: 40,
-    usageCount: 0,
-    active: false,
-    appliedOn: 'Dine-in',
-    conditions: 'Brunch menu only.',
-    items: ['Brunch Specials', 'Fresh Juices'],
-    redemptionHistory: [],
-  },
-  {
-    id: '7',
-    name: 'SUMMER30',
-    type: 'Coupon',
-    discountType: 'percent',
-    discountValue: 30,
-    timeRange: 'All Day',
-    dateRange: '01 May – 31 May 2026',
-    usageLimit: 500,
-    usageCount: 23,
-    active: true,
-    appliedOn: 'Takeaway',
-    conditions: 'Min ₹400.',
-    items: ['All Menu'],
-    redemptionHistory: [
-      { date: 'Today', count: 5, savings: 1500 },
-    ],
-  },
-  {
-    id: '8',
-    name: 'Family Platter Discount',
-    type: 'Combo',
-    discountType: 'flat',
-    discountValue: 250,
-    timeRange: '6:00 PM – 10:00 PM',
-    dateRange: 'Daily',
-    usageLimit: 30,
-    usageCount: 11,
-    active: true,
-    appliedOn: 'Dine-in',
-    conditions: 'Family platters only. Min 4 people.',
-    items: ['Family Platters', 'Naan Basket'],
-    redemptionHistory: [
-      { date: 'Today', count: 2, savings: 500 },
-      { date: 'Yesterday', count: 3, savings: 750 },
-    ],
-  },
-];
+// ─── Type Maps ────────────────────────────────────────────────────────────────
 
 const TYPE_COLORS = {
   'Happy Hour': '#F5A623',
@@ -507,11 +360,33 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
 
 function OfferCard({ offer, onToggle, expanded, onExpand }) {
   const typeColor = TYPE_COLORS[offer.type] || '#444';
-  const discountLabel =
-    offer.discountType === 'percent'
-      ? `${offer.discountValue}% OFF`
-      : `₹${offer.discountValue} OFF`;
-  const usagePct = offer.usageLimit ? (offer.usageCount / offer.usageLimit) * 100 : null;
+  // Support both normalized API shape (type + value) and legacy UI shape (discountType + discountValue)
+  const discountLabel = (() => {
+    if (offer.discountType === 'percent' || offer.type === 'percentage') {
+      const val = offer.discountValue ?? offer.value;
+      return `${val}% OFF`;
+    }
+    if (offer.discountType === 'flat') {
+      return `₹${offer.discountValue ?? offer.value} OFF`;
+    }
+    // API normalized: type is 'percentage' | 'flat' | 'happy_hour' | 'buy_x_get_y' | 'combo'
+    if (offer.type === 'flat') return `₹${offer.value} OFF`;
+    return `${offer.value}% OFF`;
+  })();
+  const usageCount = offer.usageCount ?? offer.usage_count ?? 0;
+  const usageLimit = offer.usageLimit ?? offer.max_uses ?? null;
+  const usagePct = usageLimit ? (usageCount / usageLimit) * 100 : null;
+  const isActive = offer.is_active ?? offer.active ?? true;
+
+  // Build display strings from normalized API fields
+  const timeRange = offer.timeRange
+    ?? (offer.start_time && offer.end_time ? `${offer.start_time} – ${offer.end_time}` : 'All Day');
+  const dateRange = offer.dateRange
+    ?? (offer.start_date && offer.end_date ? `${offer.start_date} – ${offer.end_date}` : 'Ongoing');
+  const appliedOn = offer.appliedOn ?? 'All';
+  const conditions = offer.conditions ?? (offer.min_order_value ? `Min order ₹${offer.min_order_value}` : '');
+  const items = offer.items ?? ['All Menu'];
+  const redemptionHistory = offer.redemptionHistory ?? [];
 
   return (
     <View style={styles.offerCard}>
@@ -522,10 +397,10 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
             <Text style={[styles.typeBadgeText, { color: typeColor }]}>{offer.type}</Text>
           </View>
           <Switch
-            value={offer.active}
+            value={isActive}
             onValueChange={() => onToggle(offer.id)}
             trackColor={{ false: '#EAEAEA', true: '#0070F320' }}
-            thumbColor={offer.active ? '#0070F3' : '#fff'}
+            thumbColor={isActive ? '#0070F3' : '#fff'}
             style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
           />
         </View>
@@ -536,18 +411,18 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
         <View style={styles.offerMeta}>
           <View style={styles.offerMetaItem}>
             <Ionicons name="time-outline" size={13} color="#888" />
-            <Text style={styles.offerMetaText}>{offer.timeRange}</Text>
+            <Text style={styles.offerMetaText}>{timeRange}</Text>
           </View>
           <View style={styles.offerMetaItem}>
             <Ionicons name="calendar-outline" size={13} color="#888" />
-            <Text style={styles.offerMetaText}>{offer.dateRange}</Text>
+            <Text style={styles.offerMetaText}>{dateRange}</Text>
           </View>
         </View>
 
         <View style={styles.offerBottom}>
           <View style={styles.offerUsage}>
             <Text style={styles.offerUsageText}>
-              {offer.usageCount}{offer.usageLimit ? `/${offer.usageLimit}` : ''} used
+              {usageCount}{usageLimit ? `/${usageLimit}` : ''} used
             </Text>
             {usagePct !== null && (
               <View style={styles.usageBg}>
@@ -564,9 +439,16 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
             )}
           </View>
           <View style={[styles.applyBadge]}>
-            <Text style={styles.applyBadgeText}>{offer.appliedOn}</Text>
+            <Text style={styles.applyBadgeText}>{appliedOn}</Text>
           </View>
         </View>
+
+        {offer.coupon_code ? (
+          <View style={styles.couponBadgeRow}>
+            <Ionicons name="pricetag-outline" size={12} color="#9B59B6" />
+            <Text style={styles.couponBadgeText}>{offer.coupon_code}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.expandToggle}>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#888" />
@@ -579,22 +461,22 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
           <View style={styles.expandDivider} />
           <Text style={styles.expandSubTitle}>Applicable Items</Text>
           <View style={styles.itemChipsRow}>
-            {offer.items.map((it, i) => (
+            {items.map((it, i) => (
               <View key={i} style={styles.itemChip}>
                 <Text style={styles.itemChipText}>{it}</Text>
               </View>
             ))}
           </View>
-          {offer.conditions ? (
+          {conditions ? (
             <>
               <Text style={styles.expandSubTitle}>Conditions</Text>
-              <Text style={styles.conditionsText}>{offer.conditions}</Text>
+              <Text style={styles.conditionsText}>{conditions}</Text>
             </>
           ) : null}
-          {offer.redemptionHistory.length > 0 && (
+          {redemptionHistory.length > 0 && (
             <>
               <Text style={styles.expandSubTitle}>Redemption History</Text>
-              {offer.redemptionHistory.map((r, i) => (
+              {redemptionHistory.map((r, i) => (
                 <View key={i} style={styles.historyRow}>
                   <Text style={styles.historyDate}>{r.date}</Text>
                   <Text style={styles.historyCount}>{r.count} uses</Text>
@@ -613,42 +495,116 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
 
 export default function OffersScreen() {
   const insets = useSafeAreaInsets();
-  const [offers, setOffers] = useState(INITIAL_OFFERS);
+  const { outletId } = useOutlet();
+
+  // ─── API hooks ────────────────────────────────────────────────────────────
+  const { data, isLoading, isError, refetch } = useDiscounts({ outlet_id: outletId });
+  const createDiscount = useCreateDiscount();
+  const updateDiscount = useUpdateDiscount();
+  const deleteDiscount = useDeleteDiscount();
+
+  // ─── Local state for optimistic updates ───────────────────────────────────
+  const [localOffers, setLocalOffers] = useState(null);
+  useEffect(() => { if (data) setLocalOffers(data); }, [data]);
+  const offers = localOffers ?? data ?? [];
+
   const [filter, setFilter] = useState('All');
   const [expandedId, setExpandedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [happyHourOn, setHappyHourOn] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const enter = Platform.OS !== 'web';
 
+  // ─── Happy Hour: first discount of type happy_hour ────────────────────────
+  const happyHourOffer = offers.find(o => o.type === 'happy_hour' || o.type === 'Happy Hour');
+  const happyHourOn = happyHourOffer ? (happyHourOffer.is_active ?? happyHourOffer.active ?? false) : false;
+  const happyHourSub = happyHourOffer
+    ? (() => {
+        const t = happyHourOffer.start_time && happyHourOffer.end_time
+          ? `${happyHourOffer.start_time} – ${happyHourOffer.end_time}`
+          : (happyHourOffer.timeRange ?? 'All Day');
+        const v = happyHourOffer.value ?? happyHourOffer.discountValue ?? '';
+        return `${t}${v ? ` · ${v}% OFF` : ''}`;
+      })()
+    : '3:00 PM – 6:00 PM · 20% OFF Beverages';
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleToggle = useCallback((id) => {
-    setOffers(prev => prev.map(o => o.id === id ? { ...o, active: !o.active } : o));
-  }, []);
+    setLocalOffers(prev => (prev ?? []).map(o => o.id === id ? { ...o, is_active: !(o.is_active ?? o.active), active: !(o.is_active ?? o.active) } : o));
+    const offer = (localOffers ?? []).find(o => o.id === id);
+    if (offer) {
+      updateDiscount.mutate({ id, is_active: !(offer.is_active ?? offer.active), outlet_id: outletId });
+    }
+  }, [localOffers, updateDiscount, outletId]);
 
-  const handleCreate = useCallback((newOffer) => {
-    setOffers(prev => [newOffer, ...prev]);
-  }, []);
+  const handleCreate = useCallback((formData) => {
+    const optimisticId = `temp_${Date.now()}`;
+    const optimistic = { ...formData, id: optimisticId, is_active: true, active: true, usage_count: 0, usageCount: 0 };
+    setLocalOffers(prev => [optimistic, ...(prev ?? [])]);
+    setShowCreate(false);
+    createDiscount.mutate(
+      {
+        name: formData.name,
+        description: formData.description ?? '',
+        type: formData.type ?? formData.offerType ?? 'percentage',
+        value: parseFloat(formData.discountValue ?? formData.value ?? 0),
+        min_order_value: parseFloat(formData.minOrder ?? formData.min_order_value ?? 0) || 0,
+        max_uses: parseInt(formData.usageLimit ?? formData.max_uses) || null,
+        start_date: formData.dateFrom ?? formData.start_date ?? null,
+        end_date: formData.dateTo ?? formData.end_date ?? null,
+        coupon_code: formData.couponCode ?? formData.coupon_code ?? null,
+        outlet_id: outletId,
+      },
+      { onError: () => setLocalOffers(prev => (prev ?? []).filter(o => o.id !== optimisticId)) }
+    );
+  }, [createDiscount, outletId]);
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  // ─── Filter logic (client-side) ────────────────────────────────────────────
   const filteredOffers = useMemo(() => {
+    const now = new Date();
     switch (filter) {
-      case 'Active': return offers.filter(o => o.active);
-      case 'Scheduled': return offers.filter(o => !o.active && o.usageCount === 0);
-      case 'Expired': return offers.filter(o => !o.active && o.usageCount > 0);
-      default: return offers;
+      case 'Active':
+        return offers.filter(o => (o.is_active ?? o.active) === true);
+      case 'Scheduled':
+        return offers.filter(o => {
+          const active = o.is_active ?? o.active;
+          const startDate = o.start_date ?? o.dateFrom;
+          return !active && startDate && new Date(startDate) > now;
+        });
+      case 'Expired':
+        return offers.filter(o => {
+          const endDate = o.end_date ?? o.dateTo;
+          return endDate && new Date(endDate) < now;
+        });
+      default:
+        return offers;
     }
   }, [offers, filter]);
 
-  const activeCount = offers.filter(o => o.active).length;
+  // ─── Summary stats ────────────────────────────────────────────────────────
+  const activeCount = offers.filter(o => (o.is_active ?? o.active) === true).length;
   const todayRedemptions = offers.reduce((sum, o) => {
-    const today = o.redemptionHistory.find(r => r.date === 'Today');
+    const history = o.redemptionHistory ?? [];
+    const today = history.find(r => r.date === 'Today');
     return sum + (today ? today.count : 0);
   }, 0);
   const todayImpact = offers.reduce((sum, o) => {
-    const today = o.redemptionHistory.find(r => r.date === 'Today');
+    const history = o.redemptionHistory ?? [];
+    const today = history.find(r => r.date === 'Today');
     return sum + (today ? today.savings : 0);
   }, 0);
 
-  const todayActiveDeals = offers.filter(o => o.active);
+  const todayActiveDeals = offers.filter(o => (o.is_active ?? o.active) === true);
+
+  // ─── Loading / error states ────────────────────────────────────────────────
+  const showSkeleton = isLoading && !localOffers?.length;
+  const showError = isError && !localOffers?.length;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -663,7 +619,10 @@ export default function OffersScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }>
 
         {/* Happy Hour Quick Toggle */}
         <Animated.View
@@ -673,12 +632,12 @@ export default function OffersScreen() {
             <Ionicons name="beer-outline" size={22} color="#F5A623" style={{ marginRight: 10 }} />
             <View>
               <Text style={styles.happyHourTitle}>Happy Hour</Text>
-              <Text style={styles.happyHourSub}>3:00 PM – 6:00 PM · 20% OFF Beverages</Text>
+              <Text style={styles.happyHourSub}>{happyHourSub}</Text>
             </View>
           </View>
           <Switch
             value={happyHourOn}
-            onValueChange={setHappyHourOn}
+            onValueChange={() => happyHourOffer && handleToggle(happyHourOffer.id)}
             trackColor={{ false: '#EAEAEA', true: '#F5A62330' }}
             thumbColor={happyHourOn ? '#F5A623' : '#fff'}
           />
@@ -747,26 +706,53 @@ export default function OffersScreen() {
           </ScrollView>
         </Animated.View>
 
+        {/* Skeleton loading */}
+        {showSkeleton && (
+          <View>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={[styles.offerCard, { marginBottom: 14 }]}>
+                <SkeletonBox width="60%" height={18} borderRadius={8} style={{ marginBottom: 10 }} />
+                <SkeletonBox width="40%" height={28} borderRadius={8} style={{ marginBottom: 10 }} />
+                <SkeletonBox width="80%" height={14} borderRadius={8} style={{ marginBottom: 6 }} />
+                <SkeletonBox width="50%" height={14} borderRadius={8} />
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Error state */}
+        {showError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={40} color="#EE0000" />
+            <Text style={styles.errorText}>Failed to load offers</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Offers List */}
-        {filteredOffers.length === 0 ? (
-          <EmptyState
-            icon="pricetag-outline"
-            title="No offers found"
-            subtitle="Try a different filter or create a new offer"
-          />
-        ) : (
-          filteredOffers.map((offer, i) => (
-            <Animated.View
-              key={offer.id}
-              entering={enter ? FadeInDown.delay(160 + i * 40).springify() : undefined}>
-              <OfferCard
-                offer={offer}
-                onToggle={handleToggle}
-                expanded={expandedId === offer.id}
-                onExpand={() => setExpandedId(id => id === offer.id ? null : offer.id)}
-              />
-            </Animated.View>
-          ))
+        {!showSkeleton && !showError && (
+          filteredOffers.length === 0 ? (
+            <EmptyState
+              icon="pricetag-outline"
+              title="No offers found"
+              subtitle="Try a different filter or create a new offer"
+            />
+          ) : (
+            filteredOffers.map((offer, i) => (
+              <Animated.View
+                key={offer.id}
+                entering={enter ? FadeInDown.delay(160 + i * 40).springify() : undefined}>
+                <OfferCard
+                  offer={offer}
+                  onToggle={handleToggle}
+                  expanded={expandedId === offer.id}
+                  onExpand={() => setExpandedId(id => id === offer.id ? null : offer.id)}
+                />
+              </Animated.View>
+            ))
+          )
         )}
 
         <View style={{ height: 90 }} />
@@ -1115,4 +1101,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   createBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  couponBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
+  couponBadgeText: { fontSize: 12, color: '#9B59B6', fontWeight: '700' },
+
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  errorText: { fontSize: 15, color: '#444', fontWeight: '600' },
+  retryBtn: {
+    backgroundColor: '#000',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

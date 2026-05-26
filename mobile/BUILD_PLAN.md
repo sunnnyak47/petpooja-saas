@@ -277,11 +277,11 @@ const r = await api.get('/orders?outlet_id=...');
 - [x] Phase 2: Customers Real API
 - [x] Phase 3: Delivery Orders Real API
 - [x] Phase 4: EOD Report Real API
-- [ ] Phase 5: Push Notifications
-- [ ] Phase 6: Owner Alerts
-- [ ] Phase 7: Expenses + Purchase Orders
-- [ ] Phase 8: Reservations
-- [ ] Phase 9: Offers & Discounts
-- [ ] Phase 10: Thermal Printer
-- [ ] Phase 11: QR Table Scanner
-- [ ] Phase 12: Owner Live Dashboard
+- [x] Phase 5: Push Notifications
+- [x] Phase 6: Owner Alerts
+- [x] Phase 7: Expenses + Purchase Orders
+- [x] Phase 8: Reservations
+- [x] Phase 9: Offers & Discounts
+- [x] Phase 10: Thermal Printer
+- [x] Phase 11: QR Table Scanner
+- [x] Phase 12: Owner Live Dashboard

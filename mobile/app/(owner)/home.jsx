@@ -26,6 +26,7 @@ import { useTheme } from '../../src/context/ThemeContext';
 import PressCard from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOwnerDashboard, useAlertBadges, useLowStock } from '../../src/hooks/useOwnerApi';
+import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { OutletSwitcher } from '../../src/components/OutletSwitcher';
@@ -153,6 +154,28 @@ const LowStockRow = React.memo(({ item, idx, colors }) => (
   </View>
 ));
 
+const ORDER_STATUS_COLORS = {
+  pending:    '#F5A623',
+  preparing:  '#6366f1',
+  ready:      '#22c55e',
+  completed:  '#888888',
+  cancelled:  '#EE0000',
+};
+
+const LiveOrderRow = React.memo(({ order, colors }) => {
+  const statusColor = ORDER_STATUS_COLORS[order.status] || '#888';
+  return (
+    <View style={[s.liveOrderRow, { borderBottomColor: colors.border }]}>
+      <View style={[s.liveStatusDot, { backgroundColor: statusColor }]} />
+      <Text style={[s.liveOrderTable, { color: colors.text }]}>{order.table || 'Takeaway'}</Text>
+      <Text style={[s.liveOrderStatus, { color: statusColor }]}>{order.status}</Text>
+      <View style={{ flex: 1 }} />
+      <Text style={[s.liveOrderAmount, { color: colors.text }]}>₹{(order.amount || 0).toLocaleString('en-IN')}</Text>
+      <Text style={[s.liveOrderTime, { color: colors.textMuted }]}>{order.time || ''}</Text>
+    </View>
+  );
+});
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function OwnerHomeScreen() {
@@ -166,9 +189,23 @@ export default function OwnerHomeScreen() {
   const { data: stockData, refetch: refetchStock } = useLowStock(outletId);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [liveStats, setLiveStats] = useState(null);
 
-  // Use API data with safe defaults
-  const d = data || {};
+  // Wire real-time owner stats
+  useRealtimeOwner(outletId, useCallback((stats) => {
+    setLiveStats(stats);
+  }, []));
+
+  // Merge live stats over API data so animated counter and order counts update in real-time
+  const d = useMemo(() => ({
+    ...(data || {}),
+    ...(liveStats ? {
+      todayRevenue: liveStats.todayRevenue ?? data?.todayRevenue,
+      totalOrders:  liveStats.totalOrders  ?? data?.totalOrders,
+      pendingOrders: liveStats.pendingOrders ?? data?.pendingOrders,
+      preparingOrders: liveStats.preparingOrders ?? data?.preparingOrders,
+    } : {}),
+  }), [data, liveStats]);
   const alerts = alertData || { totalAlerts: 0, voids: 0, refunds: 0, lowStock: 0 };
   const lowStockItems = Array.isArray(stockData) ? stockData : [];
 
@@ -312,7 +349,15 @@ export default function OwnerHomeScreen() {
         <Animated.View style={cardAnimStyle}>
           {/* ── Hero Revenue Card ────────────────────────────────────── */}
           <View style={[s.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.heroEyebrow, { color: colors.textMuted }]}>TODAY'S REVENUE</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Text style={[s.heroEyebrow, { color: colors.textMuted }]}>TODAY'S REVENUE</Text>
+              {liveStats && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#22c55e' }} />
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#16a34a', letterSpacing: 0.5 }}>LIVE</Text>
+                </View>
+              )}
+            </View>
 
             <View style={s.heroAmountRow}>
               <Text style={[s.heroAmount, { color: colors.text }]}>{fmtFull(animatedRevenue)}</Text>
@@ -383,6 +428,19 @@ export default function OwnerHomeScreen() {
               </View>
             ))}
           </View>
+
+          {/* ── Live Orders Board (real-time, only shown when data available) ── */}
+          {liveStats?.recentOrders?.length > 0 && (
+            <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={s.sectionHeader}>
+                <View style={[s.liveDot, { backgroundColor: '#22c55e' }]} />
+                <Text style={[s.sectionTitle, { color: colors.text }]}>Live Orders</Text>
+              </View>
+              {liveStats.recentOrders.slice(0, 5).map((order, idx) => (
+                <LiveOrderRow key={order.id || idx} order={order} colors={colors} />
+              ))}
+            </View>
+          )}
 
           {/* ── Top Selling Items ────────────────────────────────────── */}
           <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -543,7 +601,6 @@ const s = StyleSheet.create({
   heroEyebrow: {
     ...TYPE.label,
     color: LC.text3,
-    marginBottom: 6,
   },
   heroAmountRow: {
     flexDirection: 'row',
@@ -751,6 +808,43 @@ const s = StyleSheet.create({
     ...TYPE.small,
     color: LC.text3,
     fontWeight: '400',
+  },
+
+  // ── Live Orders Board ──
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  liveOrderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  liveStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  liveOrderTable: {
+    ...TYPE.bodyMed,
+    width: 48,
+  },
+  liveOrderStatus: {
+    ...TYPE.caption,
+    textTransform: 'capitalize',
+    fontWeight: '600',
+  },
+  liveOrderAmount: {
+    ...TYPE.smallMed,
+  },
+  liveOrderTime: {
+    ...TYPE.caption,
+    minWidth: 40,
+    textAlign: 'right',
   },
 
   // ── Quick Actions ──

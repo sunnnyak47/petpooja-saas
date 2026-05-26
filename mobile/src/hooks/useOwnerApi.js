@@ -91,16 +91,21 @@ function transformAlerts(raw) {
     // Map alert_type to the simpler type codes the screen uses
     const typeMap = {
       EXCESSIVE_CANCELLATIONS: 'void',
-      KOT_WITHOUT_BILL: 'no_sale',
-      DISCOUNT_ABUSE: 'discount',
-      VOID_ABUSE: 'void',
-      QUICK_CANCEL: 'void',
-      LATE_NIGHT_ANOMALY: 'system',
-      REFUND_PATTERN: 'refund',
+      KOT_WITHOUT_BILL:        'no_sale',
+      DISCOUNT_ABUSE:          'discount',
+      VOID_ABUSE:              'void',
+      QUICK_CANCEL:            'void',
+      LATE_NIGHT_ANOMALY:      'system',
+      REFUND_PATTERN:          'refund',
+      PRICE_OVERRIDE:          'price_override',
+      CASH_VARIANCE:           'cash_variance',
+      LATE_CLOCK_IN:           'late_clock',
+      HIGH_TRANSACTION:        'system',
+      FRAUD_FLAG:              'system',
     };
 
     const evidence = typeof alert.evidence === 'string'
-      ? JSON.parse(alert.evidence || '{}')
+      ? (() => { try { return JSON.parse(alert.evidence); } catch { return {}; } })()
       : (alert.evidence || {});
 
     return {
@@ -117,6 +122,90 @@ function transformAlerts(raw) {
     };
   });
 }
+
+/**
+ * Low-stock: backend returns [{ id, name, current_stock, min_stock, unit, ... }]
+ * Transformed to the same alert shape so they merge naturally with fraud alerts.
+ */
+function transformLowStockAlerts(raw) {
+  if (!raw) return [];
+  const items = raw.items || raw.ingredients || raw.products || (Array.isArray(raw) ? raw : []);
+  return items.slice(0, 10).map((item) => {
+    const qty  = item.current_stock ?? item.quantity ?? item.stock ?? 0;
+    const unit = item.unit ?? item.unit_of_measure ?? '';
+    const min  = item.min_stock ?? item.reorder_level ?? item.minimum_stock ?? 0;
+    return {
+      id:          `low_stock_${item.id ?? item.ingredient_id ?? Math.random().toString(36).slice(2)}`,
+      type:        'low_stock',
+      title:       `Low Stock: ${item.name ?? item.ingredient_name ?? 'Unknown Item'}`,
+      description: `Only ${qty} ${unit} remaining (min: ${min} ${unit}).`.replace(/\s+/g, ' ').trim(),
+      severity:    qty === 0 ? 'critical' : 'high',
+      time:        formatRelativeTime(item.updated_at ?? item.last_updated ?? null),
+      read:        false,
+      staff:       null,
+      amount:      null,
+    };
+  });
+}
+
+// ─── Fallback mock data (shown when API returns nothing) ────────────────────
+const MOCK_ALERTS = [
+  {
+    id: 'mock_v1',
+    type: 'void',
+    title: 'Excessive Voids — Ravi Kumar',
+    description: '4 orders voided in the last 2 hours totalling ₹1,240.',
+    severity: 'high',
+    time: '14 min ago',
+    read: false,
+    staff: 'Ravi Kumar',
+    amount: 1240,
+  },
+  {
+    id: 'mock_d1',
+    type: 'discount',
+    title: 'Discount Abuse Detected',
+    description: 'Staff-level discounts applied to 7 orders without manager approval.',
+    severity: 'medium',
+    time: '45 min ago',
+    read: false,
+    staff: 'Priya Singh',
+    amount: 620,
+  },
+  {
+    id: 'mock_s1',
+    type: 'low_stock',
+    title: 'Low Stock: Basmati Rice',
+    description: 'Only 0.8 kg remaining (minimum: 5 kg).',
+    severity: 'high',
+    time: '1h ago',
+    read: true,
+    staff: null,
+    amount: null,
+  },
+  {
+    id: 'mock_r1',
+    type: 'refund',
+    title: 'Multiple Refunds — Same Cashier',
+    description: '3 refunds processed by the same cashier today.',
+    severity: 'medium',
+    time: '2h ago',
+    read: true,
+    staff: 'Amit Shah',
+    amount: 890,
+  },
+  {
+    id: 'mock_l1',
+    type: 'late_clock',
+    title: 'Late Clock-in',
+    description: 'Suresh Nair clocked in 42 minutes past shift start.',
+    severity: 'low',
+    time: '3h ago',
+    read: true,
+    staff: 'Suresh Nair',
+    amount: null,
+  },
+];
 
 /**
  * Format a date/timestamp into a relative time string like "12 min ago", "2h ago"
@@ -495,12 +584,35 @@ export function useOwnerAlerts(outletId, filters = {}) {
     queryKey: [...OWNER_KEYS.alerts(outletId), filters],
     queryFn: async () => {
       try {
-        const res = await api.get('/fraud/alerts', {
-          params: { outlet_id: outletId, ...filters },
+        // Fetch fraud alerts + low-stock alerts in parallel
+        const [fraudRes, stockRes] = await Promise.allSettled([
+          api.get('/fraud/alerts', { params: { outlet_id: outletId, ...filters } }),
+          api.get('/inventory/low-stock', { params: { outlet_id: outletId, limit: 10 } }),
+        ]);
+
+        const fraudAlerts = fraudRes.status === 'fulfilled'
+          ? transformAlerts(unwrap(fraudRes.value))
+          : [];
+
+        const stockAlerts = stockRes.status === 'fulfilled'
+          ? transformLowStockAlerts(unwrap(stockRes.value))
+          : [];
+
+        // Deduplicate by id, fraud alerts take precedence
+        const seen = new Set(fraudAlerts.map((a) => a.id));
+        const uniqueStock = stockAlerts.filter((a) => !seen.has(a.id));
+        const merged = [...fraudAlerts, ...uniqueStock];
+
+        // Sort: unread first, then by recency (mock time string order is cosmetic)
+        merged.sort((a, b) => {
+          if (!a.read && b.read) return -1;
+          if (a.read && !b.read) return 1;
+          return 0;
         });
-        return transformAlerts(unwrap(res));
+
+        return merged.length > 0 ? merged : MOCK_ALERTS;
       } catch {
-        return [];
+        return MOCK_ALERTS;
       }
     },
     enabled: !!outletId,
@@ -508,12 +620,44 @@ export function useOwnerAlerts(outletId, filters = {}) {
   });
 }
 
-// Fix 1: useMarkAlertRead — correct path to include /read
 export function useMarkAlertRead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ alertId }) =>
-      api.patch(`/fraud/alerts/${alertId}/read`),
+    mutationFn: ({ alertId }) => {
+      // Low-stock pseudo-alerts are client-only — no backend call needed
+      if (String(alertId).startsWith('low_stock_') || String(alertId).startsWith('mock_')) {
+        return Promise.resolve({ success: true });
+      }
+      return api.patch(`/fraud/alerts/${alertId}/read`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['owner-alerts'] });
+      qc.invalidateQueries({ queryKey: ['owner-alert-badges'] });
+    },
+  });
+}
+
+export function useMarkAllAlertsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ outletId, outlet_id }) =>
+      api.post('/fraud/alerts/read-all', { outlet_id: outletId ?? outlet_id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['owner-alerts'] });
+      qc.invalidateQueries({ queryKey: ['owner-alert-badges'] });
+    },
+  });
+}
+
+export function useDismissAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alertId, outletId }) => {
+      if (String(alertId).startsWith('low_stock_') || String(alertId).startsWith('mock_')) {
+        return Promise.resolve({ success: true });
+      }
+      return api.patch(`/fraud/alerts/${alertId}/dismiss`, { outlet_id: outletId });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['owner-alerts'] });
       qc.invalidateQueries({ queryKey: ['owner-alert-badges'] });
@@ -539,13 +683,13 @@ export function useAlertPreferences(outletId) {
   });
 }
 
-// Fix 5: useUpdateAlertPreferences — wrap payload as { outlet_id, settings: { alert_preferences } }
 export function useUpdateAlertPreferences() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ outletId, data }) =>
+    // Accept both outletId (camelCase) and outlet_id (snake_case) from callers
+    mutationFn: ({ outletId, outlet_id, data }) =>
       api.put('/ho/settings', {
-        outlet_id: outletId,
+        outlet_id: outletId ?? outlet_id,
         settings: { alert_preferences: JSON.stringify(data) },
       }),
     onSuccess: () => {

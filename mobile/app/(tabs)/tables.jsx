@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Platform,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import SkeletonBox from '../../src/components/SkeletonBox';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useOutlet } from '../../src/context/OutletContext';
+import QRScanner from '../../src/components/QRScanner';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -722,6 +724,7 @@ export default function TablesScreen() {
   const [loading, setLoading] = useState(true);
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   // Populate tables from offline SQLite cache
   useEffect(() => {
@@ -869,6 +872,18 @@ export default function TablesScreen() {
       setDetailVisible(true);
     }
   }, [handleUpdateStatus, router]);
+
+  const handleQRScan = useCallback((tableId, scannedOutletId) => {
+    // Find the table by ID and open its detail modal
+    const found = tables.find(t => t.id === tableId);
+    if (found) {
+      setSelectedTable(found);
+      setDetailVisible(true);
+    } else {
+      // Table not found locally — could be from a different outlet
+      Alert.alert('Table Not Found', 'This table QR belongs to a different outlet or is not yet synced.');
+    }
+  }, [tables]);
 
   // ── Merge mode cancel bar ───────────────────────────────────────────────────
 
@@ -1097,6 +1112,20 @@ export default function TablesScreen() {
         visible={quickVisible}
         onClose={() => setQuickVisible(false)}
         onAction={handleQuickAction}
+      />
+
+      {/* QR Scan FAB */}
+      <TouchableOpacity
+        style={styles.qrFab}
+        onPress={() => setShowQRScanner(true)}
+      >
+        <Ionicons name="qr-code-outline" size={22} color="#fff" />
+      </TouchableOpacity>
+
+      <QRScanner
+        visible={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
       />
     </View>
   );
@@ -1766,5 +1795,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000000',
     textAlign: 'center',
+  },
+
+  // ── QR Scan FAB ───────────────────────────────────────────────────────────────
+  qrFab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
 });

@@ -31,7 +31,10 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   usePurchaseOrders,
   useCreatePurchaseOrder,
+  useReceivePurchaseOrder,
+  useCancelPurchaseOrder,
 } from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const T = {
@@ -383,8 +386,11 @@ export default function PurchaseOrdersScreen() {
   const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
 
+  const { outletId } = useOutlet();
   const { data: raw, isLoading, isFetching, refetch } = usePurchaseOrders();
   const createPO = useCreatePurchaseOrder();
+  const receivePO = useReceivePurchaseOrder();
+  const cancelPO  = useCancelPurchaseOrder();
 
   const pos = useMemo(() => {
     const list = raw?.items || raw?.data?.items || raw?.data || raw || [];
@@ -428,19 +434,16 @@ export default function PurchaseOrdersScreen() {
         {
           text: 'Confirm',
           style: 'default',
-          onPress: async () => {
-            try {
-              const api = (await import('../../src/lib/api')).default;
-              await api.patch(`/purchase-orders/${po.id}`, { status: 'received' });
-              refetch();
-            } catch (e) {
-              Alert.alert('Error', e?.message || 'Failed to update');
-            }
+          onPress: () => {
+            receivePO.mutate(
+              { id: po.id, outlet_id: outletId },
+              { onError: (e) => Alert.alert('Error', e?.message || 'Failed to update') }
+            );
           },
         },
       ]
     );
-  }, [refetch]);
+  }, [receivePO, outletId]);
 
   const handleCancel = useCallback((po) => {
     Alert.alert(
@@ -451,23 +454,20 @@ export default function PurchaseOrdersScreen() {
         {
           text: 'Cancel PO',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              const api = (await import('../../src/lib/api')).default;
-              await api.patch(`/purchase-orders/${po.id}`, { status: 'cancelled' });
-              refetch();
-            } catch (e) {
-              Alert.alert('Error', e?.message || 'Failed to cancel');
-            }
+          onPress: () => {
+            cancelPO.mutate(
+              { id: po.id, outlet_id: outletId },
+              { onError: (e) => Alert.alert('Error', e?.message || 'Failed to cancel') }
+            );
           },
         },
       ]
     );
-  }, [refetch]);
+  }, [cancelPO, outletId]);
 
   const handleCreate = useCallback(async (data) => {
-    await createPO.mutateAsync(data);
-  }, [createPO]);
+    await createPO.mutateAsync({ ...data, outlet_id: outletId });
+  }, [createPO, outletId]);
 
   const renderItem = useCallback(({ item, index }) => (
     <POCard
