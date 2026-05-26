@@ -135,6 +135,18 @@ router.get('/xero/gst-summary', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** POST /api/integrations/au/xero/sync-full — Pull all data from Xero into analytics tables */
+router.post('/xero/sync-full', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.user.outlet_id;
+    // Start in background — sync takes 10–30s; respond immediately so the UI doesn't timeout
+    xeroService.syncFromXero(outletId)
+      .then(r => console.info(`[Xero] Manual sync done ${outletId}:`, r))
+      .catch(e => console.error(`[Xero] Manual sync error ${outletId}:`, e.message));
+    sendSuccess(res, { syncing: true }, 'Xero sync started — data will appear in ~30 seconds');
+  } catch (err) { next(err); }
+});
+
 router.delete('/xero/disconnect', authenticate, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;

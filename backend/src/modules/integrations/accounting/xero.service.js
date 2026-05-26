@@ -273,11 +273,17 @@ class XeroService {
 
     logger.info(`[Xero] Connected outlet ${outletId} to org "${config.org_name}"`);
 
+    // Kick off async initial data sync — don't await so the auth response is fast
+    this.syncFromXero(outletId)
+      .then(r => logger.info(`[Xero] Initial sync done: ${r.transactions} txns, ${r.invoices} invoices`))
+      .catch(e => logger.error(`[Xero] Initial sync failed: ${e.message}`));
+
     return {
       connected: true,
       org_name: config.org_name,
       tenant_id: config.tenant_id,
       connected_at: config.connected_at,
+      syncing: true,
     };
   }
 
@@ -762,6 +768,241 @@ class XeroService {
     };
   }
 
+  // =========================================================================
+  // Full Data Sync — Pulls Xero data into local xero_* analytics tables
+  // =========================================================================
+
+  /**
+   * Pulls 3 years of financial data from Xero and upserts it into the
+   * xero_connections / xero_transactions / xero_invoices etc. tables
+   * used by the analytics service.
+   *
+   * Safe to call multiple times — uses upsert/skipDuplicates throughout.
+   * @param {string} outletId
+   * @returns {Promise<{ transactions: number, invoices: number, contacts: number }>}
+   */
+  async syncFromXero(outletId) {
+    logger.info(`[Xero] Starting full sync for outlet ${outletId}`);
+    const { accessToken, tenantId } = await this.getValidToken(outletId);
+    const config = await this._getConfig(outletId);
+    const prisma = getDbClient();
+
+    const req = (path) =>
+      this._xeroRequest('GET', `${XERO_API_BASE}/${path}`, accessToken, tenantId);
+
+    // ── 1. Ensure xero_connections row exists ─────────────────────────────
+    let conn = await prisma.xeroConnection.findFirst({
+      where: { outlet_id: outletId, is_deleted: false },
+    });
+    if (!conn) {
+      let orgInfo = {};
+      try {
+        const orgRes = await req('Organisation');
+        orgInfo = orgRes?.Organisations?.[0] || {};
+      } catch (_) {}
+      conn = await prisma.xeroConnection.create({
+        data: {
+          outlet_id:    outletId,
+          org_name:     config.org_name || orgInfo.Name || 'Xero Organisation',
+          abn:          orgInfo.TaxNumber || null,
+          address:      orgInfo.Addresses?.[0]?.AddressLine1 || null,
+          currency:     orgInfo.BaseCurrency || 'AUD',
+          country_code: orgInfo.CountryCode  || 'AU',
+          timezone:     orgInfo.Timezone     || null,
+          is_connected: true,
+          last_synced:  new Date(),
+        },
+      });
+    }
+    const connId = conn.id;
+
+    // ── 2. Chart of Accounts ──────────────────────────────────────────────
+    const accountsRes = await req('Accounts?where=Status%3D%3D%22ACTIVE%22');
+    const xeroAccounts = accountsRes?.Accounts || [];
+    const catMap = {}; // code → category
+    for (const a of xeroAccounts) {
+      const cat = _mapXeroAccountType(a.Type, a.Name);
+      catMap[a.Code] = cat;
+      await prisma.xeroAccount.upsert({
+        where:  { connection_id_code: { connection_id: connId, code: a.Code || a.AccountID.slice(0, 10) } },
+        create: { connection_id: connId, code: a.Code || a.AccountID.slice(0, 10), name: a.Name, type: a.Type, category: cat, is_active: a.Status === 'ACTIVE' },
+        update: { name: a.Name, type: a.Type, category: cat, is_active: a.Status === 'ACTIVE' },
+      });
+    }
+
+    // ── 3. P&L Transactions (36 months, 3 x 12-month windows) ────────────
+    let txnCount = 0;
+    const now = new Date();
+    for (let w = 0; w < 3; w++) {
+      const toDate   = new Date(now.getFullYear(), now.getMonth() - w * 12, 0);
+      const fromDate = new Date(toDate.getFullYear() - 1, toDate.getMonth() + 1, 1);
+      const from = _fmtDate(fromDate);
+      const to   = _fmtDate(toDate);
+      let report;
+      try {
+        report = await req(
+          `Reports/ProfitAndLoss?fromDate=${from}&toDate=${to}&periods=12&timeframe=MONTH&standardLayout=true`
+        );
+      } catch (e) {
+        logger.warn(`[Xero] P&L report failed for window ${w}: ${e.message}`);
+        continue;
+      }
+      const rows = report?.Reports?.[0]?.Rows || [];
+      // Extract column date headers from the Header row
+      const headerRow = rows.find(r => r.RowType === 'Header');
+      const colDates  = (headerRow?.Cells || []).slice(1).map(c => c.Value); // e.g. "Jan 2023"
+      // Parse all Section/Row entries
+      for (const section of rows.filter(r => r.RowType === 'Section')) {
+        const sectionTitle = section.Title || '';
+        for (const row of (section.Rows || []).filter(r => r.RowType === 'Row')) {
+          const cells = row.Cells || [];
+          if (!cells.length) continue;
+          const nameCell = cells[0];
+          const acctName = nameCell.Value || '';
+          const acctCode = nameCell.Attributes?.find(a => a.Id === 'account')?.Value || '';
+          const acctType = sectionTitle.toLowerCase().includes('income') ? 'REVENUE' : 'EXPENSE';
+          const cat      = catMap[acctCode] || _mapXeroSectionToCategory(sectionTitle);
+          // Each subsequent cell is a month's value
+          for (let ci = 1; ci < cells.length && (ci - 1) < colDates.length; ci++) {
+            const rawVal = parseFloat(cells[ci].Value) || 0;
+            if (!rawVal) continue;
+            // P&L report shows revenue as positive, expenses as positive
+            // We store revenue positive, expenses negative
+            const net   = acctType === 'REVENUE' ? rawVal : -Math.abs(rawVal);
+            const txRef = `PNL-${acctCode || acctName.slice(0, 8).replace(/\s/g, '')}-${colDates[ci - 1].replace(' ', '')}`.slice(0, 30);
+            const txDate = _parsePnlDate(colDates[ci - 1]);
+            if (!txDate) continue;
+            await prisma.xeroTransaction.upsert({
+              where:  { connection_id_transaction_ref: { connection_id: connId, transaction_ref: txRef } },
+              create: {
+                connection_id:   connId,
+                transaction_ref: txRef,
+                date:            txDate,
+                type:            acctType === 'REVENUE' ? 'ACCREC' : 'ACCPAY',
+                account_code:    acctCode || '000',
+                account_name:    acctName,
+                account_type:    acctType,
+                category:        cat,
+                description:     sectionTitle,
+                amount_incl_gst: Math.round(net * 1.1 * 100) / 100,
+                gst:             Math.round(net * 0.1 * 100) / 100,
+                net_amount:      Math.round(net * 100) / 100,
+                currency:        'AUD',
+              },
+              update: { net_amount: Math.round(net * 100) / 100, amount_incl_gst: Math.round(net * 1.1 * 100) / 100, gst: Math.round(net * 0.1 * 100) / 100 },
+            });
+            txnCount++;
+          }
+        }
+      }
+    }
+
+    // ── 4. Balance Sheet (quarterly snapshots) ────────────────────────────
+    for (let q = 0; q < 12; q++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - q * 3, 0);
+      const asAt = _fmtDate(d);
+      let bs;
+      try { bs = await req(`Reports/BalanceSheet?date=${asAt}&standardLayout=true`); } catch (_) { continue; }
+      for (const section of (bs?.Reports?.[0]?.Rows || []).filter(r => r.RowType === 'Section')) {
+        const subType = section.Title || '';
+        for (const row of (section.Rows || []).filter(r => r.RowType === 'Row')) {
+          const cells = row.Cells || [];
+          if (!cells.length) continue;
+          const acctName = cells[0]?.Value || '';
+          const acctCode = cells[0]?.Attributes?.find(a => a.Id === 'account')?.Value || acctName.slice(0, 10);
+          const bal = parseFloat(cells[1]?.Value) || 0;
+          if (!bal) continue;
+          const acctType = _mapBSSubTypeToAccountType(subType);
+          await prisma.xeroBalanceSheetLine.upsert({
+            where:  { id: (await prisma.xeroBalanceSheetLine.findFirst({ where: { connection_id: connId, as_at_date: d, account_code: acctCode.slice(0, 10) } }))?.id || '00000000-0000-0000-0000-000000000000' },
+            create: { connection_id: connId, as_at_date: d, account_code: acctCode.slice(0, 10), account_name: acctName, account_type: acctType, sub_type: subType.slice(0, 30), balance: bal },
+            update: { balance: bal },
+          }).catch(() => prisma.xeroBalanceSheetLine.create({ data: { connection_id: connId, as_at_date: d, account_code: acctCode.slice(0, 10), account_name: acctName, account_type: acctType, sub_type: subType.slice(0, 30), balance: bal } }).catch(() => null));
+        }
+      }
+    }
+
+    // ── 5. Invoices (last 24 months) ──────────────────────────────────────
+    const invFrom = _fmtDate(new Date(now.getFullYear() - 2, now.getMonth(), 1));
+    let invCount = 0;
+    try {
+      const invRes = await req(`Invoices?DateFrom=${invFrom}&order=Date+DESC&page=1`);
+      for (const inv of (invRes?.Invoices || [])) {
+        await prisma.xeroInvoice.upsert({
+          where:  { connection_id_invoice_number: { connection_id: connId, invoice_number: inv.InvoiceNumber || inv.InvoiceID.slice(0, 30) } },
+          create: {
+            connection_id:  connId,
+            invoice_number: (inv.InvoiceNumber || inv.InvoiceID).slice(0, 30),
+            contact:        (inv.Contact?.Name || 'Unknown').slice(0, 200),
+            type:           inv.Type || 'ACCPAY',
+            status:         inv.Status || 'DRAFT',
+            date:           inv.Date ? new Date(inv.Date) : new Date(),
+            due_date:       inv.DueDate ? new Date(inv.DueDate) : new Date(),
+            total:          inv.Total || 0,
+            amount_paid:    inv.AmountPaid || 0,
+            amount_due:     inv.AmountDue || 0,
+            currency:       inv.CurrencyCode || 'AUD',
+          },
+          update: { status: inv.Status, amount_paid: inv.AmountPaid || 0, amount_due: inv.AmountDue || 0 },
+        });
+        invCount++;
+      }
+    } catch (e) { logger.warn('[Xero] Invoices sync failed:', e.message); }
+
+    // ── 6. Contacts ───────────────────────────────────────────────────────
+    let contactCount = 0;
+    try {
+      const ctRes = await req('Contacts?where=IsSupplier%3D%3Dtrue+OR+IsCustomer%3D%3Dtrue&page=1');
+      for (const ct of (ctRes?.Contacts || []).slice(0, 200)) {
+        const cType = ct.IsSupplier ? 'SUPPLIER' : 'CUSTOMER';
+        await prisma.xeroContact.upsert({
+          where:  { connection_id_name: { connection_id: connId, name: (ct.Name || ct.ContactID).slice(0, 200) } },
+          create: {
+            connection_id: connId,
+            name:          (ct.Name || ct.ContactID).slice(0, 200),
+            contact_type:  cType,
+            abn:           ct.TaxNumber?.slice(0, 20) || null,
+            email:         ct.EmailAddress?.slice(0, 200) || null,
+            phone:         ct.Phones?.[0]?.PhoneNumber?.slice(0, 30) || null,
+            city:          ct.Addresses?.[0]?.City?.slice(0, 100) || null,
+            state:         ct.Addresses?.[0]?.Region?.slice(0, 10) || null,
+            is_active:     ct.ContactStatus === 'ACTIVE',
+          },
+          update: { is_active: ct.ContactStatus === 'ACTIVE' },
+        });
+        contactCount++;
+      }
+    } catch (e) { logger.warn('[Xero] Contacts sync failed:', e.message); }
+
+    // ── 7. Tracking Categories ────────────────────────────────────────────
+    try {
+      const trRes = await req('TrackingCategories?where=Status%3D%3D%22ACTIVE%22');
+      for (const cat of (trRes?.TrackingCategories || [])) {
+        const dbCat = await prisma.xeroTrackingCategory.upsert({
+          where:  { connection_id_name: { connection_id: connId, name: cat.Name.slice(0, 100) } },
+          create: { connection_id: connId, name: cat.Name.slice(0, 100) },
+          update: {},
+        });
+        for (const opt of (cat.Options || [])) {
+          if (opt.Status !== 'ACTIVE') continue;
+          await prisma.xeroTrackingOption.upsert({
+            where:  { category_id_name: { category_id: dbCat.id, name: opt.Name.slice(0, 100) } },
+            create: { category_id: dbCat.id, name: opt.Name.slice(0, 100) },
+            update: {},
+          });
+        }
+      }
+    } catch (e) { logger.warn('[Xero] Tracking sync failed:', e.message); }
+
+    // ── 8. Update connection last_synced ──────────────────────────────────
+    await prisma.xeroConnection.update({ where: { id: connId }, data: { last_synced: new Date() } });
+    config.last_sync = new Date().toISOString();
+    await this._saveConfig(outletId, config);
+
+    logger.info(`[Xero] Sync complete: ${txnCount} txns, ${invCount} invoices, ${contactCount} contacts`);
+    return { transactions: txnCount, invoices: invCount, contacts: contactCount };
+  }
+
   /**
    * Disconnects Xero by clearing stored tokens.
    * Optionally revokes the token at Xero's end.
@@ -825,6 +1066,56 @@ class XeroService {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+/** Format a Date as YYYY-MM-DD for Xero API */
+function _fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Parse "Jan 2023" → Date(2023-01-15) */
+function _parsePnlDate(str) {
+  try {
+    const [mon, yr] = str.split(' ');
+    const months = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+    if (months[mon] === undefined || !yr) return null;
+    return new Date(parseInt(yr), months[mon], 15);
+  } catch { return null; }
+}
+
+/** Map a Xero account Type to our category string */
+function _mapXeroAccountType(type, name = '') {
+  const t = (type || '').toUpperCase();
+  const n = (name || '').toLowerCase();
+  if (t === 'REVENUE' || t === 'SALES') return 'Revenue';
+  if (t === 'DIRECTCOSTS' || t === 'COSTOFGOODSSOLD') return 'Cost of Sales';
+  if (t === 'DEPRECIATN' || n.includes('deprec') || n.includes('amort')) return 'Depreciation';
+  if (n.includes('wage') || n.includes('salary') || n.includes('labour') || n.includes('labor') || n.includes('payroll') || n.includes('superannuation') || n.includes('workers comp')) return 'Labour';
+  if (n.includes('rent') || n.includes('lease') || n.includes('utilities') || n.includes('electricity') || n.includes('gas') || n.includes('water')) return 'Occupancy';
+  if (n.includes('market') || n.includes('advertis') || n.includes('promotion')) return 'Marketing';
+  if (n.includes('insurance') || n.includes('accounting') || n.includes('legal') || n.includes('bank fee') || n.includes('admin')) return 'Admin';
+  return 'Operations';
+}
+
+/** Map a P&L section title to a category */
+function _mapXeroSectionToCategory(sectionTitle) {
+  const t = (sectionTitle || '').toLowerCase();
+  if (t.includes('income') || t.includes('revenue') || t.includes('sales')) return 'Revenue';
+  if (t.includes('cost') || t.includes('cogs')) return 'Cost of Sales';
+  if (t.includes('deprec')) return 'Depreciation';
+  return 'Operations';
+}
+
+/** Map balance sheet section title to account type string */
+function _mapBSSubTypeToAccountType(subType) {
+  const t = (subType || '').toLowerCase();
+  if (t.includes('current asset')) return 'CURRENT';
+  if (t.includes('non-current asset') || t.includes('fixed') || t.includes('plant')) return 'FIXED';
+  if (t.includes('current liab')) return 'CURRENT_LIABILITY';
+  if (t.includes('non-current liab') || t.includes('long-term')) return 'NON_CURRENT';
+  if (t.includes('equity') || t.includes('capital')) return 'EQUITY';
+  if (t.includes('bank')) return 'BANK';
+  return 'OTHER';
+}
 
 /**
  * Normalises a payment method string from the DB into a display label

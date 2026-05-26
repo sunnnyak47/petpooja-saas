@@ -225,11 +225,41 @@ export default function XeroAnalyticsPage() {
     try {
       await api.post('/xero/seed-demo');
       toast.success('Demo data loaded! Refreshing…');
-      // Invalidate all Xero queries so they re-fetch with the new data
       await queryClient.invalidateQueries({ queryKey: ['xero-connection'] });
-      await queryClient.invalidateQueries({ predicate: q => q.queryKey[0]?.startsWith?.('xero-') });
+      await queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).startsWith('xero-') });
     } catch (err) {
       toast.error(err.message || 'Failed to load demo data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleConnectXero = async () => {
+    try {
+      const res = await api.get('/integrations/au/xero/auth-url');
+      const url = res?.url || res?.data?.url;
+      if (url) {
+        sessionStorage.setItem('xero_oauth_state', res?.state || res?.data?.state || '');
+        window.open(url, 'xero_oauth', 'width=650,height=750,left=200,top=100');
+        toast('Xero login window opened — complete authorisation there', { icon: '🔗' });
+      } else {
+        toast('Xero OAuth not configured yet — set XERO_CLIENT_ID on the server', { icon: '⚙️' });
+      }
+    } catch (e) {
+      toast.error(e.message || 'Failed to start Xero OAuth');
+    }
+  };
+
+  const handleSyncXero = async () => {
+    setSeeding(true);
+    try {
+      await api.post('/integrations/au/xero/sync-full');
+      toast.success('Sync started — financial data will appear in ~30 seconds');
+      setTimeout(async () => {
+        await queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).startsWith('xero-') });
+      }, 30_000);
+    } catch (e) {
+      toast.error(e.message || 'Sync failed');
     } finally {
       setSeeding(false);
     }
@@ -247,23 +277,40 @@ export default function XeroAnalyticsPage() {
             Powered by Xero &middot; 3 years of financial data
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Load Demo Data button — only shown when not connected */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           {!connLoading && !isConnected && (
+            <>
+              {/* Real Xero OAuth connect */}
+              <button
+                onClick={handleConnectXero}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                style={{ background: '#13B5EA', color: '#fff', border: 'none', cursor: 'pointer' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="20" fill="#fff"/><path d="M20 8C13.4 8 8 13.4 8 20s5.4 12 12 12 12-5.4 12-12S26.6 8 20 8zm0 20c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z" fill="#13B5EA"/></svg>
+                Connect Xero
+              </button>
+              {/* Demo data fallback */}
+              <button
+                onClick={handleSeedDemo}
+                disabled={seeding}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all border"
+                style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)', opacity: seeding ? 0.7 : 1, cursor: seeding ? 'wait' : 'pointer' }}
+              >
+                {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                {seeding ? 'Loading…' : 'Load Demo Data'}
+              </button>
+            </>
+          )}
+          {!connLoading && isConnected && (
+            /* Sync now button */
             <button
-              onClick={handleSeedDemo}
+              onClick={handleSyncXero}
               disabled={seeding}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                background: 'var(--accent)',
-                color: '#fff',
-                border: 'none',
-                opacity: seeding ? 0.7 : 1,
-                cursor: seeding ? 'wait' : 'pointer',
-              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all border"
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)', opacity: seeding ? 0.7 : 1, cursor: seeding ? 'wait' : 'pointer' }}
             >
-              {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-              {seeding ? 'Loading demo data…' : 'Load Demo Data'}
+              <RefreshCw className={`w-3.5 h-3.5 ${seeding ? 'animate-spin' : ''}`} />
+              {seeding ? 'Syncing…' : 'Sync Now'}
             </button>
           )}
           {/* Connection badge */}
@@ -282,7 +329,7 @@ export default function XeroAnalyticsPage() {
             ) : (
               <WifiOff className="w-3.5 h-3.5" />
             )}
-            <span>{isConnected ? `Connected to ${orgName}` : 'Not Connected'}</span>
+            <span>{isConnected ? `Connected · ${orgName}` : 'Not Connected'}</span>
           </div>
         </div>
       </div>

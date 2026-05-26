@@ -105,21 +105,32 @@ export default function AUIntegrationsPage() {
     onError: e => toast.error(e?.response?.data?.message || 'Failed to start Xero OAuth'),
   });
 
-  // Handle Xero OAuth callback (code from URL params)
+  // Handle Xero OAuth callback — code can arrive via:
+  // 1. window.location.search (?code=...) if redirect URI is plain path
+  // 2. sessionStorage (stashed by App.jsx interceptor for hash-routing)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
+    if (!outletId) return;
+
+    let code  = new URLSearchParams(window.location.search).get('code');
+    let state = new URLSearchParams(window.location.search).get('state');
+
+    if (!code) {
+      code  = sessionStorage.getItem('xero_oauth_code');
+      state = sessionStorage.getItem('xero_oauth_state');
+      if (code) {
+        sessionStorage.removeItem('xero_oauth_code');
+        sessionStorage.removeItem('xero_oauth_state');
+      }
+    }
+
     if (code && state) {
-      // Exchange code for tokens
       api.post('/integrations/au/xero/callback', { code, outlet_id: outletId })
         .then(() => {
-          toast.success('Xero connected successfully!');
-          qc.invalidateQueries(['au-integrations']);
-          // Clean URL
+          toast.success('🎉 Xero connected! Syncing financial data…');
+          qc.invalidateQueries({ queryKey: ['au-integrations'] });
           window.history.replaceState({}, '', window.location.pathname);
         })
-        .catch(e => toast.error(e?.response?.data?.message || 'Xero callback failed'));
+        .catch(e => toast.error(e?.message || 'Xero callback failed'));
     }
   }, [outletId, qc]);
 

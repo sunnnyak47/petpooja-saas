@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -151,6 +151,27 @@ export default function App() {
   const [setupComplete, setSetupComplete] = useState(
     localStorage.getItem('msrm_setup_completed') === 'true'
   );
+
+  // ── Xero OAuth2 callback interceptor ────────────────────────────────────
+  // Xero redirects to the root URL with ?code=...&state=... in the query string.
+  // Hash routing loses those params, so we stash them in sessionStorage and
+  // navigate to #/au-integrations which reads them back.
+  useEffect(() => {
+    const search = window.location.search;
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const code  = params.get('code');
+    const state = params.get('state');
+    // state format is "outletId:timestamp" (set in au-integrations.routes.js)
+    if (code && state && state.includes(':')) {
+      sessionStorage.setItem('xero_oauth_code',  code);
+      sessionStorage.setItem('xero_oauth_state', state);
+      // Clean the query string from the browser URL without a full reload
+      window.history.replaceState({}, '', window.location.pathname);
+      // Navigate into the app at the integrations page
+      window.location.hash = '#/au-integrations';
+    }
+  }, []);
 
   const handleSetupComplete = async (config) => {
     if (window.electron) {
