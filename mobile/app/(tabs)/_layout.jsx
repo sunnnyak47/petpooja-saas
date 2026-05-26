@@ -99,19 +99,20 @@ export default function TabLayout() {
           tabBarButton: (props) => <HapticTabButton {...props} />,
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
-            borderTopColor: '#EAEAEA',
+            borderTopColor: '#e2e8f0',
             borderTopWidth: 1,
             height: TAB_HEIGHT,
             paddingBottom: bottomInset + 6,
             paddingTop: 8,
             elevation: 0,
-            shadowColor: '#000',
+            shadowColor: '#0f172a',
             shadowOpacity: 0.06,
             shadowRadius: 12,
             shadowOffset: { width: 0, height: -2 },
           },
-          tabBarActiveTintColor: '#000000',
-          tabBarInactiveTintColor: '#AAAAAA',
+          // Web app uses indigo-500 #6366f1 as brand accent
+          tabBarActiveTintColor: '#6366f1',
+          tabBarInactiveTintColor: '#94a3b8',
           tabBarLabelStyle: {
             fontSize: 10,
             fontWeight: '700',
@@ -296,13 +297,14 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   iconWrap: {
-    width: 32,
-    height: 28,
-    borderRadius: 8,
+    width: 34,
+    height: 30,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   iconWrapActive: {
-    backgroundColor: '#F0F0F0',
+    // Indigo-50 soft background, matches web's hover/active state
+    backgroundColor: '#eef2ff',
   },
 });

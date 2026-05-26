@@ -57,6 +57,7 @@ import { useOutlet } from '../../src/context/OutletContext';
 import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useCreateOfflineOrder } from '../../src/hooks/useCreateOfflineOrder';
+import { T, R, FS, FW } from '../../src/constants/theme';
 
 // ─── Safe haptics import ──────────────────────────────────────────────────────
 let Haptics = null;
@@ -80,9 +81,9 @@ const TAX_RATE = 0.05; // 5% GST flat estimate displayed to staff (server recalc
 // ─── Food type indicator ──────────────────────────────────────────────────────
 function FoodTypeDot({ type }) {
   const color =
-    type === 'non_veg' ? '#EE0000'
-    : type === 'egg'   ? '#F5A623'
-    :                    '#00B341';
+    type === 'non_veg' ? T.nonVeg
+    : type === 'egg'   ? T.egg
+    :                    T.veg;
   return (
     <View style={[styles.foodDotWrap, { borderColor: color }]}>
       <View style={[styles.foodDotInner, { backgroundColor: color }]} />
@@ -149,16 +150,16 @@ function ItemCard({ item, qty, onAdd, onRemove }) {
       {qty > 0 ? (
         <Animated.View style={[styles.qtyRow, animStyle]}>
           <TouchableOpacity style={styles.qtyBtn} onPress={handleRemove} activeOpacity={0.7}>
-            <Ionicons name="remove" size={16} color="#000" />
+            <Ionicons name="remove" size={16} color={T.accentDark} />
           </TouchableOpacity>
           <Text style={styles.qtyText}>{qty}</Text>
           <TouchableOpacity style={styles.qtyBtn} onPress={handleAdd} activeOpacity={0.7}>
-            <Ionicons name="add" size={16} color="#000" />
+            <Ionicons name="add" size={16} color={T.accentDark} />
           </TouchableOpacity>
         </Animated.View>
       ) : (
         <TouchableOpacity style={styles.addBtn} onPress={handleAdd} activeOpacity={0.7}>
-          <Ionicons name="add" size={18} color="#000" />
+          <Ionicons name="add" size={20} color={T.textOnDark} />
         </TouchableOpacity>
       )}
     </Animated.View>
@@ -181,7 +182,11 @@ function CartItemRow({ item, onAdd, onRemove, onRemoveAll }) {
           onPress={() => onRemove(item.id)}
           activeOpacity={0.7}
         >
-          <Ionicons name={item.qty === 1 ? 'trash-outline' : 'remove'} size={15} color="#444" />
+          <Ionicons
+            name={item.qty === 1 ? 'trash-outline' : 'remove'}
+            size={15}
+            color={item.qty === 1 ? T.dangerDark : T.textSecondary}
+          />
         </TouchableOpacity>
         <Text style={styles.cartQtyNum}>{item.qty}</Text>
         <TouchableOpacity
@@ -189,7 +194,7 @@ function CartItemRow({ item, onAdd, onRemove, onRemoveAll }) {
           onPress={() => onAdd(item)}
           activeOpacity={0.7}
         >
-          <Ionicons name="add" size={15} color="#444" />
+          <Ionicons name="add" size={15} color={T.textSecondary} />
         </TouchableOpacity>
       </View>
       <Text style={styles.cartItemTotal}>₹{price * item.qty}</Text>
@@ -226,13 +231,13 @@ function TablePickerModal({ visible, tables, selectedId, onSelect, onClose }) {
                 <Ionicons
                   name="restaurant-outline"
                   size={18}
-                  color={selectedId === t.id ? '#0070F3' : '#888'}
+                  color={selectedId === t.id ? T.accentDark : T.textMuted}
                   style={{ marginRight: 10 }}
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={[
                     styles.pickerRowLabel,
-                    selectedId === t.id && { color: '#0070F3', fontWeight: '700' },
+                    selectedId === t.id && { color: T.accentDark, fontWeight: FW.bold },
                   ]}>
                     {t.name || `Table ${t.id}`}
                   </Text>
@@ -243,7 +248,7 @@ function TablePickerModal({ visible, tables, selectedId, onSelect, onClose }) {
                   )}
                 </View>
                 {selectedId === t.id && (
-                  <Ionicons name="checkmark-circle" size={20} color="#0070F3" />
+                  <Ionicons name="checkmark-circle" size={20} color={T.accent} />
                 )}
               </TouchableOpacity>
             ))
@@ -443,7 +448,7 @@ export default function POSScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={22} color="#000" />
+          <Ionicons name="arrow-back" size={22} color={T.textPrimary} />
         </TouchableOpacity>
 
         {searchActive ? (
@@ -451,7 +456,7 @@ export default function POSScreen() {
             ref={searchRef}
             style={styles.searchInput}
             placeholder="Search menu items…"
-            placeholderTextColor="#999"
+            placeholderTextColor={T.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
@@ -470,7 +475,7 @@ export default function POSScreen() {
             <Ionicons
               name={searchActive ? 'close' : 'search-outline'}
               size={22}
-              color="#000"
+              color={T.textPrimary}
             />
           </TouchableOpacity>
 
@@ -480,7 +485,7 @@ export default function POSScreen() {
               onPress={() => { hapticLight(); setShowCart(true); }}
               activeOpacity={0.8}
             >
-              <Ionicons name="cart-outline" size={22} color="#000" />
+              <Ionicons name="cart-outline" size={22} color={T.textPrimary} />
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
               </View>
@@ -508,8 +513,8 @@ export default function POSScreen() {
             <Ionicons
               name={ot.icon}
               size={15}
-              color={orderType === ot.key ? '#fff' : '#555'}
-              style={{ marginRight: 5 }}
+              color={orderType === ot.key ? T.textOnDark : T.textSecondary}
+              style={{ marginRight: 6 }}
             />
             <Text
               style={[
@@ -526,7 +531,7 @@ export default function POSScreen() {
       {/* ── Table selector (dine-in only) ── */}
       {orderType === 'dine_in' && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.tableRow}>
-          <Ionicons name="restaurant-outline" size={16} color="#888" style={{ marginRight: 8 }} />
+          <Ionicons name="restaurant-outline" size={16} color={T.textMuted} style={{ marginRight: 8 }} />
           <TouchableOpacity
             style={[
               styles.tablePickerBtn,
@@ -546,7 +551,7 @@ export default function POSScreen() {
             <Ionicons
               name="chevron-down"
               size={14}
-              color={selectedTable ? '#0070F3' : '#888'}
+              color={selectedTable ? T.accentDark : T.textMuted}
             />
           </TouchableOpacity>
           {selectedTable && (
@@ -555,7 +560,7 @@ export default function POSScreen() {
               onPress={() => setSelectedTable(null)}
               activeOpacity={0.7}
             >
-              <Ionicons name="close-circle" size={18} color="#ccc" />
+              <Ionicons name="close-circle" size={18} color={T.textMuted} />
             </TouchableOpacity>
           )}
         </Animated.View>
@@ -622,7 +627,7 @@ export default function POSScreen() {
         </ScrollView>
       ) : displayItems.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="fast-food-outline" size={52} color="#ddd" />
+          <Ionicons name="fast-food-outline" size={52} color={T.borderStrong} />
           <Text style={styles.emptyTitle}>
             {searchQuery ? 'No items match your search' : 'No items in this category'}
           </Text>
@@ -676,7 +681,7 @@ export default function POSScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.cartBarBtnText}>View Cart</Text>
-            <Ionicons name="chevron-forward" size={16} color="#fff" />
+            <Ionicons name="chevron-forward" size={16} color={T.textOnDark} />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -752,13 +757,13 @@ export default function POSScreen() {
               <Ionicons
                 name="create-outline"
                 size={16}
-                color="#888"
-                style={{ marginRight: 6, marginTop: 1 }}
+                color={T.textMuted}
+                style={{ marginRight: 8, marginTop: 1 }}
               />
               <TextInput
                 style={styles.notesInput}
                 placeholder="Add order notes (optional)…"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={T.textMuted}
                 value={orderNotes}
                 onChangeText={setOrderNotes}
                 multiline
@@ -797,10 +802,10 @@ export default function POSScreen() {
               disabled={isCreating}
             >
               {isCreating ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={T.textOnDark} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                  <Ionicons name="checkmark-circle-outline" size={20} color={T.textOnDark} style={{ marginRight: 8 }} />
                   <Text style={styles.placeOrderTxt}>Place Order</Text>
                 </>
               )}
@@ -822,10 +827,12 @@ export default function POSScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
+// Web-app matched: slate-50 page bg, indigo-500 accent, slate-900 text,
+// rounded-xl/-2xl borders, Inter-like system font, slate-200 borders.
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: T.pageBg,
   },
 
   // Header
@@ -833,32 +840,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    paddingVertical: 12,
+    backgroundColor: T.cardBg,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: T.border,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
+    width: 38,
+    height: 38,
+    borderRadius: R.xl,
+    backgroundColor: T.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#000',
+    fontSize: FS.lg,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
     letterSpacing: -0.3,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: '#000',
-    fontWeight: '500',
+    fontSize: FS.base,
+    color: T.textPrimary,
+    fontWeight: FW.medium,
     paddingVertical: 0,
   },
   headerRight: {
@@ -867,18 +874,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
+    width: 38,
+    height: 38,
+    borderRadius: R.xl,
+    backgroundColor: T.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cartHeaderBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
+    width: 38,
+    height: 38,
+    borderRadius: R.xl,
+    backgroundColor: T.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -887,51 +894,54 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#0070F3',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
+    backgroundColor: T.accent,
+    borderRadius: R.full,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: T.cardBg,
   },
   cartBadgeText: {
-    color: '#fff',
+    color: T.textOnDark,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: FW.extrabold,
   },
 
   // Order type row
   orderTypeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 14,
+    paddingBottom: 10,
     gap: 8,
-    backgroundColor: '#fff',
+    backgroundColor: T.pageBg,
   },
   orderTypeBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    paddingVertical: 10,
+    borderRadius: R.xl,
+    backgroundColor: T.cardBg,
+    borderWidth: 1,
+    borderColor: T.border,
   },
   orderTypeBtnActive: {
-    backgroundColor: '#000',
-    borderColor: '#000',
+    backgroundColor: T.accent,
+    borderColor: T.accent,
   },
   orderTypeTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#555',
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
+    color: T.textSecondary,
     letterSpacing: 0.2,
   },
   orderTypeTxtActive: {
-    color: '#fff',
+    color: T.textOnDark,
   },
 
   // Table row
@@ -939,33 +949,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 10,
-    backgroundColor: '#fff',
+    paddingBottom: 12,
+    backgroundColor: T.pageBg,
   },
   tablePickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#EAEAEA',
-    backgroundColor: '#F9F9F9',
+    paddingVertical: 10,
+    borderRadius: R.xl,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.cardBg,
     gap: 6,
     flex: 1,
   },
   tablePickerBtnActive: {
-    borderColor: '#0070F3',
-    backgroundColor: '#EBF4FF',
+    borderColor: T.accent,
+    backgroundColor: T.accentSoft,
   },
   tablePickerTxt: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#888',
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
+    color: T.textMuted,
   },
   tablePickerTxtActive: {
-    color: '#0070F3',
+    color: T.accentDark,
   },
   tableClearBtn: {
     marginLeft: 8,
@@ -974,40 +984,40 @@ const styles = StyleSheet.create({
 
   // Categories
   categoryScroll: {
-    backgroundColor: '#fff',
-    maxHeight: 50,
+    backgroundColor: T.pageBg,
+    maxHeight: 54,
   },
   categoryScrollContent: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 8,
     alignItems: 'center',
   },
   categoryChip: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    paddingVertical: 7,
+    borderRadius: R.full,
+    backgroundColor: T.cardBg,
+    borderWidth: 1,
+    borderColor: T.border,
   },
   categoryChipActive: {
-    backgroundColor: '#000',
-    borderColor: '#000',
+    backgroundColor: T.textPrimary,
+    borderColor: T.textPrimary,
   },
   categoryChipTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#555',
-    letterSpacing: 0.2,
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
+    color: T.textSecondary,
+    letterSpacing: 0.1,
   },
   categoryChipTxtActive: {
-    color: '#fff',
+    color: T.textOnDark,
   },
 
   divider: {
     height: 1,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: T.border,
     marginHorizontal: 0,
   },
 
@@ -1022,17 +1032,17 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: T.cardBg,
+    borderRadius: R['2xl'],
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
-    minHeight: 110,
+    borderColor: T.border,
+    minHeight: 120,
     justifyContent: 'space-between',
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOpacity: 0.04,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
   itemCardTop: {
@@ -1040,50 +1050,58 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#000',
-    marginTop: 6,
-    marginBottom: 4,
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
+    color: T.textPrimary,
+    marginTop: 8,
+    marginBottom: 6,
     lineHeight: 18,
   },
   itemPrice: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#000',
+    fontSize: FS.base,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
+    letterSpacing: -0.3,
   },
   addBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: '#000',
+    width: 32,
+    height: 32,
+    borderRadius: R.lg,
+    backgroundColor: T.accent,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'flex-end',
+    shadowColor: T.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-end',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    backgroundColor: T.accentSoft,
+    borderRadius: R.lg,
+    borderWidth: 1,
+    borderColor: T.accent,
     overflow: 'hidden',
   },
   qtyBtn: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
   qtyText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#000',
-    minWidth: 20,
+    fontSize: FS.sm,
+    fontWeight: FW.bold,
+    color: T.accentDark,
+    minWidth: 22,
     textAlign: 'center',
   },
 
-  // Food type dot
+  // Food type dot — square indicator like real Indian POS
   foodDotWrap: {
     width: 14,
     height: 14,
@@ -1106,22 +1124,24 @@ const styles = StyleSheet.create({
   skeletonItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: T.cardBg,
+    borderRadius: R['2xl'],
+    padding: 14,
     gap: 12,
+    borderWidth: 1,
+    borderColor: T.border,
   },
   skeletonThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
-    backgroundColor: '#E5E5E5',
+    width: 56,
+    height: 56,
+    borderRadius: R.lg,
+    backgroundColor: T.skeletonBg,
   },
   skeletonLine: {
     height: 12,
     width: '80%',
-    borderRadius: 6,
-    backgroundColor: '#E5E5E5',
+    borderRadius: R.sm,
+    backgroundColor: T.skeletonBg,
   },
 
   // Empty state
@@ -1132,32 +1152,32 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#999',
+    fontSize: FS.base,
+    fontWeight: FW.semibold,
+    color: T.textMuted,
     marginTop: 16,
     textAlign: 'center',
   },
   emptyClear: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0070F3',
+    fontSize: FS.sm,
+    fontWeight: FW.bold,
+    color: T.accent,
     marginTop: 12,
   },
 
-  // Cart bar
+  // Cart bar — sticky bottom, slate-900 dark bar with indigo CTA
   cartBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#000',
+    backgroundColor: T.textPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.18,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: -4 },
     elevation: 12,
@@ -1169,74 +1189,75 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cartBarBadge: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    paddingHorizontal: 7,
+    backgroundColor: T.accent,
+    borderRadius: R.sm,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    minWidth: 24,
+    minWidth: 26,
     alignItems: 'center',
   },
   cartBarBadgeText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '800',
+    color: T.textOnDark,
+    fontSize: FS.xs,
+    fontWeight: FW.extrabold,
   },
   cartBarItems: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: T.textOnDark,
+    fontSize: FS.sm,
+    fontWeight: FW.medium,
   },
   cartBarDot: {
-    color: '#666',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: FS.sm,
   },
   cartBarTotal: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
+    color: T.textOnDark,
+    fontSize: FS.base,
+    fontWeight: FW.bold,
+    letterSpacing: -0.3,
   },
   cartBarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0070F3',
+    backgroundColor: T.accent,
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: R.xl,
     gap: 4,
   },
   cartBarBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    color: T.textOnDark,
+    fontSize: FS.sm,
+    fontWeight: FW.bold,
+    letterSpacing: 0.1,
   },
 
   // Modal overlay
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
   },
 
   // Cart sheet
   cartSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: T.cardBg,
+    borderTopLeftRadius: R['3xl'],
+    borderTopRightRadius: R['3xl'],
     maxHeight: '85%',
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOpacity: 0.15,
     shadowRadius: 30,
     shadowOffset: { width: 0, height: -6 },
     elevation: 20,
   },
   cartHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    backgroundColor: T.borderStrong,
+    borderRadius: R.full,
     alignSelf: 'center',
     marginTop: 10,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   cartHeader: {
     flexDirection: 'row',
@@ -1246,31 +1267,31 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   cartTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#000',
+    fontSize: FS.lg,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
     letterSpacing: -0.3,
   },
   cartSubtitle: {
-    fontSize: 13,
-    color: '#888',
-    fontWeight: '500',
+    fontSize: FS.sm,
+    color: T.textMuted,
+    fontWeight: FW.medium,
     marginTop: 2,
   },
   cartClearBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#FFF0F0',
+    paddingVertical: 7,
+    borderRadius: R.md,
+    backgroundColor: T.dangerBg,
   },
   cartClearTxt: {
-    color: '#EE0000',
-    fontSize: 13,
-    fontWeight: '700',
+    color: T.dangerText,
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
   },
   cartDivider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: T.separator,
     marginHorizontal: 0,
   },
   cartItemList: {
@@ -1281,27 +1302,28 @@ const styles = StyleSheet.create({
   cartItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: T.separator,
   },
   cartItemName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#000',
+    fontSize: FS.sm,
+    fontWeight: FW.semibold,
+    color: T.textPrimary,
   },
   cartItemPrice: {
-    fontSize: 12,
-    color: '#888',
+    fontSize: FS.xs,
+    color: T.textMuted,
     marginTop: 2,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   cartItemTotal: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#000',
-    minWidth: 54,
+    fontSize: FS.sm,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
+    minWidth: 56,
     textAlign: 'right',
+    letterSpacing: -0.2,
   },
   cartQtyRow: {
     flexDirection: 'row',
@@ -1311,15 +1333,17 @@ const styles = StyleSheet.create({
   cartQtyBtn: {
     width: 28,
     height: 28,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
+    borderRadius: R.md,
+    backgroundColor: T.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: T.border,
   },
   cartQtyNum: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#000',
+    fontSize: FS.sm,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
     minWidth: 22,
     textAlign: 'center',
   },
@@ -1328,21 +1352,21 @@ const styles = StyleSheet.create({
   notesSection: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   notesInput: {
     flex: 1,
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+    fontSize: FS.sm,
+    color: T.textPrimary,
+    fontWeight: FW.medium,
     maxHeight: 60,
   },
 
   // Totals
   totalsSection: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   totalRow: {
     flexDirection: 'row',
@@ -1350,34 +1374,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   totalLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: FS.sm,
+    color: T.textSecondary,
+    fontWeight: FW.medium,
   },
   totalValue: {
-    fontSize: 14,
-    color: '#444',
-    fontWeight: '700',
+    fontSize: FS.sm,
+    color: T.textPrimary,
+    fontWeight: FW.semibold,
   },
   totalGrandRow: {
-    marginTop: 6,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EAEAEA',
+    borderTopColor: T.border,
     marginBottom: 0,
   },
   totalGrandLabel: {
-    fontSize: 16,
-    color: '#000',
-    fontWeight: '800',
+    fontSize: FS.base,
+    color: T.textPrimary,
+    fontWeight: FW.bold,
   },
   totalGrandValue: {
-    fontSize: 18,
-    color: '#000',
-    fontWeight: '900',
+    fontSize: FS.xl,
+    color: T.textPrimary,
+    fontWeight: FW.extrabold,
+    letterSpacing: -0.5,
   },
 
-  // Place order button
+  // Place order button — indigo brand, web-style large CTA
   placeOrderWrap: {
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -1386,56 +1411,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#000',
-    borderRadius: 14,
+    backgroundColor: T.accent,
+    borderRadius: R.xl,
     paddingVertical: 16,
     gap: 6,
+    shadowColor: T.accent,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   placeOrderTxt: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.3,
+    color: T.textOnDark,
+    fontSize: FS.base,
+    fontWeight: FW.bold,
+    letterSpacing: 0.2,
   },
 
   // Table picker
   pickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
   pickerSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: T.cardBg,
+    borderTopLeftRadius: R['3xl'],
+    borderTopRightRadius: R['3xl'],
     paddingTop: 8,
     paddingBottom: 20,
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOpacity: 0.15,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: -4 },
     elevation: 20,
   },
   pickerHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    backgroundColor: T.borderStrong,
+    borderRadius: R.full,
     alignSelf: 'center',
     marginBottom: 12,
   },
   pickerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#000',
+    fontSize: FS.lg,
+    fontWeight: FW.bold,
+    color: T.textPrimary,
     paddingHorizontal: 20,
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   pickerEmpty: {
-    fontSize: 14,
-    color: '#888',
+    fontSize: FS.sm,
+    color: T.textMuted,
     textAlign: 'center',
     paddingVertical: 30,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -1443,33 +1474,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: T.separator,
   },
   pickerRowActive: {
-    backgroundColor: '#EBF4FF',
+    backgroundColor: T.accentSoft,
   },
   pickerRowLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: FS.base,
+    fontWeight: FW.semibold,
+    color: T.textPrimary,
   },
   pickerRowSub: {
-    fontSize: 12,
-    color: '#888',
+    fontSize: FS.xs,
+    color: T.textMuted,
     marginTop: 2,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   pickerClose: {
     marginHorizontal: 16,
     marginTop: 12,
     paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#F5F5F5',
+    borderRadius: R.xl,
+    backgroundColor: T.surfaceMuted,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: T.border,
   },
   pickerCloseText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#555',
+    fontSize: FS.base,
+    fontWeight: FW.semibold,
+    color: T.textSecondary,
   },
 });

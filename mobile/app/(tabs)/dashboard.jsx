@@ -54,28 +54,30 @@ import { PressCard } from '../../src/components/PressCard';
 import { TYPE } from '../../src/constants/typography';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
+// Dashboard theme — matches web app design language exactly.
+// Sync'd with src/constants/theme.js so all screens look consistent.
 const T = {
-  pageBg:    '#F7F7F7',
-  cardBg:    '#FFFFFF',
-  cardBorder:'#EAEAEA',
-  shadow:    'rgba(0,0,0,0.05)',
-  shadowHero:'rgba(0,0,0,0.08)',
-  textPrimary:   '#000000',
-  textSecondary: '#444444',
-  textMuted:     '#888888',
-  accent:    '#0070F3',
-  success:   '#00B341',
-  warning:   '#F5A623',
-  error:     '#EE0000',
-  separator: '#EAEAEA',
-  skeletonBg:'#F0F0F0',
-  gridLine:  '#F0F0F0',
-  // pill active
-  pillActiveBg:  '#000000',
-  pillActiveText:'#FFFFFF',
-  // growth badge
-  growthBg:  '#EDFBF3',
-  growthText:'#007A2E',
+  pageBg:    '#f8fafc',   // slate-50 — page background
+  cardBg:    '#ffffff',   // white — cards
+  cardBorder:'#e2e8f0',   // slate-200 — borders
+  shadow:    'rgba(15, 23, 42, 0.04)',
+  shadowHero:'rgba(15, 23, 42, 0.08)',
+  textPrimary:   '#0f172a',  // slate-900
+  textSecondary: '#475569',  // slate-600
+  textMuted:     '#94a3b8',  // slate-400
+  accent:    '#6366f1',   // indigo-500 — brand color (matches POS)
+  success:   '#10b981',   // emerald-500
+  warning:   '#f59e0b',   // amber-500
+  error:     '#ef4444',   // red-500
+  separator: '#f1f5f9',   // slate-100 — soft dividers
+  skeletonBg:'#e2e8f0',
+  gridLine:  '#f1f5f9',
+  // pill active — slate-900 dark pill like web
+  pillActiveBg:  '#0f172a',
+  pillActiveText:'#ffffff',
+  // growth badge — emerald
+  growthBg:  '#d1fae5',
+  growthText:'#047857',
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
