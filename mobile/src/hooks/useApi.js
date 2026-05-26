@@ -581,14 +581,19 @@ export function useExpenses(params = {}) {
 }
 
 // ─── EOD Summary ─────────────────────────────────────────────────────────────
-// Backend route: GET /api/reports/eod
-export function useEOD(date) {
+// Today   → GET /api/reports/eod/preview   (live snapshot, no save)
+// Past    → GET /api/reports/eod/:date     (saved or computed for that date)
+export function useEOD(date, outletId) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isToday  = !date || date === todayStr;
+
   return useQuery({
-    queryKey: [...KEYS.eod, date],
+    queryKey: [...KEYS.eod, date ?? 'today', outletId],
     queryFn: async () => {
       try {
-        const params = date ? { date } : {};
-        const res = await api.get('/reports/eod', { params });
+        const params = { outlet_id: outletId };
+        const url    = isToday ? '/reports/eod/preview' : `/reports/eod/${date}`;
+        const res    = await api.get(url, { params });
         return res;
       } catch {
         return null;
@@ -599,6 +604,20 @@ export function useEOD(date) {
       if (isEmptyResult(data)) return MOCK_EOD;
       return data;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime:  isToday ? 30 * 1000 : 5 * 60 * 1000,
+    enabled:    !!outletId,
+  });
+}
+
+// POST /api/reports/eod/lock — finalise & lock the day
+export function useCloseDay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ outlet_id, date }) =>
+      api.post('/reports/eod/lock', { outlet_id, date }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: [...KEYS.eod, vars.date,   vars.outlet_id] });
+      qc.invalidateQueries({ queryKey: [...KEYS.eod, 'today',    vars.outlet_id] });
+    },
   });
 }
