@@ -518,6 +518,22 @@ export function useCustomers(params = {}) {
   });
 }
 
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/customers', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.customers }),
+  });
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => api.patch(`/customers/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.customers }),
+  });
+}
+
 // ─── KOT ─────────────────────────────────────────────────────────────────────
 // Reuses orders endpoint filtered to kitchen-relevant statuses
 export function useKOT() {
