@@ -197,7 +197,7 @@ export default function POSPage() {
   // tab filtering happens client-side so we never refetch on tab change.
   const { data: cloudMenuData } = useQuery({
     queryKey: ['menuItems', outletId],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=500`).then((r) => r.data),
+    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then((r) => r.data),
     enabled: !!outletId && !IS_ELECTRON,
     staleTime: 60_000,
   });

@@ -81,7 +81,7 @@ export default function MenuPage() {
 
   const { data: menuData, isLoading: itemsLoading } = useQuery({
     queryKey: ['menuItemsAll', outletId],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=500`).then(r => r.data),
+    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then(r => r.data),
     enabled: !!outletId,
   });
 

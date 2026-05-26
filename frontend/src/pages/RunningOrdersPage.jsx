@@ -196,7 +196,7 @@ function AddKOTModal({ isOpen, onClose, order, outletId, onSuccess }) {
         const result = await hybridAPI.getMenu(outletId);
         return result?.items || [];
       }
-      return api.get(`/menu/items?outlet_id=${outletId}&limit=100`).then(r => r.data);
+      return api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then(r => r.data);
     },
     enabled: isOpen && !!outletId,
     staleTime: innerOnline ? 30_000 : Infinity,

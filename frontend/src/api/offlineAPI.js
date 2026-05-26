@@ -173,7 +173,7 @@ export const hybridAPI = {
     }
     const [catRes, itemRes] = await Promise.all([
       api.get('/menu/categories', { params: { outlet_id: outletId } }),
-      api.get('/menu/items', { params: { outlet_id: outletId } }),
+      api.get('/menu/items', { params: { outlet_id: outletId, limit: 5000 } }),
     ])
     return {
       categories: catRes.data?.data || [],
@@ -400,7 +400,7 @@ export const hybridAPI = {
     try {
       const [catRes, itemRes] = await Promise.all([
         api.get('/menu/categories', { params: { outlet_id: outletId } }),
-        api.get('/menu/items', { params: { outlet_id: outletId } }),
+        api.get('/menu/items', { params: { outlet_id: outletId, limit: 5000 } }),
       ])
       await invoke('db-save-menu-sync',
         catRes.data?.data || [],

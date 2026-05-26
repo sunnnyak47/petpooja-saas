@@ -158,7 +158,7 @@ function parsePagination(query) {
   // Allow callers (menu catalog, customer dump, order history) to request
   // up to 500 rows in one shot. Previous cap of 100 silently truncated
   // large restaurant menus (e.g. Siena's has 249 items across 48 cats).
-  const limit = Math.min(500, Math.max(1, parseInt(query.limit, 10) || 20));
+  const limit = Math.min(5000, Math.max(1, parseInt(query.limit, 10) || 20));
   const offset = (page - 1) * limit;
   const sort = query.sort || 'created_at';
   const order = query.order === 'asc' ? 'asc' : 'desc';
