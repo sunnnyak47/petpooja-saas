@@ -591,7 +591,8 @@ function ComplianceSummary({ profile }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function StaffManagementPage() {
   const { user } = useSelector(s => s.auth);
-  const outletId = user?.outlet_id;
+  // Some auth implementations put outlet_id directly on user, others nest it in outlets array
+  const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -600,11 +601,13 @@ export default function StaffManagementPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
 
-  // Load staff list
-  const { data: staffData, isLoading: loadingList } = useQuery({
+  // Load staff list — sendPaginated wraps array in { success, data: [], meta: {} }
+  const { data: staffData, isLoading: loadingList, isError: listError, refetch: refetchList } = useQuery({
     queryKey: ['staff-mgmt-list', outletId],
     queryFn: () => api.get(`/staff?outlet_id=${outletId}&limit=200`).then(r => r.data?.data || []),
     enabled: !!outletId,
+    retry: 2,
+    staleTime: 30_000,
   });
 
   const staffList = staffData || [];
@@ -622,6 +625,8 @@ export default function StaffManagementPage() {
     queryKey: ['staff-profile', selectedId, outletId],
     queryFn: () => api.get(`/staff/${selectedId}/profile?outlet_id=${outletId}`).then(r => r.data?.data),
     enabled: !!selectedId && !!outletId,
+    retry: 1,
+    staleTime: 30_000,
   });
 
   const profile = fullProfile || selectedMember;
@@ -696,7 +701,9 @@ export default function StaffManagementPage() {
           <h1 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             <Users size={18} style={{ color: 'var(--accent)' }} /> Staff Management
           </h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{staffList.length} staff members</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            {loadingList ? 'Loading…' : `${staffList.length} staff member${staffList.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
         <div className="p-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -707,9 +714,25 @@ export default function StaffManagementPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {loadingList ? (
-            <p className="text-xs text-center py-4" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
+            <div className="flex flex-col items-center gap-2 py-6">
+              <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Loading staff…</p>
+            </div>
+          ) : listError ? (
+            <div className="text-center px-3 py-5">
+              <AlertCircle size={20} style={{ color: '#ef4444', margin: '0 auto 6px' }} />
+              <p className="text-xs font-medium" style={{ color: '#ef4444' }}>Failed to load</p>
+              <button onClick={() => refetchList()} className="mt-2 text-xs underline" style={{ color: 'var(--accent)' }}>Retry</button>
+            </div>
+          ) : !outletId ? (
+            <p className="text-xs text-center py-4 px-2" style={{ color: 'var(--text-secondary)' }}>No outlet selected</p>
           ) : filtered.length === 0 ? (
-            <p className="text-xs text-center py-4" style={{ color: 'var(--text-secondary)' }}>No staff found</p>
+            <div className="text-center px-3 py-6">
+              <Users size={20} style={{ color: 'var(--text-secondary)', margin: '0 auto 6px', opacity: 0.4 }} />
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {search ? 'No staff match your search' : 'No staff members yet'}
+              </p>
+            </div>
           ) : (
             filtered.map(m => (
               <StaffListItem key={m.user_id} member={m} selected={selectedId === m.user_id}
