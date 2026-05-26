@@ -206,6 +206,13 @@ export default function TabLayout() {
         />
         {/* Hidden screens — registered but not shown in tab bar */}
         <Tabs.Screen
+          name="pos"
+          options={{
+            title: 'POS',
+            tabBarButton: () => null,
+          }}
+        />
+        <Tabs.Screen
           name="billing"
           options={{
             title: 'BILLING',

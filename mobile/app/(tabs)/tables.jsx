@@ -596,6 +596,49 @@ function TableDetailModal({
           )}
 
           {/* Action buttons */}
+          {/* Take Order — shown for empty/reserved tables (start a fresh order) */}
+          {(table.status === 'empty' || table.status === 'reserved') && (
+            <TouchableOpacity
+              style={[styles.btnSolid, { marginBottom: 8, backgroundColor: '#000' }]}
+              onPress={() => {
+                onUpdateStatus(table.id, 'occupied');
+                onClose();
+                router.push({
+                  pathname: '/pos',
+                  params: {
+                    table_id: table.id,
+                    table_name: `T${table.number}`,
+                    order_type: 'dine_in',
+                  },
+                });
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={15} color="#fff" />
+              <Text style={styles.btnSolidText}>Take Order</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Add More Items — shown for occupied tables */}
+          {table.status === 'occupied' && (
+            <TouchableOpacity
+              style={[styles.btnOutline, { marginBottom: 8, borderColor: '#0070F3' }]}
+              onPress={() => {
+                onClose();
+                router.push({
+                  pathname: '/pos',
+                  params: {
+                    table_id: table.id,
+                    table_name: `T${table.number}`,
+                    order_type: 'dine_in',
+                  },
+                });
+              }}
+            >
+              <Ionicons name="add-outline" size={15} color="#0070F3" />
+              <Text style={[styles.btnOutlineText, { color: '#0070F3' }]}>Add More Items</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.btnOutline}

@@ -496,10 +496,10 @@ function DishItem({ item, index }) {
 
 // ─── Quick Actions grid ───────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
-  { label: 'View Orders', icon: '📋' },
-  { label: 'Add Item',    icon: '➕' },
-  { label: 'Print Report',icon: '🖨️' },
-  { label: 'Live Monitor',icon: '📡' },
+  { label: 'New Order',   icon: '🛒', route: '/pos' },
+  { label: 'View Orders', icon: '📋', route: '/orders' },
+  { label: 'Tables',      icon: '🍽️', route: '/tables' },
+  { label: 'KOT',         icon: '🧑‍🍳', route: '/kot' },
 ];
 
 function QuickAction({ label, icon, onPress }) {
@@ -847,12 +847,12 @@ export default function Dashboard() {
           <View style={styles.quickActionsGrid}>
             <View style={styles.quickActionsRow}>
               {QUICK_ACTIONS.slice(0, 2).map((a, i) => (
-                <QuickAction key={i} {...a} onPress={() => {}} />
+                <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
               ))}
             </View>
             <View style={styles.quickActionsRow}>
               {QUICK_ACTIONS.slice(2, 4).map((a, i) => (
-                <QuickAction key={i} {...a} onPress={() => {}} />
+                <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
               ))}
             </View>
           </View>
