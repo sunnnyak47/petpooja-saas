@@ -73,7 +73,7 @@ export default function AIMenuSyncModal({ isOpen, onClose, outletId }) {
       try {
         // Multi-page crawl + Gemini parse can easily take 30–60s.
         // Override the default axios 20s timeout for every AI extraction call.
-        const aiTimeout = { timeout: 120000 };
+        const aiTimeout = { timeout: 300000 };
         let resp;
         if (mode === 'image') {
           if (!file) throw new Error('Please choose an image');
