@@ -1110,16 +1110,60 @@ model StaffProfile {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id           String    @db.Uuid
   outlet_id         String    @db.Uuid
+
+  // ── Basic employment ──────────────────────────────────────────
   employee_code     String?   @db.VarChar(20)
   department        String?   @db.VarChar(50)
   designation       String?   @db.VarChar(100)
   manager_pin       String?   @db.VarChar(10)
+  employment_type   String?   @db.VarChar(20)   // full_time | part_time | casual | contract
+  contract_end_date DateTime? @db.Date
+  join_date         DateTime? @db.Date
+  end_date          DateTime? @db.Date           // termination / resignation date
+
+  // ── Pay ───────────────────────────────────────────────────────
   hourly_rate       Decimal?  @db.Decimal(8, 2)
   monthly_salary    Decimal?  @db.Decimal(10, 2)
+
+  // ── Personal details ─────────────────────────────────────────
   photo_url         String?   @db.VarChar(500)
-  emergency_contact String?   @db.VarChar(15)
+  date_of_birth     DateTime? @db.Date
+  gender            String?   @db.VarChar(20)
+  nationality       String?   @db.VarChar(60)
+  address           String?   @db.VarChar(500)
   blood_group       String?   @db.VarChar(5)
-  join_date         DateTime? @db.Date
+
+  // ── Emergency contact ─────────────────────────────────────────
+  emergency_contact      String?  @db.VarChar(15)
+  emergency_contact_name String?  @db.VarChar(100)
+  emergency_relationship String?  @db.VarChar(50)
+
+  // ── Banking / payroll ─────────────────────────────────────────
+  bank_bsb           String?  @db.VarChar(10)
+  bank_account       String?  @db.VarChar(20)
+  bank_account_name  String?  @db.VarChar(100)
+  tax_file_number    String?  @db.VarChar(20)   // AU: TFN; IN: PAN
+  superannuation_fund String? @db.VarChar(100)  // AU super fund name
+  super_member_number String? @db.VarChar(50)
+
+  // ── Compliance & working rights ───────────────────────────────
+  right_to_work_checked  Boolean?  @default(false)
+  visa_type              String?   @db.VarChar(50)
+  visa_expiry            DateTime? @db.Date
+  induction_completed    Boolean?  @default(false)
+  induction_date         DateTime? @db.Date
+  wwcc_number            String?   @db.VarChar(50)   // Working With Children Check (AU)
+  wwcc_expiry            DateTime? @db.Date
+  rsa_number             String?   @db.VarChar(50)   // Responsible Service of Alcohol (AU)
+  rsa_expiry             DateTime? @db.Date
+  food_safety_cert       String?   @db.VarChar(50)
+  food_safety_expiry     DateTime? @db.Date
+  police_check_date      DateTime? @db.Date
+  police_check_expiry    DateTime? @db.Date
+
+  // ── Notes ─────────────────────────────────────────────────────
+  notes             String?
+
   created_at        DateTime  @default(now()) @db.Timestamptz(6)
   updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   is_deleted        Boolean   @default(false)

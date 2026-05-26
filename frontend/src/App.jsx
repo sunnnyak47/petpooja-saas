@@ -11,6 +11,7 @@ import MenuPage from './pages/MenuPage';
 import TablesPage from './pages/TablesPage';
 import CustomersPage from './pages/CustomersPage';
 import StaffPage from './pages/StaffPage';
+import StaffManagementPage from './pages/StaffManagementPage';
 import ReportsPage from './pages/ReportsPage';
 import OnlineOrdersPage from './pages/OnlineOrdersPage';
 import InventoryPage from './pages/InventoryPage';
@@ -192,6 +193,7 @@ export default function App() {
         <Route path="tables"          element={<FeatureGate feature="tables"><TablesPage /></FeatureGate>} />
         <Route path="customers"       element={<FeatureGate feature="customers"><CustomersPage /></FeatureGate>} />
         <Route path="staff"           element={<FeatureGate feature="staff"><StaffPage /></FeatureGate>} />
+        <Route path="staff-management" element={<FeatureGate feature="staff"><StaffManagementPage /></FeatureGate>} />
         <Route path="reports"         element={<FeatureGate feature="reports"><ReportsPage /></FeatureGate>} />
         <Route path="inventory"       element={<FeatureGate feature="inventory"><InventoryPage /></FeatureGate>} />
         <Route path="purchase-orders" element={<FeatureGate feature="purchase_orders"><PurchaseOrderPage /></FeatureGate>} />

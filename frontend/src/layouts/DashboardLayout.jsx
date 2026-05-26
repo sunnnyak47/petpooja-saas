@@ -16,7 +16,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
-  HeartPulse, Palmtree,
+  HeartPulse, Palmtree, IdCard,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
@@ -98,7 +98,8 @@ const ownerNav = [
   { path: '/au-integrations',label: 'AU Integrations', icon: Link2, feature: 'integrations', region: 'AU' },
   { path: '/ondc',           label: 'ONDC',            icon: Globe, feature: 'ondc', region: 'IN' },
   { path: '/qr-codes',      label: 'QR Codes',        icon: QrCode, feature: 'qr_codes' },
-  { path: '/rostering',     label: 'Rostering',       icon: CalendarDays, feature: 'rostering' },
+  { path: '/rostering',        label: 'Rostering',        icon: CalendarDays, feature: 'rostering' },
+  { path: '/staff-management', label: 'Staff Management', icon: IdCard,       feature: 'staff' },
   { path: '/fraud',          label: 'Fraud Detection', icon: ShieldAlert, feature: 'fraud' },
   { path: '/audit-log',     label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
   { path: '/subscription',  label: 'Subscription',    icon: Star },
@@ -123,7 +124,8 @@ const ownerNavAU = [
   { path: '/customers',      label: 'Customers',        icon: Users,           feature: 'customers' },
   { path: '/crm',            label: 'Loyalty & Rewards',    icon: Heart,           feature: 'crm' },
   { path: '/discounts',      label: 'Promotions',       icon: Tag,             feature: 'discounts' },
-  { path: '/rostering',     label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
+  { path: '/rostering',        label: 'Staff Rostering',  icon: CalendarDays, feature: 'rostering' },
+  { path: '/staff-management', label: 'Staff Management', icon: IdCard,       feature: 'staff' },
 
   // ── Analytics: reports, payments, compliance ──
   { section: 'Analytics' },

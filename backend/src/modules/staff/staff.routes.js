@@ -9,7 +9,7 @@ const staffService = require('./staff.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createStaffSchema, updateStaffSchema, verifyPinSchema, clockInSchema, clockOutSchema, createShiftSchema, calculateSalarySchema, bulkCalculateSalarySchema, markSalaryPaidSchema, generateOTPSchema, verifyOTPSchema } = require('./staff.validation');
+const { createStaffSchema, updateStaffSchema, addCertificationSchema, setAvailabilitySchema, verifyPinSchema, clockInSchema, clockOutSchema, createShiftSchema, calculateSalarySchema, bulkCalculateSalarySchema, markSalaryPaidSchema, generateOTPSchema, verifyOTPSchema } = require('./staff.validation');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
 
 /** GET /api/staff — List staff for outlet */
@@ -30,11 +30,73 @@ router.post('/', authenticate, hasPermission('MANAGE_STAFF'), validate(createSta
   } catch (error) { next(error); }
 });
 
-/** PATCH /api/staff/:id — Update profile */
+/** GET /api/staff/:userId/profile — Get full staff profile */
+router.get('/:userId/profile', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const profile = await staffService.getStaffProfile(req.params.userId, outletId);
+    sendSuccess(res, profile, 'Staff profile retrieved');
+  } catch (error) { next(error); }
+});
+
+/** PATCH /api/staff/:userId/profile — Update full staff profile */
+router.patch('/:userId/profile', authenticate, hasPermission('MANAGE_STAFF'), validate(updateStaffSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const profile = await staffService.upsertStaffProfile(req.params.userId, outletId, req.body);
+    sendSuccess(res, profile, 'Staff profile updated');
+  } catch (error) { next(error); }
+});
+
+/** PATCH /api/staff/:id — Update profile (legacy) */
 router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), validate(updateStaffSchema), async (req, res, next) => {
   try {
-    const profile = await staffService.upsertStaffProfile(req.body.user_id, req.user.outlet_id, req.body);
+    const userId = req.body.user_id || req.params.id;
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const profile = await staffService.upsertStaffProfile(userId, outletId, req.body);
     sendSuccess(res, profile, 'Staff updated');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/staff/:userId/certifications — List certifications */
+router.get('/:userId/certifications', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const certs = await staffService.listCertifications(req.params.userId, outletId);
+    sendSuccess(res, certs, 'Certifications retrieved');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/staff/:userId/certifications — Add certification */
+router.post('/:userId/certifications', authenticate, hasPermission('MANAGE_STAFF'), validate(addCertificationSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const cert = await staffService.addCertification(req.params.userId, outletId, req.body);
+    sendCreated(res, cert, 'Certification added');
+  } catch (error) { next(error); }
+});
+
+/** DELETE /api/staff/certifications/:certId — Remove certification */
+router.delete('/certifications/:certId', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
+  try {
+    await staffService.deleteCertification(req.params.certId);
+    sendSuccess(res, null, 'Certification removed');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/staff/:userId/availability — Get weekly availability */
+router.get('/:userId/availability', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
+  try {
+    const slots = await staffService.getAvailability(req.params.userId);
+    sendSuccess(res, slots, 'Availability retrieved');
+  } catch (error) { next(error); }
+});
+
+/** PUT /api/staff/:userId/availability — Set weekly availability */
+router.put('/:userId/availability', authenticate, hasPermission('MANAGE_STAFF'), validate(setAvailabilitySchema), async (req, res, next) => {
+  try {
+    const slots = await staffService.setAvailability(req.params.userId, req.body.slots);
+    sendSuccess(res, slots, 'Availability updated');
   } catch (error) { next(error); }
 });
 
