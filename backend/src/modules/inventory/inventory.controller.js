@@ -70,7 +70,8 @@ async function createItem(req, res, next) {
 /** PATCH /api/inventory/items/:id */
 async function updateItem(req, res, next) {
   try {
-    const item = await inventoryService.updateInventoryItem(req.params.id, req.body);
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const item = await inventoryService.updateInventoryItem(req.params.id, req.body, outletId);
     sendSuccess(res, item, 'Inventory item updated');
   } catch (error) { next(error); }
 }
@@ -78,7 +79,8 @@ async function updateItem(req, res, next) {
 /** DELETE /api/inventory/items/:id */
 async function deleteItem(req, res, next) {
   try {
-    await inventoryService.deleteInventoryItem(req.params.id);
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    await inventoryService.deleteInventoryItem(req.params.id, outletId);
     sendSuccess(res, null, 'Inventory item deleted');
   } catch (error) { next(error); }
 }

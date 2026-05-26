@@ -100,7 +100,10 @@ async function getCampaigns(req, res, next) {
 }
 
 async function getCampaignDetail(req, res, next) {
-  try { sendSuccess(res, await customerService.getCampaignDetail(req.params.id), 'Campaign retrieved'); }
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await customerService.getCampaignDetail(req.params.id, outletId), 'Campaign retrieved');
+  }
   catch (e) { next(e); }
 }
 

@@ -14,6 +14,34 @@ const { auditLog } = require('../../middleware/audit.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
 const taxService = require('./tax.service');
 
+/**
+ * Ownership guard — verifies the requested order belongs to the requesting outlet.
+ * super_admin bypasses this check (they manage all outlets).
+ */
+async function assertOrderOwnership(req, res, next) {
+  try {
+    const outletId = req.user?.outlet_id;
+    if (!outletId) return next(); // super_admin or roles without outlet scope — bypass
+
+    const orderId = req.params.id || req.params.orderId || req.body?.order_id;
+    if (!orderId) return next();
+
+    const { getDbClient } = require('../../config/database');
+    const prisma = getDbClient();
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, is_deleted: false },
+      select: { outlet_id: true },
+    });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.outlet_id !== outletId) {
+      return res.status(403).json({ success: false, message: 'Access denied: order belongs to a different outlet' });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 router.post('/', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), auditLog('order'), orderController.createOrder);
 router.get('/', authenticate, checkLicense, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.listOrders);
 
@@ -61,11 +89,11 @@ router.get('/tax-preview', authenticate, async (req, res, next) => {
   }
 });
 
-router.get('/:id', authenticate, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.getOrder);
-router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(addItemsSchema), auditLog('order'), orderController.addItems);
-router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(generateKOTSchema), auditLog('order'), orderController.generateKOT);
-router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(updateOrderStatusSchema), auditLog('order'), orderController.updateStatus);
-router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(processPaymentSchema), auditLog('payment'), orderController.processPayment);
+router.get('/:id', authenticate, enforceOutletScope, hasPermission('VIEW_ORDERS'), assertOrderOwnership, orderController.getOrder);
+router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(addItemsSchema), auditLog('order'), orderController.addItems);
+router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(generateKOTSchema), auditLog('order'), orderController.generateKOT);
+router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(updateOrderStatusSchema), auditLog('order'), orderController.updateStatus);
+router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), assertOrderOwnership, validate(processPaymentSchema), auditLog('payment'), orderController.processPayment);
 router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(generateBillSchema), auditLog('order'), orderController.generateBill);
 router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), auditLog('order'), orderController.voidOrder);

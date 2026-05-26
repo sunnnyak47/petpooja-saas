@@ -68,11 +68,18 @@ async function createInventoryItem(outletId, data) {
  * Updates an inventory item.
  * @param {string} id - Item UUID
  * @param {object} data - Updated data
+ * @param {string} outletId - Outlet UUID (ownership check)
  * @returns {Promise<object>}
  */
-async function updateInventoryItem(id, data) {
+async function updateInventoryItem(id, data, outletId) {
   const prisma = getDbClient();
   try {
+    // Verify item belongs to the requesting outlet before updating
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { id, outlet_id: outletId, is_deleted: false },
+    });
+    if (!existing) throw new NotFoundError('Inventory item not found');
+
     const updateData = {
       name: data.name,
       category: data.category,
@@ -94,11 +101,18 @@ async function updateInventoryItem(id, data) {
 /**
  * Soft deletes an inventory item.
  * @param {string} id - Item UUID
+ * @param {string} outletId - Outlet UUID (ownership check)
  * @returns {Promise<object>}
  */
-async function deleteInventoryItem(id) {
+async function deleteInventoryItem(id, outletId) {
   const prisma = getDbClient();
   try {
+    // Verify item belongs to the requesting outlet before deleting
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { id, outlet_id: outletId, is_deleted: false },
+    });
+    if (!existing) throw new NotFoundError('Inventory item not found');
+
     return await prisma.inventoryItem.update({
       where: { id },
       data: { is_deleted: true },

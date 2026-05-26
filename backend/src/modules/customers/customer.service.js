@@ -397,7 +397,9 @@ async function getLoyaltyHistory(customerId, query = {}) {
 async function createCampaign(outletId, data) {
   const prisma = getDbClient();
 
+  // Scope customers to those who have placed at least one order at this outlet
   const where = { is_deleted: false };
+  if (outletId) where.orders = { some: { outlet_id: outletId, is_deleted: false } };
   if (data.target_segment && data.target_segment !== 'all') where.segment = data.target_segment;
 
   const customers = await prisma.customer.findMany({
@@ -464,10 +466,12 @@ async function getCampaigns(outletId, query = {}) {
   return { campaigns, total, page, limit };
 }
 
-async function getCampaignDetail(campaignId) {
+async function getCampaignDetail(campaignId, outletId = null) {
   const prisma = getDbClient();
+  const where = { id: campaignId, is_deleted: false };
+  if (outletId) where.outlet_id = outletId;
   const campaign = await prisma.campaign.findFirst({
-    where: { id: campaignId, is_deleted: false },
+    where,
     include: {
       campaign_logs: {
         take: 20,

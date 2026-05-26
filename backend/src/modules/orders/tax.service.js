@@ -84,10 +84,7 @@ function getGSTRate(food_type, country_code) {
   }
 
   if (code === 'IN') {
-    const rate = INDIA_GST_RATES[food_type];
-    if (rate === undefined) {
-      throw new Error(`Unknown food_type "${food_type}" for Indian GST lookup`);
-    }
+    const rate = INDIA_GST_RATES[food_type] ?? INDIA_GST_RATES['restaurant_food']; // default to 5%
     const cess = INDIA_CESS_RATES[food_type] || 0;
 
     const labels = {
@@ -100,7 +97,7 @@ function getGSTRate(food_type, country_code) {
     return {
       gst_rate: rate,
       cess_rate: cess,
-      description: labels[food_type],
+      description: labels[food_type] || `Food item — ${rate}% GST`,
     };
   }
 

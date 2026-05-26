@@ -25,7 +25,7 @@ async function getOutletTaxConfig(prismaClient, outletId) {
     where: { id: outletId, is_deleted: false },
     select: { state: true, country: true, currency: true, head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
   });
-  if (!outlet) return { country_code: 'IN', gst_inclusive: false, state: '', currency: 'INR' };
+  if (!outlet) return { country_code: 'IN', gst_inclusive: false, state: '', currency: 'INR', default_gst_rate: 5 };
 
   // Detect country code from multiple signals (head_office > outlet.currency > outlet.country)
   const hoCountry = outlet.head_office?.country_code;
@@ -35,12 +35,16 @@ async function getOutletTaxConfig(prismaClient, outletId) {
   // (Prisma defaults gst_inclusive to false; ?? won't override false, only null/undefined)
   const gstInclusive = isAU ? true : (outlet.head_office?.gst_inclusive ?? false);
   const currency = outlet.head_office?.currency || outlet.currency || 'INR';
+  // Default GST rate to apply when a menu item has no gst_rate configured (0 or null)
+  // AU: 10% mandatory, IN: 5% restaurant food (standard slab)
+  const defaultGstRate = countryCode === 'AU' ? 10 : 5;
 
   return {
     country_code: countryCode,
     gst_inclusive: gstInclusive,
     state: outlet.state || '',
     currency,
+    default_gst_rate: defaultGstRate,
   };
 }
 
@@ -88,8 +92,9 @@ async function recalcOrderTotals(tx, orderId, taxConfig) {
     const itemTotal = Number(oi.item_total);
     subtotalPaise += Math.round(itemTotal * 100);
 
+    const gstRate = Number(oi.gst_rate) || taxConfig.default_gst_rate || 0;
     const tax = calculateItemTax(
-      { base_price: itemTotal / Number(oi.quantity), quantity: Number(oi.quantity), gst_rate: Number(oi.gst_rate), is_inclusive: taxConfig.gst_inclusive },
+      { base_price: itemTotal / Number(oi.quantity), quantity: Number(oi.quantity), gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
       { country_code: taxConfig.country_code, state: taxConfig.state }
     );
 
@@ -158,7 +163,9 @@ async function createOrder(data, staffId) {
     const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
     // AU GST is inclusive by law — default true when head_office is missing
     const gstInclusive = outlet.head_office?.gst_inclusive ?? (isAU ? true : false);
-    const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '' };
+    // Default GST rate to apply when a menu item has no gst_rate configured (0 or null)
+    const defaultGstRate = countryCode === 'AU' ? 10 : 5;
+    const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '', default_gst_rate: defaultGstRate };
 
     if (data.table_id) {
       const table = await prisma.table.findFirst({
@@ -234,7 +241,7 @@ async function createOrder(data, staffId) {
         variant_price: variantPrice,
         addons_total: addonsTotal,
         item_total: itemTotal,
-        gst_rate: Number(menuItem.gst_rate),
+        gst_rate: Number(menuItem.gst_rate) || outletTaxConfig.default_gst_rate || 0,
         kitchen_station: menuItem.kitchen_station,
         notes: item.notes || null,
         addons: orderAddons,
@@ -366,13 +373,16 @@ async function createOrder(data, staffId) {
 /**
  * Retrieves a full order with all items, addons, status history, and payments.
  * @param {string} orderId - Order UUID
+ * @param {string} [outletId] - Optional outlet UUID for scoped access (non-super_admin callers)
  * @returns {Promise<object>} Complete order object
  */
-async function getOrderById(orderId) {
+async function getOrderById(orderId, outletId = null) {
   const prisma = getDbClient();
   try {
+    const where = { id: orderId, is_deleted: false };
+    if (outletId) where.outlet_id = outletId;
     const order = await prisma.order.findFirst({
-      where: { id: orderId, is_deleted: false },
+      where,
       include: {
         outlet: { select: { id: true, name: true, code: true, gstin: true } },
         table: { select: { id: true, table_number: true } },
@@ -463,13 +473,16 @@ async function listOrders(outletId, query = {}) {
  * @param {string} orderId - Order UUID
  * @param {Array} items - New items to add
  * @param {string} staffId - Staff ID
+ * @param {string} [outletId] - Optional outlet UUID for scoped access (defense-in-depth)
  * @returns {Promise<object>} Updated order
  */
-async function addItemsToOrder(orderId, items, staffId) {
+async function addItemsToOrder(orderId, items, staffId, outletId = null) {
   const prisma = getDbClient();
   try {
+    const orderWhere = { id: orderId, is_deleted: false };
+    if (outletId) orderWhere.outlet_id = outletId;
     const order = await prisma.order.findFirst({
-      where: { id: orderId, is_deleted: false },
+      where: orderWhere,
     });
     if (!order) throw new NotFoundError('Order not found');
     if (['paid', 'cancelled', 'voided', 'refunded'].includes(order.status)) {
@@ -482,6 +495,9 @@ async function addItemsToOrder(orderId, items, staffId) {
       include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
     });
     const menuItemMap = new Map(menuItems.map((mi) => [mi.id, mi]));
+
+    // Fetch tax config before the transaction so default_gst_rate is available for item creation
+    const preTxTaxConfig = await getOutletTaxConfig(prisma, order.outlet_id);
 
     let addedSubtotal = 0;
 
@@ -520,7 +536,7 @@ async function addItemsToOrder(orderId, items, staffId) {
             order_id: orderId, menu_item_id: item.menu_item_id, variant_id: item.variant_id || null,
             name: menuItem.name, variant_name: variantName, quantity: item.quantity,
             unit_price: unitPrice, variant_price: variantPrice, addons_total: addonsTotal,
-            item_total: itemTotal, gst_rate: Number(menuItem.gst_rate),
+            item_total: itemTotal, gst_rate: Number(menuItem.gst_rate) || preTxTaxConfig.default_gst_rate || 0,
             kitchen_station: menuItem.kitchen_station, notes: item.notes || null,
           },
         });
@@ -562,13 +578,16 @@ async function addItemsToOrder(orderId, items, staffId) {
 /**
  * Generates KOTs from un-KOT'd items, split by kitchen station.
  * @param {string} orderId - Order UUID
+ * @param {string} [outletId] - Optional outlet UUID for scoped access (defense-in-depth)
  * @returns {Promise<object[]>} Array of generated KOT objects
  */
-async function generateKOT(orderId) {
+async function generateKOT(orderId, outletId = null) {
   const prisma = getDbClient();
   try {
+    const kotWhere = { id: orderId, is_deleted: false };
+    if (outletId) kotWhere.outlet_id = outletId;
     const order = await prisma.order.findFirst({
-      where: { id: orderId, is_deleted: false },
+      where: kotWhere,
       include: {
         order_items: { where: { is_kot_sent: false, is_deleted: false }, include: { addons: true } },
         outlet: { select: { id: true, code: true } },
@@ -668,17 +687,103 @@ async function generateKOT(orderId) {
 }
 
 /**
+ * Deducts inventory for all items in an order based on recipes.
+ * Safe to call multiple times — skips orders that already have consumption stock transactions.
+ * Runs inside the provided Prisma transaction context.
+ *
+ * @param {object} tx - Prisma transaction client
+ * @param {string} orderId
+ * @param {string} outletId
+ * @returns {Promise<{deducted: number, alerts: object[]}>}
+ */
+async function _deductInventoryForOrder(tx, orderId, outletId) {
+  // Guard: skip if already deducted (idempotency via existing stock transactions)
+  const alreadyDeducted = await tx.stockTransaction.findFirst({
+    where: { reference_type: 'order', reference_id: orderId, transaction_type: 'consumption' },
+  });
+  if (alreadyDeducted) return { deducted: 0, alerts: [] };
+
+  const orderWithItems = await tx.order.findFirst({
+    where: { id: orderId, is_deleted: false },
+    include: { order_items: { where: { is_deleted: false } } },
+  });
+  if (!orderWithItems) return { deducted: 0, alerts: [] };
+
+  const deductionAlerts = [];
+  let deducted = 0;
+
+  for (const orderItem of orderWithItems.order_items) {
+    const recipe = await tx.recipe.findFirst({
+      where: { menu_item_id: orderItem.menu_item_id, is_deleted: false },
+      include: { ingredients: { include: { inventory_item: true } } },
+    });
+    if (!recipe) {
+      logger.warn('No recipe for menu item — skipping deduction', {
+        menuItemId: orderItem.menu_item_id, orderId,
+      });
+      continue;
+    }
+
+    for (const ingredient of recipe.ingredients) {
+      const consumeQty = Number(ingredient.quantity) * Number(orderItem.quantity);
+      const stock = await tx.inventoryStock.upsert({
+        where: {
+          outlet_id_inventory_item_id: {
+            outlet_id: outletId,
+            inventory_item_id: ingredient.inventory_item_id,
+          },
+        },
+        create: {
+          outlet_id: outletId,
+          inventory_item_id: ingredient.inventory_item_id,
+          current_stock: -consumeQty,
+        },
+        update: { current_stock: { decrement: consumeQty } },
+      });
+
+      await tx.stockTransaction.create({
+        data: {
+          outlet_id: outletId,
+          inventory_item_id: ingredient.inventory_item_id,
+          transaction_type: 'consumption',
+          quantity: -consumeQty,
+          reference_type: 'order',
+          reference_id: orderId,
+        },
+      });
+
+      const newStock = Number(stock.current_stock);
+      const minThreshold = Number(ingredient.inventory_item?.min_threshold ?? 0);
+      if (newStock <= minThreshold) {
+        deductionAlerts.push({
+          item_name: ingredient.inventory_item.name,
+          current_stock: newStock,
+          min_threshold: minThreshold,
+          unit: ingredient.inventory_item.unit,
+        });
+      }
+      deducted++;
+    }
+  }
+
+  return { deducted, alerts: deductionAlerts };
+}
+
+/**
  * Processes payment for an order. Marks as PAID, triggers stock deduction.
  * @param {string} orderId - Order UUID
  * @param {object} paymentData - Payment method, amount, splits
  * @param {string} staffId - Staff processing payment
+ * @param {string} [outletId] - Optional outlet UUID for scoped access (defense-in-depth)
  * @returns {Promise<object>} Payment result with invoice info
  */
-async function processPayment(orderId, paymentData, staffId) {
+async function processPayment(orderId, paymentData, staffId, outletId = null) {
   const prisma = getDbClient();
   try {
+    const paymentWhere = { id: orderId, is_deleted: false };
+    if (outletId) paymentWhere.outlet_id = outletId;
     const order = await prisma.order.findFirst({
-      where: { id: orderId, is_deleted: false },
+      where: paymentWhere,
     });
     if (!order) throw new NotFoundError('Order not found');
     if (order.is_paid) throw new BadRequestError('Order is already paid');
@@ -734,56 +839,7 @@ async function processPayment(orderId, paymentData, staffId) {
       });
 
       // --- Inventory deduction (atomic with payment) ---
-      const orderWithItems = await tx.order.findFirst({
-        where: { id: orderId, is_deleted: false },
-        include: { order_items: { where: { is_deleted: false } } },
-      });
-      const deductionAlerts = [];
-      if (orderWithItems) {
-        for (const orderItem of orderWithItems.order_items) {
-          const recipe = await tx.recipe.findFirst({
-            where: { menu_item_id: orderItem.menu_item_id, is_deleted: false },
-            include: { ingredients: { include: { inventory_item: true } } },
-          });
-          if (!recipe) {
-            logger.warn('No recipe found for menu item — skipping inventory deduction', { menuItemId: orderItem.menu_item_id, itemName: orderItem.name, orderId });
-            continue;
-          }
-          for (const ingredient of recipe.ingredients) {
-            const consumeQty = Number(ingredient.quantity) * orderItem.quantity;
-            const stock = await tx.inventoryStock.upsert({
-              where: {
-                outlet_id_inventory_item_id: {
-                  outlet_id: order.outlet_id,
-                  inventory_item_id: ingredient.inventory_item_id,
-                },
-              },
-              create: {
-                outlet_id: order.outlet_id, inventory_item_id: ingredient.inventory_item_id,
-                current_stock: -consumeQty,
-              },
-              update: { current_stock: { decrement: consumeQty } },
-            });
-            await tx.stockTransaction.create({
-              data: {
-                outlet_id: order.outlet_id, inventory_item_id: ingredient.inventory_item_id,
-                transaction_type: 'consumption', quantity: -consumeQty,
-                reference_type: 'order', reference_id: orderId,
-              },
-            });
-            const newStock = Number(stock.current_stock);
-            const minThreshold = Number(ingredient.inventory_item.min_threshold);
-            if (newStock <= minThreshold) {
-              deductionAlerts.push({
-                item_name: ingredient.inventory_item.name,
-                current_stock: newStock,
-                min_threshold: minThreshold,
-                unit: ingredient.inventory_item.unit,
-              });
-            }
-          }
-        }
-      }
+      const { alerts: deductionAlerts } = await _deductInventoryForOrder(tx, orderId, order.outlet_id);
 
       return { payment, deductionAlerts };
     });
@@ -1103,13 +1159,16 @@ async function voidOrder(orderId, managerPin, reason, staffId) {
  * @param {string} orderId - Order UUID
  * @param {string} newStatus - New status
  * @param {string} staffId - Staff making the change
+ * @param {string} [outletId] - Optional outlet UUID for scoped access (defense-in-depth)
  * @returns {Promise<object>}
  */
-async function updateOrderStatus(orderId, newStatus, staffId) {
+async function updateOrderStatus(orderId, newStatus, staffId, outletId = null) {
   const prisma = getDbClient();
   try {
+    const statusWhere = { id: orderId, is_deleted: false };
+    if (outletId) statusWhere.outlet_id = outletId;
     const order = await prisma.order.findFirst({
-      where: { id: orderId, is_deleted: false },
+      where: statusWhere,
       include: { outlet: { select: { name: true } } },
     });
     if (!order) throw new NotFoundError('Order not found');
@@ -1126,6 +1185,12 @@ async function updateOrderStatus(orderId, newStatus, staffId) {
       await tx.orderStatusHistory.create({
         data: { order_id: orderId, from_status: order.status, to_status: newStatus, changed_by: staffId },
       });
+
+      // Trigger inventory deduction when order completes via status update
+      // The !order.is_paid guard prevents double-deduction for orders that already went through processPayment
+      if ((newStatus === 'completed' || newStatus === 'paid') && !order.is_paid) {
+        await _deductInventoryForOrder(tx, orderId, order.outlet_id);
+      }
     });
 
     const io = getIO();

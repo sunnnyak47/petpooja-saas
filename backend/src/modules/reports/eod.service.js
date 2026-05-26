@@ -104,23 +104,27 @@ async function generateSnapshot(outletId, date = new Date()) {
           // Break split payments into their per-method portions
           const splits = (p.splits || []).filter(s => !s.is_deleted);
           if (splits.length > 0) {
-            // Distribute refund proportionally across splits
+            // Distribute refund proportionally across splits; last split absorbs rounding remainder
             const splitTotal = splits.reduce((s, sp) => s + toCents(sp.amount), 0);
             const refundCents = toCents(p.refund_amount);
+            let remainingRefund = refundCents;
 
-            for (const s of splits) {
+            splits.forEach((s, idx) => {
               const rawCents = toCents(s.amount);
-              // Subtract proportional refund from each split
-              const splitRefund = splitTotal > 0 ? Math.round((rawCents / splitTotal) * refundCents) : 0;
+              // Last split absorbs rounding remainder
+              const splitRefund = idx === splits.length - 1
+                ? remainingRefund
+                : (splitTotal > 0 ? Math.round((rawCents / splitTotal) * refundCents) : 0);
+              remainingRefund -= splitRefund;
               const sAmtCents = rawCents - splitRefund;
-              const sM   = (s.method || '').toLowerCase();
+              const sM = (s.method || '').toLowerCase();
               if (sM === 'cash')        cashSystemCents  += sAmtCents;
               else if (sM === 'card' || sM === 'credit_card' || sM === 'debit_card') cardSystemCents += sAmtCents;
               else if (sM === 'upi' || sM === 'gpay' || sM === 'phonepe' || sM === 'paytm') upiSystemCents += sAmtCents;
               else                       otherSystemCents += sAmtCents;
-            }
+            });
           } else {
-            // No split records found — fall back to otherSystem
+            // No split records — fall back to otherSystem (already handles refund)
             otherSystemCents += amtCents;
           }
         } else if (m === 'cash') {
@@ -151,6 +155,9 @@ async function generateSnapshot(outletId, date = new Date()) {
     const voidAmountCents = voidedOrders.reduce((s, o) => s + toCents(o.grand_total), 0);
     const refundTotalCents = refunds.reduce((s, r) => s + toCents(r.refund_amount), 0);
 
+    // Bug 1 fix: subtract refunds so total_revenue matches the payment breakdown sum
+    totalRevenueCents -= refundTotalCents;
+
     return {
       report_date:      new Date(date).toISOString().slice(0, 10),
       total_orders:     orders.length,
@@ -169,6 +176,8 @@ async function generateSnapshot(outletId, date = new Date()) {
       card_system:      toMajor(cardSystemCents),
       upi_system:       toMajor(upiSystemCents),
       other_system:     toMajor(otherSystemCents),
+      // Cross-check field: equals cash + card + upi + other; should match total_revenue
+      net_revenue:      toMajor(cashSystemCents + cardSystemCents + upiSystemCents + otherSystemCents),
       top_items:        topItems,
     };
   } catch (err) {
