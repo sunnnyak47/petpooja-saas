@@ -375,6 +375,187 @@ async function startApp() {
         logger.warn(`Schema drift skipped (${tbl}):`, { error: e.message });
       }
     }
+
+    // ── Create Xero tables if they don't exist ───────────────────────────
+    // All statements are idempotent (CREATE TABLE IF NOT EXISTS).
+    const xeroTableDDL = [
+      `CREATE TABLE IF NOT EXISTS xero_connections (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        outlet_id     UUID        NOT NULL REFERENCES outlets(id),
+        org_name      VARCHAR(200) NOT NULL,
+        abn           VARCHAR(20),
+        address       TEXT,
+        currency      VARCHAR(5)  NOT NULL DEFAULT 'AUD',
+        country_code  VARCHAR(5)  NOT NULL DEFAULT 'AU',
+        timezone      VARCHAR(50),
+        is_connected  BOOLEAN     NOT NULL DEFAULT true,
+        last_synced   TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        is_deleted    BOOLEAN     NOT NULL DEFAULT false
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_conn_outlet ON xero_connections(outlet_id)`,
+
+      `CREATE TABLE IF NOT EXISTS xero_accounts (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id UUID        NOT NULL REFERENCES xero_connections(id),
+        code          VARCHAR(10) NOT NULL,
+        name          VARCHAR(200) NOT NULL,
+        type          VARCHAR(30) NOT NULL,
+        category      VARCHAR(50) NOT NULL,
+        is_active     BOOLEAN     NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, code)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_transactions (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id   UUID        NOT NULL REFERENCES xero_connections(id),
+        transaction_ref VARCHAR(30) NOT NULL,
+        date            DATE        NOT NULL,
+        type            VARCHAR(30) NOT NULL,
+        reference       VARCHAR(50),
+        account_code    VARCHAR(10) NOT NULL,
+        account_name    VARCHAR(200) NOT NULL,
+        account_type    VARCHAR(30) NOT NULL,
+        category        VARCHAR(50) NOT NULL,
+        description     TEXT,
+        contact         VARCHAR(200),
+        amount_incl_gst DECIMAL(12,2) NOT NULL,
+        gst             DECIMAL(12,2) NOT NULL,
+        net_amount      DECIMAL(12,2) NOT NULL,
+        currency        VARCHAR(5)  NOT NULL DEFAULT 'AUD',
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, transaction_ref)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_txn_date     ON xero_transactions(connection_id, date)`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_txn_cat      ON xero_transactions(connection_id, category)`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_txn_actype   ON xero_transactions(connection_id, account_type)`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_txn_contact  ON xero_transactions(connection_id, contact)`,
+
+      `CREATE TABLE IF NOT EXISTS xero_bank_accounts (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id   UUID        NOT NULL REFERENCES xero_connections(id),
+        account_name    VARCHAR(200) NOT NULL,
+        account_number  VARCHAR(20) NOT NULL,
+        bsb             VARCHAR(10),
+        opening_balance DECIMAL(12,2) NOT NULL,
+        opening_date    DATE        NOT NULL,
+        current_balance DECIMAL(12,2) NOT NULL,
+        is_active       BOOLEAN     NOT NULL DEFAULT true,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, account_number)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_balance_sheet_lines (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id UUID        NOT NULL REFERENCES xero_connections(id),
+        as_at_date    DATE        NOT NULL,
+        account_code  VARCHAR(10) NOT NULL,
+        account_name  VARCHAR(200) NOT NULL,
+        account_type  VARCHAR(30) NOT NULL,
+        sub_type      VARCHAR(30) NOT NULL,
+        balance       DECIMAL(14,2) NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_bsl_date ON xero_balance_sheet_lines(connection_id, as_at_date)`,
+
+      `CREATE TABLE IF NOT EXISTS xero_invoices (
+        id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id  UUID        NOT NULL REFERENCES xero_connections(id),
+        invoice_number VARCHAR(30) NOT NULL,
+        contact        VARCHAR(200) NOT NULL,
+        type           VARCHAR(10) NOT NULL,
+        status         VARCHAR(20) NOT NULL,
+        date           DATE        NOT NULL,
+        due_date       DATE        NOT NULL,
+        total          DECIMAL(12,2) NOT NULL,
+        amount_paid    DECIMAL(12,2) NOT NULL,
+        amount_due     DECIMAL(12,2) NOT NULL,
+        currency       VARCHAR(5)  NOT NULL DEFAULT 'AUD',
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, invoice_number)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_inv_status ON xero_invoices(connection_id, status)`,
+      `CREATE INDEX IF NOT EXISTS idx_xero_inv_due    ON xero_invoices(connection_id, due_date)`,
+
+      `CREATE TABLE IF NOT EXISTS xero_bas_returns (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id UUID        NOT NULL REFERENCES xero_connections(id),
+        quarter       INT         NOT NULL,
+        year          INT         NOT NULL,
+        period_start  DATE        NOT NULL,
+        period_end    DATE        NOT NULL,
+        gst_collected DECIMAL(12,2) NOT NULL,
+        gst_paid      DECIMAL(12,2) NOT NULL,
+        net_gst       DECIMAL(12,2) NOT NULL,
+        payg_withheld DECIMAL(12,2) NOT NULL,
+        total_payable DECIMAL(12,2) NOT NULL,
+        status        VARCHAR(20) NOT NULL,
+        lodged_date   DATE,
+        due_date      DATE        NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, year, quarter)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_contacts (
+        id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id     UUID        NOT NULL REFERENCES xero_connections(id),
+        name              VARCHAR(200) NOT NULL,
+        contact_type      VARCHAR(20) NOT NULL,
+        abn               VARCHAR(20),
+        email             VARCHAR(200),
+        phone             VARCHAR(30),
+        address           TEXT,
+        city              VARCHAR(100),
+        state             VARCHAR(10),
+        postcode          VARCHAR(10),
+        is_active         BOOLEAN     NOT NULL DEFAULT true,
+        total_spend       DECIMAL(12,2) NOT NULL DEFAULT 0,
+        total_revenue     DECIMAL(12,2) NOT NULL DEFAULT 0,
+        transaction_count INT         NOT NULL DEFAULT 0,
+        first_transaction DATE,
+        last_transaction  DATE,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, name)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_tracking_categories (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id UUID        NOT NULL REFERENCES xero_connections(id),
+        name          VARCHAR(100) NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(connection_id, name)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_tracking_options (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        category_id UUID        NOT NULL REFERENCES xero_tracking_categories(id),
+        name        VARCHAR(100) NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(category_id, name)
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS xero_tracking_summaries (
+        id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        connection_id     UUID        NOT NULL REFERENCES xero_connections(id),
+        option_id         UUID        NOT NULL REFERENCES xero_tracking_options(id),
+        year              INT         NOT NULL,
+        month             INT         NOT NULL,
+        revenue           DECIMAL(12,2) NOT NULL,
+        cost              DECIMAL(12,2) NOT NULL,
+        transaction_count INT         NOT NULL,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+    ];
+    for (const ddl of xeroTableDDL) {
+      try {
+        await prisma.$executeRawUnsafe(ddl);
+      } catch (e) {
+        logger.warn('Xero DDL skipped:', { error: e.message.slice(0, 120) });
+      }
+    }
+    logger.info('Xero tables ensured.');
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
     logger.error('Failed to establish database connection during startup:', err.message);

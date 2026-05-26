@@ -161,4 +161,30 @@ router.get('/predictions', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/xero/seed-demo
+ * Seeds 3 years of realistic demo financial data for the outlet.
+ * Safe to call multiple times — skips if a connection already exists.
+ */
+router.post('/seed-demo', authenticate, async (req, res) => {
+  try {
+    const outletId = req.user.outlet_id;
+    const result = await xeroService.seedDemoData(outletId);
+    sendSuccess(res, result, result.skipped ? 'Demo data already exists' : 'Demo data seeded successfully');
+  } catch (error) {
+    sendError(res, 500, error.message);
+  }
+});
+
+/** DELETE /api/xero/demo — Remove demo data so it can be re-seeded */
+router.delete('/demo', authenticate, async (req, res) => {
+  try {
+    const outletId = req.user.outlet_id;
+    await xeroService.clearDemoData(outletId);
+    sendSuccess(res, null, 'Demo data cleared');
+  } catch (error) {
+    sendError(res, 500, error.message);
+  }
+});
+
 module.exports = router;

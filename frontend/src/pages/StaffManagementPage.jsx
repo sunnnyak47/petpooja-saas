@@ -369,7 +369,7 @@ function CertificationsTab({ userId, outletId }) {
 
   const { data: certs = [], isLoading } = useQuery({
     queryKey: ['staff-certs', userId, outletId],
-    queryFn: () => api.get(`/staff/${userId}/certifications?outlet_id=${outletId}`).then(r => r.data?.data || []),
+    queryFn: () => api.get(`/staff/${userId}/certifications?outlet_id=${outletId}`).then(r => r.data || []),
     enabled: !!userId,
   });
 
@@ -490,7 +490,7 @@ function AvailabilityTab({ userId }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['staff-avail', userId],
-    queryFn: () => api.get(`/staff/${userId}/availability`).then(r => r.data?.data || []),
+    queryFn: () => api.get(`/staff/${userId}/availability`).then(r => r.data || []),
     enabled: !!userId,
   });
 
@@ -604,7 +604,7 @@ export default function StaffManagementPage() {
   // Load staff list — sendPaginated wraps array in { success, data: [], meta: {} }
   const { data: staffData, isLoading: loadingList, isError: listError, refetch: refetchList } = useQuery({
     queryKey: ['staff-mgmt-list', outletId],
-    queryFn: () => api.get(`/staff?outlet_id=${outletId}&limit=200`).then(r => r.data?.data || []),
+    queryFn: () => api.get(`/staff?outlet_id=${outletId}&limit=200`).then(r => r.data || []),
     enabled: !!outletId,
     retry: 2,
     staleTime: 30_000,
@@ -623,7 +623,7 @@ export default function StaffManagementPage() {
   // Load full profile when staff selected
   const { data: fullProfile, isLoading: loadingProfile } = useQuery({
     queryKey: ['staff-profile', selectedId, outletId],
-    queryFn: () => api.get(`/staff/${selectedId}/profile?outlet_id=${outletId}`).then(r => r.data?.data),
+    queryFn: () => api.get(`/staff/${selectedId}/profile?outlet_id=${outletId}`).then(r => r.data),
     enabled: !!selectedId && !!outletId,
     retry: 1,
     staleTime: 30_000,

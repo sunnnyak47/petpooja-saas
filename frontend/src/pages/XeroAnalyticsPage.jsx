@@ -4,7 +4,8 @@
  * Tabs: Overview, P&L, Expenses, Labour, Seasonal
  */
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import {
   TrendingUp, TrendingDown, DollarSign, Percent, BarChart3,
@@ -122,6 +123,8 @@ function EmptyState({ message }) {
 export default function XeroAnalyticsPage() {
   const [tab, setTab] = useState('overview');
   const [range, setRange] = useState('all');
+  const [seeding, setSeeding] = useState(false);
+  const queryClient = useQueryClient();
 
   /* ── API Queries ──────────────────────────────────────────────────────── */
   const { data: connection, isLoading: connLoading } = useQuery({
@@ -217,6 +220,21 @@ export default function XeroAnalyticsPage() {
   const isConnected = connection?.is_connected;
   const orgName = connection?.org_name || 'Not Connected';
 
+  const handleSeedDemo = async () => {
+    setSeeding(true);
+    try {
+      await api.post('/xero/seed-demo');
+      toast.success('Demo data loaded! Refreshing…');
+      // Invalidate all Xero queries so they re-fetch with the new data
+      await queryClient.invalidateQueries({ queryKey: ['xero-connection'] });
+      await queryClient.invalidateQueries({ predicate: q => q.queryKey[0]?.startsWith?.('xero-') });
+    } catch (err) {
+      toast.error(err.message || 'Failed to load demo data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -230,6 +248,24 @@ export default function XeroAnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Load Demo Data button — only shown when not connected */}
+          {!connLoading && !isConnected && (
+            <button
+              onClick={handleSeedDemo}
+              disabled={seeding}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+              style={{
+                background: 'var(--accent)',
+                color: '#fff',
+                border: 'none',
+                opacity: seeding ? 0.7 : 1,
+                cursor: seeding ? 'wait' : 'pointer',
+              }}
+            >
+              {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+              {seeding ? 'Loading demo data…' : 'Load Demo Data'}
+            </button>
+          )}
           {/* Connection badge */}
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border"
