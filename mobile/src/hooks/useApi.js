@@ -286,8 +286,8 @@ export function useOrders(params = {}) {
 export function useUpdateOrderStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orderId, status }) =>
-      api.patch(`/orders/${orderId}/status`, { status }),
+    mutationFn: ({ orderId, status, ...extra }) =>
+      api.patch(`/orders/${orderId}/status`, { status, ...extra }),
     // Optimistic update — UI changes before server responds
     onMutate: async ({ orderId, status }) => {
       await qc.cancelQueries({ queryKey: KEYS.orders });

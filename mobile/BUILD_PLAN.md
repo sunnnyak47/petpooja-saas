@@ -274,8 +274,8 @@ const r = await api.get('/orders?outlet_id=...');
 ## Implementation Progress
 
 - [x] Phase 1: POS Order Creation (`pos.jsx`)
-- [ ] Phase 2: Customers Real API
-- [ ] Phase 3: Delivery Orders Real API
+- [x] Phase 2: Customers Real API
+- [x] Phase 3: Delivery Orders Real API
 - [ ] Phase 4: EOD Report Real API
 - [ ] Phase 5: Push Notifications
 - [ ] Phase 6: Owner Alerts
