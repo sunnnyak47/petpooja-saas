@@ -166,6 +166,53 @@ router.post('/razorpay/refund', authenticate, hasPermission('MANAGE_PAYMENTS'), 
 });
 
 /* ============================
+   PUSH TOKEN REGISTRY
+   Stored in-memory (Map) — no DB change required.
+   A server restart clears tokens; devices re-register on next app launch.
+   ============================ */
+
+// userId → { token, platform, outlet_id, registered_at }
+const pushTokenRegistry = new Map();
+
+/**
+ * POST /api/integrations/push-token
+ * Body: { token, platform }
+ * Requires: authenticated staff / owner
+ */
+router.post('/push-token', authenticate, async (req, res, next) => {
+  try {
+    const { token, platform } = req.body;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'token is required' });
+    }
+    pushTokenRegistry.set(req.user.id, {
+      token,
+      platform: platform || 'unknown',
+      outlet_id: req.user.outlet_id || null,
+      registered_at: new Date().toISOString(),
+    });
+    logger.info('Push token registered', { userId: req.user.id, platform });
+    sendSuccess(res, { registered: true }, 'Push token registered');
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/integrations/push-token/:userId (internal / owner-only)
+ * Returns the push token for a staff member.
+ */
+router.get('/push-token/:userId', authenticate, hasPermission('VIEW_STAFF'), (req, res) => {
+  const entry = pushTokenRegistry.get(req.params.userId);
+  if (!entry) return res.status(404).json({ success: false, message: 'Token not found' });
+  sendSuccess(res, entry);
+});
+
+/**
+ * Expose registry getter for use in other services (e.g. send push to a user).
+ * Usage: const registry = require('./integration.routes').getPushTokenRegistry();
+ */
+router.getPushTokenRegistry = () => pushTokenRegistry;
+
+/* ============================
    NOTIFICATIONS
    ============================ */
 

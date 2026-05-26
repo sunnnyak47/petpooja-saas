@@ -203,6 +203,7 @@ model Outlet {
   item_presets           ItemPreset[]
   whatsapp_send_logs     WhatsAppSendLog[]
   xero_connections       XeroConnection[]
+  expenses               Expense[]
 
   @@map("outlets")
 }
@@ -2137,4 +2138,28 @@ model XeroTrackingSummary {
   @@unique([connection_id, option_id, year, month])
   @@index([connection_id, year, month])
   @@map("xero_tracking_summaries")
+}
+
+// ─── Expenses ──────────────────────────────────────────────────────────────
+
+model Expense {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String   @db.Uuid
+  title          String   @db.VarChar(200)
+  description    String?  @db.VarChar(500)
+  amount         Decimal  @db.Decimal(12, 2)
+  category       String   @default("Misc") @db.VarChar(50)
+  expense_date   DateTime @default(now()) @db.Date
+  payment_method String   @default("Cash") @db.VarChar(30)
+  notes          String?  @db.Text
+  created_by     String?  @db.Uuid
+  is_deleted     Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+
+  outlet Outlet @relation(fields: [outlet_id], references: [id])
+
+  @@index([outlet_id, expense_date])
+  @@index([outlet_id, category])
+  @@map("expenses")
 }

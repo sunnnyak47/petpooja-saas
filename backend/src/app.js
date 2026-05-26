@@ -205,6 +205,8 @@ app.use('/api/online-orders', onlineOrderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 // Procurement routes handle: /api/purchase-orders/*, /api/suppliers/*, /api/presets/*
 app.use('/api', require('./modules/inventory/procurement.routes'));
+// Expense routes — /api/expenses
+app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
 app.use('/api/staff', staffRoutes);
 const eodRoutes = require('./modules/reports/eod.routes');
