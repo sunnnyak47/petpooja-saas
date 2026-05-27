@@ -300,7 +300,14 @@ export const hybridAPI = {
       return { success: true, kot_id: kotId, items_count: pendingItems.length }
     }
 
-    const res = await api.post(`/orders/${orderId}/kot`)
+    // Browser path: read the current outlet_id from the Redux-persisted user so
+    // the body always carries it (older backends required it; new schema makes it optional).
+    let outletId;
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      outletId = u?.outlet_id || u?.outlet?.id;
+    } catch { /* ignore */ }
+    const res = await api.post(`/orders/${orderId}/kot`, outletId ? { outlet_id: outletId } : {});
     return res.data?.data
   },
 
@@ -336,7 +343,13 @@ export const hybridAPI = {
       return { success: true, invoice_number: invoiceNumber, ...billData }
     }
 
-    const res = await api.post(`/orders/${orderId}/bill`)
+    // Browser path — send outlet_id for older backends; new schema makes it optional.
+    let outletId;
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      outletId = u?.outlet_id || u?.outlet?.id;
+    } catch { /* ignore */ }
+    const res = await api.post(`/orders/${orderId}/bill`, outletId ? { outlet_id: outletId } : {})
     return res.data?.data
   },
 

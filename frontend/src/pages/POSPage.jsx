@@ -451,7 +451,7 @@ export default function POSPage() {
         if (IS_ELECTRON && !isOnline) {
           await hybridAPI.generateKOT(order.id);
         } else {
-          await api.post(`/orders/${order.id}/kot`);
+          await api.post(`/orders/${order.id}/kot`, { outlet_id: outletId });
         }
         toast.success(`Items sent to Kitchen!`);
         dispatch(clearCart());
@@ -506,7 +506,7 @@ export default function POSPage() {
           return;
         }
       } else {
-        await api.post(`/orders/${orderId}/kot`);
+        await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId });
       }
 
       toast.success(`Punch Successful! Sent to Kitchen.`);
@@ -534,7 +534,7 @@ export default function POSPage() {
       if (IS_ELECTRON && !isOnline) {
         billData = await hybridAPI.generateBill(orderId);
       } else {
-        const res = await api.post(`/orders/${orderId}/bill`);
+        const res = await api.post(`/orders/${orderId}/bill`, { outlet_id: outletId });
         billData = res.data?.data ?? res.data ?? res;
       }
       setBilledOrder(billData);
@@ -679,7 +679,7 @@ export default function POSPage() {
         if (IS_ELECTRON && !isOnline) {
           await hybridAPI.generateKOT(orderId).catch(() => {});
         } else {
-          await api.post(`/orders/${orderId}/kot`).catch(() => {});
+          await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId }).catch(() => {});
         }
       }
 
@@ -1395,7 +1395,7 @@ export default function POSPage() {
             if (IS_ELECTRON && !isOnline) {
               await hybridAPI.generateKOT(orderId).catch(() => {});
             } else {
-              await api.post(`/orders/${orderId}/kot`).catch(() => {});
+              await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId }).catch(() => {});
             }
           }
           const METHOD_MAP = { cash: 'cash', upi: 'upi_razorpay', card: 'card_pine_labs', part: 'split', due: 'due' };

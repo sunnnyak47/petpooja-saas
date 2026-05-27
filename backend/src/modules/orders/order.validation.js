@@ -72,8 +72,10 @@ const cancelOrderSchema = Joi.object({
   reason: Joi.string().min(3).max(500).required(),
 });
 
+// outlet_id is already known from req.user (authentication middleware),
+// so it's optional in the body — but accepted for legacy clients.
 const generateKOTSchema = Joi.object({
-  outlet_id: Joi.string().uuid().required(),
+  outlet_id: Joi.string().uuid().optional(),
 });
 
 const updateOrderStatusSchema = Joi.object({
@@ -81,7 +83,7 @@ const updateOrderStatusSchema = Joi.object({
 });
 
 const generateBillSchema = Joi.object({
-  outlet_id: Joi.string().uuid().required(),
+  outlet_id: Joi.string().uuid().optional(),
 });
 
 const transferTableSchema = Joi.object({
