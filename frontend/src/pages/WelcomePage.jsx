@@ -9,24 +9,25 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   ArrowRight, CheckCircle, ChefHat, BarChart3, Users,
   Package, Monitor, Truck, ClipboardList, LayoutGrid,
-  Shield, Zap, Globe, Star,
+  Shield, Zap, Globe, Star, CreditCard, ShoppingBag,
+  Heart, QrCode, TrendingUp, Bell,
 } from 'lucide-react';
 
 /* ─── mock POS order data shown in hero (currency symbol injected at render) ─── */
 const MOCK_ORDERS_DATA = [
-  { id: '#1042', table: 'T-04', items: 'Butter Chicken, Garlic Naan ×2', amount: 560, status: 'preparing', time: '8m' },
-  { id: '#1041', table: 'T-07', items: 'Dal Makhani, Jeera Rice, Raita', amount: 380, status: 'ready',     time: '2m' },
-  { id: '#1040', table: 'T-02', items: 'Paneer Tikka, Lassi ×3',         amount: 720, status: 'served',    time: '—'  },
-  { id: '#1039', table: 'Swiggy', items: 'Chicken Biryani, Mirchi Salan',amount: 490, status: 'preparing', time: '14m'},
+  { id: '#1042', table: 'T-04', items: 'Grilled Salmon, Garden Salad',    amount: 52,  status: 'preparing', time: '8m'  },
+  { id: '#1041', table: 'T-07', items: 'Wagyu Burger, Truffle Fries',     amount: 38,  status: 'ready',     time: '2m'  },
+  { id: '#1040', table: 'T-02', items: 'Pasta Carbonara, Garlic Bread',   amount: 44,  status: 'served',    time: '—'   },
+  { id: '#1039', table: 'Delivery', items: 'Caesar Salad, Tiramisu ×2',   amount: 67,  status: 'preparing', time: '14m' },
 ];
 
 const MOCK_MENU_DATA = [
-  { name: 'Butter Chicken',  price: 320, cat: 'Mains',     dot: '#ef4444' },
-  { name: 'Paneer Tikka',    price: 280, cat: 'Starters',  dot: '#22c55e' },
-  { name: 'Garlic Naan',     price: 60,  cat: 'Breads',    dot: '#22c55e' },
-  { name: 'Dal Makhani',     price: 220, cat: 'Mains',     dot: '#22c55e' },
-  { name: 'Chicken Biryani', price: 360, cat: 'Specials',  dot: '#ef4444' },
-  { name: 'Mango Lassi',     price: 120, cat: 'Beverages', dot: '#22c55e' },
+  { name: 'Grilled Salmon',   price: 28, cat: 'Mains',     dot: '#ef4444' },
+  { name: 'Caesar Salad',     price: 16, cat: 'Starters',  dot: '#22c55e' },
+  { name: 'Wagyu Burger',     price: 32, cat: 'Mains',     dot: '#ef4444' },
+  { name: 'Pasta Carbonara',  price: 22, cat: 'Mains',     dot: '#22c55e' },
+  { name: 'Bruschetta',       price: 12, cat: 'Starters',  dot: '#22c55e' },
+  { name: 'Tiramisu',         price: 11, cat: 'Desserts',  dot: '#22c55e' },
 ];
 
 const getMockOrders = (sym) => MOCK_ORDERS_DATA.map(o => ({ ...o, amount: `${sym}${o.amount}` }));
@@ -39,15 +40,47 @@ const STATUS_STYLE = {
 };
 
 /* ─── feature list ─── */
-const FEATURES = [
-  { icon: Monitor,       title: 'Kitchen Display System',     desc: 'Real-time KDS with station routing, priority queues and cook-time SLA tracking.' },
-  { icon: LayoutGrid,    title: 'Floor Plan & Tables',        desc: 'Live table map with drag-and-drop, reservations, occupancy heatmap and QR menus.' },
-  { icon: Package,       title: 'Inventory & Costing',        desc: 'Stock tracking, reorder alerts, recipe costing and purchase-order management.' },
-  { icon: Users,         title: 'Staff & Rostering',          desc: 'Shift scheduling, attendance, RSA certification alerts and auto-roster from templates.' },
-  { icon: Truck,         title: 'Aggregator Sync',            desc: 'Swiggy, Zomato, DoorDash and Menulog — menu push, order pull and live kanban.' },
-  { icon: BarChart3,     title: 'Analytics & Reports',        desc: 'Revenue trends, peak-hour heatmaps, food-cost %, labour %, and EOD cash reconciliation.' },
-  { icon: Globe,         title: 'Multi-Region (IN & AU)',     desc: 'AUD / INR currency, timezone, tax and regulatory profile switching per franchise.' },
-  { icon: ClipboardList, title: 'End-of-Day Report',         desc: '5-step cash-close wizard with denomination count, discrepancy flagging and lock.' },
+const FEATURE_CATEGORIES = [
+  {
+    label: 'Operations',
+    color: '#6366f1',
+    bg: 'linear-gradient(135deg,#eef2ff,#e0e7ff)',
+    items: [
+      { icon: CreditCard,    title: 'POS Terminal',           desc: 'Touch-optimised POS with split billing, modifiers, combos and full offline mode — syncs instantly when back online.' },
+      { icon: Monitor,       title: 'Kitchen Display System', desc: 'Real-time KDS with station routing, priority queues, bump timers and cook-time SLA tracking.' },
+      { icon: LayoutGrid,    title: 'Floor Plan & Tables',    desc: 'Live table map with drag-and-drop seating, reservations, occupancy heatmap and QR menus.' },
+    ],
+  },
+  {
+    label: 'Supply Chain',
+    color: '#f59e0b',
+    bg: 'linear-gradient(135deg,#fffbeb,#fef3c7)',
+    items: [
+      { icon: Package,       title: 'Inventory & Costing',    desc: 'Real-time stock tracking, reorder alerts, recipe-based auto-deduction and purchase-order management.' },
+      { icon: Truck,         title: 'Aggregator Sync',        desc: 'DoorDash, Menulog, Swiggy and Zomato — unified menu push, order pull and live delivery kanban.' },
+      { icon: ShoppingBag,   title: 'Online Ordering',        desc: 'Branded self-order page, table QR ordering, pickup and delivery — zero commission, fully owned.' },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    color: '#10b981',
+    bg: 'linear-gradient(135deg,#ecfdf5,#d1fae5)',
+    items: [
+      { icon: TrendingUp,    title: 'Analytics & Reports',    desc: 'Revenue trends, peak-hour heatmaps, food-cost %, labour % and 24+ business reports on demand.' },
+      { icon: Shield,        title: 'Fraud Detection',        desc: 'AI-flagged void patterns, discount abuse alerts, cash discrepancy detection and full audit trail.' },
+      { icon: ClipboardList, title: 'End-of-Day Close',       desc: '5-step cash-close wizard with denomination count, discrepancy flagging and tamper-proof lock.' },
+    ],
+  },
+  {
+    label: 'Growth',
+    color: '#8b5cf6',
+    bg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)',
+    items: [
+      { icon: Users,         title: 'Staff & Rostering',      desc: 'Shift scheduling, attendance, certification alerts (RSA/food safety) and auto-roster from templates.' },
+      { icon: Heart,         title: 'CRM & Loyalty',          desc: 'Customer profiles, points engine, birthday campaigns and targeted WhatsApp / SMS promotions.' },
+      { icon: Globe,         title: 'Multi-Region Ready',     desc: 'AUD / INR currency, GST / tax profiles, timezone and regulatory switching — one codebase, every market.' },
+    ],
+  },
 ];
 
 const STATS = [
@@ -81,7 +114,7 @@ function Divider() {
 }
 
 /* ─── hero mock UI ─── */
-function HeroMockUI({ currencySymbol = '₹' }) {
+function HeroMockUI({ currencySymbol = '$' }) {
   const [activeTab, setActiveTab] = useState('orders');
   const MOCK_ORDERS = useMemo(() => getMockOrders(currencySymbol), [currencySymbol]);
   const MOCK_MENU = useMemo(() => getMockMenu(currencySymbol), [currencySymbol]);
@@ -237,9 +270,9 @@ function HeroMockUI({ currencySymbol = '₹' }) {
         borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
         {[
-          { dot: '#22c55e', label: 'Backend connected' },
-          { dot: '#6366f1', label: '3 tables occupied'  },
-          { dot: '#f59e0b', label: '2 orders in KDS'    },
+          { dot: '#22c55e', label: 'System online'       },
+          { dot: '#6366f1', label: '7 tables active'     },
+          { dot: '#f59e0b', label: '4 orders in kitchen' },
         ].map(b => (
           <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: b.dot }} />
@@ -441,51 +474,106 @@ export default function WelcomePage() {
       </div>
 
       {/* ── FEATURES ── */}
-      <section style={{ maxWidth: 1160, margin: '0 auto', padding: 'clamp(48px,7vw,80px) 32px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <Tag color="#10b981">Platform capabilities</Tag>
-          <h2 style={{
-            fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 800,
-            letterSpacing: '-0.02em', marginTop: 16, marginBottom: 12, color: '#0f172a',
-          }}>
-            Everything your restaurant needs, built in.
-          </h2>
-          <p style={{ fontSize: 15, color: '#64748b', maxWidth: 480, margin: '0 auto' }}>
-            No patchwork of third-party apps. MS-RM handles the full operation from first order to end-of-day lock.
-          </p>
-        </div>
+      <section style={{ background: '#fff', borderTop: '1px solid rgba(15,23,42,0.06)' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(56px,8vw,96px) 32px' }}>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-          gap: 16,
-        }}>
-          {FEATURES.map(({ icon: Icon, title, desc }) => (
-            <div
-              key={title}
-              className="feature-card"
-              style={{
-                background: '#fff', borderRadius: 12, padding: '20px',
-                border: '1px solid rgba(15,23,42,0.07)',
-                boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
-              }}
-            >
+          {/* section header */}
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <Tag color="#10b981">Platform capabilities</Tag>
+            <h2 style={{
+              fontSize: 'clamp(26px,3.5vw,40px)', fontWeight: 800,
+              letterSpacing: '-0.025em', marginTop: 16, marginBottom: 14, color: '#0f172a',
+            }}>
+              Everything your restaurant needs,<br />built in.
+            </h2>
+            <p style={{ fontSize: 16, color: '#64748b', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
+              No patchwork of third-party apps. MS-RM handles the full operation —
+              from first order to end-of-day close — across every market.
+            </p>
+          </div>
+
+          {/* category groups */}
+          {FEATURE_CATEGORIES.map(({ label, color, bg, items }) => (
+            <div key={label} style={{ marginBottom: 56 }}>
+              {/* category label */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color,
+                  background: color + '15', padding: '4px 12px', borderRadius: 99,
+                  border: `1px solid ${color}30`,
+                }}>{label}</span>
+                <div style={{ flex: 1, height: 1, background: 'rgba(15,23,42,0.07)' }} />
+              </div>
+
+              {/* 3-column card grid */}
               <div style={{
-                width: 36, height: 36, borderRadius: 9,
-                background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 14,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: 20,
               }}>
-                <Icon size={18} color="#6366f1" />
-              </div>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', marginBottom: 7 }}>
-                {title}
-              </div>
-              <div style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.6 }}>
-                {desc}
+                {items.map(({ icon: Icon, title, desc }) => (
+                  <div
+                    key={title}
+                    className="feature-card"
+                    style={{
+                      background: '#fff',
+                      borderRadius: 16,
+                      padding: '28px 24px',
+                      border: '1px solid rgba(15,23,42,0.08)',
+                      boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0,
+                    }}
+                  >
+                    {/* icon */}
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: bg,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      marginBottom: 16, flexShrink: 0,
+                    }}>
+                      <Icon size={20} color={color} />
+                    </div>
+
+                    {/* title */}
+                    <div style={{
+                      fontSize: 15, fontWeight: 700, color: '#0f172a',
+                      marginBottom: 8, letterSpacing: '-0.01em',
+                    }}>
+                      {title}
+                    </div>
+
+                    {/* desc */}
+                    <div style={{
+                      fontSize: 13.5, color: '#64748b', lineHeight: 1.65, flex: 1,
+                    }}>
+                      {desc}
+                    </div>
+
+                    {/* bottom accent line */}
+                    <div style={{
+                      marginTop: 20, height: 2, borderRadius: 99,
+                      background: `linear-gradient(90deg, ${color}40, transparent)`,
+                    }} />
+                  </div>
+                ))}
               </div>
             </div>
           ))}
+
+          {/* bottom CTA row */}
+          <div style={{
+            marginTop: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <CheckCircle size={16} color="#10b981" />
+            <span style={{ fontSize: 14, color: '#64748b' }}>
+              12 modules · No per-module pricing · One flat subscription
+            </span>
+          </div>
+
         </div>
       </section>
 

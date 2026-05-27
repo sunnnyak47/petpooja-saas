@@ -560,15 +560,26 @@ async function initiateEmailReset(email) {
       },
     });
 
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-    
+    // HashRouter — must include `/#/` so the SPA picks up the route
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const resetLink = `${baseUrl}/#/reset-password?token=${token}`;
+
     // Fetch current branding for email
     const superadminService = require('../superadmin/superadmin.service');
     const branding = await superadminService.getBranding();
-    
-    await mailService.sendPasswordResetEmail(email, resetLink, branding.platform_name);
 
-    return { message: 'If this email is registered, you will receive a reset link shortly' };
+    const mailResult = await mailService.sendPasswordResetEmail(email, resetLink, branding.platform_name);
+
+    const response = { message: 'If this email is registered, you will receive a reset link shortly' };
+
+    // Dev-only: expose Ethereal preview URL & raw link so testing doesn't require a real inbox
+    if (process.env.NODE_ENV !== 'production') {
+      if (mailResult?.previewUrl) response.dev_preview_url = mailResult.previewUrl;
+      if (mailResult?.transport) response.dev_transport = mailResult.transport;
+      response.dev_reset_link = resetLink;
+    }
+
+    return response;
   } catch (error) {
     logger.error('Initiate email reset failed', { error: error.message, email });
     throw error;
