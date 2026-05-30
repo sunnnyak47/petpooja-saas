@@ -810,13 +810,18 @@ async function getInventoryValuation(outletId) {
     return await cached(`inventory-valuation:${outletId}`, TTL.SHORT, async () => {
     const items = await prisma.inventoryItem.findMany({
       where: { outlet_id: outletId, is_deleted: false },
-      select: { id: true, name: true, category: true, current_stock: true, cost_per_unit: true, unit: true },
+      select: {
+        id: true, name: true, category: true, cost_per_unit: true, unit: true,
+        // current_stock lives on the related InventoryStock row, not on the item.
+        stock: { where: { is_deleted: false }, select: { current_stock: true } },
+      },
     });
 
     const byCategory = {};
     let totalValue = 0;
     for (const item of items) {
-      const value = Number(item.current_stock) * Number(item.cost_per_unit);
+      const currentStock = (item.stock || []).reduce((s, st) => s + Number(st.current_stock), 0);
+      const value = currentStock * Number(item.cost_per_unit);
       totalValue += value;
       if (!byCategory[item.category]) byCategory[item.category] = { category: item.category, value: 0, count: 0 };
       byCategory[item.category].value += value;
