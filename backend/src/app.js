@@ -391,7 +391,21 @@ async function startApp() {
           CONSTRAINT outlet_daily_counters_outlet_day_key UNIQUE (outlet_id, day)
         )
       `);
-      logger.info('outlet_daily_counters table ensured');
+      // Seed from existing orders so the first new order doesn't collide with
+      // orders already created today before this table existed.
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO outlet_daily_counters (outlet_id, day, seq)
+        SELECT
+          outlet_id,
+          TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+          COUNT(*)::INTEGER AS seq
+        FROM orders
+        WHERE is_deleted = false
+        GROUP BY outlet_id, TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD')
+        ON CONFLICT (outlet_id, day) DO UPDATE
+          SET seq = GREATEST(outlet_daily_counters.seq, EXCLUDED.seq)
+      `);
+      logger.info('outlet_daily_counters table ensured and seeded');
     } catch (e) {
       logger.warn('outlet_daily_counters create skipped:', { error: e.message });
     }
