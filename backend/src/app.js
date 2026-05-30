@@ -338,6 +338,8 @@ async function startApp() {
       ['staff_certifications', `ADD COLUMN IF NOT EXISTS provider VARCHAR(200),
                                 ADD COLUMN IF NOT EXISTS cert_number VARCHAR(100),
                                 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`],
+      // tables: auto_free_at added for predictive auto-free feature
+      ['tables', `ADD COLUMN IF NOT EXISTS auto_free_at TIMESTAMPTZ`],
       // staff_profiles: compliance + personal + payroll fields added in staff management module
       ['staff_profiles', `ADD COLUMN IF NOT EXISTS employment_type    VARCHAR(20),
                           ADD COLUMN IF NOT EXISTS contract_end_date  DATE,
