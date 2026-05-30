@@ -345,24 +345,38 @@ async function createOrder(data, staffId) {
       return newOrder;
     });
 
-    const fullOrder = await getOrderById(order.id);
-
-    // Only emit new_order to POS/KDS if the order is actually active and not pending staff acceptance.
-    // Online QR orders start as 'pending' and are announced via 'new_online_order' instead.
-    if (fullOrder.status !== 'pending') {
-      const io = getIO();
-      if (io) {
-        io.of('/orders').to(`outlet:${data.outlet_id}`).emit('new_order', fullOrder);
-        if (data.table_id) {
-          io.of('/orders').to(`outlet:${data.outlet_id}`).emit('table_status_change', {
-            table_id: data.table_id, status: 'occupied', order_id: order.id,
-          });
+    // Emit socket in background — don't block the HTTP response
+    setImmediate(async () => {
+      try {
+        if ((data.status || 'created') !== 'pending') {
+          const io = getIO();
+          if (io) {
+            const fullOrder = await getOrderById(order.id);
+            io.of('/orders').to(`outlet:${data.outlet_id}`).emit('new_order', fullOrder);
+            if (data.table_id) {
+              io.of('/orders').to(`outlet:${data.outlet_id}`).emit('table_status_change', {
+                table_id: data.table_id, status: 'occupied', order_id: order.id,
+              });
+            }
+          }
         }
+      } catch (e) {
+        logger.warn('Socket emit failed after createOrder', { error: e.message });
       }
-    }
+    });
 
     logger.info('Order created', { orderId: order.id, orderNumber, outlet: outlet.code });
-    return fullOrder;
+    // Return just the fields callers actually need — skips the expensive getOrderById JOIN
+    return {
+      id: order.id,
+      order_number: orderNumber,
+      grand_total: grandTotal,
+      subtotal,
+      total_tax: totalTax,
+      status: data.status || 'created',
+      outlet_id: data.outlet_id,
+      table_id: data.table_id || null,
+    };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     logger.error('Create order failed', { error: error.message });
@@ -645,38 +659,43 @@ async function generateKOT(orderId, outletId = null) {
       }
     });
 
-    const io = getIO();
-    if (io) {
-      const dbKots = await prisma.kOT.findMany({
-        where: { id: { in: kots.map(k => k.id) } },
-        include: {
-          kot_items: {
-            include: {
-              order_item: {
-                select: { name: true, variant_name: true, quantity: true, notes: true, addons: { select: { name: true } } },
-              },
-            },
-          },
-        },
-      });
-
-      for (const kot of dbKots) {
-        const payload = {
-          ...kot,
-          order_number: order.order_number,
-          order_type: order.order_type,
-          table_id: order.table_id,
-          table_number: order.table?.table_number
-        };
-        io.of('/kitchen').to(`outlet:${order.outlet_id}`).emit('new_kot', payload);
-        io.of('/kitchen').to(`station:${order.outlet_id}:${kot.station}`).emit('new_kot', payload);
+    setImmediate(() => {
+      try {
+        const io = getIO();
+        if (io) {
+          for (const kot of kots) {
+            const payload = {
+              id: kot.id,
+              kot_number: kot.kot_number,
+              station: kot.station,
+              status: 'pending',
+              outlet_id: order.outlet_id,
+              order_id: orderId,
+              order_number: order.order_number,
+              order_type: order.order_type,
+              table_id: order.table_id,
+              items_count: kot.items.length,
+              kot_items: kot.items.map(item => ({
+                order_item: {
+                  name: item.name,
+                  variant_name: item.variant_name,
+                  quantity: item.quantity,
+                  notes: item.notes,
+                  addons: item.addons?.map(a => ({ name: a.name })) || [],
+                },
+              })),
+            };
+            io.of('/kitchen').to(`outlet:${order.outlet_id}`).emit('new_kot', payload);
+            io.of('/kitchen').to(`station:${order.outlet_id}:${kot.station}`).emit('new_kot', payload);
+          }
+          io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
+            order_id: orderId, status: 'confirmed',
+          });
+        }
+      } catch (e) {
+        logger.warn('Socket emit failed after generateKOT', { error: e.message });
       }
-      if (order.status === 'created') {
-        io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_status_change', {
-          order_id: orderId, status: 'confirmed',
-        });
-      }
-    }
+    });
 
     logger.info('KOTs generated', { orderId, kotCount: kots.length });
     return kots;
@@ -1308,8 +1327,369 @@ async function syncOfflineOrders(orders, userId) {
   return results;
 }
 
+/**
+ * Sends an eBill (digital receipt) to a customer via SMS, Email, or returns
+ * a WhatsApp deep-link URL for the caller to open.
+ *
+ * @param {string} orderId
+ * @param {{ method: 'sms'|'email'|'whatsapp', phone?: string, email?: string }} opts
+ * @returns {Promise<{ sent: boolean, channel: string, preview?: string, waUrl?: string }>}
+ */
+async function sendEBill(orderId, { method, phone, email }) {
+  const { sendSms } = require('../../utils/sms.service');
+  const { sendMail } = require('../../utils/mail.service');
+
+  const order = await getOrderById(orderId);
+
+  const outletName = order.outlet?.name || 'The Restaurant';
+  const orderNum   = order.order_number || orderId.slice(-6).toUpperCase();
+  const total      = Number(order.grand_total || 0);
+  const currency   = order.outlet?.country_code === 'AU' ? 'A$' : '₹';
+  const items      = (order.order_items || []).filter(i => !i.is_deleted);
+  const itemLines  = items.map(i => `  • ${i.menu_item_name || i.name} x${i.quantity}`).join('\n');
+
+  // ── SMS / WhatsApp text ──
+  const shortMsg =
+    `${outletName}\n` +
+    `Order #${orderNum}\n` +
+    itemLines + '\n' +
+    `Total: ${currency}${total.toFixed(2)}\n` +
+    `Thank you for dining with us!`;
+
+  if (method === 'whatsapp') {
+    const normalized = (phone || '').replace(/\D/g, '');
+    const waUrl = `https://wa.me/${normalized}?text=${encodeURIComponent(shortMsg)}`;
+    return { sent: false, channel: 'whatsapp', waUrl };
+  }
+
+  if (method === 'sms') {
+    await sendSms(phone, shortMsg);
+    return { sent: true, channel: 'sms' };
+  }
+
+  if (method === 'email') {
+    const safe = (s) => String(s || '').replace(/[<>"&]/g, c => ({ '<':'&lt;','>':'&gt;','"':'&quot;','&':'&amp;' }[c]));
+    const itemRows = items.map(i => {
+      const lineTotal = (Number(i.unit_price || 0) + Number(i.variant_price || 0)) * i.quantity;
+      return `<tr>
+        <td style="padding:8px 12px;font-size:14px;color:#334155;">${safe(i.menu_item_name || i.name)}${i.variant ? ` <span style="color:#64748b;font-size:12px">(${safe(i.variant?.name)})</span>` : ''}</td>
+        <td style="padding:8px 12px;text-align:center;font-size:14px;color:#334155;">${i.quantity}</td>
+        <td style="padding:8px 12px;text-align:right;font-size:14px;color:#334155;font-family:monospace;">${currency}${lineTotal.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;border:1px solid #e2e8f0;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:28px 32px;color:#fff;">
+          <div style="font-size:11px;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.1em;">${safe(outletName)}</div>
+          <div style="font-size:22px;font-weight:800;margin-top:4px;">Your Digital Bill</div>
+          <div style="font-size:13px;opacity:.8;margin-top:2px;">Order #${safe(orderNum)}</div>
+        </td></tr>
+        <tr><td style="padding:24px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <thead><tr style="border-bottom:2px solid #e2e8f0;">
+              <th style="padding:8px 12px;text-align:left;font-size:11px;color:#94a3b8;text-transform:uppercase;font-weight:600;">Item</th>
+              <th style="padding:8px 12px;text-align:center;font-size:11px;color:#94a3b8;text-transform:uppercase;font-weight:600;">Qty</th>
+              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#94a3b8;text-transform:uppercase;font-weight:600;">Amount</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+            <tfoot><tr style="border-top:2px solid #e2e8f0;">
+              <td colspan="2" style="padding:12px 12px;font-size:15px;font-weight:700;color:#0f172a;">Total</td>
+              <td style="padding:12px 12px;text-align:right;font-size:18px;font-weight:800;color:#6366f1;font-family:monospace;">${currency}${total.toFixed(2)}</td>
+            </tr></tfoot>
+          </table>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;text-align:center;font-size:13px;color:#64748b;">
+          Thank you for dining with <strong>${safe(outletName)}</strong>!
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+    const result = await sendMail({
+      to: email,
+      subject: `Your bill from ${outletName} — Order #${orderNum}`,
+      html,
+      text: shortMsg,
+    });
+    return { sent: true, channel: 'email', preview: result.previewUrl };
+  }
+
+  throw new Error(`Unknown eBill method: ${method}`);
+}
+
+/**
+ * punchKOT — Creates an order AND generates KOT in a single DB transaction.
+ * Used by POST /orders/punch-kot for maximum POS speed.
+ * @returns {{ order: object, kots: object[] }}
+ */
+async function punchKOT(data, staffId) {
+  const prisma = getDbClient();
+
+  // ── 1. Fetch outlet & validate ────────────────────────────────────────────
+  const outlet = await prisma.outlet.findFirst({
+    where: { id: data.outlet_id, is_deleted: false, is_active: true },
+    include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+  });
+  if (!outlet) throw new NotFoundError('Outlet not found or inactive');
+
+  const hoCountry = outlet.head_office?.country_code;
+  const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
+  const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
+  const gstInclusive = outlet.head_office?.gst_inclusive ?? (isAU ? true : false);
+  const defaultGstRate = countryCode === 'AU' ? 10 : 5;
+  const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '', default_gst_rate: defaultGstRate };
+
+  // ── 2. Fetch menu items & compute pricing (parallel with table check) ────
+  const [menuItems, todayOrderCount, tableRow] = await Promise.all([
+    prisma.menuItem.findMany({
+      where: { id: { in: data.items.map(i => i.menu_item_id) }, outlet_id: data.outlet_id, is_deleted: false },
+      include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
+    }),
+    prisma.order.count({ where: { outlet_id: data.outlet_id, created_at: { gte: (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })() } } }),
+    data.table_id ? prisma.table.findFirst({ where: { id: data.table_id, outlet_id: data.outlet_id, is_deleted: false } }) : Promise.resolve(null),
+  ]);
+
+  if (data.table_id && !tableRow) throw new NotFoundError('Table not found');
+  if (tableRow?.status === 'occupied' && tableRow?.current_order_id) {
+    throw new BadRequestError('Table is already occupied. Use add items to existing order.');
+  }
+
+  const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]));
+  const dailySequence = todayOrderCount + 1;
+  const orderNumber = generateOrderNumber(outlet.code, dailySequence);
+
+  let subtotal = 0;
+  const orderItemsData = [];
+
+  for (const item of data.items) {
+    const menuItem = menuItemMap.get(item.menu_item_id);
+    if (!menuItem) throw new BadRequestError(`Menu item not found: ${item.menu_item_id}`);
+    if (!menuItem.is_available) throw new BadRequestError(`Item '${menuItem.name}' is currently unavailable`);
+
+    let unitPrice = Number(menuItem.base_price);
+    let variantPrice = 0, variantName = null;
+    if (item.variant_id) {
+      const variant = menuItem.variants.find(v => v.id === item.variant_id);
+      if (!variant) throw new BadRequestError(`Variant not found for ${menuItem.name}`);
+      variantPrice = Number(variant.price_addition);
+      variantName = variant.name;
+    }
+
+    let addonsTotal = 0;
+    const orderAddons = [];
+    for (const addonReq of (item.addons || [])) {
+      const addon = menuItem.addons.find(a => a.id === addonReq.addon_id);
+      if (!addon) throw new BadRequestError(`Addon not found: ${addonReq.addon_id}`);
+      const addonLineTotal = Number(addon.price) * (addonReq.quantity || 1);
+      addonsTotal += addonLineTotal;
+      orderAddons.push({ addon_id: addon.id, name: addon.name, price: Number(addon.price), quantity: addonReq.quantity || 1 });
+    }
+
+    const itemTotal = (unitPrice + variantPrice + addonsTotal) * item.quantity;
+    subtotal += itemTotal;
+    orderItemsData.push({
+      menu_item_id: item.menu_item_id,
+      variant_id: item.variant_id || null,
+      name: menuItem.name,
+      variant_name: variantName,
+      quantity: item.quantity,
+      unit_price: unitPrice,
+      variant_price: variantPrice,
+      addons_total: addonsTotal,
+      item_total: itemTotal,
+      gst_rate: Number(menuItem.gst_rate) || defaultGstRate,
+      kitchen_station: menuItem.kitchen_station,
+      notes: item.notes || null,
+      addons: orderAddons,
+    });
+  }
+
+  // ── 3. Tax calculation ───────────────────────────────────────────────────
+  const taxCfg = { ...outletTaxConfig, customer_state: data.delivery_address_state || '' };
+  let totalCgstPaise = 0, totalSgstPaise = 0, totalIgstPaise = 0, totalTaxPaise = 0;
+
+  for (const oi of orderItemsData) {
+    const tax = calculateItemTax(
+      { base_price: oi.unit_price + oi.variant_price + (oi.addons_total / oi.quantity), quantity: oi.quantity, gst_rate: oi.gst_rate, is_inclusive: gstInclusive },
+      taxCfg
+    );
+    oi.item_tax = tax.total_tax;
+    oi.taxable_amount = tax.taxable_amount;
+    totalCgstPaise += Math.round(tax.cgst * 100);
+    totalSgstPaise += Math.round(tax.sgst * 100);
+    totalIgstPaise += Math.round(tax.igst * 100);
+    totalTaxPaise += Math.round(tax.total_tax * 100);
+  }
+
+  const totalTax = totalTaxPaise / 100;
+  const totalAmount = gstInclusive ? subtotal : subtotal + totalTax;
+  const { grandTotal, roundOff } = computeGrandTotal(totalAmount, countryCode);
+
+  // ── 4. Single transaction: create order + items + KOTs ──────────────────
+  const stationGroups = {};
+  orderItemsData.forEach(oi => {
+    const station = oi.kitchen_station || 'KITCHEN';
+    if (!stationGroups[station]) stationGroups[station] = [];
+    stationGroups[station].push(oi);
+  });
+
+  let createdOrder, createdKots;
+
+  await prisma.$transaction(async (tx) => {
+    // Create order
+    createdOrder = await tx.order.create({
+      data: {
+        outlet_id: data.outlet_id,
+        order_number: orderNumber,
+        order_type: data.order_type || 'dine_in',
+        status: 'confirmed', // skip 'created' — go straight to confirmed since KOT is being generated
+        table_id: data.table_id || null,
+        customer_id: data.customer_id || null,
+        staff_id: staffId,
+        subtotal,
+        taxable_amount: subtotal,
+        cgst: Math.round((totalCgstPaise / 100) * 100) / 100,
+        sgst: Math.round((totalSgstPaise / 100) * 100) / 100,
+        igst: Math.round((totalIgstPaise / 100) * 100) / 100,
+        total_tax: Math.round(totalTax * 100) / 100,
+        total_amount: Math.round(totalAmount * 100) / 100,
+        round_off: Math.round(roundOff * 100) / 100,
+        grand_total: grandTotal,
+        source: data.source || 'pos',
+        notes: data.notes || null,
+        daily_sequence: dailySequence,
+      },
+    });
+
+    // Create order items + addons
+    const createdItems = [];
+    for (const oi of orderItemsData) {
+      const createdItem = await tx.orderItem.create({
+        data: {
+          order_id: createdOrder.id,
+          menu_item_id: oi.menu_item_id,
+          variant_id: oi.variant_id,
+          name: oi.name,
+          variant_name: oi.variant_name,
+          quantity: oi.quantity,
+          unit_price: oi.unit_price,
+          variant_price: oi.variant_price,
+          addons_total: oi.addons_total,
+          item_total: oi.item_total,
+          gst_rate: oi.gst_rate,
+          item_tax: oi.item_tax,
+          kitchen_station: oi.kitchen_station,
+          notes: oi.notes,
+          is_kot_sent: true,
+          status: 'sent',
+        },
+      });
+      if (oi.addons.length > 0) {
+        await tx.orderItemAddon.createMany({
+          data: oi.addons.map(a => ({ ...a, order_item_id: createdItem.id })),
+        });
+      }
+      createdItems.push({ ...oi, id: createdItem.id });
+    }
+
+    // Status history
+    await tx.orderStatusHistory.create({
+      data: { order_id: createdOrder.id, from_status: null, to_status: 'confirmed', changed_by: staffId },
+    });
+
+    // Table update
+    if (data.table_id) {
+      await tx.table.update({ where: { id: data.table_id }, data: { status: 'occupied', current_order_id: createdOrder.id } });
+    }
+
+    // Create KOTs
+    createdKots = [];
+    for (const [station, items] of Object.entries(stationGroups)) {
+      const stationItems = createdItems.filter(ci => (ci.kitchen_station || 'KITCHEN') === station);
+      const kotNumber = `KOT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`;
+      const kot = await tx.kOT.create({
+        data: {
+          outlet_id: data.outlet_id,
+          order_id: createdOrder.id,
+          kot_number: kotNumber,
+          station,
+          items_count: stationItems.length,
+          status: 'pending',
+          printed_at: new Date(),
+        },
+      });
+      for (const si of stationItems) {
+        await tx.kOTItem.create({ data: { kot_id: kot.id, order_item_id: si.id, quantity: si.quantity } });
+        await tx.orderItem.update({ where: { id: si.id }, data: { kot_id: kot.id } });
+      }
+      createdKots.push({ ...kot, items: stationItems });
+    }
+  });
+
+  // ── 5. Emit sockets async — don't block response ─────────────────────────
+  setImmediate(() => {
+    try {
+      const io = getIO();
+      if (!io) return;
+
+      // Notify orders namespace (running orders tab)
+      io.of('/orders').to(`outlet:${data.outlet_id}`).emit('new_order', {
+        id: createdOrder.id,
+        order_number: orderNumber,
+        order_type: data.order_type || 'dine_in',
+        status: 'confirmed',
+        grand_total: grandTotal,
+        outlet_id: data.outlet_id,
+        table_id: data.table_id || null,
+      });
+      if (data.table_id) {
+        io.of('/orders').to(`outlet:${data.outlet_id}`).emit('table_status_change', {
+          table_id: data.table_id, status: 'occupied', order_id: createdOrder.id,
+        });
+      }
+
+      // Notify kitchen namespace (KDS)
+      for (const kot of createdKots) {
+        const payload = {
+          id: kot.id,
+          kot_number: kot.kot_number,
+          station: kot.station,
+          status: 'pending',
+          outlet_id: data.outlet_id,
+          order_id: createdOrder.id,
+          order_number: orderNumber,
+          order_type: data.order_type || 'dine_in',
+          table_id: data.table_id || null,
+          items_count: kot.items.length,
+          kot_items: kot.items.map(item => ({
+            order_item: { name: item.name, variant_name: item.variant_name, quantity: item.quantity, notes: item.notes, addons: item.addons?.map(a => ({ name: a.name })) || [] },
+          })),
+        };
+        io.of('/kitchen').to(`outlet:${data.outlet_id}`).emit('new_kot', payload);
+        io.of('/kitchen').to(`station:${data.outlet_id}:${kot.station}`).emit('new_kot', payload);
+      }
+    } catch (e) {
+      logger.warn('Socket emit failed after punchKOT', { error: e.message });
+    }
+  });
+
+  logger.info('PunchKOT completed', { orderId: createdOrder.id, orderNumber, kots: createdKots.length });
+
+  return {
+    order: { id: createdOrder.id, order_number: orderNumber, grand_total: grandTotal, subtotal, status: 'confirmed' },
+    kots: createdKots.map(k => ({ id: k.id, kot_number: k.kot_number, station: k.station, items_count: k.items.length })),
+  };
+}
+
 module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
   generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
   generateInvoiceNumber, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
+  sendEBill, punchKOT,
 };

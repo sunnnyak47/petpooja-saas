@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema, applyDiscountSchema, updateNotesSchema, assignStaffSchema, voidItemSchema } = require('./order.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
 const taxService = require('./tax.service');
@@ -43,6 +43,7 @@ async function assertOrderOwnership(req, res, next) {
 }
 
 router.post('/', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), auditLog('order'), orderController.createOrder);
+router.post('/punch-kot', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(createOrderSchema), auditLog('order'), orderController.punchKOT);
 router.get('/', authenticate, checkLicense, enforceOutletScope, hasPermission('VIEW_ORDERS'), orderController.listOrders);
 
 /** GET /api/orders/tax-preview — preview tax breakdown for a set of items */
@@ -100,6 +101,12 @@ router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER')
 router.post('/:id/refund', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(refundOrderSchema), auditLog('payment'), orderController.refundOrder);
 router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(transferTableSchema), auditLog('order'), orderController.transferTable);
 router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(mergeOrderSchema), auditLog('order'), orderController.mergeOrder);
+router.post('/:id/ebill', authenticate, assertOrderOwnership, orderController.sendEBill);
 router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(syncOfflineOrdersSchema), auditLog('order'), orderController.syncOfflineOrders);
+
+router.post('/:id/apply-discount', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(applyDiscountSchema), auditLog('order'), orderController.applyDiscount);
+router.patch('/:id/notes', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(updateNotesSchema), orderController.updateNotes);
+router.patch('/:id/assign-staff', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(assignStaffSchema), auditLog('order'), orderController.assignStaff);
+router.post('/:id/void-item', authenticate, checkLicense, hasPermission('VOID_ORDER'), assertOrderOwnership, validate(voidItemSchema), auditLog('order'), orderController.voidItem);
 
 module.exports = router;

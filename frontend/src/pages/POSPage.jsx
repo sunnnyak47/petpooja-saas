@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import {
   addToCart, removeFromCart, updateCartQuantity, clearCart,
   setOrderType, setSelectedTable, setOrderNotes, setCovers, setSelectedCustomer,
-  setPOSState
+  setDiscount, setPOSState
 } from '../store/slices/posSlice';
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
@@ -32,6 +32,15 @@ import BillPreviewModal from '../components/POS/BillPreviewModal';
 import PaymentModal from '../components/POS/PaymentModal';
 import EBillModal from '../components/POS/EBillModal';
 import SplitBillModal from '../components/POS/SplitBillModal';
+// ── v2 POS features ───────────────────────────────────────────────────────────
+import VoidItemModal from '../components/POS/VoidItemModal';
+import DiscountModal from '../components/POS/DiscountModal';
+import RefundModal from '../components/POS/RefundModal';
+import TaxBreakdownPanel from '../components/POS/TaxBreakdownPanel';
+import LoyaltyRedemption from '../components/POS/LoyaltyRedemption';
+import GratuitySelector from '../components/POS/GratuitySelector';
+import StaffAssignSelector from '../components/POS/StaffAssignSelector';
+import { PrintService } from '../lib/PrintService';
 
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const BORDER_COLORS = { veg: 'border-l-slate-200', non_veg: 'border-l-slate-200', egg: 'border-l-slate-200' };
@@ -92,10 +101,24 @@ export default function POSPage() {
   const [tempOrderId, setTempOrderId] = useState(null);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [isBilled, setIsBilled] = useState(false);
+  // Server-authoritative grand total — used for split/payment to avoid frontend vs backend rounding drift
+  const [serverOrderTotal, setServerOrderTotal] = useState(null);
+
+  // ── v2 feature state ──────────────────────────────────────────────────────
+  const [showVoidItem, setShowVoidItem]         = useState(false);
+  const [showDiscount, setShowDiscount]         = useState(false);
+  const [showRefund, setShowRefund]             = useState(false);
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState(false);
+  const [gratuity, setGratuity]                 = useState(0);
+  const [appliedLoyaltyPoints, setAppliedLoyaltyPoints]   = useState(0);
+  const [appliedLoyaltyDiscount, setAppliedLoyaltyDiscount] = useState(0);
+  const [assignedStaff, setAssignedStaff]       = useState(null);
+  // currentOrder state for void/refund modals
+  const [currentOrderForModal, setCurrentOrderForModal] = useState(null);
 
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
-  const { cart, orderType, selectedTable, orderNotes, covers, selectedCustomer } = useSelector((s) => s.pos);
+  const { cart, orderType, selectedTable, orderNotes, covers, selectedCustomer, discount } = useSelector((s) => s.pos);
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const { format, symbol } = useCurrency();
@@ -107,6 +130,7 @@ export default function POSPage() {
   const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const orderIdParam = searchParams.get('order_id');
   const autoPayParam = searchParams.get('pay');
 
@@ -321,15 +345,30 @@ export default function POSPage() {
         return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || defaultGstRate) / 100);
       }, 0);
     }
+    // BOGO: deduct the free item's unit price from the total
+    const bogoDeduction = discount?.type === 'bogo' ? (Number(discount.value) || 0) : 0;
+
     // AU: keep 2 decimal places (cents). IN: round to nearest whole rupee.
     const rawTotal = isAU ? lineTotal : subtotal + tax;
-    const total = isCompMode ? 0 : (isAU ? Math.round(rawTotal * 100) / 100 : Math.round(rawTotal));
+    const rawTotalAfterBogo = Math.max(0, rawTotal - bogoDeduction);
+    const total = isCompMode ? 0 : (isAU ? Math.round(rawTotalAfterBogo * 100) / 100 : Math.round(rawTotalAfterBogo));
+
+    // Recalculate tax proportionally after BOGO (tax reduction = bogoDeduction * taxRate)
+    const bogoTaxReduction = isCompMode ? 0 : (rawTotal > 0 ? (tax / rawTotal) * bogoDeduction : 0);
+    const finalTax = Math.max(0, tax - bogoTaxReduction);
+
+    const totalWithGratuity = isCompMode ? 0 : Math.round((total + gratuity - appliedLoyaltyDiscount) * 100) / 100;
+
     return {
-      subtotal: Math.round((isCompMode ? 0 : subtotal) * 100) / 100,
-      tax: Math.round(tax * 100) / 100,
-      total
+      subtotal: Math.round((isCompMode ? 0 : Math.max(0, subtotal - (isAU ? 0 : bogoDeduction))) * 100) / 100,
+      tax: Math.round(finalTax * 100) / 100,
+      bogoDeduction: Math.round(bogoDeduction * 100) / 100,
+      total,
+      gratuity,
+      loyaltyDiscount: appliedLoyaltyDiscount,
+      grandTotal: totalWithGratuity,
     };
-  }, [cart, isCompMode, isAU]);
+  }, [cart, isCompMode, isAU, discount, gratuity, appliedLoyaltyDiscount]);
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
@@ -378,6 +417,15 @@ export default function POSPage() {
   }, [outletId, queryClient]);
 
   const handleAddItem = (item) => {
+    // Guard: out-of-stock check
+    if (item.is_available === false) {
+      toast.error(`"${item.name}" is currently unavailable.`, { icon: '🚫', duration: 2500 });
+      return;
+    }
+    if (item.track_inventory && item.stock_quantity !== undefined && item.stock_quantity <= 0) {
+      toast.error(`"${item.name}" is out of stock.`, { icon: '📦', duration: 2500 });
+      return;
+    }
     // Guard: do not add items with 0 or missing price to cart
     if (!Number(item.base_price) || Number(item.base_price) <= 0) {
       toast.error(`"${item.name}" has no price set. Edit the menu item before adding.`, { duration: 3000 });
@@ -401,7 +449,7 @@ export default function POSPage() {
     toast.success(`${item.name} added`, { duration: 1000 });
   };
 
-  const handleCreateOrderCore = async (status, isBogo = false) => {
+  const handleCreateOrderCore = async (status) => {
     const orderPayload = {
       outlet_id: outletId,
       order_type: orderType,
@@ -419,6 +467,10 @@ export default function POSPage() {
         notes: c.notes || null
       })),
       covers,
+      // Include discount info (BOGO or manager discount) so backend records the correct total
+      discount_type: discount?.type || null,
+      discount_value: discount?.value || 0,
+      discount_reason: discount?.reason || null,
     };
 
     if (IS_ELECTRON && !isOnline) {
@@ -426,12 +478,14 @@ export default function POSPage() {
       const result = await hybridAPI.createOrder(orderPayload);
       const orderData = result?.id ? result : { id: result, ...orderPayload };
       setTempOrderId(orderData.id);
+      if (orderData.grand_total != null) setServerOrderTotal(Number(orderData.grand_total));
       return orderData;
     }
 
     const res = await api.post('/orders', orderPayload);
     const orderData = res.data?.data ?? res.data;
     setTempOrderId(orderData?.id ?? null);
+    if (orderData?.grand_total != null) setServerOrderTotal(Number(orderData.grand_total));
     return orderData;
   };
 
@@ -463,13 +517,73 @@ export default function POSPage() {
 
   const handlePunchKOT = async () => {
     if (cart.length === 0) return toast.error('Cart is empty');
+
+    // ── FAST PATH: new order — optimistic fire-and-forget ──────────────────
+    if (!tempOrderId && !(IS_ELECTRON && !isOnline)) {
+      const cartSnapshot = [...cart];
+
+      // ① Show success & clear cart INSTANTLY — don't wait for server
+      toast.success('🚀 Sent to Kitchen!', { duration: 2500 });
+      dispatch(clearCart());
+      setGratuity(0);
+      setAppliedLoyaltyPoints(0);
+      setAppliedLoyaltyDiscount(0);
+
+      const payload = {
+        outlet_id: outletId,
+        order_type: orderType,
+        table_id: selectedTable?.id || null,
+        customer_id: selectedCustomer?.id || null,
+        notes: orderNotes || null,
+        status: 'created',
+        items: cartSnapshot.map(c => ({
+          menu_item_id: c.menu_item_id,
+          menu_item_name: c.name,
+          unit_price: Number(c.base_price),
+          variant_id: c.variant_id,
+          quantity: c.quantity,
+          addons: c.addons || [],
+          notes: c.notes || null,
+        })),
+        covers,
+        discount_type: discount?.type || null,
+        discount_value: discount?.value || 0,
+        discount_reason: discount?.reason || null,
+      };
+
+      // ② API runs completely in background — user is already on next order
+      api.post('/orders/punch-kot', payload)
+        .then(res => {
+          const data = res.data?.data ?? res.data;
+          const orderId = data?.order?.id;
+          if (selectedTable && orderId) {
+            setTempOrderId(orderId);
+          } else {
+            setTempOrderId(null);
+            setCurrentOrder(null);
+          }
+          queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+        })
+        .catch(err => {
+          const msg = err.response?.data?.message || err.message || 'KOT sync failed';
+          toast.error(`⚠️ ${msg} — check Running Orders`, { duration: 5000 });
+          // Restore cart so staff can retry
+          cartSnapshot.forEach(item => dispatch(addToCart(item)));
+        });
+
+      return;
+    }
+
+    // ── SLOW PATH: adding items to existing order OR Electron offline ──
     try {
       let orderId = tempOrderId;
       if (!orderId) {
-        const order = await handleCreateOrderCore('created');
-        orderId = order?.id;
-        if (!orderId) return toast.error('Failed to create order. Please try again.');
-        setTempOrderId(orderId);
+        if (IS_ELECTRON && !isOnline) {
+          const order = await handleCreateOrderCore('created');
+          orderId = order?.id;
+          if (!orderId) return toast.error('Failed to create order. Please try again.');
+          setTempOrderId(orderId);
+        }
       } else {
         // Add items to existing order
         if (IS_ELECTRON && !isOnline) {
@@ -492,8 +606,8 @@ export default function POSPage() {
               variant_id: c.variant_id,
               quantity: c.quantity,
               addons: c.addons || [],
-              notes: c.notes || null
-            }))
+              notes: c.notes || null,
+            })),
           });
         }
       }
@@ -509,7 +623,7 @@ export default function POSPage() {
         await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId });
       }
 
-      toast.success(`Punch Successful! Sent to Kitchen.`);
+      toast.success('🚀 Sent to Kitchen!');
       dispatch(clearCart());
       if (!selectedTable) {
         setTempOrderId(null);
@@ -538,6 +652,7 @@ export default function POSPage() {
         billData = res.data?.data ?? res.data ?? res;
       }
       setBilledOrder(billData);
+      if (billData?.grand_total != null) setServerOrderTotal(Number(billData.grand_total));
       setIsBilled(true);
       setShowBillPreview(true);
       toast.success('Bill Generated!');
@@ -562,10 +677,34 @@ export default function POSPage() {
     } catch (err) { toast.error(err.message); }
   };
 
-  const handleBogo = async () => {
-    if (cart.length < 2) return toast.error('Add another item to apply BOGO');
-    toast.success('BOGO Applied: 50% discount on lowest item');
-    // Implement BOGO in UI logic or send specially to BE
+  const handleBogo = () => {
+    // Toggle off if already active
+    if (discount?.type === 'bogo') {
+      dispatch(setDiscount({ type: null, value: 0, reason: '' }));
+      toast.success('BOGO removed');
+      return;
+    }
+    if (cart.length < 2) {
+      toast.error('Add at least 2 items to use BOGO');
+      return;
+    }
+    // Find the cart item with the lowest unit price (base + variant + addons per unit)
+    let cheapestIndex = 0;
+    let cheapestUnitPrice = Infinity;
+    cart.forEach((item, idx) => {
+      const unitPrice = (Number(item.base_price) || 0) + (Number(item.variant_price) || 0)
+        + (item.addons || []).reduce((s, a) => s + Number(a.price) * a.quantity, 0);
+      if (unitPrice < cheapestUnitPrice) {
+        cheapestUnitPrice = unitPrice;
+        cheapestIndex = idx;
+      }
+    });
+    const freeItem = cart[cheapestIndex];
+    const freeItemName = freeItem.variant_name
+      ? `${freeItem.name} (${freeItem.variant_name})`
+      : freeItem.name;
+    dispatch(setDiscount({ type: 'bogo', value: cheapestUnitPrice, reason: `BOGO: ${freeItemName} free` }));
+    toast.success(`BOGO applied — ${freeItemName} is free!`);
   };
 
   const handleTableClick = async (table) => {
@@ -620,6 +759,7 @@ export default function POSPage() {
         }));
 
         setTempOrderId(order.id);
+        if (order.grand_total != null) setServerOrderTotal(Number(order.grand_total));
         if (order.status === 'billed') {
           setIsBilled(true);
           setBilledOrder(order);
@@ -627,7 +767,7 @@ export default function POSPage() {
           setIsBilled(false);
           setBilledOrder(null);
         }
-        
+
         toast.success(`Order for Table ${table.table_number} loaded`);
       } catch (err) {
         toast.error('Failed to load table order');
@@ -639,6 +779,7 @@ export default function POSPage() {
       setTempOrderId(null);
       setIsBilled(false);
       setBilledOrder(null);
+      setServerOrderTotal(null);
       toast.success(`Table ${table.table_number} selected`);
     }
     setViewMode('menu');
@@ -698,13 +839,29 @@ export default function POSPage() {
   };
 
   const executeTableAction = async (targetTableId) => {
-     if(!tempOrderId) return toast.error('No open order selected');
+     // 'select' mode = initial table assignment before order is created.
+     // Just stash the table in Redux — when the user presses Punch/Pay, the order
+     // is created with table_id already set.
+     if (tableSelectMode === 'select') {
+       const t = (tablesForSelect || []).find(x => x.id === targetTableId);
+       if (t) dispatch(setSelectedTable({
+         id: t.id,
+         table_number: t.table_number,
+         capacity: t.capacity ?? t.seating_capacity,
+         status: t.status,
+       }));
+       setTableSelectMode(null);
+       toast.success(`Table T-${t?.table_number ?? ''} assigned`);
+       return;
+     }
+     // 'transfer' / 'merge' both require an existing order
+     if (!tempOrderId) return toast.error('No open order selected');
      try {
        if (IS_ELECTRON && !isOnline) {
          toast.error('Table transfer/merge requires internet');
          return;
        }
-       if(tableSelectMode === 'transfer') {
+       if (tableSelectMode === 'transfer') {
          await api.post(`/orders/${tempOrderId}/transfer-table`, { new_table_id: targetTableId });
          toast.success('Table Transferred');
        } else if (tableSelectMode === 'merge') {
@@ -718,23 +875,150 @@ export default function POSPage() {
 
   return (
     <div className="flex gap-4 h-[calc(100vh-7rem)] animate-fade-in relative overflow-hidden">
-      {/* Table Select Overlay */}
-      {tableSelectMode && (
-        <div className="absolute inset-0 backdrop-blur-sm z-50 flex flex-col p-8"
-          style={{ background: 'var(--bg-primary)cc' }}>
-           <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl text-white font-bold">Select Target Table for {tableSelectMode.toUpperCase()}</h2>
-              <button onClick={() => setTableSelectMode(null)} className="btn-ghost text-red-400">Cancel</button>
-           </div>
-           <div className="grid grid-cols-6 gap-4">
-             {tablesForSelect?.map(t => (
-               <button key={t.id} onClick={() => executeTableAction(t.id)} className={`p-4 rounded-xl border-2 font-bold text-lg ${t.status === 'available' ? 'border-success-500 bg-success-500/10 text-success-400' : 'border-red-500 bg-red-500/10 text-red-400'}`}>
-                 T{t.table_number} <span className="block text-xs opacity-70 font-normal">{t.status}</span>
-               </button>
-             ))}
-           </div>
-        </div>
-      )}
+      {/* Table Select Overlay — refined: zone-grouped, status-aware ───── */}
+      {tableSelectMode && (() => {
+        const modeTitle = {
+          select:   'Assign Table',
+          transfer: 'Transfer To',
+          merge:    'Merge With',
+        }[tableSelectMode] || 'Pick Table';
+        const modeSub = {
+          select:   'Choose a free table for this order. Tap one to assign.',
+          transfer: 'Move this order to another table.',
+          merge:    'Combine this order with another active table.',
+        }[tableSelectMode] || '';
+        // For 'select' mode allow ONLY available tables; for transfer/merge show all
+        const list = (tablesForSelect || []).filter(t => {
+          if (tableSelectMode === 'select')   return t.status === 'available' || t.id === selectedTable?.id;
+          if (tableSelectMode === 'merge')    return t.status === 'occupied';
+          return true; // transfer
+        });
+        // Group by area_id
+        const byArea = {};
+        list.forEach(t => {
+          const k = t.area_id || 'unzoned';
+          if (!byArea[k]) byArea[k] = [];
+          byArea[k].push(t);
+        });
+        return (
+          <div className="absolute inset-0 backdrop-blur-md z-50 flex flex-col p-6 overflow-y-auto"
+            style={{ background: 'rgba(15,23,42,0.45)' }}>
+            <div className="max-w-5xl w-full mx-auto rounded-2xl p-6"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', boxShadow: '0 24px 56px rgba(15,23,42,0.2)' }}>
+              {/* Header */}
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent)' }}>
+                    {tableSelectMode}
+                  </div>
+                  <h2 className="text-2xl font-black tracking-tight" style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>
+                    {modeTitle}
+                  </h2>
+                  <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{modeSub}</p>
+                </div>
+                <button onClick={() => setTableSelectMode(null)}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 mb-4 text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#10b981' }}/> Free</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#3b82f6' }}/> Busy</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#eab308' }}/> Held</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#94a3b8' }}/> Inactive</span>
+                <span className="ml-auto">{list.length} table{list.length !== 1 ? 's' : ''}</span>
+              </div>
+
+              {/* Empty */}
+              {list.length === 0 ? (
+                <div className="text-center py-12 rounded-xl" style={{ background: 'var(--bg-secondary)', border: '1px dashed var(--border)' }}>
+                  <Users className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-secondary)', opacity: 0.4 }} />
+                  <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {tableSelectMode === 'select' ? 'No free tables right now' :
+                     tableSelectMode === 'merge'  ? 'No occupied tables to merge with' :
+                     'No tables found'}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    {tableSelectMode === 'select' && 'Wait for one to clear, or switch to Takeaway/Delivery.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {Object.entries(byArea).map(([areaId, tables]) => {
+                    const area = (tableAreas?.data || tableAreas || []).find(a => a.id === areaId);
+                    const areaName = area?.name || (areaId === 'unzoned' ? 'Other tables' : 'Zone');
+                    return (
+                      <div key={areaId}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--text-secondary)' }}>
+                            {areaName}
+                          </h3>
+                          <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                          <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                            {tables.length} table{tables.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-3">
+                          {tables.map(t => {
+                            const isSel = selectedTable?.id === t.id;
+                            const statusColor =
+                              t.status === 'available' ? '#10b981' :
+                              t.status === 'occupied'  ? '#3b82f6' :
+                              t.status === 'reserved'  ? '#6366f1' :
+                              t.status === 'held'      ? '#eab308' :
+                              '#94a3b8';
+                            const disabled = tableSelectMode === 'select' && t.status !== 'available' && !isSel;
+                            return (
+                              <button key={t.id}
+                                disabled={disabled}
+                                onClick={() => executeTableAction(t.id)}
+                                className="relative p-3 rounded-xl text-left transition-all overflow-hidden"
+                                style={{
+                                  background: isSel ? `${statusColor}1c` : 'var(--bg-secondary)',
+                                  border: `${isSel ? 2 : 1}px solid ${isSel ? statusColor : 'var(--border)'}`,
+                                  opacity: disabled ? 0.45 : 1,
+                                  cursor: disabled ? 'not-allowed' : 'pointer',
+                                }}
+                                onMouseEnter={e => { if (!disabled) { e.currentTarget.style.borderColor = statusColor; e.currentTarget.style.background = `${statusColor}0e`; }}}
+                                onMouseLeave={e => { if (!disabled && !isSel) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}}>
+                                <span className="absolute top-0 left-0 right-0 h-1" style={{ background: statusColor }} />
+                                <div className="flex items-start justify-between mt-1.5">
+                                  <div>
+                                    <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Table</div>
+                                    <div className="text-xl font-black leading-none tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                                      {t.table_number}
+                                    </div>
+                                  </div>
+                                  {isSel && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
+                                      style={{ background: statusColor + '22', color: statusColor }}>
+                                      Current
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 mt-2 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor }} />
+                                  <span className="capitalize">{t.status}</span>
+                                  {(t.capacity || t.seating_capacity) && (
+                                    <span className="ml-auto">· {t.capacity || t.seating_capacity} seats</span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Left Menu Area */}
       <div className="flex-1 flex flex-col min-w-0 rounded-2xl p-4 border"
@@ -962,12 +1246,13 @@ export default function POSPage() {
             <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 content-start">
               {filteredItems.map((item) => {
                 const hasNoPrice = !Number(item.base_price) || Number(item.base_price) <= 0;
+                const isOOS = item.is_available === false || (item.track_inventory && item.stock_quantity !== undefined && item.stock_quantity <= 0);
                 return (
                   <button
                     key={item.id}
                     onClick={() => handleAddItem(item)}
-                    className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'} relative`}
-                    title={hasNoPrice ? 'Price not set — edit this item in Menu' : item.name}
+                    className={`card-hover text-left p-3 pt-2 pl-3 group border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'} relative ${isOOS ? 'opacity-60' : ''}`}
+                    title={isOOS ? 'Out of Stock' : hasNoPrice ? 'Price not set — edit this item in Menu' : item.name}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-1 flex-wrap">
@@ -989,6 +1274,11 @@ export default function POSPage() {
                         {item.is_bestseller && <Star className="w-3 h-3 text-warning-400 fill-warning-400" />}
                       </div>
                     </div>
+                    {isOOS && (
+                      <div className="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none" style={{ background: 'rgba(0,0,0,0.35)', zIndex: 2 }}>
+                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md" style={{ background: 'rgba(239,68,68,0.9)', color: '#fff' }}>Out of Stock</span>
+                      </div>
+                    )}
                     <p className="text-sm font-medium line-clamp-2 mb-1 transition-colors" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
                     {hasNoPrice ? (
                       <p className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}>
@@ -1021,9 +1311,26 @@ export default function POSPage() {
         <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-hover)" }}>
            <div className="flex items-center justify-between mb-2">
              <div className="flex items-center gap-2">
-               <span className={`text-sm font-semibold text-white ${selectedTable ? 'bg-brand-500/20 px-2 py-1 rounded text-brand-400' : ''}`}>
-                 {selectedTable ? `T-${selectedTable.table_number}` : 'No Table'}
-               </span>
+               {/* Clickable table picker — opens overlay to pick / change table */}
+               {orderType === 'dine_in' ? (
+                 <button
+                   onClick={() => setTableSelectMode('select')}
+                   className={`flex items-center gap-1.5 text-sm font-semibold transition-all px-2 py-1 rounded ${
+                     selectedTable
+                       ? 'bg-brand-500/20 text-brand-400 hover:bg-brand-500/30'
+                       : 'border border-dashed text-surface-400 hover:text-white hover:border-brand-500/60'
+                   }`}
+                   style={!selectedTable ? { borderColor: 'var(--border)' } : undefined}
+                   title={selectedTable ? 'Click to change table' : 'Click to assign a table'}
+                 >
+                   <Users className="w-3.5 h-3.5" />
+                   {selectedTable ? `T-${selectedTable.table_number}` : 'Select Table'}
+                 </button>
+               ) : (
+                 <span className="text-sm font-semibold text-surface-400">
+                   {orderType === 'takeaway' ? 'Takeaway' : 'Delivery'}
+                 </span>
+               )}
                <span className="badge-neutral">{cart.length} item</span>
              </div>
              <div className="flex items-center gap-1">
@@ -1048,14 +1355,14 @@ export default function POSPage() {
                <button onClick={() => setShowCovers(!showCovers)} className={`p-1.5 rounded-lg ${showCovers ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><Users className="w-4 h-4" /></button>
                <button onClick={() => setShowNotes(!showNotes)} className={`p-1.5 rounded-lg ${showNotes || orderNotes ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><ClipboardList className="w-4 h-4" /></button>
                <button onClick={() => setShowCustomerSearch(!showCustomerSearch)} className={`p-1.5 rounded-lg ${selectedCustomer ? 'bg-success-500 text-white' : 'text-surface-400 hover:text-white'}`}><UserPlus className="w-4 h-4" /></button>
-               <button onClick={() => {dispatch(clearCart()); setIsCompMode(false); setTempOrderId(null)}} className="p-1.5 text-surface-400 hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
+               <button onClick={() => {dispatch(clearCart()); setIsCompMode(false); setTempOrderId(null); setGratuity(0); setAppliedLoyaltyPoints(0); setAppliedLoyaltyDiscount(0);}} className="p-1.5 text-surface-400 hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
              </div>
            </div>
            
            {selectedCustomer && (
              <div className="flex items-center justify-between bg-brand-500/10 border border-brand-500/20 rounded-lg p-2 text-xs">
                <div className="flex items-center gap-2">
-                 <div className="w-6 h-6 bg-brand-500 text-white rounded-full flex items-center justify-center font-bold shadow">{selectedCustomer.full_name.charAt(0)}</div>
+                 <div className="w-6 h-6 bg-brand-500 text-white rounded-full flex items-center justify-center font-bold shadow">{selectedCustomer.full_name?.charAt(0) || '?'}</div>
                  <div>
                     <span className="text-white font-medium block">{selectedCustomer.full_name}</span>
                     <span className="text-brand-400">Loyalty: {selectedCustomer?.loyalty_points?.current_balance ?? 0} pts</span>
@@ -1064,6 +1371,15 @@ export default function POSPage() {
                <button onClick={() => dispatch(setSelectedCustomer(null))}><X className="w-4 h-4 text-surface-400 hover:text-red-400" /></button>
              </div>
            )}
+           {/* Staff assignment — inline compact selector */}
+           <div className="flex items-center justify-between mt-1.5">
+             <StaffAssignSelector
+               outletId={outletId}
+               orderId={tempOrderId}
+               assignedStaff={assignedStaff}
+               onAssign={setAssignedStaff}
+             />
+           </div>
         </div>
 
         {/* Covers (Pax) panel */}
@@ -1168,13 +1484,32 @@ export default function POSPage() {
                <button onClick={() => { setManagerAction('complimentary'); setShowManagerPin(true); }} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${isCompMode ? 'bg-success-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>
                   <Gift className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Comp</span>
                </button>
-               <button onClick={handleBogo} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
-                  <Percent className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Bogo</span>
+               <button onClick={() => setShowDiscount(true)} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${discount?.type ? 'bg-brand-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>
+                  <Percent className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Discount</span>
                </button>
+               {tempOrderId && (
+                 <button onClick={async () => {
+                   try {
+                     const res = await api.get(`/orders/${tempOrderId}`);
+                     setCurrentOrderForModal(res.data?.data ?? res.data);
+                     setShowVoidItem(true);
+                   } catch { toast.error('Could not load order items'); }
+                 }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-red-500/20 hover:text-red-400 text-surface-300 transition-colors">
+                   <Trash2 className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Void</span>
+                 </button>
+               )}
                <button onClick={async () => {
                  if (!tempOrderId) {
                    const o = await handleCreateOrderCore('created');
                    if (o?.id) setTempOrderId(o.id);
+                   // grand_total already captured inside handleCreateOrderCore
+                 } else if (serverOrderTotal == null) {
+                   // Order exists but we don't have the server total yet — fetch it
+                   try {
+                     const res = await api.get(`/orders/${tempOrderId}`);
+                     const ord = res.data?.data ?? res.data;
+                     if (ord?.grand_total != null) setServerOrderTotal(Number(ord.grand_total));
+                   } catch { /* fall back to cartTotals */ }
                  }
                  setShowSplitBill(true);
                }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
@@ -1199,10 +1534,73 @@ export default function POSPage() {
                </button>
             </div>
 
+            {/* Tax Breakdown Panel */}
+            <TaxBreakdownPanel
+              outletId={outletId}
+              cartItems={cart}
+              subtotal={cartTotals.subtotal}
+              discount={discount}
+              isAU={isAU}
+              isVisible={showTaxBreakdown}
+            />
+            <button
+              onClick={() => setShowTaxBreakdown(p => !p)}
+              className="w-full text-[10px] uppercase tracking-wider font-semibold py-1 mb-1 flex items-center justify-center gap-1 transition-colors"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {showTaxBreakdown ? '▲' : '▼'} Tax breakdown
+            </button>
+
+            {/* Loyalty Redemption */}
+            {selectedCustomer && (
+              <div className="mb-2">
+                <LoyaltyRedemption
+                  customer={selectedCustomer}
+                  outletId={outletId}
+                  orderTotal={cartTotals.total}
+                  appliedPoints={appliedLoyaltyPoints}
+                  onRedeem={(pts, disc) => { setAppliedLoyaltyPoints(pts); setAppliedLoyaltyDiscount(disc); }}
+                  onRemove={() => { setAppliedLoyaltyPoints(0); setAppliedLoyaltyDiscount(0); }}
+                />
+              </div>
+            )}
+
+            {/* Gratuity Selector */}
+            <div className="mb-2">
+              <GratuitySelector
+                subtotal={cartTotals.subtotal}
+                gratuity={gratuity}
+                onGratuityChange={setGratuity}
+                isAU={isAU}
+              />
+            </div>
+
             <div className="flex justify-between items-end mb-3 px-1">
               <div>
-                 <p className="text-xs text-surface-400">Total Tax: {symbol}{cartTotals.tax.toFixed(isAU ? 2 : 0)}{isAU ? ' incl.' : ''}</p>
-                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">{symbol}{isAU ? cartTotals.total.toFixed(2) : cartTotals.total}</p>
+                 <p className="text-xs text-surface-400">Tax: {symbol}{cartTotals.tax.toFixed(isAU ? 2 : 0)}{isAU ? ' incl.' : ''}</p>
+                 {cartTotals.bogoDeduction > 0 && (
+                   <p className="text-xs text-brand-400 mt-0.5 font-semibold flex items-center gap-1">
+                     <Percent className="w-3 h-3" />
+                     Discount &minus;{symbol}{isAU ? cartTotals.bogoDeduction.toFixed(2) : Math.round(cartTotals.bogoDeduction)}
+                     <button
+                       onClick={() => dispatch(setDiscount({ type: null, value: 0, reason: '' }))}
+                       className="ml-1 opacity-60 hover:opacity-100 transition-opacity"
+                       title="Remove discount">
+                       <X className="w-3 h-3" />
+                     </button>
+                   </p>
+                 )}
+                 {appliedLoyaltyDiscount > 0 && (
+                   <p className="text-xs text-yellow-400 mt-0.5 font-semibold">
+                     ⭐ Loyalty &minus;{symbol}{appliedLoyaltyDiscount.toFixed(2)}
+                   </p>
+                 )}
+                 {gratuity > 0 && (
+                   <p className="text-xs text-emerald-400 mt-0.5 font-semibold">
+                     Gratuity +{symbol}{isAU ? gratuity.toFixed(2) : Math.round(gratuity)}
+                   </p>
+                 )}
+                 <p className="text-2xl font-black text-brand-400 leading-none mt-1">{symbol}{isAU ? cartTotals.grandTotal.toFixed(2) : Math.round(cartTotals.grandTotal)}</p>
                  {isCompMode && <p className="text-xs text-success-400 mt-1 uppercase font-bold tracking-widest">100% Waived</p>}
               </div>
             </div>
@@ -1212,7 +1610,13 @@ export default function POSPage() {
                   <X className="w-5 h-5" />
                </button>
                {isBilled ? (
-                 <button onClick={() => setShowBillPreview(true)} className="btn-surface flex-1 py-3 border-brand-500 text-brand-400 font-bold flex items-center justify-center gap-2">
+                 <button onClick={() => {
+                   if (billedOrder) {
+                     PrintService.printBill(billedOrder, { name: user?.outlet_name || 'Restaurant', gstin: user?.gstin }).catch(() => setShowBillPreview(true));
+                   } else {
+                     setShowBillPreview(true);
+                   }
+                 }} className="btn-surface flex-1 py-3 border-brand-500 text-brand-400 font-bold flex items-center justify-center gap-2">
                     <Printer className="w-4 h-4" /> PRINT BILL
                  </button>
                ) : (
@@ -1239,8 +1643,21 @@ export default function POSPage() {
             </div>
 
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
-              {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? cartTotals.total.toFixed(2) : cartTotals.total}`}
+              {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? (billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal).toFixed(2) : Math.round(billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal)}`}
             </button>
+            {/* Refund button — visible only for paid orders */}
+            {billedOrder?.is_paid && (
+              <button
+                onClick={async () => {
+                  setCurrentOrderForModal(billedOrder);
+                  setShowRefund(true);
+                }}
+                className="w-full mt-1.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                <Package className="w-3.5 h-3.5" /> Process Refund
+              </button>
+            )}
           </div>
         )}
 
@@ -1367,14 +1784,91 @@ export default function POSPage() {
       )}
 
       {/* PIN Verification Modal */}
-      <Modal isOpen={showManagerPin} onClose={() => setShowManagerPin(false)} title="Manager Verification" size="sm">
+      <Modal isOpen={showManagerPin} onClose={() => { setShowManagerPin(false); setManagerPin(''); setCompReason(''); }} title="Manager Verification" size="sm">
          <div className="space-y-4">
-            <p className="text-sm text-surface-300 text-center">Enter 4-digit Manager PIN to authorize</p>
-            <input type="password" value={managerPin} onChange={e=>setManagerPin(e.target.value)} className="input w-full text-center text-2xl tracking-[1em]" maxLength={4} autoFocus/>
+            {/* Context box explains WHY a PIN is needed */}
+            <div className="rounded-lg p-3" style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+            }}>
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(245,158,11,0.15)' }}>
+                  <span className="text-base">🔒</span>
+                </div>
+                <div className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {managerAction === 'complimentary' && <>
+                    A complimentary order writes off the entire bill. This needs a manager&rsquo;s
+                    4-digit PIN to authorise the revenue write-off.
+                  </>}
+                  {managerAction === 'discount' && <>
+                    Manual discounts beyond the auto-applied rules need manager approval.
+                  </>}
+                  {managerAction === 'void' && <>
+                    Voiding an order removes it from sales — manager PIN required for the audit trail.
+                  </>}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider block mb-2"
+                style={{ color: 'var(--text-secondary)' }}>
+                Manager PIN
+              </label>
+              <input
+                type="password"
+                value={managerPin}
+                onChange={e => setManagerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onKeyDown={e => { if (e.key === 'Enter') processManagerAction(); }}
+                className="input w-full text-center font-mono"
+                style={{
+                  fontSize: 28,
+                  letterSpacing: '0.8em',
+                  paddingLeft: '0.8em',  // counteract letter-spacing for true centering
+                  height: 64,
+                }}
+                placeholder="••••"
+                maxLength={4}
+                autoFocus
+                inputMode="numeric"
+              />
+            </div>
+
             {managerAction === 'complimentary' && (
-              <textarea placeholder="Reason for complimentary order..." value={compReason} onChange={e=>setCompReason(e.target.value)} className="input w-full resize-none text-sm"/>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2"
+                  style={{ color: 'var(--text-secondary)' }}>
+                  Reason for comp <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  placeholder="e.g. VIP guest, food complaint, staff meal…"
+                  value={compReason}
+                  onChange={e => setCompReason(e.target.value)}
+                  className="input w-full resize-none text-sm"
+                  rows={2}
+                />
+              </div>
             )}
-            <button onClick={processManagerAction} className="btn-primary w-full py-3 mt-2">Authorize</button>
+
+            <button
+              onClick={processManagerAction}
+              disabled={!managerPin || managerPin.length !== 4 || (managerAction === 'complimentary' && !compReason.trim())}
+              className="btn-primary w-full py-3 mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              Authorize
+            </button>
+
+            {/* Helpful "no PIN set" footnote */}
+            <div className="text-center text-[11px] pt-2" style={{ color: 'var(--text-secondary)' }}>
+              Don&rsquo;t have a manager PIN?{' '}
+              <button
+                type="button"
+                onClick={() => { setShowManagerPin(false); navigate('/staff-management'); }}
+                className="underline font-semibold"
+                style={{ color: 'var(--accent)' }}>
+                Set one in Staff Management →
+              </button>
+            </div>
          </div>
       </Modal>
 
@@ -1382,7 +1876,7 @@ export default function POSPage() {
       <PaymentModal
         isOpen={showPayment}
         onClose={() => setShowPayment(false)}
-        amount={billedOrder?.grand_total || cartTotals.total}
+        amount={billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.total}
         orderId={tempOrderId}
         orderNumber={billedOrder?.order_number}
         customer={selectedCustomer}
@@ -1416,11 +1910,15 @@ export default function POSPage() {
           setTempOrderId(null);
           setIsBilled(false);
           setBilledOrder(null);
+          setServerOrderTotal(null);
+          setGratuity(0);
+          setAppliedLoyaltyPoints(0);
+          setAppliedLoyaltyDiscount(0);
           queryClient.invalidateQueries({ queryKey: ['running-orders'] });
         }}
       />
 
-      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={cartTotals.total} orderId={tempOrderId} />}
+      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={serverOrderTotal ?? cartTotals.total} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
       {showCancelOrder && (
         <CancelOrderModal 
@@ -1446,6 +1944,59 @@ export default function POSPage() {
 
       {/* Voice POS — confirm-before-add modal (only renders when voice.pendingOrder exists) */}
       <VoiceConfirmModal voice={voice} />
+
+      {/* Void Item Modal — manager-PIN-gated item void / comp */}
+      {showVoidItem && currentOrderForModal && (
+        <VoidItemModal
+          isOpen={showVoidItem}
+          onClose={() => { setShowVoidItem(false); setCurrentOrderForModal(null); }}
+          order={currentOrderForModal}
+          outletId={outletId}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+            setShowVoidItem(false);
+            setCurrentOrderForModal(null);
+          }}
+        />
+      )}
+
+      {/* Discount Modal — pre-order (Redux) or post-order (API) discount */}
+      <DiscountModal
+        isOpen={showDiscount}
+        onClose={() => setShowDiscount(false)}
+        orderId={tempOrderId}
+        outletId={outletId}
+        cartSubtotal={cartTotals.subtotal}
+        currentDiscount={discount}
+        onApplyDiscount={(d) =>
+          d
+            ? dispatch(setDiscount(d))
+            : dispatch(setDiscount({ type: null, value: 0, reason: '' }))
+        }
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+          setShowDiscount(false);
+        }}
+      />
+
+      {/* Refund Modal — post-payment refund with method + reason */}
+      {showRefund && currentOrderForModal && (
+        <RefundModal
+          isOpen={showRefund}
+          onClose={() => { setShowRefund(false); setCurrentOrderForModal(null); }}
+          order={currentOrderForModal}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+            setShowRefund(false);
+            setCurrentOrderForModal(null);
+            dispatch(clearCart());
+            setTempOrderId(null);
+            setGratuity(0);
+            setAppliedLoyaltyPoints(0);
+            setAppliedLoyaltyDiscount(0);
+          }}
+        />
+      )}
     </div>
   );
 }
