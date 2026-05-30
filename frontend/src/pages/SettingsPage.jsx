@@ -50,6 +50,8 @@ export default function SettingsPage() {
     language: 'en',
     // Dine-in / POS behaviour
     require_table_for_dine_in: false,
+    auto_free_enabled: false,
+    auto_free_grace_seconds: 30,
     // Tax / Compliance
     default_gst_slab: '5',
     gst_inclusive: false,
@@ -238,6 +240,32 @@ export default function SettingsPage() {
                 checked={settings.require_table_for_dine_in}
                 onChange={(v) => updateSetting('require_table_for_dine_in', v)}
               />
+            </div>
+
+            <div className="pt-2 border-t border-border/60">
+              <SectionTitle title="Auto-Free Table" subtitle="Predictively free a table after it is billed and the kitchen marks the order served" />
+              <ToggleSwitch
+                label="Enable predictive auto-free"
+                description="After a dine-in order is paid and served, the table is scheduled to free automatically based on dishes and seats. A reminder popup lets staff free now, snooze, or cancel."
+                checked={settings.auto_free_enabled}
+                onChange={(v) => updateSetting('auto_free_enabled', v)}
+              />
+              {settings.auto_free_enabled && (
+                <Field label="Reminder grace countdown">
+                  <select
+                    value={String(settings.auto_free_grace_seconds)}
+                    onChange={(e) => updateSetting('auto_free_grace_seconds', Number(e.target.value))}
+                    className="input"
+                  >
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="120">2 minutes</option>
+                  </select>
+                  <p className="text-xs text-secondary mt-1">How long the popup counts down before the table frees itself if no one responds.</p>
+                </Field>
+              )}
             </div>
           </div>
         );

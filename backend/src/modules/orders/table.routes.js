@@ -12,6 +12,7 @@ const { validate } = require('../../middleware/validate.middleware');
 const {
   createTableSchema,
   updateTableStatusSchema,
+  autoFreeActionSchema,
   updateTableSchema,
   createTableAreaSchema,
   updateTableAreaSchema,
@@ -30,6 +31,7 @@ router.post('/floor-plan', authenticate, hasPermission('MANAGE_POS'), validate(s
 /* ── Tables ── */
 router.get('/', authenticate, enforceOutletScope, tableController.listTables);
 router.post('/', authenticate, hasPermission('MANAGE_POS'), validate(createTableSchema), tableController.createTable);
+router.patch('/:id/auto-free', authenticate, validate(autoFreeActionSchema), tableController.autoFreeAction);
 router.patch('/:id/status', authenticate, hasPermission('MANAGE_POS'), validate(updateTableStatusSchema), tableController.updateTableStatus);
 router.patch('/:id', authenticate, hasPermission('MANAGE_POS'), validate(updateTableSchema), tableController.updateTable);
 router.delete('/:id', authenticate, hasPermission('MANAGE_POS'), tableController.deleteTable);

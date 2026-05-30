@@ -15,6 +15,7 @@ const { resolveOutletTaxConfig } = require('../../utils/outlet');
 const { buildOrderItems, computeOrderTotals, computeGrandTotal } = require('./pricing.service');
 const customerService = require('../customers/customer.service');
 const { sendOrderReadySms } = require('../../utils/sms.service');
+const autoFreeService = require('./autofree.service');
 
 /**
  * Fetch the tax configuration for an outlet by reading its HeadOffice settings.
@@ -782,6 +783,11 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       );
     }
 
+    // When auto-free is enabled, a dine-in table is NOT freed on payment — it is
+    // scheduled to auto-free later (once also kitchen-served) via a grace popup.
+    const autoFreeCfg = await autoFreeService.getAutoFreeConfig(prisma, order.outlet_id);
+    const deferTableFree = autoFreeCfg.enabled && order.order_type === 'dine_in' && !!order.table_id;
+
     const result = await prisma.$transaction(async (tx) => {
       const payment = await tx.payment.create({
         data: {
@@ -812,7 +818,7 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
         },
       });
 
-      if (order.table_id) {
+      if (order.table_id && !deferTableFree) {
         await tx.table.update({
           where: { id: order.table_id },
           data: { status: 'available', current_order_id: null },
@@ -840,12 +846,15 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
     const io = getIO();
     if (io) {
       io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_complete', { order_id: orderId });
-      if (order.table_id) {
+      if (order.table_id && !deferTableFree) {
         io.of('/orders').to(`outlet:${order.outlet_id}`).emit('table_status_change', {
           table_id: order.table_id, status: 'available',
         });
       }
     }
+
+    // Billed now — if the kitchen has already served, schedule the auto-free.
+    if (deferTableFree) await autoFreeService.scheduleAutoFreeIfReady(orderId);
 
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
 

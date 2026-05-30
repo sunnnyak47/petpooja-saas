@@ -291,6 +291,48 @@ async function getTableQR(tableId) {
   return `${baseUrl}/?outlet=${table.outlet_id}&table=${table.id}`;
 }
 
+/**
+ * Auto-free popup actions, driven by the global client manager:
+ *   - 'free':       free the table now (grace expired or staff confirmed)
+ *   - 'cancel':     drop the schedule, keep the table occupied (staff will free manually)
+ *   - 'reschedule': push the reminder out by `minutes` (snooze — customer still seated)
+ */
+async function autoFreeAction(tableId, action, minutes) {
+  const prisma = getDbClient();
+  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
+  if (!table) throw new NotFoundError('Table not found');
+
+  const io = getIO();
+  const room = io ? io.of('/orders').to(`outlet:${table.outlet_id}`) : null;
+
+  if (action === 'free') {
+    await prisma.table.update({
+      where: { id: tableId },
+      data: { status: 'available', current_order_id: null, auto_free_at: null },
+    });
+    if (room) room.emit('table_status_change', { table_id: tableId, status: 'available', table_number: table.table_number });
+    return { table_id: tableId, status: 'available' };
+  }
+
+  if (action === 'cancel') {
+    await prisma.table.update({ where: { id: tableId }, data: { auto_free_at: null } });
+    if (room) room.emit('table:auto_free_updated', { table_id: tableId, auto_free_at: null, cancelled: true });
+    return { table_id: tableId, auto_free_at: null };
+  }
+
+  // reschedule
+  const mins = Math.min(240, Math.max(1, Number(minutes) || 15));
+  const autoFreeAt = new Date(Date.now() + mins * 60_000);
+  await prisma.table.update({ where: { id: tableId }, data: { auto_free_at: autoFreeAt } });
+  if (room) {
+    room.emit('table:auto_free_updated', {
+      table_id: tableId, table_number: table.table_number,
+      auto_free_at: autoFreeAt.toISOString(), predicted_minutes: mins,
+    });
+  }
+  return { table_id: tableId, auto_free_at: autoFreeAt.toISOString() };
+}
+
 module.exports = {
   listTables,
   createTable,
@@ -303,4 +345,5 @@ module.exports = {
   updateTableArea,
   deleteTableArea,
   getTableQR,
+  autoFreeAction,
 };

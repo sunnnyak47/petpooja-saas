@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
+import AutoFreeTableManager from '../components/AutoFreeTableManager';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
 import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
@@ -484,6 +485,9 @@ export default function DashboardLayout() {
           </main>
         </div>
       </div>
+
+      {/* Global predictive auto-free table popup (gated by outlet setting) */}
+      <AutoFreeTableManager />
     </div>
   );
 }

@@ -7,6 +7,7 @@ const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
 const { NotFoundError } = require('../../utils/errors');
+const { scheduleAutoFreeIfReady } = require('./autofree.service');
 
 /**
  * Lists pending KOTs for a kitchen station.
@@ -136,6 +137,9 @@ async function completeKOT(kotId, outletId = null) {
         order_id: kot.order_id, status: allCompleted ? 'ready' : kot.order.status,
       });
     }
+
+    // Kitchen just served — if the order is already billed, schedule auto-free.
+    if (allCompleted) await scheduleAutoFreeIfReady(kot.order_id);
 
     return kot;
   } catch (error) {

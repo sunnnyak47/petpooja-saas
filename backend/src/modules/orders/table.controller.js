@@ -48,6 +48,14 @@ async function deleteTable(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/** PATCH /api/orders/tables/:id/auto-free — { action: 'free'|'cancel'|'reschedule', minutes } */
+async function autoFreeAction(req, res, next) {
+  try {
+    const result = await tableService.autoFreeAction(req.params.id, req.body.action, req.body.minutes);
+    sendSuccess(res, result, 'Auto-free updated');
+  } catch (error) { next(error); }
+}
+
 /** POST /api/orders/tables/floor-plan — bulk save entire layout */
 async function saveFloorPlan(req, res, next) {
   try {
@@ -102,4 +110,5 @@ module.exports = {
   createTableArea,
   updateTableArea,
   deleteTableArea,
+  autoFreeAction,
 };

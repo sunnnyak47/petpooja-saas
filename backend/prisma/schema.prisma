@@ -514,6 +514,7 @@ model Table {
   seating_capacity Int                @default(4)
   status           String             @default("available") @db.VarChar(20)
   current_order_id String?            @db.Uuid
+  auto_free_at     DateTime?          @db.Timestamptz(6)
   display_order    Int                @default(0)
   pos_x            Float              @default(0)
   pos_y            Float              @default(0)
