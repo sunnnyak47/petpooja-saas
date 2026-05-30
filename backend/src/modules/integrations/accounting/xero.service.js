@@ -6,6 +6,7 @@
  */
 const logger = require('../../../config/logger');
 const { getDbClient } = require('../../../config/database');
+const { AppError } = require('../../../utils/errors');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -27,8 +28,8 @@ const SCOPES = [
   'email',                                   // email address
   'offline_access',                          // mandatory — refresh tokens
   'accounting.settings.read',                // Organisation, Accounts, TrackingCategories
-  'accounting.contacts.read',                // Contacts (customers + suppliers)
-  'accounting.invoices.read',                // Invoices
+  'accounting.contacts',                     // Contacts (read + create supplier/customer on push)
+  'accounting.invoices',                     // Invoices (read for analytics + write to push POS sales / PO bills)
   'accounting.reports.profitandloss.read',   // Reports/ProfitAndLoss
   'accounting.reports.balancesheet.read',    // Reports/BalanceSheet
   'accounting.reports.taxreports.read',      // Reports/BASReport
@@ -182,7 +183,19 @@ class XeroService {
         url,
         body: text.substring(0, 500),
       });
-      throw new Error(`Xero API ${res.status}: ${text.substring(0, 200)}`);
+      // Surface a meaningful, operational error so the real Xero message reaches
+      // the client instead of being masked as a generic 500. Most relevant:
+      // 401/403 = token expired or missing scope (e.g. write scope not granted —
+      // reconnect required), 400 = bad payload.
+      let detail = text.substring(0, 200);
+      try {
+        const parsed = JSON.parse(text);
+        detail = parsed.Detail || parsed.Message || parsed.detail || detail;
+      } catch (_) { /* keep raw text */ }
+      const hint = (res.status === 401 || res.status === 403)
+        ? ' — your Xero connection lacks the required permission. Please Disconnect and reconnect to Xero.'
+        : '';
+      throw new AppError(`Xero API error (${res.status}): ${detail}${hint}`, res.status === 403 ? 403 : 400);
     }
 
     return text ? JSON.parse(text) : {};

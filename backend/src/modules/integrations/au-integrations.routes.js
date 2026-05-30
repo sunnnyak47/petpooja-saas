@@ -22,6 +22,7 @@ const {
   prontoSyncSchema,
 } = require('./au-integrations.validation');
 const { sendSuccess } = require('../../utils/response');
+const logger = require('../../config/logger');
 const prisma = require('../../config/database').getDbClient();
 const xeroService = require('./accounting/xero.service');
 const myobService = require('./accounting/myob.service');
@@ -105,6 +106,15 @@ router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), asyn
     }
     const totalExported = results.reduce((s, r) => s + r.orders_count, 0);
     const totalAmount = results.reduce((s, r) => s + r.total_amount, 0);
+
+    // Pull side: refresh the analytics tables (P&L, balance sheet, invoices)
+    // in the background so the dashboards reflect the newly-pushed sales.
+    // Fire-and-forget — never let a pull failure fail the push response.
+    if (!results[0]?.mock) {
+      Promise.resolve(xeroService.syncFromXero(outletId))
+        .catch(err => logger.warn('[Xero] background analytics pull failed after export-sales', { error: err.message }));
+    }
+
     sendSuccess(res, {
       exported: totalExported,
       total_amount: totalAmount,
