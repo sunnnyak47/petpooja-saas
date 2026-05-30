@@ -102,7 +102,13 @@ router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), asyn
 
     // Per-order mode: push each order as its own Xero invoice
     if (per_order === true) {
-      const r = await xeroService.syncOrdersIndividually(outletId, from_date, to_date, { channelTracking: channel_tracking });
+      let r;
+      try {
+        r = await xeroService.syncOrdersIndividually(outletId, from_date, to_date, { channelTracking: channel_tracking });
+      } catch (perErr) {
+        logger.error('[Xero] per-order export threw', { error: perErr.message, stack: perErr.stack });
+        return res.status(500).json({ success: false, data: null, message: 'PER_ORDER_DEBUG: ' + perErr.message });
+      }
 
       // Pull side: refresh analytics tables in the background. Fire-and-forget.
       if (!r.mock) {
