@@ -21,6 +21,9 @@ const XERO_CONNECTIONS_URL = 'https://api.xero.com/connections';
 // flows (POS sales → invoice, PO → bill) require swapping these back
 // to the non-.read variants AFTER first connection works.
 const SCOPES = [
+  'openid',                          // mandatory — required by Xero OAuth2
+  'profile',                         // basic profile info
+  'email',                           // email address
   'offline_access',                  // mandatory — refresh tokens
   'accounting.transactions.read',    // invoices, bills, bank txns
   'accounting.contacts.read',        // customers + suppliers
