@@ -4,6 +4,7 @@
  * Tabs: Overview, P&L, Expenses, Labour, Seasonal
  */
 import { useState, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -14,6 +15,7 @@ import {
   Landmark, FileText, Receipt, Building2, Tag, Wallet,
   Brain, Target, Banknote, ShieldCheck, Zap, Calculator,
   SlidersHorizontal, ChevronRight, Lightbulb, AlertTriangle,
+  Upload, Settings2, X,
 } from 'lucide-react';
 
 /* ── Currency helpers ──────────────────────────────────────────────────────── */
@@ -127,6 +129,16 @@ export default function XeroAnalyticsPage() {
   const [range, setRange] = useState('all');
   const [seeding, setSeeding] = useState(false);
   const queryClient = useQueryClient();
+
+  const { user } = useSelector(s => s.auth);
+  const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
+
+  /* ── Export to Xero panel state ───────────────────────────────────────── */
+  const [showExport, setShowExport] = useState(false);
+  const [exportOpts, setExportOpts] = useState({ itemised: true, channel_tracking: true, reconcile: false, per_order: false });
+  const [exporting, setExporting] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]);
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().split('T')[0]);
 
   /* ── API Queries ──────────────────────────────────────────────────────── */
   const { data: connection, isLoading: connLoading } = useQuery({
@@ -267,6 +279,30 @@ export default function XeroAnalyticsPage() {
     }
   };
 
+  const handleExportXero = async () => {
+    setExporting(true);
+    try {
+      const { data } = await api.post('/integrations/au/xero/export-sales', {
+        outlet_id: outletId,
+        from_date: exportFrom,
+        to_date: exportTo,
+        ...exportOpts,
+      });
+      const d = data?.data || data;
+      if (exportOpts.per_order) {
+        toast.success(`Exported ${d.invoices_created ?? 0} per-order invoice(s) to Xero`);
+      } else {
+        const recon = d.reconciled_days ? `, ${d.reconciled_days} day(s) reconciled` : '';
+        toast.success(`Exported ${d.exported ?? 0} order(s) across ${d.days ?? 0} day(s)${recon}`);
+      }
+      setShowExport(false);
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Xero export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -301,6 +337,13 @@ export default function XeroAnalyticsPage() {
               {seeding ? 'Syncing…' : 'Sync Now'}
             </button>
           )}
+          {!connLoading && isConnected && (
+            /* Export to Xero toggle */
+            <button className="btn-secondary btn-sm" onClick={() => setShowExport(v => !v)}>
+              <Upload className="w-3.5 h-3.5" />
+              Export to Xero
+            </button>
+          )}
           {/* Connection badge */}
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border"
@@ -321,6 +364,85 @@ export default function XeroAnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Export to Xero panel ──────────────────────────────────────────── */}
+      {isConnected && showExport && (
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Settings2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Export Sales to Xero</h3>
+            </div>
+            <button
+              onClick={() => setShowExport(false)}
+              className="p-1 rounded-lg transition-colors"
+              style={{ color: 'var(--text-secondary)' }}
+              aria-label="Close export panel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Date range */}
+          <div className="flex flex-wrap items-end gap-4 mb-5">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>From</label>
+              <input
+                type="date"
+                value={exportFrom}
+                onChange={e => setExportFrom(e.target.value)}
+                className="px-3 py-2 rounded-lg border text-sm"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>To</label>
+              <input
+                type="date"
+                value={exportTo}
+                onChange={e => setExportTo(e.target.value)}
+                className="px-3 py-2 rounded-lg border text-sm"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+              />
+            </div>
+          </div>
+
+          {/* Toggle options */}
+          <div className="space-y-1 mb-5">
+            {[
+              { key: 'itemised', label: 'Itemised by menu category' },
+              { key: 'channel_tracking', label: 'Channel tracking (Dine-In/Takeaway/Delivery)' },
+              { key: 'reconcile', label: 'Reconcile payments (mark invoices paid)' },
+              { key: 'per_order', label: 'Per-order invoices (one invoice per order)', note: 'Heavy — best for B2B/catering only.' },
+            ].map(opt => (
+              <div key={opt.key}>
+                <label className="flex items-center gap-3 py-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!exportOpts[opt.key]}
+                    onChange={e => setExportOpts(o => ({ ...o, [opt.key]: e.target.checked }))}
+                    className="w-4 h-4 rounded"
+                    style={{ accentColor: 'var(--accent)' }}
+                  />
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{opt.label}</span>
+                </label>
+                {opt.note && (
+                  <p className="text-[11px] ml-7 -mt-1" style={{ color: 'var(--text-secondary)' }}>{opt.note}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <button onClick={handleExportXero} disabled={exporting} className="btn-primary btn-sm">
+              {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              {exporting ? 'Exporting…' : 'Export Now'}
+            </button>
+            <button onClick={() => setShowExport(false)} className="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </Card>
+      )}
 
       {/* ── Range selector ────────────────────────────────────────────────── */}
       <div className="inline-flex gap-1 p-1 rounded-lg border w-fit" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>

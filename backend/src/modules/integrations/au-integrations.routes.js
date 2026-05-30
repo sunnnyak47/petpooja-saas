@@ -95,17 +95,37 @@ router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), asyn
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { from_date, to_date } = req.body;
-    // Sync each day in the range
+    const itemised = req.body.itemised !== undefined ? req.body.itemised : true;
+    const channel_tracking = req.body.channel_tracking !== undefined ? req.body.channel_tracking : true;
+    const reconcile = req.body.reconcile !== undefined ? req.body.reconcile : false;
+    const per_order = req.body.per_order !== undefined ? req.body.per_order : false;
+
+    // Per-order mode: push each order as its own Xero invoice
+    if (per_order === true) {
+      const r = await xeroService.syncOrdersIndividually(outletId, from_date, to_date, { channelTracking: channel_tracking });
+
+      // Pull side: refresh analytics tables in the background. Fire-and-forget.
+      if (!r.mock) {
+        Promise.resolve(xeroService.syncFromXero(outletId))
+          .catch(err => logger.warn('[Xero] background analytics pull failed after export-sales', { error: err.message }));
+      }
+
+      return sendSuccess(res, { per_order: true, ...r }, 'Exported per-order invoices to Xero');
+    }
+
+    // Daily summary mode: sync each day in the range
     const start = new Date(from_date);
     const end = new Date(to_date);
     const results = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      const r = await xeroService.syncDailySales(outletId, dateStr);
+      const r = await xeroService.syncDailySales(outletId, dateStr, { itemised, channelTracking: channel_tracking, reconcile });
       results.push(r);
     }
     const totalExported = results.reduce((s, r) => s + r.orders_count, 0);
     const totalAmount = results.reduce((s, r) => s + r.total_amount, 0);
+    const reconciledDays = results.reduce((s, r) => s + (r.reconciled === true ? 1 : 0), 0);
+    const paymentsCreated = results.reduce((s, r) => s + (r.payments_created || 0), 0);
 
     // Pull side: refresh the analytics tables (P&L, balance sheet, invoices)
     // in the background so the dashboards reflect the newly-pushed sales.
@@ -119,6 +139,8 @@ router.post('/xero/export-sales', authenticate, validate(xeroExportSchema), asyn
       exported: totalExported,
       total_amount: totalAmount,
       days: results.length,
+      reconciled_days: reconciledDays,
+      payments_created: paymentsCreated,
       mock: results[0]?.mock || false,
       invoices: results,
     }, 'Exported to Xero');

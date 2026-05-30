@@ -18,6 +18,10 @@ const xeroExportSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
   from_date: Joi.date().required(),
   to_date: Joi.date().required(),
+  itemised: Joi.boolean().optional(),
+  channel_tracking: Joi.boolean().optional(),
+  reconcile: Joi.boolean().optional(),
+  per_order: Joi.boolean().optional(),
 });
 
 /** POST /au/xero/sync-po — Sync a purchase order to Xero as a Bill */

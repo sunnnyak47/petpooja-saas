@@ -33,6 +33,9 @@ const SCOPES = [
   'accounting.reports.profitandloss.read',   // Reports/ProfitAndLoss
   'accounting.reports.balancesheet.read',    // Reports/BalanceSheet
   'accounting.reports.taxreports.read',      // Reports/BASReport
+  // Write scopes for the maximum-scale export feature (user must reconnect):
+  'accounting.settings',                     // write — create 'Service Channel' tracking category
+  'accounting.payments',                     // write — create payments to reconcile exported invoices
 ].join(' ');
 
 /** Token is refreshed this many ms before actual expiry to avoid races. */
@@ -386,14 +389,29 @@ class XeroService {
   // =========================================================================
 
   /**
-   * Queries all paid orders for the given date and syncs them to Xero
-   * as a single summary invoice grouped by payment method.
+   * Queries all paid orders for the given date and syncs them to Xero as a
+   * single summary invoice. By default lines are itemised per menu category
+   * and split per service channel (order_type) with Xero tracking attached.
+   *
    * @param {string} outletId
    * @param {string} date - YYYY-MM-DD
+   * @param {object} [options]
+   * @param {boolean} [options.itemised=true]        group lines by menu category (vs payment method)
+   * @param {boolean} [options.channelTracking=true] split by category × channel + attach Tracking
+   * @param {boolean} [options.reconcile=false]      create Xero payments so the invoice shows paid
    * @returns {Promise<object>} sync result
    */
-  async syncDailySales(outletId, date) {
-    logger.info(`[Xero] Syncing daily sales for outlet ${outletId} on ${date}`);
+  async syncDailySales(outletId, date, options = {}) {
+    const {
+      itemised = true,
+      channelTracking = true,
+      reconcile = false,
+    } = options;
+
+    logger.info(
+      `[Xero] Syncing daily sales for outlet ${outletId} on ${date} ` +
+      `(itemised=${itemised}, channelTracking=${channelTracking}, reconcile=${reconcile})`
+    );
 
     const prisma = getDbClient();
 
@@ -410,7 +428,8 @@ class XeroService {
     const dayStart = new Date(`${date}T00:00:00.000Z`);
     const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
-    // Get all paid orders for the date with their payments
+    // Get all paid orders for the date with their payments and (when itemising)
+    // their order_items + menu_item.category for per-category grouping.
     const orders = await prisma.order.findMany({
       where: {
         outlet_id: outletId,
@@ -423,6 +442,11 @@ class XeroService {
         payments: {
           where: { is_deleted: false, status: 'success' },
           select: { method: true, amount: true },
+        },
+        order_items: {
+          include: {
+            menu_item: { include: { category: true } },
+          },
         },
       },
     });
@@ -437,11 +461,15 @@ class XeroService {
         orders_count: 0,
         total_amount: 0,
         line_items: 0,
+        itemised,
+        channel_tracking: channelTracking,
+        reconciled: false,
+        payments_created: 0,
         message: `No paid orders on ${date}`,
       };
     }
 
-    // Aggregate by payment method using integer cents
+    // Aggregate by payment method (always — needed for reconciliation + breakdown)
     const methodTotals = {}; // method -> cents
     let totalCents = 0;
     let totalTaxCents = 0;
@@ -458,20 +486,56 @@ class XeroService {
     }
 
     const invoiceNumber = `POS-${outlet.code}-${date.replace(/-/g, '')}`;
-    const totalAmount = fromCents(totalCents);
     const totalTax = fromCents(totalTaxCents);
 
-    // Build Xero-compatible line items
-    const lineItems = Object.entries(methodTotals).map(([method, cents]) => ({
-      Description: `${method} — ${date}`,
-      Quantity: 1,
-      UnitAmount: fromCents(cents),
-      AccountCode: '200',
-      TaxType: 'OUTPUT',
-    }));
+    // ---- Build line items ----
+    let lineItems;
+    if (itemised) {
+      // Group by menu category, optionally split per service channel.
+      // key -> { cents, category, channelLabel }
+      const groups = {};
+      for (const order of orders) {
+        const channelLabel = _channelLabel(order.order_type);
+        for (const item of (order.order_items || [])) {
+          const category = item.menu_item?.category?.name || 'Uncategorised';
+          const key = channelTracking ? `${category}||${channelLabel}` : category;
+          if (!groups[key]) {
+            groups[key] = { cents: 0, category, channelLabel };
+          }
+          groups[key].cents += toCents(item.item_total);
+        }
+      }
 
-    // Orders existed but produced no payable line items (e.g. no successful
-    // payments) → skip rather than POST an invoice Xero will reject.
+      lineItems = Object.values(groups).map((g) => {
+        const line = {
+          Description: g.category,
+          Quantity: 1,
+          UnitAmount: fromCents(g.cents),
+          AccountCode: '200',
+          TaxType: 'OUTPUT',
+        };
+        if (channelTracking) {
+          line.Tracking = [{ Name: 'Service Channel', Option: g.channelLabel }];
+        }
+        return line;
+      });
+    } else {
+      // Legacy behaviour: one line per payment method.
+      lineItems = Object.entries(methodTotals).map(([method, cents]) => ({
+        Description: `${method} — ${date}`,
+        Quantity: 1,
+        UnitAmount: fromCents(cents),
+        AccountCode: '200',
+        TaxType: 'OUTPUT',
+      }));
+    }
+
+    // Total amount derived from the line items we are actually invoicing.
+    const lineCents = lineItems.reduce((sum, l) => sum + toCents(l.UnitAmount), 0);
+    const totalAmount = fromCents(lineCents);
+
+    // Orders existed but produced no payable line items → skip rather than POST
+    // an invoice Xero will reject.
     if (lineItems.length === 0) {
       logger.info(`[Xero] No payable line items for ${date} — skipping`);
       return {
@@ -480,6 +544,10 @@ class XeroService {
         orders_count: orders.length,
         total_amount: 0,
         line_items: 0,
+        itemised,
+        channel_tracking: channelTracking,
+        reconciled: false,
+        payments_created: 0,
         message: `No payable line items on ${date}`,
       };
     }
@@ -513,12 +581,33 @@ class XeroService {
           Object.entries(methodTotals).map(([m, c]) => [m, fromCents(c)])
         ),
         status: 'AUTHORISED',
+        itemised,
+        channel_tracking: channelTracking,
+        reconciled: false,
+        reconcile_skipped_reason: reconcile ? 'mock mode — no Xero call made' : undefined,
+        payments_created: 0,
         message: 'Daily sales synced to Xero (mock — configure XERO_CLIENT_ID to activate)',
       };
     }
 
     // Live mode — POST to Xero
     const { accessToken, tenantId } = await this.getValidToken(outletId);
+
+    // Ensure the 'Service Channel' tracking category exists before posting.
+    // If it fails (e.g. write scope not granted), drop Tracking from the lines
+    // rather than failing the whole invoice.
+    let channelTrackingApplied = channelTracking;
+    if (channelTracking) {
+      try {
+        await this._ensureServiceChannelCategory(accessToken, tenantId);
+      } catch (err) {
+        logger.warn(`[Xero] Could not ensure Service Channel category — omitting Tracking: ${err.message}`);
+        channelTrackingApplied = false;
+        for (const line of invoicePayload.LineItems) {
+          delete line.Tracking;
+        }
+      }
+    }
 
     const result = await this._xeroRequest(
       'POST',
@@ -529,6 +618,7 @@ class XeroService {
     );
 
     const created = result.Invoices?.[0];
+    const createdInvoiceId = created?.InvoiceID;
 
     // Update last_sync and invoices_exported count
     const config = await this._getConfig(outletId);
@@ -538,12 +628,32 @@ class XeroService {
       await this._saveConfig(outletId, config);
     }
 
-    logger.info(`[Xero] Daily sales invoice created: ${created?.InvoiceID}`);
+    logger.info(`[Xero] Daily sales invoice created: ${createdInvoiceId}`);
+
+    // Optional reconciliation — never fail the export over this.
+    let reconciled = false;
+    let reconcileSkippedReason;
+    let paymentsCreated = 0;
+    if (reconcile && createdInvoiceId) {
+      const methodAmounts = Object.fromEntries(
+        Object.entries(methodTotals).map(([m, c]) => [m, fromCents(c)])
+      );
+      const recResult = await this._reconcileInvoice(
+        accessToken,
+        tenantId,
+        createdInvoiceId,
+        methodAmounts,
+        date
+      );
+      reconciled = !!recResult.reconciled;
+      paymentsCreated = recResult.payments_created || 0;
+      if (!reconciled) reconcileSkippedReason = recResult.reason;
+    }
 
     return {
       success: true,
       mock: false,
-      xero_invoice_id: created?.InvoiceID,
+      xero_invoice_id: createdInvoiceId,
       invoice_number: invoiceNumber,
       total_amount: totalAmount,
       total_tax: totalTax,
@@ -553,7 +663,282 @@ class XeroService {
         Object.entries(methodTotals).map(([m, c]) => [m, fromCents(c)])
       ),
       status: created?.Status || 'AUTHORISED',
+      itemised,
+      channel_tracking: channelTrackingApplied,
+      reconciled,
+      reconcile_skipped_reason: reconcileSkippedReason,
+      payments_created: paymentsCreated,
       message: 'Daily sales synced to Xero',
+    };
+  }
+
+  /**
+   * Ensures an active tracking category named 'Service Channel' exists in Xero,
+   * creating it (with Dine-In / Takeaway / Delivery options) if absent.
+   * Throws on failure — callers should wrap in try/catch and degrade gracefully.
+   * @param {string} accessToken
+   * @param {string} tenantId
+   * @returns {Promise<void>}
+   */
+  async _ensureServiceChannelCategory(accessToken, tenantId) {
+    const existing = await this._xeroRequest(
+      'GET',
+      `${XERO_API_BASE}/TrackingCategories`,
+      accessToken,
+      tenantId
+    );
+    const found = (existing.TrackingCategories || []).find(
+      (c) => c.Name === 'Service Channel' && (c.Status || 'ACTIVE') === 'ACTIVE'
+    );
+    if (found) return;
+
+    logger.info('[Xero] Creating "Service Channel" tracking category');
+    await this._xeroRequest(
+      'POST',
+      `${XERO_API_BASE}/TrackingCategories`,
+      accessToken,
+      tenantId,
+      {
+        TrackingCategories: [
+          {
+            Name: 'Service Channel',
+            Options: [{ Name: 'Dine-In' }, { Name: 'Takeaway' }, { Name: 'Delivery' }],
+          },
+        ],
+      }
+    );
+  }
+
+  /**
+   * Creates Xero payments against a created invoice so it reconciles as paid.
+   * Posts one Payment per payment-method total. Never throws — returns a
+   * structured result so the caller can record but not fail the export.
+   * @param {string} accessToken
+   * @param {string} tenantId
+   * @param {string} invoiceId
+   * @param {object} methodTotals - { methodLabel: dollarAmount }
+   * @param {string} date - YYYY-MM-DD
+   * @returns {Promise<{reconciled:boolean, payments_created?:number, reason?:string}>}
+   */
+  async _reconcileInvoice(accessToken, tenantId, invoiceId, methodTotals, date) {
+    try {
+      const accountsRes = await this._xeroRequest(
+        'GET',
+        `${XERO_API_BASE}/Accounts?where=Type%3D%3D%22BANK%22`,
+        accessToken,
+        tenantId
+      );
+      const bank = (accountsRes.Accounts || [])[0];
+      if (!bank || !bank.Code) {
+        return { reconciled: false, reason: 'no bank account in Xero' };
+      }
+
+      const payments = Object.values(methodTotals)
+        .filter((amount) => Number(amount) > 0)
+        .map((amount) => ({
+          Invoice: { InvoiceID: invoiceId },
+          Account: { Code: bank.Code },
+          Date: date,
+          Amount: Math.round(Number(amount) * 100) / 100,
+        }));
+
+      if (payments.length === 0) {
+        return { reconciled: false, reason: 'no positive payment totals to reconcile' };
+      }
+
+      await this._xeroRequest(
+        'POST',
+        `${XERO_API_BASE}/Payments`,
+        accessToken,
+        tenantId,
+        { Payments: payments }
+      );
+
+      logger.info(`[Xero] Reconciled invoice ${invoiceId} with ${payments.length} payment(s)`);
+      return { reconciled: true, payments_created: payments.length };
+    } catch (err) {
+      logger.warn(`[Xero] Reconciliation failed for invoice ${invoiceId}: ${err.message}`);
+      return { reconciled: false, reason: err.message };
+    }
+  }
+
+  /**
+   * Exports paid orders as individual ACCREC invoices (one invoice per order),
+   * batching up to 50 per POST and pacing batches to respect Xero's ~60 calls/min
+   * rate limit.
+   * @param {string} outletId
+   * @param {string} fromDate - YYYY-MM-DD
+   * @param {string} toDate   - YYYY-MM-DD
+   * @param {object} [options]
+   * @param {boolean} [options.channelTracking=true] attach Service Channel tracking per line
+   * @returns {Promise<object>}
+   */
+  async syncOrdersIndividually(outletId, fromDate, toDate, options = {}) {
+    const { channelTracking = true } = options;
+
+    logger.info(
+      `[Xero] Exporting individual order invoices for outlet ${outletId} ` +
+      `from ${fromDate} to ${toDate} (channelTracking=${channelTracking})`
+    );
+
+    const prisma = getDbClient();
+
+    const periodStart = new Date(`${fromDate}T00:00:00.000Z`);
+    const periodEnd = new Date(`${toDate}T23:59:59.999Z`);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        outlet_id: outletId,
+        is_paid: true,
+        is_deleted: false,
+        status: { notIn: ['cancelled', 'voided'] },
+        paid_at: { gte: periodStart, lte: periodEnd },
+      },
+      include: {
+        order_items: {
+          include: {
+            menu_item: { include: { category: true } },
+          },
+        },
+      },
+    });
+
+    // Build one invoice payload per order (skip orders with no items).
+    const invoices = [];
+    let skipped = 0;
+    for (const order of orders) {
+      const items = order.order_items || [];
+      if (items.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      const channelLabel = _channelLabel(order.order_type);
+      const lineItems = items.map((item) => {
+        const line = {
+          Description: item.name,
+          Quantity: Number(item.quantity),
+          UnitAmount: Number(item.unit_price),
+          AccountCode: '200',
+          TaxType: 'OUTPUT',
+        };
+        if (channelTracking) {
+          line.Tracking = [{ Name: 'Service Channel', Option: channelLabel }];
+        }
+        return line;
+      });
+
+      const orderDate = order.paid_at
+        ? order.paid_at.toISOString().split('T')[0]
+        : fromDate;
+
+      invoices.push({
+        Type: 'ACCREC',
+        Contact: { Name: order.customer_name || 'POS Customer' },
+        Date: orderDate,
+        DueDate: orderDate,
+        InvoiceNumber: order.order_number,
+        Reference: `POS order ${order.order_number}`,
+        Status: 'AUTHORISED',
+        LineAmountTypes: 'Inclusive',
+        CurrencyCode: 'AUD',
+        LineItems: lineItems,
+      });
+    }
+
+    // Mock mode — realistic summary without calling Xero.
+    if (!isLiveMode()) {
+      logger.warn('[Xero] XERO_CLIENT_ID not configured — returning mock individual-export response');
+      return {
+        success: true,
+        mock: true,
+        invoices_created: invoices.length,
+        batches: Math.ceil(invoices.length / 50),
+        skipped,
+        errors: [],
+        message: 'Individual orders synced to Xero (mock — configure XERO_CLIENT_ID to activate)',
+      };
+    }
+
+    if (invoices.length === 0) {
+      return {
+        success: true,
+        mock: false,
+        invoices_created: 0,
+        batches: 0,
+        skipped,
+        errors: [],
+        message: 'No orders with line items to export',
+      };
+    }
+
+    const { accessToken, tenantId } = await this.getValidToken(outletId);
+
+    // Ensure the tracking category once before the loop; degrade gracefully.
+    let trackingApplied = channelTracking;
+    if (channelTracking) {
+      try {
+        await this._ensureServiceChannelCategory(accessToken, tenantId);
+      } catch (err) {
+        logger.warn(`[Xero] Could not ensure Service Channel category — omitting Tracking: ${err.message}`);
+        trackingApplied = false;
+        for (const inv of invoices) {
+          for (const line of inv.LineItems) delete line.Tracking;
+        }
+      }
+    }
+
+    const BATCH_SIZE = 50;
+    const batches = [];
+    for (let i = 0; i < invoices.length; i += BATCH_SIZE) {
+      batches.push(invoices.slice(i, i + BATCH_SIZE));
+    }
+
+    let created = 0;
+    const errors = [];
+    for (let b = 0; b < batches.length; b++) {
+      const batch = batches[b];
+      try {
+        const result = await this._xeroRequest(
+          'POST',
+          `${XERO_API_BASE}/Invoices`,
+          accessToken,
+          tenantId,
+          { Invoices: batch }
+        );
+        created += (result.Invoices || []).length;
+      } catch (err) {
+        logger.warn(`[Xero] Individual-export batch ${b + 1}/${batches.length} failed: ${err.message}`);
+        errors.push({ batch: b + 1, size: batch.length, error: err.message });
+      }
+      // Pace batches to stay under the ~60 calls/min rate limit.
+      if (b < batches.length - 1) {
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+    }
+
+    // Update sync metadata.
+    const config = await this._getConfig(outletId);
+    if (config) {
+      config.last_sync = new Date().toISOString();
+      config.invoices_exported = (config.invoices_exported || 0) + created;
+      await this._saveConfig(outletId, config);
+    }
+
+    logger.info(
+      `[Xero] Individual export done: ${created} invoices in ${batches.length} batches ` +
+      `(${skipped} skipped, ${errors.length} batch errors)`
+    );
+
+    return {
+      success: true,
+      mock: false,
+      invoices_created: created,
+      batches: batches.length,
+      skipped,
+      errors,
+      channel_tracking: trackingApplied,
+      message: 'Individual orders synced to Xero',
     };
   }
 
@@ -1170,6 +1555,20 @@ function _mapBSSubTypeToAccountType(subType) {
   if (t.includes('equity') || t.includes('capital')) return 'EQUITY';
   if (t.includes('bank')) return 'BANK';
   return 'OTHER';
+}
+
+/**
+ * Maps an order_type string to a Xero 'Service Channel' tracking option label.
+ * @param {string} orderType - 'dine_in' | 'takeaway' | 'delivery'
+ * @returns {string}
+ */
+function _channelLabel(orderType) {
+  switch ((orderType || '').toLowerCase()) {
+    case 'takeaway': return 'Takeaway';
+    case 'delivery': return 'Delivery';
+    case 'dine_in':  return 'Dine-In';
+    default:         return 'Dine-In';
+  }
 }
 
 /**
