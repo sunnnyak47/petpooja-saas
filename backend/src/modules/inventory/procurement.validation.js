@@ -58,7 +58,9 @@ const createPurchaseOrderSchema = Joi.object({
   // supplier_id is optional — POs can be created without a supplier
   supplier_id: Joi.string().uuid().allow(null, '').optional(),
   items: Joi.array().items(Joi.object({
-    inventory_item_id: Joi.string().uuid().required(),
+    // Optional — PO line items can be free-text preset items not linked to an
+    // inventory record. The service stores inventory_item_id as null in that case.
+    inventory_item_id: Joi.string().uuid().allow(null, '').optional(),
     // Accept both 'quantity' (canonical) and legacy 'ordered_quantity' from older clients
     quantity: Joi.number().min(0).default(1),
     ordered_quantity: Joi.number().min(0),
@@ -77,14 +79,16 @@ const createPurchaseOrderSchema = Joi.object({
     notes: Joi.string().max(200).allow('', null),
   })).min(1).required(),
   status: Joi.string().valid('draft', 'submitted', 'approved', 'received', 'cancelled'),
-  reference_number: Joi.string().max(50),
+  reference_number: Joi.string().max(50).allow('', null),
   notes: Joi.string().max(500).allow('', null),
-  terms: Joi.string().max(500),
-  expected_date: Joi.date(),
-  delivery_date: Joi.date(),
+  terms: Joi.string().max(500).allow('', null),
+  expected_date: Joi.date().allow('', null),
+  delivery_date: Joi.date().allow('', null),
   discount_amount: Joi.number().min(0),
-  outlet_id: Joi.string().uuid().required(),
-});
+  // Optional — controller falls back to req.user.outlet_id from the token.
+  outlet_id: Joi.string().uuid().optional(),
+  // Tolerate extra UI fields (order_date, preset_ids, etc.) without rejecting.
+}).unknown(true);
 
 const updatePurchaseOrderSchema = Joi.object({
   status: Joi.string().valid('draft', 'submitted', 'approved', 'received', 'cancelled'),
