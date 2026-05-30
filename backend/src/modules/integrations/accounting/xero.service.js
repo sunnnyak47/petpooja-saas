@@ -28,7 +28,9 @@ const SCOPES = [
   'accounting.transactions.read',    // invoices, bills, bank txns
   'accounting.contacts.read',        // customers + suppliers
   'accounting.settings.read',        // org info + chart of accounts
-  'accounting.reports.read',         // P&L, balance sheet, BAS
+  // accounting.reports.read intentionally omitted — requires explicit app
+  // approval in the Xero developer portal; not available for standard apps.
+  // P&L and balance sheet analytics are derived from accounting.transactions.read.
 ].join(' ');
 
 /** Token is refreshed this many ms before actual expiry to avoid races. */
