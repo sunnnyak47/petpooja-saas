@@ -85,15 +85,17 @@ function Card({ children, className = '', style = {} }) {
 
 function StatCard({ label, value, color, icon: Icon, subtext }) {
   return (
-    <Card className="p-5 flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
-          <Icon className="w-4 h-4" style={{ color }} />
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+          <p className="text-2xl font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>{value}</p>
+          {subtext && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{subtext}</p>}
+        </div>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}18` }}>
+          <Icon className="w-5 h-5" style={{ color }} />
         </div>
       </div>
-      <p className="text-2xl font-extrabold tracking-tight" style={{ color }}>{value}</p>
-      {subtext && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{subtext}</p>}
     </Card>
   );
 }
@@ -270,10 +272,10 @@ export default function XeroAnalyticsPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
             Financial Analytics
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Powered by Xero &middot; 3 years of financial data
           </p>
         </div>
@@ -281,45 +283,31 @@ export default function XeroAnalyticsPage() {
           {!connLoading && !isConnected && (
             <>
               {/* Real Xero OAuth connect */}
-              <button
-                onClick={handleConnectXero}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all"
-                style={{ background: '#13B5EA', color: '#fff', border: 'none', cursor: 'pointer' }}
-              >
+              <button onClick={handleConnectXero} className="btn-primary btn-sm">
                 <svg width="14" height="14" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="20" fill="#fff"/><path d="M20 8C13.4 8 8 13.4 8 20s5.4 12 12 12 12-5.4 12-12S26.6 8 20 8zm0 20c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z" fill="#13B5EA"/></svg>
                 Connect Xero
               </button>
               {/* Demo data fallback */}
-              <button
-                onClick={handleSeedDemo}
-                disabled={seeding}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all border"
-                style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)', opacity: seeding ? 0.7 : 1, cursor: seeding ? 'wait' : 'pointer' }}
-              >
-                {seeding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              <button onClick={handleSeedDemo} disabled={seeding} className="btn-secondary btn-sm">
+                {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                 {seeding ? 'Loading…' : 'Load Demo Data'}
               </button>
             </>
           )}
           {!connLoading && isConnected && (
             /* Sync now button */
-            <button
-              onClick={handleSyncXero}
-              disabled={seeding}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all border"
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)', opacity: seeding ? 0.7 : 1, cursor: seeding ? 'wait' : 'pointer' }}
-            >
+            <button onClick={handleSyncXero} disabled={seeding} className="btn-secondary btn-sm">
               <RefreshCw className={`w-3.5 h-3.5 ${seeding ? 'animate-spin' : ''}`} />
               {seeding ? 'Syncing…' : 'Sync Now'}
             </button>
           )}
           {/* Connection badge */}
           <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border"
             style={{
-              borderColor: isConnected ? 'rgba(34,197,94,0.3)' : 'var(--border)',
-              background: isConnected ? 'rgba(34,197,94,0.08)' : 'var(--bg-secondary)',
-              color: isConnected ? '#22c55e' : 'var(--text-secondary)',
+              borderColor: isConnected ? 'rgba(22,163,74,0.3)' : 'var(--border)',
+              background: isConnected ? 'rgba(22,163,74,0.08)' : 'var(--bg-secondary)',
+              color: isConnected ? 'var(--success)' : 'var(--text-secondary)',
             }}
           >
             {connLoading ? (
@@ -335,21 +323,23 @@ export default function XeroAnalyticsPage() {
       </div>
 
       {/* ── Range selector ────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        {RANGES.map(r => (
-          <button
-            key={r.key}
-            onClick={() => setRange(r.key)}
-            className="px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-150 border"
-            style={{
-              background: range === r.key ? 'var(--accent)' : 'var(--bg-secondary)',
-              color: range === r.key ? '#fff' : 'var(--text-secondary)',
-              borderColor: range === r.key ? 'var(--accent)' : 'var(--border)',
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="inline-flex gap-1 p-1 rounded-lg border w-fit" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+        {RANGES.map(r => {
+          const active = range === r.key;
+          return (
+            <button
+              key={r.key}
+              onClick={() => setRange(r.key)}
+              className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-150"
+              style={{
+                background: active ? 'var(--accent)' : 'transparent',
+                color: active ? 'var(--accent-text, #fff)' : 'var(--text-secondary)',
+              }}
+            >
+              {r.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Tab selector ──────────────────────────────────────────────────── */}
@@ -364,9 +354,9 @@ export default function XeroAnalyticsPage() {
                 onClick={() => setTab(t.key)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap"
                 style={{
-                  background: active ? 'var(--bg-card, var(--bg-primary))' : 'transparent',
-                  color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? 'var(--accent-text, #fff)' : 'var(--text-secondary)',
+                  boxShadow: active ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
                 }}
               >
                 <Icon className="w-3.5 h-3.5" />
