@@ -340,6 +340,26 @@ async function startApp() {
                                 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`],
       // tables: auto_free_at added for predictive auto-free feature
       ['tables', `ADD COLUMN IF NOT EXISTS auto_free_at TIMESTAMPTZ`],
+      // purchase_orders: columns added across procurement iterations
+      ['purchase_orders', `ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50),
+                           ADD COLUMN IF NOT EXISTS terms            TEXT,
+                           ADD COLUMN IF NOT EXISTS notes            TEXT,
+                           ADD COLUMN IF NOT EXISTS expected_date    DATE,
+                           ADD COLUMN IF NOT EXISTS delivery_date    DATE,
+                           ADD COLUMN IF NOT EXISTS discount_amount  DECIMAL(12,2) NOT NULL DEFAULT 0,
+                           ADD COLUMN IF NOT EXISTS pdf_path         TEXT,
+                           ADD COLUMN IF NOT EXISTS sent_at          TIMESTAMPTZ,
+                           ADD COLUMN IF NOT EXISTS approved_at      TIMESTAMPTZ,
+                           ADD COLUMN IF NOT EXISTS approved_by      UUID,
+                           ADD COLUMN IF NOT EXISTS created_by       UUID`],
+      // po_items: tax/category/received/hsn fields added later
+      ['po_items', `ADD COLUMN IF NOT EXISTS category          VARCHAR(50),
+                    ADD COLUMN IF NOT EXISTS tax_rate          DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS tax_amount        DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS total_cost        DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS received_quantity DECIMAL(12,3) NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS hsn_code          VARCHAR(20),
+                    ADD COLUMN IF NOT EXISTS notes             TEXT`],
       // staff_profiles: compliance + personal + payroll fields added in staff management module
       ['staff_profiles', `ADD COLUMN IF NOT EXISTS employment_type    VARCHAR(20),
                           ADD COLUMN IF NOT EXISTS contract_end_date  DATE,
