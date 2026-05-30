@@ -427,6 +427,20 @@ class XeroService {
       },
     });
 
+    // No paid orders for this day → nothing to invoice. Skip rather than POST
+    // an empty invoice (Xero rejects invoices with no line items).
+    if (orders.length === 0) {
+      logger.info(`[Xero] No paid orders for ${date} — skipping`);
+      return {
+        success: true,
+        skipped: true,
+        orders_count: 0,
+        total_amount: 0,
+        line_items: 0,
+        message: `No paid orders on ${date}`,
+      };
+    }
+
     // Aggregate by payment method using integer cents
     const methodTotals = {}; // method -> cents
     let totalCents = 0;
@@ -455,6 +469,20 @@ class XeroService {
       AccountCode: '200',
       TaxType: 'OUTPUT',
     }));
+
+    // Orders existed but produced no payable line items (e.g. no successful
+    // payments) → skip rather than POST an invoice Xero will reject.
+    if (lineItems.length === 0) {
+      logger.info(`[Xero] No payable line items for ${date} — skipping`);
+      return {
+        success: true,
+        skipped: true,
+        orders_count: orders.length,
+        total_amount: 0,
+        line_items: 0,
+        message: `No payable line items on ${date}`,
+      };
+    }
 
     const invoicePayload = {
       Type: 'ACCREC',
