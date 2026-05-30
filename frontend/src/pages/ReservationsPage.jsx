@@ -3,6 +3,7 @@
  * Route: /reservations
  */
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -40,6 +41,8 @@ const EMPTY_FORM = {
 export default function ReservationsPage() {
   const qc = useQueryClient();
   const region = useRegion();
+  const { user } = useSelector(s => s.auth);
+  const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const phonePlaceholder = region === 'AU' ? '+61 412345678' : '+91 9876543210';
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState(EMPTY_FORM);
@@ -234,7 +237,7 @@ export default function ReservationsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => saveMutation.mutate(form)}
+                onClick={() => saveMutation.mutate(editId ? form : { ...form, outlet_id: outletId })}
                 disabled={saveMutation.isPending || !form.customer_name || !form.reservation_date}
                 className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>

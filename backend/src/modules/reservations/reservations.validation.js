@@ -8,7 +8,7 @@ const Joi = require('joi');
 /** POST /api/reservations */
 const createReservationSchema = Joi.object({
   customer_name: Joi.string().required().max(150),
-  customer_phone: Joi.string().pattern(/^[0-9]{10,15}$/),
+  customer_phone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
   party_size: Joi.number().integer().min(1).max(50).required(),
   reservation_date: Joi.date().required(),
   reservation_time: Joi.string().pattern(/^[0-2][0-9]:[0-5][0-9]$/),
