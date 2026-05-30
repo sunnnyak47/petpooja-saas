@@ -15,22 +15,23 @@ const XERO_TOKEN_URL = 'https://identity.xero.com/connect/token';
 const XERO_API_BASE = 'https://api.xero.com/api.xro/2.0';
 const XERO_CONNECTIONS_URL = 'https://api.xero.com/connections';
 
-// Smallest possible scope set that still gives us read-only access to
-// the data the analytics screens need. We use the `.read` variants so
-// the app doesn't need extra approval for write scopes. Push-to-Xero
-// flows (POS sales → invoice, PO → bill) require swapping these back
-// to the non-.read variants AFTER first connection works.
+// Read-only scope set, matched EXACTLY to the granular scopes the Xero app is
+// configured with (developer.xero.com → app → Configuration → Scopes). The
+// broad `accounting.transactions.read` / `accounting.reports.read` scopes are
+// NOT available for this app and trigger invalid_scope — the granular variants
+// below are the ones the app actually exposes. Each maps to a specific endpoint
+// the sync calls (see syncFromXero).
 const SCOPES = [
-  'openid',                          // mandatory — required by Xero OAuth2
-  'profile',                         // basic profile info
-  'email',                           // email address
-  'offline_access',                  // mandatory — refresh tokens
-  'accounting.transactions.read',    // invoices, bills, bank txns
-  'accounting.contacts.read',        // customers + suppliers
-  'accounting.settings.read',        // org info + chart of accounts
-  // accounting.reports.read intentionally omitted — requires explicit app
-  // approval in the Xero developer portal; not available for standard apps.
-  // P&L and balance sheet analytics are derived from accounting.transactions.read.
+  'openid',                                  // OIDC identity
+  'profile',                                 // basic profile info
+  'email',                                   // email address
+  'offline_access',                          // mandatory — refresh tokens
+  'accounting.settings.read',                // Organisation, Accounts, TrackingCategories
+  'accounting.contacts.read',                // Contacts (customers + suppliers)
+  'accounting.invoices.read',                // Invoices
+  'accounting.reports.profitandloss.read',   // Reports/ProfitAndLoss
+  'accounting.reports.balancesheet.read',    // Reports/BalanceSheet
+  'accounting.reports.taxreports.read',      // Reports/BASReport
 ].join(' ');
 
 /** Token is refreshed this many ms before actual expiry to avoid races. */
