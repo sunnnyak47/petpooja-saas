@@ -8,7 +8,7 @@ import { useRegion } from '../hooks/useRegion';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { Clock, Eye, Ban, Loader, ShoppingBag, IndianRupee, Receipt, RefreshCw } from 'lucide-react';
+import { Clock, Eye, Ban, Loader, ShoppingBag, IndianRupee, Receipt, RefreshCw, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -42,6 +42,10 @@ export default function OrdersPage() {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
   const [statusFilter, setStatusFilter] = useState('');
+  const [dateRange,    setDateRange]    = useState('today');   // today|yesterday|7d|30d|all
+  const [sortField,    setSortField]    = useState('time');     // time|amount|order|status
+  const [sortDir,      setSortDir]      = useState('desc');     // asc|desc
+  const [searchQ,      setSearchQ]      = useState('');
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isVoidOpen, setIsVoidOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -49,6 +53,27 @@ export default function OrdersPage() {
   const [voidReason, setVoidReason] = useState('Voided from dashboard');
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  /* Date-range bounds (local TZ) */
+  const dateBounds = (() => {
+    const now = new Date();
+    const startOf = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+    const endOf   = (d) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
+    if (dateRange === 'today') {
+      return { from: startOf(now), to: endOf(now), label: 'Today' };
+    }
+    if (dateRange === 'yesterday') {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      return { from: startOf(y), to: endOf(y), label: 'Yesterday' };
+    }
+    if (dateRange === '7d') {
+      const s = new Date(now); s.setDate(s.getDate() - 6); return { from: startOf(s), to: endOf(now), label: 'Last 7 days' };
+    }
+    if (dateRange === '30d') {
+      const s = new Date(now); s.setDate(s.getDate() - 29); return { from: startOf(s), to: endOf(now), label: 'Last 30 days' };
+    }
+    return { from: null, to: null, label: 'All time' };
+  })();
 
   const handleReorder = async (order) => {
     try {
@@ -90,7 +115,7 @@ export default function OrdersPage() {
       if (IS_ELECTRON && !isOnline) {
         return hybridAPI.getOrders(outletId, statusFilter ? { status: statusFilter } : {});
       }
-      return api.get(`/orders?outlet_id=${outletId}&limit=50${statusFilter ? `&status=${statusFilter}` : ''}`).then(r => r.data);
+      return api.get(`/orders?outlet_id=${outletId}&limit=200&sort=created_at&order=desc${statusFilter ? `&status=${statusFilter}` : ''}`).then(r => r.data);
     },
     enabled: !!outletId,
     refetchInterval: isOnline ? 10000 : false,
@@ -129,34 +154,205 @@ export default function OrdersPage() {
     onError: (e) => toast.error(e.message || 'Failed to void order'),
   });
 
-  const orders = Array.isArray(data) ? data : (data?.data || data?.items || []);
+  const rawOrders = Array.isArray(data) ? data : (data?.data || data?.items || []);
+
+  /* Filter by date + search */
+  const filtered = rawOrders.filter(o => {
+    if (dateBounds.from && dateBounds.to) {
+      const t = new Date(o.created_at);
+      if (t < dateBounds.from || t > dateBounds.to) return false;
+    }
+    if (searchQ.trim()) {
+      const q = searchQ.toLowerCase();
+      const num = String(o.order_number || '').toLowerCase();
+      const tbl = String(o.table?.table_number || '').toLowerCase();
+      if (!num.includes(q) && !tbl.includes(q)) return false;
+    }
+    return true;
+  });
+
+  /* Sort */
+  const orders = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortField === 'time')   return (new Date(a.created_at) - new Date(b.created_at)) * dir;
+    if (sortField === 'amount') return ((Number(a.grand_total) || 0) - (Number(b.grand_total) || 0)) * dir;
+    if (sortField === 'order')  return ((a.order_number || 0) - (b.order_number || 0)) * dir;
+    if (sortField === 'status') return String(a.status).localeCompare(String(b.status)) * dir;
+    return 0;
+  });
+
+  /* Aggregate stats for the visible set */
+  const stats = orders.reduce((acc, o) => {
+    acc.count += 1;
+    acc.revenue += Number(o.grand_total || 0);
+    if (o.is_paid)                                     acc.paid     += 1;
+    else if (o.status === 'cancelled' || o.status === 'voided') acc.cancelled += 1;
+    else                                                acc.open     += 1;
+    return acc;
+  }, { count: 0, revenue: 0, paid: 0, open: 0, cancelled: 0 });
+
+  /* Smart time display */
+  const formatRelative = (iso) => {
+    const t = new Date(iso);
+    const now = new Date();
+    const diffMs = now - t;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1)  return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const today  = new Date(); today.setHours(0,0,0,0);
+    const ymd    = new Date(t); ymd.setHours(0,0,0,0);
+    const todayDiff = (today - ymd) / 86400000;
+    const tStr = t.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    if (todayDiff === 0) return `${tStr}`;
+    if (todayDiff === 1) return `Yesterday ${tStr}`;
+    return `${t.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} · ${tStr}`;
+  };
+
+  /* Sortable header cell */
+  const SortHeader = ({ field, label, align = 'left' }) => {
+    const active = sortField === field;
+    const Icon = !active ? ArrowUpDown : (sortDir === 'asc' ? ArrowUp : ArrowDown);
+    return (
+      <th className={`px-4 py-3 text-${align} cursor-pointer select-none transition-colors`}
+        onClick={() => {
+          if (active) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+          else { setSortField(field); setSortDir('desc'); }
+        }}>
+        <span className="inline-flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white transition-colors"
+          style={{ color: active ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+          {label}
+          <Icon className="w-3 h-3" style={{ opacity: active ? 1 : 0.4 }} />
+        </span>
+      </th>
+    );
+  };
 
   return (
     <div className="space-y-4 animate-fade-in relative">
-      <div className="flex items-center justify-between">
-        <h1 className="page-title">Orders</h1>
-        <div className="flex gap-2">
-          {['', 'created', 'confirmed', 'ready', 'paid', 'cancelled'].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === s ? 'tab-btn-active' : 'tab-btn'}`}>
-              {s || 'All'}
-            </button>
-          ))}
+      {/* ── Page header ── */}
+      <div>
+        <div className="flex items-center gap-2.5 mb-1.5">
+          <Receipt className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--accent)' }}>
+            Order Ledger
+          </span>
+          <span className="w-1 h-1 rounded-full" style={{ background: 'var(--text-secondary)', opacity: 0.5 }} />
+          <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            {dateBounds.label} · {stats.count} order{stats.count !== 1 ? 's' : ''} · {format(stats.revenue)}
+          </span>
+        </div>
+        <h1 className="text-2xl font-black tracking-tight leading-none"
+          style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>
+          Order history
+        </h1>
+        <p className="text-sm mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+          Every order placed at this outlet — sort, filter, search and reopen.
+        </p>
+      </div>
+
+      {/* ── KPI strip (paid / open / cancelled / revenue) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Revenue',   value: format(stats.revenue),       sub: `${stats.count} order${stats.count !== 1 ? 's' : ''}`, color: '#10b981' },
+          { label: 'Paid',      value: stats.paid,                   sub: 'settled',                                              color: '#3b82f6' },
+          { label: 'Open',      value: stats.open,                   sub: 'in progress',                                          color: '#f59e0b' },
+          { label: 'Cancelled', value: stats.cancelled,              sub: 'voided / refunded',                                    color: '#ef4444' },
+        ].map(s => (
+          <div key={s.label} className="relative rounded-xl px-4 py-3"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r" style={{ background: s.color, opacity: 0.85 }} />
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>
+              {s.label}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black tracking-tight" style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em', fontFeatureSettings: '"tnum"' }}>
+                {s.value}
+              </span>
+              <span className="text-[10.5px]" style={{ color: 'var(--text-secondary)' }}>{s.sub}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filter / sort bar ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Date range pills */}
+        <div className="inline-flex p-1 rounded-lg"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          {[
+            { id: 'today',     label: 'Today'      },
+            { id: 'yesterday', label: 'Yesterday'  },
+            { id: '7d',        label: 'Last 7 days'},
+            { id: '30d',       label: 'Last 30'    },
+            { id: 'all',       label: 'All time'   },
+          ].map(d => {
+            const active = dateRange === d.id;
+            return (
+              <button key={d.id} onClick={() => setDateRange(d.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                style={{
+                  background: active ? 'var(--bg-secondary)' : 'transparent',
+                  color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: active ? '0 1px 3px rgba(15,23,42,0.05)' : 'none',
+                }}>
+                {d.id === 'today' && <Calendar className="w-3 h-3" />}
+                {d.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Status pills */}
+        <div className="inline-flex p-1 rounded-lg"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          {[
+            { id: '',          label: 'All' },
+            { id: 'created',   label: 'Created' },
+            { id: 'ready',     label: 'Ready' },
+            { id: 'paid',      label: 'Paid' },
+            { id: 'cancelled', label: 'Cancelled' },
+          ].map(s => {
+            const active = statusFilter === s.id;
+            return (
+              <button key={s.id || 'all'} onClick={() => setStatusFilter(s.id)}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                style={{
+                  background: active ? 'var(--bg-secondary)' : 'transparent',
+                  color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  boxShadow: active ? '0 1px 3px rgba(15,23,42,0.05)' : 'none',
+                }}>
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 py-1.5 rounded-lg"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <Search className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+          <input
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="Search order # or table…"
+            className="flex-1 bg-transparent text-xs outline-none placeholder:opacity-60"
+            style={{ color: 'var(--text-primary)' }}
+          />
         </div>
       </div>
 
       <div className="card overflow-hidden p-0">
         <table className="w-full">
           <thead>
-            <tr className="text-xs uppercase border-b" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
-              <th className="px-4 py-3 text-left">Order #</th>
-              <th className="px-4 py-3 text-left">Type</th>
-              <th className="px-4 py-3 text-left">Table</th>
-              <th className="px-4 py-3 text-left">Items</th>
-              <th className="px-4 py-3 text-left">Amount</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">Time</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+            <tr className="text-xs uppercase border-b" style={{ borderColor: "var(--border)" }}>
+              <SortHeader field="order"  label="Order #" />
+              <th className="px-4 py-3 text-left" style={{ color: 'var(--text-secondary)' }}>Type</th>
+              <th className="px-4 py-3 text-left" style={{ color: 'var(--text-secondary)' }}>Table</th>
+              <th className="px-4 py-3 text-left" style={{ color: 'var(--text-secondary)' }}>Items</th>
+              <SortHeader field="amount" label="Amount" />
+              <SortHeader field="status" label="Status" />
+              <SortHeader field="time"   label="Time" />
+              <th className="px-4 py-3 text-right" style={{ color: 'var(--text-secondary)' }}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-700/50">
@@ -183,7 +379,7 @@ export default function OrdersPage() {
                       {STATUS_FLOW.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{formatRelative(order.created_at)}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleReorder(order); }}

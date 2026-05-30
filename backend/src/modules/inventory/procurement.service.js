@@ -10,6 +10,94 @@ const { NotFoundError, BadRequestError } = require('../../utils/errors');
 const { parsePagination } = require('../../utils/helpers');
 const { generatePOPdf } = require('./po-pdf.service');
 
+/* ── Australia-specific default presets ────────────────────────────────────
+   Items, categories, units and rates are tuned for the Australian F&B market.
+   GST in AU is binary: 0% (fresh food) or 10% (processed/packaged).
+────────────────────────────────────────────────────────────────────────── */
+const AU_DEFAULT_PRESETS = [
+  // Produce (fresh = GST-free)
+  { name: 'Tomato',                  category: 'Produce',        default_quantity: 5,  unit: 'kg',     default_rate: 8.50,  tax_rate: 0 },
+  { name: 'Onion',                   category: 'Produce',        default_quantity: 10, unit: 'kg',     default_rate: 12.00, tax_rate: 0 },
+  { name: 'Potato',                  category: 'Produce',        default_quantity: 10, unit: 'kg',     default_rate: 15.00, tax_rate: 0 },
+  { name: 'Garlic',                  category: 'Produce',        default_quantity: 1,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'Capsicum',                category: 'Produce',        default_quantity: 3,  unit: 'kg',     default_rate: 12.00, tax_rate: 0 },
+  { name: 'Lemon',                   category: 'Produce',        default_quantity: 1,  unit: 'kg',     default_rate: 4.50,  tax_rate: 0 },
+  { name: 'Avocado',                 category: 'Produce',        default_quantity: 12, unit: 'pcs',    default_rate: 18.00, tax_rate: 0 },
+  { name: 'Spinach',                 category: 'Produce',        default_quantity: 2,  unit: 'kg',     default_rate: 6.00,  tax_rate: 0 },
+  { name: 'Mixed Salad Leaves',      category: 'Produce',        default_quantity: 1,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'Mushrooms',               category: 'Produce',        default_quantity: 2,  unit: 'kg',     default_rate: 14.00, tax_rate: 0 },
+  { name: 'Spring Onion',            category: 'Produce',        default_quantity: 1,  unit: 'bunch',  default_rate: 2.50,  tax_rate: 0 },
+  { name: 'Carrot',                  category: 'Produce',        default_quantity: 5,  unit: 'kg',     default_rate: 7.00,  tax_rate: 0 },
+  { name: 'Zucchini',                category: 'Produce',        default_quantity: 3,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'Sweet Potato',            category: 'Produce',        default_quantity: 5,  unit: 'kg',     default_rate: 9.00,  tax_rate: 0 },
+  // Dairy & Eggs (GST-free for basic dairy)
+  { name: 'Full Cream Milk',         category: 'Dairy & Eggs',   default_quantity: 10, unit: 'l',      default_rate: 14.00, tax_rate: 0 },
+  { name: 'Butter',                  category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'kg',     default_rate: 9.00,  tax_rate: 0 },
+  { name: 'Thickened Cream',         category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'l',      default_rate: 5.50,  tax_rate: 0 },
+  { name: 'Cheddar Cheese',          category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'kg',     default_rate: 12.00, tax_rate: 0 },
+  { name: 'Greek Yoghurt',           category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'kg',     default_rate: 5.50,  tax_rate: 0 },
+  { name: 'Eggs (Free Range)',        category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'tray',   default_rate: 14.00, tax_rate: 0 },
+  { name: 'Mozzarella',              category: 'Dairy & Eggs',   default_quantity: 1,  unit: 'kg',     default_rate: 14.00, tax_rate: 0 },
+  // Meat & Poultry (GST-free for unprocessed)
+  { name: 'Chicken Breast',          category: 'Meat & Poultry', default_quantity: 5,  unit: 'kg',     default_rate: 22.00, tax_rate: 0 },
+  { name: 'Chicken Thigh',           category: 'Meat & Poultry', default_quantity: 5,  unit: 'kg',     default_rate: 18.00, tax_rate: 0 },
+  { name: 'Beef Mince',              category: 'Meat & Poultry', default_quantity: 5,  unit: 'kg',     default_rate: 38.00, tax_rate: 0 },
+  { name: 'Scotch Fillet (Beef)',    category: 'Meat & Poultry', default_quantity: 3,  unit: 'kg',     default_rate: 72.00, tax_rate: 0 },
+  { name: 'Lamb Cutlets',            category: 'Meat & Poultry', default_quantity: 2,  unit: 'kg',     default_rate: 45.00, tax_rate: 0 },
+  { name: 'Pork Belly',              category: 'Meat & Poultry', default_quantity: 3,  unit: 'kg',     default_rate: 28.00, tax_rate: 0 },
+  { name: 'Bacon Rashers',           category: 'Meat & Poultry', default_quantity: 2,  unit: 'kg',     default_rate: 22.00, tax_rate: 10 },
+  { name: 'Sausages',                category: 'Meat & Poultry', default_quantity: 2,  unit: 'kg',     default_rate: 18.00, tax_rate: 10 },
+  // Seafood (GST-free for fresh)
+  { name: 'Salmon Fillet',           category: 'Seafood',        default_quantity: 2,  unit: 'kg',     default_rate: 40.00, tax_rate: 0 },
+  { name: 'Barramundi Fillet',       category: 'Seafood',        default_quantity: 2,  unit: 'kg',     default_rate: 36.00, tax_rate: 0 },
+  { name: 'King Prawns',             category: 'Seafood',        default_quantity: 1,  unit: 'kg',     default_rate: 32.00, tax_rate: 0 },
+  { name: 'Calamari',                category: 'Seafood',        default_quantity: 1,  unit: 'kg',     default_rate: 18.00, tax_rate: 0 },
+  { name: 'Basa Fish Fillet',        category: 'Seafood',        default_quantity: 3,  unit: 'kg',     default_rate: 22.00, tax_rate: 0 },
+  { name: 'Oysters',                 category: 'Seafood',        default_quantity: 1,  unit: 'dozen',  default_rate: 20.00, tax_rate: 0 },
+  // Pantry (processed/condiments = 10% GST; flour/sugar = 0%)
+  { name: 'Plain Flour',             category: 'Pantry',         default_quantity: 10, unit: 'kg',     default_rate: 14.00, tax_rate: 0 },
+  { name: 'Self-Raising Flour',      category: 'Pantry',         default_quantity: 5,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'White Sugar',             category: 'Pantry',         default_quantity: 5,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'Canola Oil',              category: 'Pantry',         default_quantity: 10, unit: 'l',      default_rate: 24.00, tax_rate: 10 },
+  { name: 'Extra Virgin Olive Oil',  category: 'Pantry',         default_quantity: 4,  unit: 'l',      default_rate: 32.00, tax_rate: 10 },
+  { name: 'Sea Salt',                category: 'Pantry',         default_quantity: 1,  unit: 'kg',     default_rate: 4.00,  tax_rate: 10 },
+  { name: 'Black Pepper',            category: 'Pantry',         default_quantity: 0.5,unit: 'kg',     default_rate: 18.00, tax_rate: 10 },
+  { name: 'Soy Sauce',               category: 'Pantry',         default_quantity: 1,  unit: 'l',      default_rate: 6.00,  tax_rate: 10 },
+  { name: 'Tomato Sauce',            category: 'Pantry',         default_quantity: 2,  unit: 'l',      default_rate: 8.00,  tax_rate: 10 },
+  { name: 'Mayonnaise',              category: 'Pantry',         default_quantity: 1,  unit: 'kg',     default_rate: 7.50,  tax_rate: 10 },
+  { name: 'BBQ Sauce',               category: 'Pantry',         default_quantity: 1,  unit: 'l',      default_rate: 7.00,  tax_rate: 10 },
+  { name: 'Worcestershire Sauce',    category: 'Pantry',         default_quantity: 1,  unit: 'l',      default_rate: 6.50,  tax_rate: 10 },
+  { name: 'Sweet Chilli Sauce',      category: 'Pantry',         default_quantity: 1,  unit: 'l',      default_rate: 6.00,  tax_rate: 10 },
+  // Frozen (10% GST for processed; 0% for plain frozen produce)
+  { name: 'Frozen Chips',            category: 'Frozen',         default_quantity: 5,  unit: 'kg',     default_rate: 12.00, tax_rate: 10 },
+  { name: 'Frozen Peas',             category: 'Frozen',         default_quantity: 2,  unit: 'kg',     default_rate: 6.00,  tax_rate: 0 },
+  { name: 'Frozen Prawns',           category: 'Frozen',         default_quantity: 1,  unit: 'kg',     default_rate: 22.00, tax_rate: 0 },
+  { name: 'Frozen Edamame',          category: 'Frozen',         default_quantity: 1,  unit: 'kg',     default_rate: 8.00,  tax_rate: 0 },
+  { name: 'Frozen Hash Browns',      category: 'Frozen',         default_quantity: 2,  unit: 'kg',     default_rate: 10.00, tax_rate: 10 },
+  // Beverages
+  { name: 'Espresso Coffee Beans',   category: 'Beverages',      default_quantity: 1,  unit: 'kg',     default_rate: 25.00, tax_rate: 10 },
+  { name: 'Black Tea Bags',          category: 'Beverages',      default_quantity: 1,  unit: 'box',    default_rate: 8.00,  tax_rate: 10 },
+  { name: 'Bottled Water (ctn)',     category: 'Beverages',      default_quantity: 1,  unit: 'ctn',    default_rate: 18.00, tax_rate: 0 },
+  { name: 'Soft Drink (Assorted)',   category: 'Beverages',      default_quantity: 1,  unit: 'ctn',    default_rate: 32.00, tax_rate: 10 },
+  { name: 'Orange Juice',            category: 'Beverages',      default_quantity: 5,  unit: 'l',      default_rate: 18.00, tax_rate: 0 },
+  { name: 'Coconut Water',           category: 'Beverages',      default_quantity: 1,  unit: 'ctn',    default_rate: 28.00, tax_rate: 10 },
+  // Packaging (10% GST)
+  { name: 'Takeaway Containers',     category: 'Packaging',      default_quantity: 1,  unit: 'packet', default_rate: 15.00, tax_rate: 10 },
+  { name: 'Paper Bags',              category: 'Packaging',      default_quantity: 1,  unit: 'packet', default_rate: 12.00, tax_rate: 10 },
+  { name: 'Aluminium Foil Roll',     category: 'Packaging',      default_quantity: 1,  unit: 'roll',   default_rate: 8.00,  tax_rate: 10 },
+  { name: 'Paper Napkins',           category: 'Packaging',      default_quantity: 1,  unit: 'packet', default_rate: 8.00,  tax_rate: 10 },
+  { name: 'Disposable Cups (8oz)',   category: 'Packaging',      default_quantity: 1,  unit: 'sleeve', default_rate: 10.00, tax_rate: 10 },
+  { name: 'Cling Wrap',              category: 'Packaging',      default_quantity: 1,  unit: 'roll',   default_rate: 7.00,  tax_rate: 10 },
+  // Cleaning (10% GST)
+  { name: 'Dishwashing Liquid',      category: 'Cleaning',       default_quantity: 5,  unit: 'l',      default_rate: 18.00, tax_rate: 10 },
+  { name: 'Commercial Degreaser',    category: 'Cleaning',       default_quantity: 5,  unit: 'l',      default_rate: 22.00, tax_rate: 10 },
+  { name: 'Hand Soap (Commercial)',  category: 'Cleaning',       default_quantity: 5,  unit: 'l',      default_rate: 16.00, tax_rate: 10 },
+  { name: 'Bin Liners',              category: 'Cleaning',       default_quantity: 1,  unit: 'roll',   default_rate: 12.00, tax_rate: 10 },
+  { name: 'Sanitiser Spray',         category: 'Cleaning',       default_quantity: 5,  unit: 'l',      default_rate: 20.00, tax_rate: 10 },
+  { name: 'Oven Cleaner',            category: 'Cleaning',       default_quantity: 2,  unit: 'l',      default_rate: 14.00, tax_rate: 10 },
+];
+
+/* ── India default presets ──────────────────────────────────────────────── */
 const DEFAULT_PRESETS = [
   { name: 'Tomato',               category: 'Vegetables',  default_quantity: 5,   unit: 'kg',     default_rate: 40,  tax_rate: 0 },
   { name: 'Onion',                category: 'Vegetables',  default_quantity: 10,  unit: 'kg',     default_rate: 30,  tax_rate: 0 },
@@ -86,8 +174,8 @@ function generatePONumber() {
 function calcTotals(items) {
   let subtotal = 0, taxTotal = 0;
   for (const item of items) {
-    const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-    const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
+    const qty  = Number(item.quantity ?? item.ordered_quantity ?? 0);
+    const rate = Number(item.unit_price ?? item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
     const tax  = Number(item.tax_rate ?? 0);
     const line = qty * rate;
     subtotal  += line;
@@ -162,8 +250,15 @@ async function listItemPresets(outletId, query = {}) {
 
   const count = await prisma.itemPreset.count({ where: { outlet_id: outletId, is_deleted: false } });
   if (count === 0) {
+    // Seed region-appropriate defaults based on the outlet's country
+    const outlet = await prisma.outlet.findFirst({
+      where: { id: outletId },
+      select: { country_code: true, currency: true },
+    });
+    const isAU = outlet?.country_code === 'AU' || outlet?.currency === 'AUD';
+    const seeds = isAU ? AU_DEFAULT_PRESETS : DEFAULT_PRESETS;
     await prisma.itemPreset.createMany({
-      data: DEFAULT_PRESETS.map(p => ({ outlet_id: outletId, ...p })),
+      data: seeds.map(p => ({ outlet_id: outletId, ...p })),
       skipDuplicates: true,
     });
   }
@@ -258,7 +353,7 @@ async function createPurchaseOrder(outletId, data, userId) {
 
   const po = await prisma.purchaseOrder.create({
     data: {
-      outlet_id: outletId, supplier_id: data.supplier_id,
+      outlet_id: outletId, supplier_id: data.supplier_id || null,
       po_number: poNumber, status: data.status || 'draft',
       reference_number: data.reference_number || null,
       notes: data.notes || null, terms: data.terms || null,
@@ -269,8 +364,8 @@ async function createPurchaseOrder(outletId, data, userId) {
       created_by: userId,
       po_items: {
         create: data.items.map(item => {
-          const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-          const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
+          const qty  = Number(item.quantity ?? item.ordered_quantity ?? 0);
+          const rate = Number(item.unit_price ?? item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
           const tax  = Number(item.tax_rate ?? 0);
           const lineSub = qty * rate;
           const lineTax = lineSub * tax / 100;
@@ -432,28 +527,52 @@ async function sendPOWhatsApp(id, outletId, phone, message) {
 async function receivePurchaseOrder(outletId, poId, data, userId) {
   const prisma = getDbClient();
   return prisma.$transaction(async (tx) => {
-    const po = await tx.purchaseOrder.findFirst({ where: { id: poId, outlet_id: outletId }, include: { po_items: true } });
+    const po = await tx.purchaseOrder.findFirst({
+      where: { id: poId, outlet_id: outletId },
+      include: { po_items: { where: { is_deleted: false } } },
+    });
     if (!po) throw new NotFoundError('Purchase Order not found');
     if (po.status === 'received') throw new BadRequestError('PO already received');
+
+    // Support both field-name conventions from different callers:
+    // - `received_items` (from validation schema / full-receipt PO page)
+    // - `items`          (legacy alias)
+    // - No body          (simple "mark received" from inventory quick-action — receive all at ordered qty)
+    const override = data?.received_items || data?.items;
+
+    // Build receive list: if caller provides overrides, use them; else use PO's own items at ordered qty
+    const receiveList = override && override.length > 0
+      ? override.map(ri => ({
+          inventory_item_id: ri.inventory_item_id || ri.item_id,
+          quantity: Number(ri.received_quantity ?? ri.quantity ?? 0),
+          unit_cost: Number(ri.unit_cost ?? ri.unit_price ?? 0),
+          quality_status: ri.quality_status || 'accepted',
+        }))
+      : po.po_items.map(pi => ({
+          inventory_item_id: pi.inventory_item_id,
+          quantity: Number(pi.ordered_quantity ?? 0),
+          unit_cost: Number(pi.unit_cost ?? 0),
+          quality_status: 'accepted',
+        }));
 
     const grnNumber = `GRN-${Date.now().toString().slice(-6)}`;
     const grn = await tx.goodsReceivedNote.create({
       data: {
         outlet_id: outletId, purchase_order_id: poId,
-        grn_number: grnNumber, received_by: userId, notes: data.notes,
+        grn_number: grnNumber, received_by: userId, notes: data?.notes || null,
         grn_items: {
-          create: data.items.map(item => ({
+          create: receiveList.map(item => ({
             inventory_item_id: item.inventory_item_id,
             received_quantity: item.quantity,
             unit_cost: item.unit_cost,
-            quality_status: item.quality_status || 'accepted',
+            quality_status: item.quality_status,
           })),
         },
       },
     });
 
-    for (const item of data.items) {
-      if (!item.inventory_item_id) continue;
+    for (const item of receiveList) {
+      if (!item.inventory_item_id || item.quantity <= 0) continue;
       await tx.inventoryStock.upsert({
         where: { outlet_id_inventory_item_id: { outlet_id: outletId, inventory_item_id: item.inventory_item_id } },
         create: { outlet_id: outletId, inventory_item_id: item.inventory_item_id, current_stock: item.quantity },

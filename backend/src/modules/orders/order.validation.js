@@ -41,7 +41,15 @@ const applyDiscountSchema = Joi.object({
   discount_type: Joi.string().valid('percentage', 'flat').required(),
   discount_value: Joi.number().min(0).required(),
   discount_reason: Joi.string().max(200).allow('', null),
-  manager_pin: Joi.string().max(10).allow('', null),
+  coupon_code: Joi.string().max(50).allow('', null),
+});
+
+const updateNotesSchema = Joi.object({
+  notes: Joi.string().max(500).allow('', null).required(),
+});
+
+const assignStaffSchema = Joi.object({
+  staff_id: Joi.string().uuid().allow(null).required(),
 });
 
 const processPaymentSchema = Joi.object({
@@ -72,6 +80,13 @@ const cancelOrderSchema = Joi.object({
   reason: Joi.string().min(3).max(500).required(),
 });
 
+const voidItemSchema = Joi.object({
+  item_id: Joi.string().uuid().required(),
+  manager_pin: Joi.string().min(4).max(10).required(),
+  reason: Joi.string().max(200).required(),
+  void_type: Joi.string().valid('void', 'comp').default('void'),
+});
+
 // outlet_id is already known from req.user (authentication middleware),
 // so it's optional in the body — but accepted for legacy clients.
 const generateKOTSchema = Joi.object({
@@ -91,7 +106,13 @@ const transferTableSchema = Joi.object({
 });
 
 const mergeOrderSchema = Joi.object({
-  merge_order_id: Joi.string().uuid().required(),
+  // Field name aligned with the frontend payload and controller (both use
+  // target_order_id). Previously this required `merge_order_id`, so every merge
+  // request was rejected at validation before reaching the handler. 'auto' is a
+  // sentinel used by the POS table-merge flow.
+  target_order_id: Joi.alternatives()
+    .try(Joi.string().uuid(), Joi.string().valid('auto'))
+    .required(),
 });
 
 const syncOfflineOrdersSchema = Joi.object({
@@ -123,6 +144,8 @@ module.exports = {
   createOrderSchema,
   addItemsSchema,
   applyDiscountSchema,
+  updateNotesSchema,
+  assignStaffSchema,
   processPaymentSchema,
   voidOrderSchema,
   refundOrderSchema,
@@ -133,4 +156,5 @@ module.exports = {
   transferTableSchema,
   mergeOrderSchema,
   syncOfflineOrdersSchema,
+  voidItemSchema,
 };

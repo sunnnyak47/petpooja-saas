@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useMenuOverview } from '../../src/hooks/useOwnerApi';
@@ -26,7 +27,9 @@ import { useOutlet } from '../../src/context/OutletContext';
 
 const MENU_ITEM_HEIGHT = 62;
 
-const MenuItem = React.memo(({ item, colors }) => (
+const MenuItem = React.memo(({ item, colors }) => {
+  const { symbol } = useCurrency();
+  return (
   <PressCard style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.available && s.cardDisabled]}>
     <View style={s.cardRow}>
       {/* Veg/Non-veg indicator */}
@@ -38,7 +41,7 @@ const MenuItem = React.memo(({ item, colors }) => (
         <Text style={[s.itemCat, { color: colors.textMuted }]}>{item.category}</Text>
       </View>
       <View style={s.cardRight}>
-        <Text style={[s.itemPrice, { color: colors.text }]}>₹{item.price}</Text>
+        <Text style={[s.itemPrice, { color: colors.text }]}>{symbol}{item.price}</Text>
         <View style={[s.availBadge, {
           backgroundColor: item.available ? '#EDFBF3' : '#FFF0F0',
         }]}>
@@ -54,7 +57,8 @@ const MenuItem = React.memo(({ item, colors }) => (
       </View>
     </View>
   </PressCard>
-));
+  );
+});
 
 export default function MenuOverviewScreen() {
   const { outletId } = useOutlet();

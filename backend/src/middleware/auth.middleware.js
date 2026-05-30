@@ -39,10 +39,21 @@ async function authenticate(req, res, next) {
     try {
       isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${token}`);
     } catch (redisErr) {
-      // Redis unavailable — log warning, allow through but track it
-      logger.warn('Redis unavailable for token blacklist check — skipping. Revoked tokens may be accepted.', {
+      // Redis unreachable. The blacklist is how we honour logout/revocation, so
+      // skipping it (fail-open) means revoked tokens are accepted for up to the
+      // 15m access-token TTL — a security hole. Default = FAIL CLOSED.
+      // Escape hatch: set AUTH_FAIL_OPEN_ON_REDIS_ERROR=true to prioritise
+      // availability (e.g. if prod Redis is flaky and you accept the risk).
+      logger.error('Redis unavailable for token blacklist check.', {
         error: redisErr.message,
+        failMode: process.env.AUTH_FAIL_OPEN_ON_REDIS_ERROR === 'true' ? 'open' : 'closed',
       });
+      if (process.env.AUTH_FAIL_OPEN_ON_REDIS_ERROR !== 'true') {
+        return res.status(503).json({
+          success: false,
+          message: 'Authentication service temporarily unavailable. Please retry.',
+        });
+      }
     }
 
     if (isBlacklisted) {

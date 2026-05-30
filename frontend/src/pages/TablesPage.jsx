@@ -32,8 +32,8 @@ const SHAPES = [
 ];
 
 const AREA_COLORS = [
-  '#1e293b','#172554','#14532d','#3b0764','#450a0a',
-  '#422006','#0c4a6e','#1c1917','#064e3b','#312e81',
+  '#e0e7ff','#dbeafe','#dcfce7','#fce7f3','#fef3c7',
+  '#fed7aa','#cffafe','#f5f5f4','#d1fae5','#e9d5ff',
 ];
 
 const GRID = 10;
@@ -75,6 +75,9 @@ export default function TablesPage() {
 
   /* ── editor state ── */
   const [editMode, setEditMode] = useState(false);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'layout'
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQ, setSearchQ]   = useState('');
   const [tables, setTables]     = useState([]);
   const [areas,  setAreas]      = useState([]);
   const [zoom,   setZoom]       = useState(1);
@@ -93,7 +96,7 @@ export default function TablesPage() {
 
   /* ── form state ── */
   const [addForm, setAddForm]   = useState({ table_number: '', capacity: 4, shape: 'square', area_id: '' });
-  const [areaForm, setAreaForm] = useState({ name: '', color: '#1e293b' });
+  const [areaForm, setAreaForm] = useState({ name: '', color: '#e0e7ff' });
   const [editForm, setEditForm] = useState({});
   const [voidPin, setVoidPin]   = useState('');
   const [voidReason, setVoidReason] = useState('');
@@ -116,7 +119,7 @@ export default function TablesPage() {
   /* ── socket live updates (view mode only) ── */
   useEffect(() => {
     if (!outletId || editMode) return;
-    const s = io(`${SOCKET_URL}/orders`, { transports: ['websocket'], withCredentials: true });
+    const s = io(`${SOCKET_URL}/orders`, { auth: { token: localStorage.getItem('accessToken') }, transports: ['websocket'], withCredentials: true });
     s.emit('join_outlet', outletId);
     s.on('table_status_change', () => qc.invalidateQueries({ queryKey: ['tables', outletId] }));
     return () => s.disconnect();
@@ -371,72 +374,384 @@ export default function TablesPage() {
   const selectedTable = selected?.type === 'table' ? tables.find(t => t.id === selected.id) : null;
   const selectedArea  = selected?.type === 'area'  ? areas.find(a => a.id === selected.id) : null;
 
+  /* ── Auto-grid fallback ──
+     If a table was created without a saved layout (pos_x/pos_y are 0 or missing),
+     give it a position in a clean grid so it doesn't stack at (0,0).
+     The grid origin shifts past any existing zones so tables don't overlap them.
+     Display-only — actual data is untouched until user saves in Edit mode. */
+  const PER_ROW = 6;
+  const CELL_W  = 130;    // wider gap between tables
+  const CELL_H  = 130;
+  // Find the bottom-right edge of all existing zones so we start the grid below/past them
+  const zoneEdge = areas.reduce(
+    (acc, a) => ({
+      maxX: Math.max(acc.maxX, (a.pos_x || 0) + (a.width  || 400)),
+      maxY: Math.max(acc.maxY, (a.pos_y || 0) + (a.height || 300)),
+    }),
+    { maxX: 0, maxY: 0 }
+  );
+  const GRID_OX = 40;
+  // Place auto-grid BELOW any zones (with a small breathing gap) so tables never sit on top
+  const GRID_OY = (areas.length > 0 ? zoneEdge.maxY + 32 : 40);
+  const tablesForRender = tables.map((t, idx) => {
+    const hasPosition = (Number(t.pos_x) > 0) || (Number(t.pos_y) > 0);
+    if (hasPosition) return t;
+    const col = idx % PER_ROW;
+    const row = Math.floor(idx / PER_ROW);
+    return {
+      ...t,
+      pos_x: GRID_OX + col * CELL_W,
+      pos_y: GRID_OY + row * CELL_H,
+      _auto_positioned: true,
+    };
+  });
+
   /* ══════════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════════ */
   return (
-    <div className="flex flex-col h-full space-y-0 animate-fade-in">
+    <div className="flex flex-col h-full animate-fade-in" style={{ gap: 20 }}>
 
-      {/* ── Top Bar ── */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="page-title mb-0">Floor Plan</h1>
-          {/* status pills */}
-          {[
-            { label: 'Total',     value: counts.total,     color: '#94a3b8' },
-            { label: 'Available', value: counts.available, color: '#22c55e' },
-            { label: 'Occupied',  value: counts.occupied,  color: '#3b82f6' },
-            { label: 'Held',      value: counts.held,      color: '#eab308' },
-          ].map(s => (
-            <div key={s.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold"
-              style={{ borderColor: s.color + '40', background: s.color + '15', color: s.color }}>
-              <span className="text-base">{s.value}</span>
-              <span className="opacity-70">{s.label}</span>
-            </div>
-          ))}
+      {/* ── Page header — clean, editorial ── */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <Grid3X3 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--accent)' }}>
+              Floor management
+            </span>
+            <span className="w-1 h-1 rounded-full" style={{ background: 'var(--text-secondary)', opacity: 0.5 }} />
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              Live · synced now
+            </span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight leading-none mb-1.5"
+            style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>
+            {editMode ? 'Editing floor plan' : 'Dining floor'}
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {editMode
+              ? 'Drag tables to position them. Add zones to group sections. Save when you\'re happy.'
+              : 'Tap a table to view its order, accept reservations or settle the bill.'}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
           {!editMode ? (
             <>
-              <button onClick={() => { setEditMode(true); setSelected(null); }}
-                className="btn-primary flex items-center gap-2 text-sm">
-                <Edit3 className="w-4 h-4" /> Edit Layout
+              <button onClick={() => { setAreaForm({ name: '', color: '#e0e7ff' }); setAddAreaOpen(true); }}
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; }}>
+                <Layers className="w-3.5 h-3.5" /> Add Zone
               </button>
               <button onClick={() => setAddTableOpen(true)}
-                className="btn-surface flex items-center gap-2 text-sm">
-                <Plus className="w-4 h-4" /> Add Table
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; }}>
+                <Plus className="w-3.5 h-3.5" /> Add Table
+              </button>
+              <button onClick={() => { setEditMode(true); setSelected(null); }}
+                className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2">
+                <Edit3 className="w-3.5 h-3.5" /> Edit Layout
               </button>
             </>
           ) : (
             <>
               <button onClick={() => setAddAreaOpen(true)}
-                className="btn-surface flex items-center gap-2 text-sm">
-                <Layers className="w-4 h-4" /> Add Zone
+                className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                <Layers className="w-3.5 h-3.5" /> Add Zone
               </button>
               <button onClick={() => setAddTableOpen(true)}
-                className="btn-surface flex items-center gap-2 text-sm">
-                <Plus className="w-4 h-4" /> Add Table
-              </button>
-              <button onClick={handleSave} disabled={saveFloorPlanMut.isPending}
-                className="btn-primary flex items-center gap-2 text-sm">
-                {saveFloorPlanMut.isPending
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Save className="w-4 h-4" />}
-                Save Layout
+                className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                <Plus className="w-3.5 h-3.5" /> Add Table
               </button>
               <button onClick={() => {
                   setTables(serverTables.map(t => ({ ...t })));
                   setAreas(serverAreas.map(a => ({ ...a })));
                   setEditMode(false); setSelected(null); setDirty(false);
                 }}
-                className="btn-ghost flex items-center gap-2 text-sm text-red-400">
-                <X className="w-4 h-4" /> Discard
+                className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <X className="w-3.5 h-3.5" /> Discard
+              </button>
+              <button onClick={handleSave} disabled={saveFloorPlanMut.isPending}
+                className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2">
+                {saveFloorPlanMut.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Save className="w-3.5 h-3.5" />}
+                Save Layout
               </button>
             </>
           )}
         </div>
       </div>
+
+      {/* ── KPI strip — clean light cards, clear hierarchy ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Total tables', value: counts.total,     color: '#64748b', sub: 'across all zones' },
+          { label: 'Available',    value: counts.available, color: '#10b981', sub: 'ready to seat' },
+          { label: 'Occupied',     value: counts.occupied,  color: '#3b82f6', sub: 'with active orders' },
+          { label: 'Held',         value: counts.held,      color: '#f59e0b', sub: 'awaiting payment' },
+        ].map(s => (
+          <div key={s.label}
+            className="relative rounded-xl px-4 py-3 transition-all"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r"
+              style={{ background: s.color, opacity: 0.85 }} />
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider mb-1"
+              style={{ color: 'var(--text-secondary)' }}>
+              {s.label}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black tracking-tight"
+                style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em', fontFeatureSettings: '"tnum"' }}>
+                {s.value}
+              </span>
+              <span className="text-[10.5px]" style={{ color: 'var(--text-secondary)' }}>
+                {s.sub}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filter bar — status chips + search ── */}
+      {!editMode && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          {/* status chips */}
+          <div className="flex items-center gap-1 flex-wrap p-1 rounded-lg"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            {[
+              { id: 'all',       label: 'All',       n: counts.total,     dot: '#94a3b8' },
+              { id: 'available', label: 'Free',      n: counts.available, dot: '#10b981' },
+              { id: 'occupied',  label: 'Busy',      n: counts.occupied,  dot: '#3b82f6' },
+              { id: 'reserved',  label: 'Reserved',  n: tables.filter(t=>t.status==='reserved').length, dot: '#6366f1' },
+              { id: 'held',      label: 'Held',      n: counts.held,      dot: '#f59e0b' },
+            ].map(f => {
+              const active = statusFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => setStatusFilter(f.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                  style={{
+                    background: active ? 'var(--bg-secondary)' : 'transparent',
+                    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    boxShadow: active ? '0 1px 3px rgba(15,23,42,0.05)' : 'none',
+                  }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: f.dot }} />
+                  {f.label}
+                  <span className="font-mono opacity-60">{f.n}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* search */}
+          <input
+            type="text"
+            placeholder="Search by table number…"
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            className="px-3 py-2 rounded-lg text-xs outline-none transition-colors"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+              minWidth: 220,
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── Cards view — Toast/Square-style table grid grouped by zone ── */}
+      {!editMode && (() => {
+        // filter
+        const filtered = tables.filter(t => {
+          if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+          if (searchQ.trim()) {
+            const q = searchQ.toLowerCase();
+            const num = String(t.table_number || '').toLowerCase();
+            if (!num.includes(q)) return false;
+          }
+          return true;
+        });
+
+        // group by area
+        const byArea = {};
+        filtered.forEach(t => {
+          const key = t.area_id || 'unzoned';
+          if (!byArea[key]) byArea[key] = [];
+          byArea[key].push(t);
+        });
+        const areaOrder = [
+          ...areas.filter(a => byArea[a.id]).map(a => ({ id: a.id, name: a.name, list: byArea[a.id] })),
+          ...(byArea.unzoned ? [{ id: 'unzoned', name: 'Other tables', list: byArea.unzoned }] : []),
+        ];
+
+        if (filtered.length === 0) {
+          return (
+            <div className="card flex flex-col items-center text-center py-12">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
+                style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.18)' }}>
+                <Grid3X3 className="w-6 h-6" style={{ color: 'var(--accent)' }} />
+              </div>
+              <h3 className="text-base font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+                No tables match
+              </h3>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Try a different filter or clear the search.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex flex-col gap-6">
+            {areaOrder.map(group => {
+              const isRealZone = group.id !== 'unzoned';
+              return (
+              <div key={group.id} className="group/zone">
+                {/* zone header */}
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em]"
+                    style={{ color: 'var(--text-secondary)' }}>
+                    {group.name}
+                  </h3>
+                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                  <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    {group.list.length} table{group.list.length !== 1 ? 's' : ''}
+                  </span>
+                  {/* Zone actions (only for real zones) */}
+                  {isRealZone && (
+                    <button
+                      onClick={() => {
+                        setSelected({ type: 'area', id: group.id });
+                        setDeleteAreaOpen(true);
+                      }}
+                      title={`Delete zone "${group.name}"`}
+                      className="opacity-0 group-hover/zone:opacity-100 transition-opacity ml-1 p-1 rounded-md"
+                      style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* table cards grid */}
+                <div className="grid gap-3"
+                  style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                  {group.list.map(t => {
+                    const cfg = STATUS_CFG[t.status] || STATUS_CFG.available;
+                    const order = t.orders?.[0];
+                    const isBusy = t.status === 'occupied' || t.status === 'held' || t.status === 'part_paid';
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => openDetail(t)}
+                        className="relative text-left rounded-xl p-4 transition-all group overflow-hidden"
+                        style={{
+                          background: 'var(--bg-card)',
+                          border: `1px solid var(--border)`,
+                          minHeight: 130,
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = cfg.border + '70';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = `0 8px 22px -8px ${cfg.border}33`;
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = 'var(--border)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}>
+                        {/* top status stripe */}
+                        <span className="absolute top-0 left-0 right-0 h-1" style={{ background: cfg.border }} />
+
+                        {/* header row */}
+                        <div className="flex items-start justify-between mb-3 mt-1">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider"
+                              style={{ color: 'var(--text-secondary)' }}>
+                              Table
+                            </div>
+                            <div className="text-2xl font-black leading-none tracking-tight"
+                              style={{ color: 'var(--text-primary)', letterSpacing: '-0.025em' }}>
+                              {t.table_number}
+                            </div>
+                          </div>
+                          {/* status pill */}
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md"
+                            style={{
+                              background: cfg.border + '18',
+                              color: cfg.border,
+                              border: `1px solid ${cfg.border}33`,
+                            }}>
+                            {cfg.label}
+                          </span>
+                        </div>
+
+                        {/* details row */}
+                        <div className="flex items-center gap-3 text-[11px] mb-3"
+                          style={{ color: 'var(--text-secondary)' }}>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            <span>{t.seating_capacity || t.capacity || 2} seats</span>
+                          </div>
+                          {t.shape === 'round' && (
+                            <div className="flex items-center gap-1">
+                              <Circle className="w-3 h-3" />
+                              <span>Round</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* footer — live order info or CTA */}
+                        {isBusy && order ? (
+                          <div className="pt-3 flex items-center justify-between"
+                            style={{ borderTop: '1px dashed var(--border)' }}>
+                            <div className="min-w-0">
+                              <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                <ElapsedTimer timestamp={order.created_at} /> elapsed
+                              </div>
+                              <div className="text-xs font-bold mt-0.5"
+                                style={{ color: 'var(--text-primary)', fontFeatureSettings: '"tnum"' }}>
+                                {symbol}{Number(order.grand_total || 0).toFixed(2)}
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-semibold"
+                              style={{ color: cfg.border }}>
+                              View →
+                            </div>
+                          </div>
+                        ) : t.status === 'available' ? (
+                          <div className="pt-3 text-[11px] font-semibold flex items-center justify-between"
+                            style={{ borderTop: '1px dashed var(--border)', color: cfg.border }}>
+                            <span>Ready to seat</span>
+                            <span className="opacity-60">Open POS →</span>
+                          </div>
+                        ) : (
+                          <div className="pt-3 text-[11px]"
+                            style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-secondary)' }}>
+                            Tap to manage
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Canvas Toolbar (edit mode) ── */}
       {editMode && (
@@ -485,13 +800,69 @@ export default function TablesPage() {
         </div>
       )}
 
-      {/* ── Canvas ── */}
-      <div className="flex-1 rounded-2xl border overflow-hidden relative"
-        style={{ borderColor: 'var(--border)', background: '#0f172a', minHeight: 520 }}>
+      {/* ── Canvas — only shown during Edit Layout ── */}
+      {editMode && (
+      <div className="flex-1 rounded-2xl overflow-hidden relative"
+        style={{
+          border: '1px solid var(--border)',
+          background: 'var(--bg-secondary)',
+          minHeight: 560,
+          backgroundImage: 'radial-gradient(rgba(99,102,241,0.12) 1px, transparent 1px)',
+          backgroundSize: '20px 20px',
+        }}>
+
+        {/* Inline legend — top-right corner */}
+        {!editMode && tables.length > 0 && (
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-2 rounded-lg"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 4px 14px rgba(15,23,42,0.06)',
+            }}>
+            {[
+              { c: '#22c55e', l: 'Free'    },
+              { c: '#3b82f6', l: 'Busy'    },
+              { c: '#6366f1', l: 'Reserved'},
+              { c: '#eab308', l: 'Held'    },
+            ].map((x, i) => (
+              <div key={x.l} className="flex items-center gap-1" style={{ marginLeft: i ? 8 : 0 }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: x.c }} />
+                <span className="text-[10.5px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{x.l}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+
+        {/* Empty state — first-time use */}
+        {!isLoading && tables.length === 0 && areas.length === 0 && !editMode && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className="text-center max-w-sm px-6 pointer-events-auto">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04))',
+                  border: '1px solid rgba(99,102,241,0.18)',
+                }}>
+                <Grid3X3 className="w-6 h-6" style={{ color: 'var(--accent)' }} />
+              </div>
+              <h3 className="text-base font-bold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+                No tables yet
+              </h3>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                Add your first table to start tracking orders, reservations and occupancy across your dining floor.
+              </p>
+              <button
+                onClick={() => setAddTableOpen(true)}
+                className="btn-primary inline-flex items-center gap-1.5 text-sm px-4 py-2.5">
+                <Plus className="w-4 h-4" /> Add first table
+              </button>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent)' }} />
           </div>
         ) : (
           <div
@@ -532,6 +903,22 @@ export default function TablesPage() {
                 {/* ── Areas (zones) ── */}
                 {areas.map(area => {
                   const isSel = selected?.type === 'area' && selected.id === area.id;
+                  // Force every zone to a very subtle pastel — never dominate the canvas.
+                  // In view mode they are barely visible (just a soft outline label).
+                  // In edit mode they get a stronger tint so they can be repositioned/resized.
+                  const baseColor = area.color || '#e0e7ff';
+                  let bg, borderColor, borderStyle;
+                  if (editMode) {
+                    // Edit mode: visible but soft
+                    bg = baseColor.startsWith('#') && baseColor.length === 7 ? baseColor + '26' : baseColor;
+                    borderColor = isSel ? '#6366f1' : 'rgba(15,23,42,0.18)';
+                    borderStyle = isSel ? 'solid' : 'dashed';
+                  } else {
+                    // View mode: barely there — just a label hint
+                    bg = 'transparent';
+                    borderColor = 'rgba(99,102,241,0.18)';
+                    borderStyle = 'dashed';
+                  }
                   return (
                     <div key={area.id}
                       style={{
@@ -540,21 +927,25 @@ export default function TablesPage() {
                         top:  area.pos_y || 0,
                         width:  area.width  || 400,
                         height: area.height || 300,
-                        background: (area.color || '#1e293b') + 'cc',
-                        border: `2px ${isSel ? 'solid' : 'dashed'} ${isSel ? '#3b82f6' : (area.color || '#334155')}`,
+                        background: bg,
+                        border: `${isSel ? 2 : 1}px ${borderStyle} ${borderColor}`,
                         borderRadius: 16,
                         cursor: editMode ? 'move' : 'default',
                         userSelect: 'none',
                         zIndex: 1,
-                        boxShadow: isSel ? '0 0 0 3px rgba(59,130,246,0.3)' : 'none',
+                        boxShadow: isSel ? '0 0 0 3px rgba(99,102,241,0.18)' : 'none',
                       }}
                       onMouseDown={editMode ? (e) => handleMouseDown(e, 'area', area.id) : undefined}
                     >
                       <div style={{
-                        position: 'absolute', top: 8, left: 12,
-                        fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)',
-                        textTransform: 'uppercase', letterSpacing: '0.08em',
+                        position: 'absolute', top: 10, left: 14,
+                        fontSize: 10.5, fontWeight: 800,
+                        color: editMode ? 'rgba(15,23,42,0.55)' : 'rgba(99,102,241,0.65)',
+                        textTransform: 'uppercase', letterSpacing: '0.1em',
                         pointerEvents: 'none',
+                        background: editMode ? 'transparent' : 'rgba(255,255,255,0.9)',
+                        padding: editMode ? 0 : '2px 8px',
+                        borderRadius: 4,
                       }}>
                         {area.name}
                       </div>
@@ -574,7 +965,7 @@ export default function TablesPage() {
                 })}
 
                 {/* ── Tables ── */}
-                {tables.map(table => {
+                {tablesForRender.map(table => {
                   const cfg   = STATUS_CFG[table.status] || STATUS_CFG.available;
                   const order = table.orders?.[0];
                   const isSel = selected?.type === 'table' && selected.id === table.id;
@@ -693,22 +1084,9 @@ export default function TablesPage() {
           </div>
         )}
 
-        {/* Legend */}
-        {!editMode && (
-          <div style={{
-            position: 'absolute', bottom: 12, right: 12, display: 'flex', gap: 8,
-            background: 'rgba(15,23,42,0.85)', borderRadius: 10, padding: '6px 10px',
-            backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)',
-          }}>
-            {Object.entries(STATUS_CFG).slice(0, 5).map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: v.border, opacity: 0.85 }} />
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>{v.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Legend moved to top-right (light themed) — bottom legend removed */}
       </div>
+      )}
 
       {/* ══════════ MODALS ══════════ */}
 

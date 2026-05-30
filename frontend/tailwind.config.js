@@ -30,12 +30,16 @@ export default {
       },
       animation: {
         'slide-in': 'slideIn 0.3s ease-out',
+        'slide-up': 'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)',
         'fade-in': 'fadeIn 0.2s ease-out',
+        'scale-in': 'scaleIn 0.25s cubic-bezier(0.32,0.72,0,1)',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
         'bounce-subtle': 'bounceSubtle 0.5s ease',
       },
       keyframes: {
         slideIn: { from: { transform: 'translateX(100%)', opacity: 0 }, to: { transform: 'translateX(0)', opacity: 1 } },
+        slideUp: { from: { transform: 'translateY(100%)', opacity: 0 }, to: { transform: 'translateY(0)', opacity: 1 } },
+        scaleIn: { from: { transform: 'scale(0.95)', opacity: 0 }, to: { transform: 'scale(1)', opacity: 1 } },
         fadeIn: { from: { opacity: 0 }, to: { opacity: 1 } },
         bounceSubtle: { '0%,100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.05)' } },
       },

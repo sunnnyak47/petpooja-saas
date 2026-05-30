@@ -25,6 +25,7 @@ import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { printReceipt } from '../../src/lib/printer';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -112,25 +113,27 @@ function nowBillNumber() {
   return `BILL-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
-function nowDateTime() {
-  return new Date().toLocaleString('en-IN', {
+function nowDateTime(locale) {
+  return new Date().toLocaleString(locale || 'en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
 }
 
-function formatWhatsAppBill({ table, items, subtotal, cgst, sgst, discountAmt, grandTotal, paymentMode }) {
-  const itemLines = items.map(i => `  • ${i.name} x${i.qty}  ₹${(i.qty * i.price).toLocaleString('en-IN')}`).join('\n');
+function formatWhatsAppBill({ table, items, subtotal, cgst, sgst, discountAmt, grandTotal, paymentMode, symbol, locale }) {
+  const sym = symbol || '₹';
+  const loc = locale || 'en-IN';
+  const itemLines = items.map(i => `  • ${i.name} x${i.qty}  ${sym}${(i.qty * i.price).toLocaleString(loc)}`).join('\n');
   return encodeURIComponent(
     `🍽 *${RESTAURANT_NAME}*\n` +
     `Table ${table.number} | ${table.covers} covers | Waiter: ${table.waiter}\n` +
-    `${nowDateTime()}\n\n` +
+    `${nowDateTime(loc)}\n\n` +
     `*Items:*\n${itemLines}\n\n` +
-    `Subtotal: ₹${subtotal.toLocaleString('en-IN')}\n` +
-    (discountAmt > 0 ? `Discount: -₹${discountAmt.toFixed(2)}\n` : '') +
-    `CGST (2.5%): ₹${cgst.toFixed(2)}\n` +
-    `SGST (2.5%): ₹${sgst.toFixed(2)}\n` +
-    `*GRAND TOTAL: ₹${grandTotal.toFixed(2)}*\n` +
+    `Subtotal: ${sym}${subtotal.toLocaleString(loc)}\n` +
+    (discountAmt > 0 ? `Discount: -${sym}${discountAmt.toFixed(2)}\n` : '') +
+    `CGST (2.5%): ${sym}${cgst.toFixed(2)}\n` +
+    `SGST (2.5%): ${sym}${sgst.toFixed(2)}\n` +
+    `*GRAND TOTAL: ${sym}${grandTotal.toFixed(2)}*\n` +
     `Payment: ${paymentMode}\n\n` +
     `Thank you for dining with us! 🙏`
   );
@@ -168,6 +171,7 @@ function StatCard({ label, value, accent }) {
 
 function TableBillCard({ table, onPress }) {
   const subtotal = useMemo(() => calcSubtotal(table.items), [table.items]);
+  const { symbol, locale } = useCurrency();
   return (
     <PressCard scaleDown={0.97} onPress={() => onPress(table)} style={styles.tableCard}>
       <View style={styles.tableCardLeft}>
@@ -176,7 +180,7 @@ function TableBillCard({ table, onPress }) {
         </View>
       </View>
       <View style={styles.tableCardBody}>
-        <Text style={styles.subtotalText}>₹{subtotal.toLocaleString('en-IN')}</Text>
+        <Text style={styles.subtotalText}>{symbol}{subtotal.toLocaleString(locale)}</Text>
         <Text style={styles.tableTitle}>Table {table.number}</Text>
         <Text style={styles.tableWaiter}>Waiter: {table.waiter}</Text>
         <View style={styles.tableMetaRow}>
@@ -206,6 +210,7 @@ function TableBillCard({ table, onPress }) {
 
 function SettledBillRow({ bill }) {
   const modeColor = bill.payMode === 'UPI' ? '#0070F3' : bill.payMode === 'Card' ? '#7B61FF' : '#00B341';
+  const { symbol, locale } = useCurrency();
   return (
     <View style={styles.settledRow}>
       <View style={styles.settledLeft}>
@@ -218,7 +223,7 @@ function SettledBillRow({ bill }) {
         </View>
       </View>
       <View style={styles.settledRight}>
-        <Text style={styles.settledTotal}>₹{bill.total.toLocaleString('en-IN')}</Text>
+        <Text style={styles.settledTotal}>{symbol}{bill.total.toLocaleString(locale)}</Text>
         <View style={[styles.payModePill, { backgroundColor: modeColor + '18' }]}>
           <Text style={[styles.payModePillText, { color: modeColor }]}>{bill.payMode}</Text>
         </View>
@@ -231,6 +236,7 @@ function SettledBillRow({ bill }) {
 
 function ItemPickerModal({ visible, onClose, onAdd, menuItems }) {
   const [search, setSearch] = useState('');
+  const { symbol } = useCurrency();
   const sourceItems = menuItems && menuItems.length > 0 ? menuItems : MENU_ITEMS;
   const filtered = useMemo(
     () => sourceItems.filter(m => m.name.toLowerCase().includes(search.toLowerCase())),
@@ -268,7 +274,7 @@ function ItemPickerModal({ visible, onClose, onAdd, menuItems }) {
                 <Text style={styles.pickerItemName}>{item.name}</Text>
                 <Text style={styles.pickerItemCat}>{item.category}</Text>
               </View>
-              <Text style={styles.pickerItemPrice}>₹{item.price}</Text>
+              <Text style={styles.pickerItemPrice}>{symbol}{item.price}</Text>
               <View style={styles.pickerAddBtn}>
                 <Ionicons name="add" size={18} color="#0070F3" />
               </View>
@@ -289,11 +295,12 @@ function DiscountPanel({ discount, onApply, onRemove }) {
   const [pctVal, setPctVal] = useState('');
   const [couponVal, setCouponVal] = useState('');
   const COUPONS = { SAVE50: 50, WELCOME100: 100 };
+  const { symbol } = useCurrency();
 
   const handleApply = () => {
     if (mode === 'flat') {
       const v = parseFloat(flatVal) || 0;
-      onApply({ type: 'flat', value: v, label: `Flat ₹${v} off` });
+      onApply({ type: 'flat', value: v, label: `Flat ${symbol}${v} off` });
     } else if (mode === 'percent') {
       const v = parseFloat(pctVal) || 0;
       onApply({ type: 'percent', value: Math.min(v, 100), label: `${v}% off` });
@@ -301,7 +308,7 @@ function DiscountPanel({ discount, onApply, onRemove }) {
       const code = couponVal.trim().toUpperCase();
       const off = COUPONS[code];
       if (off) {
-        onApply({ type: 'flat', value: off, label: `Coupon ${code}: ₹${off} off` });
+        onApply({ type: 'flat', value: off, label: `Coupon ${code}: ${symbol}${off} off` });
       } else {
         Alert.alert('Invalid Coupon', 'Coupon code not recognised.');
       }
@@ -332,7 +339,7 @@ function DiscountPanel({ discount, onApply, onRemove }) {
             onPress={() => setMode(m)}
           >
             <Text style={[styles.discountModeTabText, mode === m && styles.discountModeTabTextActive]}>
-              {m === 'flat' ? '₹ Flat' : m === 'percent' ? '% Off' : 'Coupon'}
+              {m === 'flat' ? `${symbol} Flat` : m === 'percent' ? '% Off' : 'Coupon'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -382,6 +389,7 @@ function SplitBillModal({ visible, onClose, grandTotal, items }) {
   const [numPeople, setNumPeople] = useState(2);
   const [mode, setMode] = useState('equal'); // 'equal' | 'custom'
   const [assignments, setAssignments] = useState({});
+  const { symbol } = useCurrency();
 
   const equalShare = grandTotal / numPeople;
 
@@ -445,7 +453,7 @@ function SplitBillModal({ visible, onClose, grandTotal, items }) {
                     <Text style={styles.personBadgeText}>P{idx + 1}</Text>
                   </View>
                   <Text style={styles.personName}>Person {idx + 1}</Text>
-                  <Text style={styles.personAmount}>₹{equalShare.toFixed(2)}</Text>
+                  <Text style={styles.personAmount}>{symbol}{equalShare.toFixed(2)}</Text>
                 </View>
               ))}
             </View>
@@ -482,7 +490,7 @@ function SplitBillModal({ visible, onClose, grandTotal, items }) {
                     <Text style={styles.personBadgeText}>P{idx + 1}</Text>
                   </View>
                   <Text style={styles.personName}>Person {idx + 1}</Text>
-                  <Text style={styles.personAmount}>₹{personTotal(idx).toFixed(2)}</Text>
+                  <Text style={styles.personAmount}>{symbol}{personTotal(idx).toFixed(2)}</Text>
                 </View>
               ))}
             </View>
@@ -499,6 +507,7 @@ function SplitBillModal({ visible, onClose, grandTotal, items }) {
 
 function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating, outletId, userId, menuItems }) {
   const insets = useSafeAreaInsets();
+  const { symbol, locale } = useCurrency();
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(null);
   const [showDiscountPanel, setShowDiscountPanel] = useState(false);
@@ -559,7 +568,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
   const handleSettle = useCallback(() => {
     Alert.alert(
       'Settle Table',
-      `Settle Table ${table.number} for ₹${grandTotal.toFixed(2)}?`,
+      `Settle Table ${table.number} for ${symbol}${grandTotal.toFixed(2)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -691,7 +700,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
                 <View key={item.id} style={styles.itemRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.itemUnitPrice}>₹{item.price} each</Text>
+                    <Text style={styles.itemUnitPrice}>{symbol}{item.price} each</Text>
                   </View>
                   <View style={styles.qtyControl}>
                     <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item.id, -1)}>
@@ -702,7 +711,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
                       <Ionicons name="add" size={14} color="#444" />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.itemTotal}>₹{(item.qty * item.price).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.itemTotal}>{symbol}{(item.qty * item.price).toLocaleString(locale)}</Text>
                   <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.removeItemBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="close" size={14} color="#EE0000" />
                   </TouchableOpacity>
@@ -740,29 +749,29 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
             <Text style={styles.sectionHeading}>Tax & Total</Text>
             <View style={styles.calcRow}>
               <Text style={styles.calcLabel}>Subtotal</Text>
-              <Text style={styles.calcValue}>₹{subtotal.toLocaleString('en-IN')}</Text>
+              <Text style={styles.calcValue}>{symbol}{subtotal.toLocaleString(locale)}</Text>
             </View>
             {discountAmt > 0 && (
               <View style={styles.calcRow}>
                 <Text style={[styles.calcLabel, { color: '#00B341' }]}>Discount</Text>
-                <Text style={[styles.calcValue, { color: '#00B341' }]}>−₹{discountAmt.toFixed(2)}</Text>
+                <Text style={[styles.calcValue, { color: '#00B341' }]}>−{symbol}{discountAmt.toFixed(2)}</Text>
               </View>
             )}
             <View style={styles.calcRow}>
               <Text style={styles.calcLabel}>CGST (2.5%)</Text>
-              <Text style={styles.calcValue}>₹{cgst.toFixed(2)}</Text>
+              <Text style={styles.calcValue}>{symbol}{cgst.toFixed(2)}</Text>
             </View>
             <View style={styles.calcRow}>
               <Text style={styles.calcLabel}>SGST (2.5%)</Text>
-              <Text style={styles.calcValue}>₹{sgst.toFixed(2)}</Text>
+              <Text style={styles.calcValue}>{symbol}{sgst.toFixed(2)}</Text>
             </View>
             <View style={styles.calcRow}>
               <Text style={styles.calcLabel}>Total GST</Text>
-              <Text style={styles.calcValue}>₹{(cgst + sgst).toFixed(2)}</Text>
+              <Text style={styles.calcValue}>{symbol}{(cgst + sgst).toFixed(2)}</Text>
             </View>
             <View style={styles.grandTotalRow}>
               <Text style={styles.grandTotalLabel}>GRAND TOTAL</Text>
-              <Text style={styles.grandTotalValue}>₹{grandTotal.toFixed(2)}</Text>
+              <Text style={styles.grandTotalValue}>{symbol}{grandTotal.toFixed(2)}</Text>
             </View>
 
             <View style={styles.separator} />
@@ -801,7 +810,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
                   <Text style={styles.cashLabel}>Amount Tendered</Text>
                   <TextInput
                     style={styles.cashInput}
-                    placeholder={`₹${Math.ceil(grandTotal)}`}
+                    placeholder={`${symbol}${Math.ceil(grandTotal)}`}
                     placeholderTextColor="#AAA"
                     keyboardType="numeric"
                     value={amountTendered}
@@ -811,7 +820,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
                 {parseFloat(amountTendered) > 0 && (
                   <View style={styles.changeBox}>
                     <Text style={styles.changeLabel}>Change</Text>
-                    <Text style={styles.changeValue}>₹{change.toFixed(2)}</Text>
+                    <Text style={styles.changeValue}>{symbol}{change.toFixed(2)}</Text>
                   </View>
                 )}
               </View>

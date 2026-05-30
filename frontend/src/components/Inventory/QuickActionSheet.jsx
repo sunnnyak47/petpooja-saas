@@ -5,41 +5,73 @@ import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
 import { X, Search, Plus, Minus, Check, Loader2, Zap, Truck, Trash2, Settings, Sparkles } from 'lucide-react';
 
-/* ─── Bottom Sheet wrapper ──────────────────────────────────── */
+/* ─── Modal / Sheet wrapper ─────────────────────────────────── */
+/*  - Mobile  (< 640px): slides up from bottom  */
+/*  - Desktop (≥ 640px): centered dialog        */
 function Sheet({ title, icon: Icon, onClose, children, accentColor = 'var(--accent)' }) {
   const ref = useRef(null);
 
+  /* Close on outside click */
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    setTimeout(() => document.addEventListener('mousedown', handler), 100);
-    return () => document.removeEventListener('mousedown', handler);
+    const tid = setTimeout(() => document.addEventListener('mousedown', handler), 100);
+    return () => { clearTimeout(tid); document.removeEventListener('mousedown', handler); };
   }, [onClose]);
 
+  /* Close on Escape */
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  /* Prevent body scroll while open */
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div ref={ref}
-        className="w-full max-w-lg rounded-t-3xl overflow-hidden flex flex-col animate-slide-up"
-        style={{ background: 'var(--bg-card)', maxHeight: '90vh' }}>
-        <div className="flex items-center justify-between px-6 py-5 shrink-0"
-          style={{ borderBottom: '1px solid var(--border)' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+    >
+      <div
+        ref={ref}
+        className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col animate-slide-up sm:animate-scale-in"
+        style={{ background: 'var(--bg-card)', maxHeight: '92dvh', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}
+      >
+        {/* ── Header ── */}
+        <div
+          className="flex items-center justify-between px-5 py-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          {/* Drag handle — mobile only */}
+          <span className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full sm:hidden"
+            style={{ background: 'var(--border)' }} />
+
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center"
-              style={{ background: accentColor, opacity: 0.15 }}>
-            </div>
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center absolute"
-              style={{ background: 'transparent' }}>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: `color-mix(in srgb, ${accentColor} 15%, transparent)` }}
+            >
               <Icon className="w-5 h-5" style={{ color: accentColor }} />
             </div>
-            <span className="font-black text-base ml-10" style={{ color: 'var(--text-primary)' }}>{title}</span>
+            <span className="font-black text-base" style={{ color: 'var(--text-primary)' }}>{title}</span>
           </div>
-          <button onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center hover:opacity-70"
-            style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center transition-opacity hover:opacity-60"
+            style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
+
+        {/* ── Scrollable content ── */}
+        <div className="overflow-y-auto flex-1 px-5 py-5">{children}</div>
       </div>
     </div>
   );
@@ -394,7 +426,7 @@ export function AdjustStockSheet({ outletId, prefillItem, onClose }) {
    CREATE PO SHEET  (AI-assisted)
 ══════════════════════════════════════════════════════════════ */
 export function CreatePOSheet({ outletId, onClose }) {
-  const { symbol } = useCurrency();
+  const { symbol, format } = useCurrency();
   const qc = useQueryClient();
   const [poItems, setPOItems] = useState([]);
   const [supplierId, setSupplierId] = useState('');
@@ -403,7 +435,7 @@ export function CreatePOSheet({ outletId, onClose }) {
 
   const { data: suppliersData } = useQuery({
     queryKey: ['inv-suppliers', outletId],
-    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`),
+    queryFn: () => api.get(`/suppliers?outlet_id=${outletId}`),
     enabled: !!outletId,
   });
   const suppliers = suppliersData?.data || [];
@@ -435,15 +467,13 @@ export function CreatePOSheet({ outletId, onClose }) {
   const createMut = useMutation({
     mutationFn: () => api.post('/purchase-orders', {
       outlet_id: outletId,
-      supplier_id: supplierId || undefined,
+      ...(supplierId ? { supplier_id: supplierId } : {}),
       notes,
       items: poItems.map(i => ({
         inventory_item_id: i.id,
-        item_name: i.name,
-        category: i.category || 'Other',
         unit: i.unit,
-        ordered_quantity: parseFloat(i.qty),
-        unit_cost: parseFloat(i.unit_cost) || 0,
+        quantity: parseFloat(i.qty) || 1,
+        unit_price: parseFloat(i.unit_cost) || 0,
       })),
     }),
     onSuccess: () => {
@@ -482,7 +512,7 @@ export function CreatePOSheet({ outletId, onClose }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      Stock: {item.current} {item.unit} · {symbol}{item.unit_cost}/{item.unit}
+                      Stock: {item.current} {item.unit} · {format(item.unit_cost)}/{item.unit}
                     </p>
                   </div>
                   <input type="number" min="0" step="0.1"
@@ -520,7 +550,7 @@ export function CreatePOSheet({ outletId, onClose }) {
               style={{ background: 'var(--bg-secondary)' }}>
               <span className="text-sm font-bold" style={{ color: 'var(--text-secondary)' }}>Estimated Total</span>
               <span className="text-lg font-black" style={{ color: 'var(--text-primary)' }}>
-                {symbol}{total.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                {format(total)}
               </span>
             </div>
 

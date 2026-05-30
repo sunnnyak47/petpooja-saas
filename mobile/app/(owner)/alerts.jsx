@@ -20,6 +20,7 @@ import Animated, {
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -57,6 +58,7 @@ const FILTER_TABS = [
 // ─── Animated Alert Card ────────────────────────────────────────────────────
 function AlertCard({ alert, index, onMarkRead, onDismiss }) {
   const { colors } = useTheme();
+  const { symbol, locale } = useCurrency();
   const typeCfg = ALERT_TYPES[alert.type] || ALERT_TYPES.system;
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
@@ -112,7 +114,7 @@ function AlertCard({ alert, index, onMarkRead, onDismiss }) {
               {alert.amount != null && (
                 <View style={[s.amountBadge, { backgroundColor: typeCfg.bg }]}>
                   <Text style={[TYPE.caption, { color: typeCfg.color, fontWeight: '700' }]}>
-                    {'₹'}{alert.amount.toLocaleString('en-IN')}
+                    {symbol}{alert.amount.toLocaleString(locale)}
                   </Text>
                 </View>
               )}

@@ -129,24 +129,6 @@ async function restockOrder(req, res, next) {
   } catch (error) { next(error); }
 }
 
-/** GET /api/inventory/suppliers */
-async function listSuppliers(req, res, next) {
-  try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
-    const suppliers = await inventoryService.listSuppliers(outletId);
-    sendSuccess(res, suppliers, 'Suppliers retrieved');
-  } catch (error) { next(error); }
-}
-
-/** POST /api/inventory/suppliers */
-async function createSupplier(req, res, next) {
-  try {
-    const outletId = req.body.outlet_id || req.user.outlet_id;
-    const supplier = await inventoryService.createSupplier(outletId, req.body);
-    sendCreated(res, supplier, 'Supplier created');
-  } catch (error) { next(error); }
-}
-
 /** GET /api/inventory/recipes */
 async function listRecipes(req, res, next) {
   try {
@@ -178,22 +160,26 @@ async function getSummary(req, res, next) {
     const prisma = getDbClient();
 
     const [allStock, lowStockItems, categories] = await Promise.all([
-      // All stock rows for this outlet
+      // All stock rows for this outlet with their item definitions
       prisma.inventoryStock.findMany({
-        where: { outlet_id: outletId },
-        include: { item: { select: { name: true, unit: true, category: true, reorder_level: true } } },
+        where: { outlet_id: outletId, is_deleted: false },
+        include: {
+          item: {
+            select: { name: true, unit: true, category: true, min_threshold: true },
+          },
+        },
       }),
-      // Low-stock items (quantity <= reorder_level)
+      // Low-stock items (current_stock <= min_threshold)
       inventoryService.getLowStock(outletId),
-      // Distinct categories
+      // Distinct categories for this outlet's items
       prisma.inventoryItem.findMany({
-        where: { is_deleted: false },
+        where: { outlet_id: outletId, is_deleted: false },
         distinct: ['category'],
         select: { category: true },
       }),
     ]);
 
-    const outOfStock = allStock.filter((s) => Number(s.quantity) <= 0);
+    const outOfStock = allStock.filter((s) => Number(s.current_stock) <= 0);
 
     const summary = {
       outlet_id: outletId,
@@ -201,12 +187,12 @@ async function getSummary(req, res, next) {
       low_stock_count: lowStockItems.length,
       out_of_stock_count: outOfStock.length,
       categories: categories.map((c) => c.category).filter(Boolean),
-      low_stock_items: lowStockItems.slice(0, 20), // cap to keep payload small
+      low_stock_items: lowStockItems.slice(0, 20),
       out_of_stock_items: outOfStock.slice(0, 20).map((s) => ({
-        item_id: s.item_id,
+        item_id: s.inventory_item_id,
         name: s.item?.name,
         unit: s.item?.unit,
-        quantity: Number(s.quantity),
+        current_stock: Number(s.current_stock),
       })),
     };
 
@@ -219,6 +205,6 @@ module.exports = {
   listItems, createItem, updateItem, deleteItem,
   getLowStock, getWastageLogs, getConsumptionReport,
   triggerAutoOrder, restockOrder,
-  listSuppliers, createSupplier, listRecipes,
+  listRecipes,
   getSummary,
 };

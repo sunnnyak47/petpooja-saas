@@ -365,6 +365,8 @@ model MenuItem {
   outlet_overrides     OutletMenuOverride[]
   recipe               Recipe?
 
+  @@index([outlet_id, is_available])
+  @@index([category_id])
   @@map("menu_items")
 }
 
@@ -528,6 +530,7 @@ model Table {
   outlet           Outlet             @relation(fields: [outlet_id], references: [id])
 
   @@unique([outlet_id, table_number])
+  @@index([outlet_id, status])
   @@map("tables")
 }
 
@@ -588,6 +591,11 @@ model Order {
   voided_user         User?                @relation("voided_orders", fields: [voided_by], references: [id])
   payments            Payment[]
 
+  @@index([outlet_id, status])
+  @@index([outlet_id, created_at(sort: Desc)])
+  @@index([outlet_id, is_paid])
+  @@index([table_id])
+  @@index([customer_id])
   @@map("orders")
 }
 
@@ -620,6 +628,9 @@ model OrderItem {
   order           Order            @relation(fields: [order_id], references: [id])
   variant         ItemVariant?     @relation(fields: [variant_id], references: [id])
 
+  @@index([order_id])
+  @@index([menu_item_id])
+  @@index([kot_id])
   @@map("order_items")
 }
 
@@ -672,6 +683,8 @@ model KOT {
   outlet       Outlet    @relation(fields: [outlet_id], references: [id])
   kot_items    KOTItem[]
 
+  @@index([outlet_id, status])
+  @@index([order_id])
   @@map("kot")
 }
 
@@ -688,6 +701,8 @@ model KOTItem {
   kot           KOT       @relation(fields: [kot_id], references: [id])
   order_item    OrderItem @relation(fields: [order_item_id], references: [id])
 
+  @@index([kot_id])
+  @@index([order_item_id])
   @@map("kot_items")
 }
 
@@ -775,6 +790,9 @@ model StockTransaction {
   inventory_item    InventoryItem @relation(fields: [inventory_item_id], references: [id])
   outlet            Outlet        @relation(fields: [outlet_id], references: [id])
 
+  @@index([outlet_id, created_at(sort: Desc)])
+  @@index([reference_type, reference_id])
+  @@index([inventory_item_id])
   @@map("stock_transactions")
 }
 
@@ -1314,6 +1332,8 @@ model Payment {
   outlet           Outlet         @relation(fields: [outlet_id], references: [id])
   processed_user   User?          @relation(fields: [processed_by], references: [id])
 
+  @@index([outlet_id, created_at(sort: Desc)])
+  @@index([order_id])
   @@map("payments")
 }
 
@@ -2162,4 +2182,32 @@ model Expense {
   @@index([outlet_id, expense_date])
   @@index([outlet_id, category])
   @@map("expenses")
+}
+
+// ─── Outlet Daily Counter ───────────────────────────────────────────────────
+// Atomic per-outlet-per-day sequence for order numbers. Replaces the
+// `order.count() + 1` race in createOrder/punchKOT: concurrent orders previously
+// collided on daily_sequence. Incremented via upsert INSIDE the order
+// transaction. No relation back to Outlet on purpose (raw outlet_id column) so
+// no existing model needs editing.
+//
+// Migration SQL (apply before relying on the atomic path; code falls back to
+// count()+1 until then):
+//   CREATE TABLE "outlet_daily_counters" (
+//     "id"        UUID NOT NULL DEFAULT gen_random_uuid(),
+//     "outlet_id" UUID NOT NULL,
+//     "day"       VARCHAR(10) NOT NULL,
+//     "seq"       INTEGER NOT NULL DEFAULT 0,
+//     CONSTRAINT "outlet_daily_counters_pkey" PRIMARY KEY ("id")
+//   );
+//   CREATE UNIQUE INDEX "outlet_daily_counters_outlet_id_day_key"
+//     ON "outlet_daily_counters" ("outlet_id", "day");
+model OutletDailyCounter {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String   @db.Uuid
+  day        String   @db.VarChar(10) // YYYY-MM-DD
+  seq        Int      @default(0)
+
+  @@unique([outlet_id, day])
+  @@map("outlet_daily_counters")
 }

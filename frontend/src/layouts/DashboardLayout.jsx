@@ -10,7 +10,7 @@ import { SOCKET_URL } from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import {
   LayoutDashboard, ShoppingCart, ClipboardList, UtensilsCrossed,
-  Users, BarChart3, LogOut, ChevronLeft, Bell, Settings, Package,
+  Users, BarChart3, LogOut, ChevronLeft, Settings, Package,
   ShieldCheck, ChefHat, CreditCard, Tag, Puzzle, Shield, Clock,
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
@@ -118,14 +118,16 @@ const ownerNavAU = [
   { path: '/qr-orders',     label: 'QR Orders',        icon: BellRing,       isLive: true, feature: 'qr_orders' },
   { path: '/reservations',  label: 'Reservations',     icon: BookOpen,       feature: 'tables' },
 
-  // ── Management: menu, customers, promotions, staff ──
+  // ── Management: menu, stock, customers, promotions, staff ──
   { section: 'Management' },
-  { path: '/menu',           label: 'Menu',             icon: UtensilsCrossed, feature: 'menu' },
-  { path: '/customers',      label: 'Customers',        icon: Users,           feature: 'customers' },
-  { path: '/crm',            label: 'Loyalty & Rewards',    icon: Heart,           feature: 'crm' },
-  { path: '/discounts',      label: 'Promotions',       icon: Tag,             feature: 'discounts' },
-  { path: '/rostering',        label: 'Staff Rostering',  icon: CalendarDays, feature: 'rostering' },
-  { path: '/staff-management', label: 'Staff Management', icon: IdCard,       feature: 'staff' },
+  { path: '/menu',             label: 'Menu',             icon: UtensilsCrossed, feature: 'menu' },
+  { path: '/inventory',        label: 'Inventory',        icon: Package,         feature: 'inventory' },
+  { path: '/purchase-orders',  label: 'Purchase Orders',  icon: ShoppingBag,     feature: 'purchase_orders' },
+  { path: '/customers',        label: 'Customers',        icon: Users,           feature: 'customers' },
+  { path: '/crm',              label: 'Loyalty & Rewards',icon: Heart,           feature: 'crm' },
+  { path: '/discounts',        label: 'Promotions',       icon: Tag,             feature: 'discounts' },
+  { path: '/rostering',        label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
+  { path: '/staff-management', label: 'Staff Management', icon: IdCard,          feature: 'staff' },
 
   // ── Analytics: reports, payments, compliance ──
   { section: 'Analytics' },
@@ -459,21 +461,7 @@ export default function DashboardLayout() {
                 </button>
               )}
 
-              <button
-                onClick={() => navigate('/running-orders')}
-                className="relative p-2 rounded-lg border transition-colors"
-                style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                title="Running Orders"
-              >
-                <Bell className="w-4 h-4" style={{ color: pendingOrders.length > 0 ? 'var(--accent)' : undefined }} />
-                {pendingOrders.length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full border-2" style={{ background: 'var(--danger)', borderColor: 'var(--bg-card)' }} />
-                )}
-              </button>
-
-              {/* In-App Notification Center */}
+              {/* In-App Notification Center (single bell — kitchen-orders bell removed to avoid double-bell confusion) */}
               <NotificationCenter />
 
               <button

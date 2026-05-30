@@ -17,7 +17,6 @@ const {
   createInventoryItemSchema,
   createItemSchema,
   updateItemSchema,
-  createSupplierSchema,
   triggerAutoOrderSchema,
   restockOrderSchema,
   aiSuggestItemsSchema,
@@ -52,9 +51,9 @@ router.post('/auto-order', authenticate, hasPermission('MANAGE_INVENTORY'), vali
 // Restock from cancelled order
 router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), validate(restockOrderSchema), auditLog('inventory'), inventoryController.restockOrder);
 
-// Suppliers
-router.get('/suppliers', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listSuppliers);
-router.post('/suppliers', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createSupplierSchema), auditLog('inventory'), inventoryController.createSupplier);
+// Suppliers are owned by the procurement module (mounted at /api/suppliers).
+// The previous duplicate GET/POST /api/inventory/suppliers routes were removed to
+// avoid two divergent live endpoints — see modules/inventory/procurement.routes.js.
 
 // AI-powered endpoints
 router.post('/ai/suggest-items',  authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiSuggestItemsSchema), aiController.suggestItems);

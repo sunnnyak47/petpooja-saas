@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useGoals, useOwnerDashboard } from '../../src/hooks/useOwnerApi';
@@ -31,13 +32,6 @@ const DEFAULT_GOALS = {
   monthly: { target: 0, current: 0 },
 };
 
-function fmt(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '₹0';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
 
 function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3', trackColor = '#F0F0F0' }) {
   const radius = (size - strokeWidth) / 2;
@@ -81,6 +75,7 @@ function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3
 export default function GoalsScreen() {
   const { outletId } = useOutlet();
   const { colors } = useTheme();
+  const { fmt } = useCurrency();
   const { data: goalsData, isLoading, isError, refetch } = useGoals(outletId);
   const { data: dashData } = useOwnerDashboard(outletId);
 

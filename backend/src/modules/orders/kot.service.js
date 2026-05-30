@@ -47,9 +47,15 @@ async function listPendingKOTs(outletId, query = {}) {
  * @param {string} kotItemId - KOT Item UUID
  * @returns {Promise<object>} Updated KOT item
  */
-async function markItemReady(kotId, kotItemId) {
+async function markItemReady(kotId, kotItemId, outletId = null) {
   const prisma = getDbClient();
   try {
+    // Tenant isolation: when an outletId is supplied (from a scoped route),
+    // verify the KOT belongs to that outlet before mutating it.
+    if (outletId) {
+      const owns = await prisma.kOT.findFirst({ where: { id: kotId, outlet_id: outletId }, select: { id: true } });
+      if (!owns) throw new NotFoundError('KOT not found');
+    }
     const kotItem = await prisma.kOTItem.findFirst({ where: { id: kotItemId, kot_id: kotId } });
     if (!kotItem) throw new NotFoundError('KOT item not found');
 
@@ -90,11 +96,12 @@ async function markItemReady(kotId, kotItemId) {
  * @param {string} kotId - KOT UUID
  * @returns {Promise<object>} Updated KOT
  */
-async function completeKOT(kotId) {
+async function completeKOT(kotId, outletId = null) {
   const prisma = getDbClient();
   try {
     const kot = await prisma.kOT.findFirst({
-      where: { id: kotId, is_deleted: false },
+      // Tenant isolation: scope by outlet when supplied by a scoped route.
+      where: { id: kotId, is_deleted: false, ...(outletId ? { outlet_id: outletId } : {}) },
       include: { kot_items: true, order: true },
     });
     if (!kot) throw new NotFoundError('KOT not found');

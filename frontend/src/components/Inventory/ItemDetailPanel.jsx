@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useRegion } from '../../hooks/useRegion';
 import {
   X, History, Edit3, Trash2, Check, Loader2, Plus, Minus,
   TrendingDown, TrendingUp, AlertCircle, Sparkles,
@@ -24,6 +25,7 @@ const TX_ICONS = {
 
 export default function ItemDetailPanel({ item, outletId, onClose }) {
   const { symbol } = useCurrency();
+  const region = useRegion();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -68,7 +70,7 @@ export default function ItemDetailPanel({ item, outletId, onClose }) {
   });
 
   const aiAutofillMut = useMutation({
-    mutationFn: () => api.post('/inventory/ai/autofill-item', { item_name: form.name }),
+    mutationFn: () => api.post('/inventory/ai/autofill-item', { item_name: form.name, region }),
     onSuccess: (res) => {
       const data = res.data?.data || res.data;
       setForm(f => ({ ...f, ...data }));

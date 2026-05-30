@@ -18,6 +18,7 @@ import Animated, {
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOutlet } from '../../src/context/OutletContext';
@@ -46,19 +47,6 @@ function getRoleColor(role) {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function fmt(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '—';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
-
-function fmtFull(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '₹0';
-  return `₹${n.toLocaleString('en-IN')}`;
-}
 
 /** Parse "09:02 AM" style time and return hours on floor from now */
 function hoursOnFloor(clockedInAt) {
@@ -88,6 +76,7 @@ function formatHoursOnFloor(clockedInAt) {
 export default function StaffScreen() {
   const { outletId, currentOutlet } = useOutlet();
   const { colors } = useTheme();
+  const { symbol, locale, dateLocale, fmt, fmtFull } = useCurrency();
 
   // Active tab
   const [activeTab, setActiveTab] = useState('whosIn');
@@ -221,7 +210,7 @@ export default function StaffScreen() {
           onPress={async () => {
             const uri = await exportReportPdf({
               title: 'Staff Report',
-              subtitle: `${new Date().toLocaleDateString('en-IN')}`,
+              subtitle: `${new Date().toLocaleDateString(dateLocale)}`,
               outletName: currentOutlet?.name || 'PetPooja',
               sections: [
                 {
@@ -236,9 +225,9 @@ export default function StaffScreen() {
                 {
                   heading: 'Labour Cost Summary',
                   rows: [
-                    { label: 'Total Labour Cost', value: `₹${(labour.totalCost || 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Labour Cost', value: `${symbol}${(labour.totalCost || 0).toLocaleString(locale)}` },
                     { label: 'Staff Count', value: `${labour.staffCount || 0}` },
-                    { label: 'Avg Hourly Rate', value: `₹${(labour.avgHourly || 0).toLocaleString('en-IN')}` },
+                    { label: 'Avg Hourly Rate', value: `${symbol}${(labour.avgHourly || 0).toLocaleString(locale)}` },
                     { label: 'Cost % of Revenue', value: `${labour.costPercentage || 0}%` },
                   ],
                 },
@@ -249,7 +238,7 @@ export default function StaffScreen() {
                 rows: (labour.breakdown || []).map(b => [
                   b.name,
                   `${b.hours}`,
-                  `₹${(b.cost || 0).toLocaleString('en-IN')}`,
+                  `${symbol}${(b.cost || 0).toLocaleString(locale)}`,
                 ]),
               } : undefined,
             });

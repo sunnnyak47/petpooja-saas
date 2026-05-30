@@ -1,167 +1,437 @@
 /**
- * MenuAnalyticsPage — ABC analysis, best sellers, slow movers for owners
+ * MenuAnalyticsPage — ABC performance analysis for menu items
  * Route: /menu-analytics
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
-import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
+import { useCurrency } from '../hooks/useCurrency';
 import {
-  TrendingUp, TrendingDown, Minus, BarChart2, Star,
-  AlertTriangle, Package, ChevronRight, Flame, Snowflake
+  Package, Flame, Minus, Snowflake, TrendingUp, ShoppingBag,
+  DollarSign, ChevronDown,
 } from 'lucide-react';
 
-const ABC_CONFIG = {
-  A: { label: 'Top Sellers',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',  icon: Flame,       desc: 'Drive 70% of revenue — protect these' },
-  B: { label: 'Moderate',      color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: Minus,       desc: 'Steady performers — optimize pricing' },
-  C: { label: 'Slow Movers',   color: '#f87171', bg: 'rgba(239,68,68,0.12)',  icon: Snowflake,   desc: 'Low volume — consider promotions or removal' },
+/* ── ABC config — refined palette: emerald / amber / slate (not stoplight red) ── */
+const ABC = {
+  A: { label: 'Top Sellers',  sub: 'High velocity, drive revenue', icon: Flame,     color: '#10b981' },
+  B: { label: 'Moderate',     sub: 'Stable performers',            icon: Minus,     color: '#f59e0b' },
+  C: { label: 'Slow Movers',  sub: 'Low velocity, review pricing', icon: Snowflake, color: '#94a3b8' },
 };
 
-function ItemCard({ item, fmt = (v) => formatCurrencyStatic(v) }) {
-  const cfg = ABC_CONFIG[item.abc] || ABC_CONFIG.C;
+const pct = (part, total) => (total > 0 ? Math.round((part / total) * 100) : 0);
+
+/* ────────────────────────────────────────────────────────────
+   KPI Cell — minimal, dense, refined typography
+──────────────────────────────────────────────────────────── */
+function KpiCell({ label, value, sub, icon: Icon }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl transition-all hover:opacity-80"
-      style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: cfg.bg }}>
-        <cfg.icon className="w-4 h-4" style={{ color: cfg.color }} />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
+        <span className="text-[11px] font-medium uppercase tracking-wider"
+          style={{ color: 'var(--text-secondary)' }}>{label}</span>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{item.category}</p>
+      <p className="text-2xl font-semibold tracking-tight tabular-nums"
+        style={{ color: 'var(--text-primary)' }}>{value}</p>
+      {sub && (
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{sub}</p>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   Revenue Distribution — stacked bar + clickable legend tiles
+──────────────────────────────────────────────────────────── */
+function RevenueDistribution({ groups, totalRevenue, totalQty, active, onSelect, format }) {
+  const computed = Object.entries(ABC).map(([key, cfg]) => {
+    const revenue  = groups[key].reduce((s, i) => s + (i.revenue || 0), 0);
+    const qty      = groups[key].reduce((s, i) => s + (i.qty || 0), 0);
+    const revShare = pct(revenue, totalRevenue);
+    return { key, cfg, revenue, qty, revShare, count: groups[key].length };
+  });
+
+  return (
+    <div className="card">
+      {/* Section header */}
+      <div className="flex items-end justify-between mb-5">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Revenue distribution
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            How your menu's revenue is concentrated across performance tiers
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-medium uppercase tracking-wider"
+            style={{ color: 'var(--text-secondary)' }}>Total</p>
+          <p className="text-base font-semibold tabular-nums"
+            style={{ color: 'var(--text-primary)' }}>{format(totalRevenue)}</p>
+        </div>
       </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.qty} sold</p>
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          {fmt(item.revenue || 0)}
-        </p>
+
+      {/* Stacked bar */}
+      <div className="flex h-2 rounded-full overflow-hidden mb-5"
+        style={{ background: 'var(--bg-secondary)' }}>
+        {computed.map(({ key, cfg, revShare }) => (
+          revShare > 0 && (
+            <div key={key}
+              className="transition-all"
+              style={{ width: `${revShare}%`, background: cfg.color, opacity: active && active !== key ? 0.35 : 1 }}
+              title={`${cfg.label}: ${revShare}%`} />
+          )
+        ))}
+      </div>
+
+      {/* Clickable legend tiles */}
+      <div className="grid grid-cols-3 gap-3">
+        {computed.map(({ key, cfg, revenue, count, revShare }) => {
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              className="text-left p-3 rounded-lg transition-all"
+              style={{
+                background:  isActive ? `color-mix(in srgb, ${cfg.color} 8%, transparent)` : 'transparent',
+                border:      `1px solid ${isActive ? cfg.color : 'var(--border)'}`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {cfg.label}
+                </span>
+                <span className="text-[11px] ml-auto" style={{ color: 'var(--text-secondary)' }}>
+                  {count} item{count !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold tabular-nums"
+                  style={{ color: 'var(--text-primary)' }}>{revShare}%</span>
+                <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                  · {format(revenue)}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+/* ────────────────────────────────────────────────────────────
+   Item row — refined table row
+──────────────────────────────────────────────────────────── */
+function ItemRow({ rank, item, maxQty, totalRevenue, format }) {
+  const cfg      = ABC[item.abc] || ABC.C;
+  const barWidth = maxQty > 0 ? Math.round((item.qty / maxQty) * 100) : 0;
+  const revShare = pct(item.revenue || 0, totalRevenue);
+  const avgPrice = item.qty > 0 ? (item.revenue || 0) / item.qty : 0;
+
+  return (
+    <tr className="group transition-colors hover:bg-surface-800/30"
+      style={{ borderTop: '1px solid var(--border)' }}>
+      {/* Rank */}
+      <td className="py-3 pl-4 pr-2 w-12">
+        <span className="text-xs font-medium tabular-nums"
+          style={{ color: 'var(--text-secondary)' }}>{String(rank).padStart(2, '0')}</span>
+      </td>
+
+      {/* Name + category */}
+      <td className="py-3 pr-4">
+        <div className="flex items-center gap-2.5">
+          <span className="w-1 h-8 rounded-full shrink-0" style={{ background: cfg.color }} />
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+              {item.name}
+            </p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+              {item.category}
+            </p>
+          </div>
+        </div>
+      </td>
+
+      {/* Units sold with mini bar */}
+      <td className="py-3 pr-4 w-40 hidden md:table-cell">
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium tabular-nums"
+            style={{ color: 'var(--text-primary)' }}>{item.qty.toLocaleString()}</p>
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
+            <div className="h-full rounded-full"
+              style={{ width: `${barWidth}%`, background: cfg.color, opacity: 0.6 }} />
+          </div>
+        </div>
+      </td>
+
+      {/* Avg price */}
+      <td className="py-3 pr-4 text-right w-28 hidden sm:table-cell">
+        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+          {format(avgPrice)}
+        </span>
+      </td>
+
+      {/* Revenue */}
+      <td className="py-3 pr-4 text-right w-32 whitespace-nowrap">
+        <span className="text-sm font-semibold tabular-nums"
+          style={{ color: 'var(--text-primary)' }}>{format(item.revenue || 0)}</span>
+      </td>
+
+      {/* % share */}
+      <td className="py-3 pr-4 text-right w-16">
+        <span className="text-xs font-medium tabular-nums"
+          style={{ color: 'var(--text-secondary)' }}>{revShare}%</span>
+      </td>
+    </tr>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   Main page
+──────────────────────────────────────────────────────────── */
 export default function MenuAnalyticsPage() {
-  const { user } = useSelector(s => s.auth);
+  const { user }   = useSelector(s => s.auth);
   const { format } = useCurrency();
-  const [outletId, setOutletId] = useState(user?.outlet_id || '');
+  const [outletId,  setOutletId]  = useState(user?.outlet_id || '');
   const [activeTab, setActiveTab] = useState('A');
 
-  // Fetch outlets list
   const { data: outlets = [] } = useQuery({
     queryKey: ['outlets-list'],
-    queryFn: () => api.get('/outlets').then(r => r.data).catch(() => []),
+    queryFn:  () => api.get('/outlets').then(r => r.data).catch(() => []),
     staleTime: 300_000,
   });
 
-  // Set first outlet if none selected
   React.useEffect(() => {
     if (!outletId && outlets.length > 0) setOutletId(outlets[0].id);
   }, [outlets, outletId]);
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['menu-analytics', outletId],
-    queryFn: () => api.get('/superadmin/menu-analytics', { params: { outlet_id: outletId } }).then(r => r.data),
-    enabled: !!outletId,
+    queryFn:  () =>
+      api.get('/superadmin/menu-analytics', { params: { outlet_id: outletId } }).then(r => r.data),
+    enabled:   !!outletId,
     staleTime: 60_000,
   });
 
-  const tabItems = {
+  const groups = useMemo(() => ({
     A: analytics?.top_sellers || [],
-    B: analytics?.moderate || [],
+    B: analytics?.moderate    || [],
     C: analytics?.slow_movers || [],
-  };
+  }), [analytics]);
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Menu Analytics</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            ABC analysis of your menu items — last 30 days
+  const allItems     = useMemo(() => [...groups.A, ...groups.B, ...groups.C], [groups]);
+  const totalRevenue = useMemo(() => allItems.reduce((s, i) => s + (i.revenue || 0), 0), [allItems]);
+  const totalQty     = useMemo(() => allItems.reduce((s, i) => s + (i.qty || 0), 0), [allItems]);
+  const totalItems   = allItems.length;
+  const avgRevenue   = totalItems > 0 ? totalRevenue / totalItems : 0;
+
+  const activeItems  = groups[activeTab] || [];
+  const maxQtyInTab  = Math.max(...activeItems.map(i => i.qty || 0), 1);
+  const tabRevenue   = activeItems.reduce((s, i) => s + (i.revenue || 0), 0);
+
+  /* ── Loading ───────────────────────────────────────────── */
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="card flex items-center justify-center py-32">
+          <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Empty state ───────────────────────────────────────── */
+  if (!analytics || totalItems === 0) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <Header outlets={outlets} outletId={outletId} setOutletId={setOutletId} />
+        <div className="card flex flex-col items-center justify-center py-24 gap-3 mt-6">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{ background: 'var(--bg-secondary)' }}>
+            <Package className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+          </div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>No analytics yet</p>
+          <p className="text-xs max-w-xs text-center" style={{ color: 'var(--text-secondary)' }}>
+            Once you process orders for the last 30 days, performance data will appear here.
           </p>
         </div>
-        {outlets.length > 1 && (
-          <select value={outletId} onChange={e => setOutletId(e.target.value)}
-            className="text-sm px-3 py-2 rounded-lg outline-none"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-            {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        )}
       </div>
+    );
+  }
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {Object.entries(ABC_CONFIG).map(([key, cfg]) => (
-          <div key={key} className="rounded-xl p-4 cursor-pointer transition-all"
-            onClick={() => setActiveTab(key)}
-            style={{
-              background: activeTab === key ? cfg.bg : 'var(--bg-secondary)',
-              border: `1px solid ${activeTab === key ? cfg.color : 'var(--border)'}`,
-            }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${cfg.color}20` }}>
-                <cfg.icon className="w-4 h-4" style={{ color: cfg.color }} />
-              </div>
-              <span className="font-semibold text-sm" style={{ color: cfg.color }}>Class {key} — {cfg.label}</span>
-            </div>
-            <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              {isLoading ? '—' : tabItems[key].length}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{cfg.desc}</p>
+  /* ── Main view ─────────────────────────────────────────── */
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
+      <Header outlets={outlets} outletId={outletId} setOutletId={setOutletId} />
+
+      {/* KPI strip — single card, 4 dense cells separated by dividers */}
+      <div className="card">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-6"
+          style={{ '--div': 'var(--border)' }}>
+          <div className="md:pr-6" style={{ borderRight: '1px solid var(--border)' }}>
+            <KpiCell label="Total Revenue"   value={format(totalRevenue)} sub="Last 30 days"          icon={DollarSign} />
           </div>
-        ))}
+          <div className="md:pr-6 md:pl-0" style={{ borderRight: '1px solid var(--border)' }}>
+            <KpiCell label="Units Sold"      value={totalQty.toLocaleString()} sub="Across all items" icon={ShoppingBag} />
+          </div>
+          <div className="md:pr-6 md:pl-0" style={{ borderRight: '1px solid var(--border)' }}>
+            <KpiCell label="Active Menu SKUs" value={totalItems.toLocaleString()} sub="With recorded sales" icon={Package} />
+          </div>
+          <div>
+            <KpiCell label="Avg Revenue / Item" value={format(avgRevenue)} sub="Across catalogue"     icon={TrendingUp} />
+          </div>
+        </div>
       </div>
 
-      {/* ABC Explanation */}
-      <div className="rounded-xl p-4 flex items-start gap-3"
-        style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)' }}>
-        <BarChart2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-indigo-400" />
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <strong style={{ color: 'var(--text-primary)' }}>ABC Analysis:</strong> Class A items account for ~70% of total volume,
-          Class B for the next 20%, and Class C for the bottom 10%. Focus promotions on Class C to boost performance.
-          Total items sold in last 30 days: <strong style={{ color: 'var(--text-primary)' }}>{analytics?.total_items_sold?.toLocaleString() || '—'}</strong>
-        </p>
-      </div>
+      {/* Revenue distribution */}
+      <RevenueDistribution
+        groups={groups}
+        totalRevenue={totalRevenue}
+        totalQty={totalQty}
+        active={activeTab}
+        onSelect={setActiveTab}
+        format={format}
+      />
 
-      {/* Item List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-7 h-7 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-        </div>
-      ) : !analytics ? (
-        <div className="flex flex-col items-center py-12 gap-2">
-          <Package className="w-10 h-10" style={{ color: 'var(--text-secondary)' }} />
-          <p style={{ color: 'var(--text-primary)' }}>No analytics data available</p>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Orders from the last 30 days will appear here</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex gap-2 mb-2">
-            {Object.entries(ABC_CONFIG).map(([key, cfg]) => (
-              <button key={key} onClick={() => setActiveTab(key)}
-                className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
-                style={{
-                  background: activeTab === key ? cfg.bg : 'var(--bg-secondary)',
-                  border: `1px solid ${activeTab === key ? cfg.color : 'var(--border)'}`,
-                  color: activeTab === key ? cfg.color : 'var(--text-secondary)',
-                }}>
-                {cfg.label} ({tabItems[key].length})
+      {/* Item performance table */}
+      <div className="card p-0">
+        {/* Table header band */}
+        <div className="flex items-center justify-between px-4 py-3"
+          style={{ borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Item performance
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              {ABC[activeTab].sub}
+            </p>
+          </div>
+          {/* Tab pills */}
+          <div className="flex items-center gap-1 p-0.5 rounded-lg"
+            style={{ background: 'var(--bg-secondary)' }}>
+            {Object.entries(ABC).map(([key, cfg]) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+                style={activeTab === key
+                  ? { background: 'var(--bg-card)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
+                  : { color: 'var(--text-secondary)' }
+                }
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.color }} />
+                {cfg.label}
+                <span className="tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                  {groups[key].length}
+                </span>
               </button>
             ))}
           </div>
+        </div>
 
-          {tabItems[activeTab].length === 0 ? (
-            <div className="flex flex-col items-center py-10 gap-2"
-              style={{ background: 'var(--bg-secondary)', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
-              <Package className="w-8 h-8" style={{ color: 'var(--text-secondary)' }} />
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No {ABC_CONFIG[activeTab].label.toLowerCase()} found</p>
+        {/* Table */}
+        {activeItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2">
+            <Package className="w-8 h-8" style={{ color: 'var(--text-secondary)', opacity: 0.5 }} />
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              No items in this tier
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    {[
+                      { label: '#',          align: 'left',  width: 'w-12', cls: 'pl-4 pr-2' },
+                      { label: 'Item',       align: 'left',  width: '',     cls: 'pr-4' },
+                      { label: 'Units',      align: 'left',  width: 'w-40', cls: 'pr-4 hidden md:table-cell' },
+                      { label: 'Avg price',  align: 'right', width: 'w-28', cls: 'pr-4 hidden sm:table-cell' },
+                      { label: 'Revenue',    align: 'right', width: 'w-32', cls: 'pr-4' },
+                      { label: 'Share',      align: 'right', width: 'w-16', cls: 'pr-4' },
+                    ].map(h => (
+                      <th key={h.label}
+                        className={`py-2.5 ${h.cls} text-${h.align} ${h.width}`}
+                        style={{ background: 'var(--bg-secondary)' }}>
+                        <span className="text-[11px] font-medium uppercase tracking-wider"
+                          style={{ color: 'var(--text-secondary)' }}>{h.label}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeItems.map((item, i) => (
+                    <ItemRow
+                      key={item.id || i}
+                      rank={i + 1}
+                      item={item}
+                      maxQty={maxQtyInTab}
+                      totalRevenue={totalRevenue}
+                      format={format}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {tabItems[activeTab].map(item => <ItemCard key={item.id} item={item} fmt={format} />)}
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-4 py-3"
+              style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                {activeItems.length} {activeItems.length === 1 ? 'item' : 'items'}
+              </p>
+              <p className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                Subtotal{' '}
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {format(tabRevenue)}
+                </span>
+                <span className="ml-1.5">· {pct(tabRevenue, totalRevenue)}% of revenue</span>
+              </p>
             </div>
-          )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   Page header — clean title block + outlet selector
+──────────────────────────────────────────────────────────── */
+function Header({ outlets, outletId, setOutletId }) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+          Menu analytics
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+          ABC performance analysis · Last 30 days
+        </p>
+      </div>
+      {outlets.length > 1 && (
+        <div className="relative">
+          <select
+            value={outletId}
+            onChange={e => setOutletId(e.target.value)}
+            className="text-sm pl-3 pr-8 py-2 rounded-lg outline-none appearance-none cursor-pointer transition-colors"
+            style={{
+              background:  'var(--bg-card)',
+              border:      '1px solid var(--border)',
+              color:       'var(--text-primary)',
+              minWidth:    180,
+            }}
+          >
+            {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text-secondary)' }} />
         </div>
       )}
     </div>

@@ -24,6 +24,7 @@ import Animated, {
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import {
@@ -48,6 +49,7 @@ const FILTERS = ['All', 'Pending', 'Approved', 'Rejected'];
 export default function ApprovalsScreen() {
   const { outletId } = useOutlet();
   const { colors } = useTheme();
+  const { symbol, locale } = useCurrency();
   const { data: approvalsData, isLoading, isError, refetch } = useApprovals(outletId);
   const approveMutation = useApproveRequest();
   const rejectMutation = useRejectRequest();
@@ -213,7 +215,7 @@ export default function ApprovalsScreen() {
                 {/* Amount + Staff */}
                 <View style={s.cardMeta}>
                   <View style={s.amountBadge}>
-                    <Text style={s.amountText}>₹{item.amount?.toLocaleString('en-IN')}</Text>
+                    <Text style={s.amountText}>{symbol}{item.amount?.toLocaleString(locale)}</Text>
                   </View>
                   {item.staff && (
                     <View style={s.staffBadge}>

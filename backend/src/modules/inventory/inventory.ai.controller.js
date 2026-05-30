@@ -9,11 +9,11 @@ const logger = require('../../config/logger');
 
 async function suggestItems(req, res, next) {
   try {
-    const { restaurant_type } = req.body;
+    const { restaurant_type, region = 'IN' } = req.body;
     if (!restaurant_type) return res.status(400).json({ success: false, message: 'restaurant_type is required' });
 
-    logger.info('AI suggest items', { restaurant_type });
-    const items = await aiService.suggestItemsForRestaurant(restaurant_type);
+    logger.info('AI suggest items', { restaurant_type, region });
+    const items = await aiService.suggestItemsForRestaurant(restaurant_type, region);
     return sendSuccess(res, items, 'Items suggested');
   } catch (err) {
     next(err);
@@ -58,10 +58,10 @@ async function buildPO(req, res, next) {
 
 async function autofillItem(req, res, next) {
   try {
-    const { item_name } = req.body;
+    const { item_name, region = 'IN' } = req.body;
     if (!item_name) return res.status(400).json({ success: false, message: 'item_name is required' });
 
-    const data = await aiService.autofillItem(item_name);
+    const data = await aiService.autofillItem(item_name, region);
     return sendSuccess(res, data, 'Item details suggested');
   } catch (err) {
     next(err);

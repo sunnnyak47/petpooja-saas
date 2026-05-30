@@ -26,10 +26,46 @@ function parseJSON(raw) {
    1. SUGGEST ITEMS FOR RESTAURANT TYPE  (Onboarding Step 1)
 ───────────────────────────────────────────────────────────── */
 
-async function suggestItemsForRestaurant(restaurantType) {
+async function suggestItemsForRestaurant(restaurantType, region = 'IN') {
   const model = getModel();
 
-  const prompt = `You are a restaurant inventory expert for Indian restaurants.
+  const isAU = region === 'AU';
+
+  const prompt = isAU
+    ? `You are a restaurant inventory expert for Australian restaurants.
+The restaurant serves: "${restaurantType}".
+
+Suggest 25–30 essential raw materials they would need.
+Return ONLY valid JSON — no markdown, no explanation.
+
+Format:
+{
+  "items": [
+    {
+      "name": "Tomatoes",
+      "category": "Produce",
+      "unit": "kg",
+      "cost_per_unit": 4.50,
+      "min_threshold": 5,
+      "max_threshold": 20,
+      "auto_order_enabled": true,
+      "reorder_qty": 10
+    }
+  ]
+}
+
+Rules:
+- category must be one of: Produce, Dairy & Eggs, Meat & Poultry, Seafood, Pantry, Frozen, Beverages, Packaging, Cleaning, Other
+- unit must be one of: kg, gm, ltr, ml, pcs, pkt, box, dozen
+- cost_per_unit: realistic Australian market price in AUD ($) — e.g. Tomatoes $4.50/kg, Chicken Breast $12/kg, Eggs $6/dozen, Milk $2.50/ltr, Flour $1.50/kg, Olive Oil $8/ltr, Salmon $28/kg
+- min_threshold: safe minimum stock level (in the chosen unit)
+- max_threshold: typical maximum to keep on hand
+- auto_order_enabled: true for perishables, false for slow-moving items
+- reorder_qty: how much to order when low
+- Use Australian ingredient names (e.g. "Capsicum" not "Bell Pepper", "Spring Onions" not "Scallions", "Rocket" not "Arugula", "Prawns" not "Shrimp")
+- Include items relevant specifically to "${restaurantType}" cuisine
+- Include basics like Olive Oil, Salt, Brown Onions, Garlic regardless of cuisine type`
+    : `You are a restaurant inventory expert for Indian restaurants.
 The restaurant serves: "${restaurantType}".
 
 Suggest 25–30 essential raw materials they would need.
@@ -316,10 +352,32 @@ async function buildSmartPO(outletId) {
    5. AUTO-FILL ITEM DETAILS  (Add Material quick form)
 ───────────────────────────────────────────────────────────── */
 
-async function autofillItem(itemName) {
+async function autofillItem(itemName, region = 'IN') {
   const model = getModel();
 
-  const prompt = `You are an inventory expert for Indian restaurants.
+  const isAU = region === 'AU';
+
+  const prompt = isAU
+    ? `You are an inventory expert for Australian restaurants.
+Item name: "${itemName}"
+
+Return ONLY valid JSON:
+{
+  "category": "Produce",
+  "unit": "kg",
+  "cost_per_unit": 4.50,
+  "min_threshold": 2,
+  "max_threshold": 10,
+  "auto_order_enabled": true,
+  "reorder_qty": 5
+}
+
+Rules:
+- category must be one of: Produce, Dairy & Eggs, Meat & Poultry, Seafood, Pantry, Frozen, Beverages, Packaging, Cleaning, Other
+- unit must be one of: kg, gm, ltr, ml, pcs, pkt, box, dozen
+- cost_per_unit: realistic Australian market price in AUD ($)
+- Be smart: "Lurpak Butter 250g" → category=Dairy & Eggs, unit=pcs, cost_per_unit=5.50`
+    : `You are an inventory expert for Indian restaurants.
 Item name: "${itemName}"
 
 Return ONLY valid JSON:

@@ -16,6 +16,7 @@ import Svg, { Rect, G, Text as SvgText, Line } from 'react-native-svg';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import SparkLine from '../../src/components/SparkLine';
@@ -47,19 +48,6 @@ const CHART_PALETTE = ['#0070F3', '#00B341', '#F5A623', '#EE0000', '#888888'];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '—';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
-
-function fmtFull(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '—';
-  return `₹${n.toLocaleString('en-IN')}`;
-}
 
 function pad(d) {
   return String(d).padStart(2, '0');
@@ -265,7 +253,9 @@ function StackedBar({ data, width }) {
 
 // ─── Memoized list-item components ──────────────────────────────────────────────
 
-const CategoryRow = React.memo(({ cat, index, colors }) => (
+const CategoryRow = React.memo(({ cat, index, colors }) => {
+  const { fmt } = useCurrency();
+  return (
   <View style={s.catRow}>
     <View
       style={[
@@ -279,9 +269,12 @@ const CategoryRow = React.memo(({ cat, index, colors }) => (
     <Text style={[s.catRevenue, { color: colors.text }]}>{fmt(cat.revenue)}</Text>
     <Text style={[s.catPct, { color: colors.textMuted }]}>{cat.percentage}%</Text>
   </View>
-));
+  );
+});
 
-const TopSellerRow = React.memo(({ item, index, maxItemRevenue, colors }) => (
+const TopSellerRow = React.memo(({ item, index, maxItemRevenue, colors }) => {
+  const { fmt } = useCurrency();
+  return (
   <View style={s.topRow}>
     <View style={[s.topRank, { backgroundColor: colors.pillBg }]}>
       <Text style={[s.topRankText, { color: colors.textSecondary }]}>#{index + 1}</Text>
@@ -310,9 +303,12 @@ const TopSellerRow = React.memo(({ item, index, maxItemRevenue, colors }) => (
       </View>
     </View>
   </View>
-));
+  );
+});
 
-const PaymentRow = React.memo(({ payment, colors }) => (
+const PaymentRow = React.memo(({ payment, colors }) => {
+  const { fmt } = useCurrency();
+  return (
   <View style={s.payRow}>
     <View style={s.payLabelRow}>
       <Ionicons
@@ -341,13 +337,15 @@ const PaymentRow = React.memo(({ payment, colors }) => (
       />
     </View>
   </View>
-));
+  );
+});
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function ReportsScreen() {
   const { outletId, currentOutlet } = useOutlet();
   const { colors } = useTheme();
+  const { symbol, locale, dateLocale, fmt, fmtFull } = useCurrency();
   const [range, setRange] = useState('7d');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -462,30 +460,30 @@ export default function ReportsScreen() {
 
             const uri = await exportReportPdf({
               title: 'Sales Report',
-              subtitle: `${selectedRange} • ${new Date().toLocaleDateString('en-IN')}`,
+              subtitle: `${selectedRange} • ${new Date().toLocaleDateString(dateLocale)}`,
               outletName: currentOutlet?.name || 'PetPooja',
               sections: [
                 {
                   heading: 'Revenue Summary',
                   rows: [
-                    { label: 'Total Revenue', value: `₹${revenue.reduce((s, r) => s + (r.revenue || 0), 0).toLocaleString('en-IN')}` },
+                    { label: 'Total Revenue', value: `${symbol}${revenue.reduce((s, r) => s + (r.revenue || 0), 0).toLocaleString(locale)}` },
                     { label: 'Total Orders', value: `${totalOrders}` },
-                    { label: 'Avg Order Value', value: `₹${avgOrderValue.toLocaleString('en-IN')}` },
+                    { label: 'Avg Order Value', value: `${symbol}${avgOrderValue.toLocaleString(locale)}` },
                   ],
                 },
                 {
                   heading: 'Payment Breakdown',
                   rows: pays.map(p => ({
                     label: p.method || p.name,
-                    value: `₹${(p.amount || 0).toLocaleString('en-IN')} (${p.percentage || 0}%)`,
+                    value: `${symbol}${(p.amount || 0).toLocaleString(locale)} (${p.percentage || 0}%)`,
                   })),
                 },
                 {
                   heading: 'Tax Summary',
                   rows: [
-                    { label: 'CGST', value: `₹${(tax.cgst || 0).toLocaleString('en-IN')}` },
-                    { label: 'SGST', value: `₹${(tax.sgst || 0).toLocaleString('en-IN')}` },
-                    { label: 'Total Tax', value: `₹${(tax.total || 0).toLocaleString('en-IN')}` },
+                    { label: 'CGST', value: `${symbol}${(tax.cgst || 0).toLocaleString(locale)}` },
+                    { label: 'SGST', value: `${symbol}${(tax.sgst || 0).toLocaleString(locale)}` },
+                    { label: 'Total Tax', value: `${symbol}${(tax.total || 0).toLocaleString(locale)}` },
                   ],
                 },
               ],
@@ -496,7 +494,7 @@ export default function ReportsScreen() {
                   `${i + 1}`,
                   item.name,
                   `${item.qty}`,
-                  `₹${(item.revenue || 0).toLocaleString('en-IN')}`,
+                  `${symbol}${(item.revenue || 0).toLocaleString(locale)}`,
                 ]),
               } : undefined,
             });

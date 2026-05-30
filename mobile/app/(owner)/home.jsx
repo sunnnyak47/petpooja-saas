@@ -30,6 +30,7 @@ import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { OutletSwitcher } from '../../src/components/OutletSwitcher';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const SCREEN_W = Dimensions.get('window').width;
@@ -46,28 +47,14 @@ function getGreeting() {
   return 'Good evening';
 }
 
-function formatDate() {
+function formatDate(dateLocale = 'en-AU') {
   const now = new Date();
-  return now.toLocaleDateString('en-IN', {
+  return now.toLocaleDateString(dateLocale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
-}
-
-function fmt(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '—';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
-
-function fmtFull(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '₹0';
-  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 // ─── Animated counter (requestAnimationFrame) ───────────────────────────────
@@ -170,7 +157,7 @@ const LiveOrderRow = React.memo(({ order, colors }) => {
       <Text style={[s.liveOrderTable, { color: colors.text }]}>{order.table || 'Takeaway'}</Text>
       <Text style={[s.liveOrderStatus, { color: statusColor }]}>{order.status}</Text>
       <View style={{ flex: 1 }} />
-      <Text style={[s.liveOrderAmount, { color: colors.text }]}>₹{(order.amount || 0).toLocaleString('en-IN')}</Text>
+      <Text style={[s.liveOrderAmount, { color: colors.text }]}>{symbol}{(order.amount || 0).toLocaleString(dateLocale)}</Text>
       <Text style={[s.liveOrderTime, { color: colors.textMuted }]}>{order.time || ''}</Text>
     </View>
   );
@@ -183,6 +170,7 @@ export default function OwnerHomeScreen() {
   const { outletId } = useOutlet();
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { fmt, fmtFull, symbol, dateLocale } = useCurrency();
 
   const { data, isLoading, isError, refetch: refetchDash } = useOwnerDashboard(outletId);
   const { data: alertData, refetch: refetchAlerts } = useAlertBadges(outletId);
@@ -294,7 +282,7 @@ export default function OwnerHomeScreen() {
         <View style={[s.headerRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
           <View style={s.headerLeft}>
             <Text style={[s.greeting, { color: colors.text }]}>{getGreeting()}, {firstName}</Text>
-            <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate()}</Text>
+            <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate(dateLocale)}</Text>
           </View>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -316,7 +304,7 @@ export default function OwnerHomeScreen() {
       <View style={[s.headerRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         <View style={s.headerLeft}>
           <Text style={[s.greeting, { color: colors.text }]}>{getGreeting()}, {firstName}</Text>
-          <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate()}</Text>
+          <Text style={[s.dateText, { color: colors.textMuted }]}>{formatDate(dateLocale)}</Text>
           <View style={{ marginTop: 8 }}>
             <OutletSwitcher />
           </View>

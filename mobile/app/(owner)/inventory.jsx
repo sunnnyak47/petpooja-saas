@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useLowStock, useWastageLogs } from '../../src/hooks/useOwnerApi';
@@ -37,6 +38,7 @@ function getSeverity(current, min) {
 export default function InventoryScreen() {
   const { outletId } = useOutlet();
   const { colors } = useTheme();
+  const { symbol, locale } = useCurrency();
   const { data: lowStockData, isLoading: loadingStock, isError: errorStock, refetch: refetchStock } = useLowStock(outletId);
   const { data: wastageData, isLoading: loadingWastage, isError: errorWastage, refetch: refetchWastage } = useWastageLogs(outletId);
 
@@ -192,7 +194,7 @@ export default function InventoryScreen() {
             {/* Wastage Summary */}
             <View style={[s.wastageSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[s.wastageLabel, { color: colors.textMuted }]}>Today's Wastage Cost</Text>
-              <Text style={s.wastageAmount}>₹{totalWastageCost.toLocaleString('en-IN')}</Text>
+              <Text style={s.wastageAmount}>{symbol}{totalWastageCost.toLocaleString(locale)}</Text>
             </View>
 
             {isLoading ? (
@@ -218,7 +220,7 @@ export default function InventoryScreen() {
                         {w.qty} {w.unit} — {w.reason}
                       </Text>
                     </View>
-                    <Text style={s.wastageCost}>₹{w.cost}</Text>
+                    <Text style={s.wastageCost}>{symbol}{w.cost}</Text>
                   </View>
                   <View style={s.wastageFooter}>
                     <Text style={[s.wastageTime, { color: colors.textMuted }]}>{w.date}</Text>

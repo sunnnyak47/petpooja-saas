@@ -28,13 +28,18 @@ router.get(['/kots', '/kot/pending', '/', '/pending'], authenticate, enforceOutl
 });
 
 // PUT /api/kitchen/kots/:id/status  ← KDS bump button (pending→preparing→ready→served)
-router.put('/kots/:id/status', authenticate, validate(updateKOTStatusSchema), async (req, res, next) => {
+router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(updateKOTStatusSchema), async (req, res, next) => {
   try {
     const { status, outlet_id } = req.body;
     const kotId = req.params.id;
     const prisma = require('../../config/database').getDbClient();
 
-    const kot = await prisma.kOT.findFirst({ where: { id: kotId }, include: { order: true } });
+    // Tenant isolation: non-privileged callers can only touch KOTs in their own
+    // outlet. Without this, any outlet could bump/serve another outlet's tickets by ID.
+    const isPrivileged = ['super_admin', 'owner'].includes(req.user.role);
+    const kotWhere = isPrivileged ? { id: kotId } : { id: kotId, outlet_id: req.user.outlet_id };
+
+    const kot = await prisma.kOT.findFirst({ where: kotWhere, include: { order: true } });
     if (!kot) return next(Object.assign(new Error('KOT not found'), { status: 404 }));
 
     const updated = await prisma.kOT.update({
@@ -67,10 +72,15 @@ router.put('/kots/:id/status', authenticate, validate(updateKOTStatusSchema), as
   } catch (error) { next(error); }
 });
 
+// Helper: non-privileged callers are scoped to their own outlet; super_admin/owner are not.
+function scopedOutlet(req) {
+  return ['super_admin', 'owner'].includes(req.user.role) ? null : req.user.outlet_id;
+}
+
 // PUT /api/kitchen/kots/:kotId/items/:itemId/ready  ← KDS item tick
 router.put('/kots/:kotId/items/:itemId/ready', authenticate, async (req, res, next) => {
   try {
-    const result = await kotService.markItemReady(req.params.kotId, req.params.itemId);
+    const result = await kotService.markItemReady(req.params.kotId, req.params.itemId, scopedOutlet(req));
     sendSuccess(res, result, 'Item marked as ready');
   } catch (error) { next(error); }
 });
@@ -78,14 +88,14 @@ router.put('/kots/:kotId/items/:itemId/ready', authenticate, async (req, res, ne
 // Legacy routes (kept for backwards compat)
 router.patch('/kot/:id/item-ready', authenticate, validate(markItemReadySchema), async (req, res, next) => {
   try {
-    const result = await kotService.markItemReady(req.params.id, req.body.kot_item_id);
+    const result = await kotService.markItemReady(req.params.id, req.body.kot_item_id, scopedOutlet(req));
     sendSuccess(res, result, 'Item marked as ready');
   } catch (error) { next(error); }
 });
 
 router.patch('/kot/:id/complete', authenticate, async (req, res, next) => {
   try {
-    const result = await kotService.completeKOT(req.params.id);
+    const result = await kotService.completeKOT(req.params.id, scopedOutlet(req));
     sendSuccess(res, result, 'KOT completed');
   } catch (error) { next(error); }
 });

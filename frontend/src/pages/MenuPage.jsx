@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { useMenuItems } from '../hooks/queries/useMenuItems';
+import { qk } from '../lib/queryKeys';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRegion } from '../hooks/useRegion';
 import { AU_DIETARY_TAGS, AU_TAG_MAP, getTagMap } from '../constants/dietaryTags';
@@ -79,10 +81,12 @@ export default function MenuPage() {
     enabled: !!outletId,
   });
 
-  const { data: menuData, isLoading: itemsLoading } = useQuery({
-    queryKey: ['menuItemsAll', outletId],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then(r => r.data),
-    enabled: !!outletId,
+  // Shared menu-items fetch. Keeps the 'menuItemsAll' key + default (0) staleTime
+  // so the existing invalidateQueries({ queryKey: ['menuItemsAll'] }) calls in
+  // this page and AIMenuSyncModal continue to refetch exactly as before.
+  const { data: menuData, isLoading: itemsLoading } = useMenuItems(outletId, {
+    queryKey: qk.menuItemsAll(outletId),
+    staleTime: 0,
   });
 
   const { data: addonGroups } = useQuery({

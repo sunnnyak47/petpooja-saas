@@ -23,7 +23,8 @@ const CUISINE_PRESETS_AU = [
 ];
 
 const UNIT_OPTIONS = ['kg', 'gm', 'ltr', 'ml', 'pcs', 'pkt', 'box', 'dozen'];
-const CAT_OPTIONS  = ['Vegetables', 'Dairy', 'Meat', 'Seafood', 'Groceries', 'Beverages', 'Packaging', 'Cleaning', 'Other'];
+const CAT_OPTIONS_IN = ['Vegetables', 'Dairy', 'Meat', 'Seafood', 'Groceries', 'Beverages', 'Packaging', 'Cleaning', 'Other'];
+const CAT_OPTIONS_AU = ['Produce', 'Dairy & Eggs', 'Meat & Poultry', 'Seafood', 'Pantry', 'Frozen', 'Beverages', 'Packaging', 'Cleaning', 'Other'];
 const PAYMENT_TERMS_OPTIONS = ['Net 7', 'Net 15', 'Net 30', 'Cash on Delivery', 'Advance'];
 
 const STEPS = [
@@ -38,6 +39,7 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
   const { symbol } = useCurrency();
   const region = useRegion();
   const CUISINE_PRESETS = region === 'AU' ? CUISINE_PRESETS_AU : CUISINE_PRESETS_IN;
+  const CAT_OPTIONS = region === 'AU' ? CAT_OPTIONS_AU : CAT_OPTIONS_IN;
   const qc = useQueryClient();
   const [step, setStep] = useState(1);
   const [restaurantType, setRestaurantType] = useState('');
@@ -50,7 +52,7 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
 
   // ── Step 1 → 2: Gemini suggests items ──────────────────────
   const suggestMutation = useMutation({
-    mutationFn: (type) => api.post('/inventory/ai/suggest-items', { restaurant_type: type }).then(r => r.data),
+    mutationFn: (type) => api.post('/inventory/ai/suggest-items', { restaurant_type: type, region }).then(r => r.data),
     onSuccess: (data) => {
       const suggested = (data.data || data).map((item, i) => ({
         ...item,
@@ -65,7 +67,7 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
 
   // ── Step 4: Save supplier ────────────────────────────────────
   const supplierMutation = useMutation({
-    mutationFn: (s) => api.post('/inventory/suppliers', { ...s, outlet_id: outletId }),
+    mutationFn: (s) => api.post('/suppliers', { ...s, outlet_id: outletId }),
     onError: (err) => toast.error('Supplier save failed: ' + (err.response?.data?.message || err.message)),
   });
 
@@ -456,9 +458,9 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
               {!skipSupplier && (
                 <div className="space-y-3">
                   {[
-                    { field: 'name',           label: 'Supplier / Company Name*', placeholder: 'e.g. Fresh Farms Pvt Ltd', required: true },
-                    { field: 'contact_person', label: 'Contact Person',           placeholder: 'e.g. Raju Bhai' },
-                    { field: 'phone',          label: 'Phone Number',             placeholder: '+91 98765 43210' },
+                    { field: 'name',           label: 'Supplier / Company Name*', placeholder: region === 'AU' ? 'e.g. Sydney Fresh Produce, Harris Farm…' : 'e.g. Fresh Farms Pvt Ltd', required: true },
+                    { field: 'contact_person', label: 'Contact Person',           placeholder: region === 'AU' ? 'e.g. James Smith' : 'e.g. Raju Bhai' },
+                    { field: 'phone',          label: 'Phone Number',             placeholder: region === 'AU' ? '+61 4XX XXX XXX' : '+91 98765 43210' },
                     { field: 'email',          label: 'Email (optional)',          placeholder: 'supplier@email.com' },
                   ].map(({ field, label, placeholder }) => (
                     <div key={field}>

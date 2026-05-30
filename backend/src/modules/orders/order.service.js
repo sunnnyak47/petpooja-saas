@@ -10,6 +10,9 @@ const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../utils/errors');
 const { generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
 const { calculateItemTax } = require('./tax.service');
+const { round2 } = require('../../utils/money');
+const { resolveOutletTaxConfig } = require('../../utils/outlet');
+const { buildOrderItems, computeOrderTotals, computeGrandTotal } = require('./pricing.service');
 const customerService = require('../customers/customer.service');
 const { sendOrderReadySms } = require('../../utils/sms.service');
 
@@ -48,25 +51,78 @@ async function getOutletTaxConfig(prismaClient, outletId) {
   };
 }
 
+// computeGrandTotal is imported from ./pricing.service (single source of truth,
+// reused by both this module and the pure pricing helpers).
+
 /**
- * Compute the rounded grand total based on region.
- * - IN: round to nearest whole rupee
- * - AU: round to nearest cent (no rounding) for card; nearest 5 cents for cash
- * @param {number} totalAmount - Total before rounding
- * @param {string} countryCode - 'AU' or 'IN'
- * @returns {{ grandTotal: number, roundOff: number }}
+ * Atomically allocate the next per-outlet, per-day order sequence.
+ *
+ * Replaces the racy `prisma.order.count() + 1` that ran OUTSIDE the transaction
+ * (concurrent orders collided on daily_sequence). Mirrors the atomic upsert
+ * pattern used by generateInvoiceNumber. MUST be called inside the order
+ * transaction so the increment and the order insert commit together.
+ *
+ * Falls back to the legacy count()+1 if the counter table is unavailable (e.g.
+ * before the migration is applied), so nothing breaks pre-migration.
+ *
+ * @param {object} tx - Prisma transaction client
+ * @param {string} outletId - Outlet UUID
+ * @param {Date} [now=new Date()] - Reference time (its UTC date keys the counter)
+ * @returns {Promise<number>} Next daily sequence (>= 1)
  */
-function computeGrandTotal(totalAmount, countryCode) {
-  if (countryCode === 'AU') {
-    // AU: keep to 2 decimal places (no whole-number rounding)
-    const grandTotal = Math.round(totalAmount * 100) / 100;
-    const roundOff = Math.round((grandTotal - totalAmount) * 100) / 100;
-    return { grandTotal, roundOff };
+async function nextDailySequence(tx, outletId, now = new Date()) {
+  // Key on the UTC date so it matches generateOrderNumber's date component.
+  const day = now.toISOString().slice(0, 10);
+  try {
+    const counter = await tx.outletDailyCounter.upsert({
+      where: { outlet_id_day: { outlet_id: outletId, day } },
+      create: { outlet_id: outletId, day, seq: 1 },
+      update: { seq: { increment: 1 } },
+    });
+    return counter.seq;
+  } catch (err) {
+    // Fallback: legacy local-midnight count()+1 (pre-migration safety net).
+    logger.warn('OutletDailyCounter unavailable — falling back to count()+1', { error: err.message });
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayOrderCount = await tx.order.count({
+      where: { outlet_id: outletId, created_at: { gte: todayStart } },
+    });
+    return todayOrderCount + 1;
   }
-  // IN (default): round to nearest whole rupee
-  const grandTotal = Math.round(totalAmount);
-  const roundOff = Math.round((grandTotal - totalAmount) * 100) / 100;
-  return { grandTotal, roundOff };
+}
+
+/**
+ * Build the socket payload broadcast to the /kitchen namespace for a new KOT.
+ * Shared by generateKOT and punchKOT so both emit byte-identical shapes.
+ *
+ * @param {object} kot - Created KOT row (id, kot_number, station)
+ * @param {object} order - { outlet_id, id, order_number, order_type, table_id }
+ * @param {Array} items - The KOT's items (name, variant_name, quantity, notes, addons)
+ * @returns {object} Socket payload for the 'new_kot' event
+ */
+function buildKotSocketPayload(kot, order, items) {
+  return {
+    id: kot.id,
+    kot_number: kot.kot_number,
+    station: kot.station,
+    status: 'pending',
+    outlet_id: order.outlet_id,
+    order_id: order.id,
+    order_number: order.order_number,
+    order_type: order.order_type,
+    table_id: order.table_id,
+    items_count: items.length,
+    kot_items: items.map((item) => ({
+      order_item: {
+        name: item.name,
+        variant_name: item.variant_name,
+        quantity: item.quantity,
+        notes: item.notes,
+        addons: item.addons?.map((a) => ({ name: a.name })) || [],
+      },
+    })),
+  };
 }
 
 /**
@@ -157,15 +213,9 @@ async function createOrder(data, staffId) {
     });
     if (!outlet) throw new NotFoundError('Outlet not found or inactive');
 
-    // Tax config for this outlet
-    const hoCountry = outlet.head_office?.country_code;
-    const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
-    const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
-    // AU GST is inclusive by law — default true when head_office is missing
-    const gstInclusive = outlet.head_office?.gst_inclusive ?? (isAU ? true : false);
-    // Default GST rate to apply when a menu item has no gst_rate configured (0 or null)
-    const defaultGstRate = countryCode === 'AU' ? 10 : 5;
-    const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '', default_gst_rate: defaultGstRate };
+    // Tax config for this outlet (shared detection — see utils/outlet)
+    const outletTaxConfig = resolveOutletTaxConfig(outlet);
+    const { country_code: countryCode, gst_inclusive: gstInclusive } = outletTaxConfig;
 
     if (data.table_id) {
       const table = await prisma.table.findFirst({
@@ -177,109 +227,26 @@ async function createOrder(data, staffId) {
       }
     }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayOrderCount = await prisma.order.count({
-      where: { outlet_id: data.outlet_id, created_at: { gte: todayStart } },
-    });
-    const dailySequence = todayOrderCount + 1;
-    const orderNumber = generateOrderNumber(outlet.code, dailySequence);
-
     const menuItemIds = data.items.map((i) => i.menu_item_id);
     const menuItems = await prisma.menuItem.findMany({
       where: { id: { in: menuItemIds }, outlet_id: data.outlet_id, is_deleted: false },
       include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
     });
-
     const menuItemMap = new Map(menuItems.map((mi) => [mi.id, mi]));
-    let subtotal = 0;
-    const orderItemsData = [];
 
-    for (const item of data.items) {
-      const menuItem = menuItemMap.get(item.menu_item_id);
-      if (!menuItem) throw new BadRequestError(`Menu item not found: ${item.menu_item_id}`);
-      if (!menuItem.is_available) throw new BadRequestError(`Item '${menuItem.name}' is currently unavailable`);
+    // Build items + per-item tax (shared pure pricing engine).
+    // Pass customer_state for inter-state detection (IN only).
+    const taxCfg = { ...outletTaxConfig, customer_state: data.delivery_address_state || '' };
+    const { orderItemsData, subtotal, tax } = buildOrderItems(data.items, menuItemMap, taxCfg);
+    const { cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff } =
+      computeOrderTotals(subtotal, taxCfg, countryCode, tax);
 
-      let unitPrice = Number(menuItem.base_price);
-      let variantPrice = 0;
-      let variantName = null;
-
-      if (item.variant_id) {
-        const variant = menuItem.variants.find((v) => v.id === item.variant_id);
-        if (!variant) throw new BadRequestError(`Variant not found for ${menuItem.name}`);
-        variantPrice = Number(variant.price_addition);
-        variantName = variant.name;
-      }
-
-      let addonsTotal = 0;
-      const orderAddons = [];
-      if (item.addons && item.addons.length > 0) {
-        for (const addonReq of item.addons) {
-          const addon = menuItem.addons.find((a) => a.id === addonReq.addon_id);
-          if (!addon) throw new BadRequestError(`Addon not found: ${addonReq.addon_id}`);
-          const addonLineTotal = Number(addon.price) * (addonReq.quantity || 1);
-          addonsTotal += addonLineTotal;
-          orderAddons.push({
-            addon_id: addon.id,
-            name: addon.name,
-            price: Number(addon.price),
-            quantity: addonReq.quantity || 1,
-          });
-        }
-      }
-
-      const itemTotal = (unitPrice + variantPrice + addonsTotal) * item.quantity;
-      subtotal += itemTotal;
-
-      orderItemsData.push({
-        menu_item_id: item.menu_item_id,
-        variant_id: item.variant_id || null,
-        name: menuItem.name,
-        variant_name: variantName,
-        quantity: item.quantity,
-        unit_price: unitPrice,
-        variant_price: variantPrice,
-        addons_total: addonsTotal,
-        item_total: itemTotal,
-        gst_rate: Number(menuItem.gst_rate) || outletTaxConfig.default_gst_rate || 0,
-        kitchen_station: menuItem.kitchen_station,
-        notes: item.notes || null,
-        addons: orderAddons,
-      });
-    }
-
-    // Build tax config — pass customer_state for inter-state detection (IN only)
-    const customerState = data.delivery_address_state || '';
-    const taxCfg = { ...outletTaxConfig, customer_state: customerState };
-
-    let totalCgstPaise = 0;
-    let totalSgstPaise = 0;
-    let totalIgstPaise = 0;
-    let totalTaxPaise = 0;
-
-    for (const oi of orderItemsData) {
-      const tax = calculateItemTax(
-        { base_price: oi.unit_price + oi.variant_price + (oi.addons_total / oi.quantity), quantity: oi.quantity, gst_rate: oi.gst_rate, is_inclusive: gstInclusive },
-        taxCfg
-      );
-      oi.item_tax = tax.total_tax;
-      oi.taxable_amount = tax.taxable_amount;
-      totalCgstPaise += Math.round(tax.cgst * 100);
-      totalSgstPaise += Math.round(tax.sgst * 100);
-      totalIgstPaise += Math.round(tax.igst * 100);
-      totalTaxPaise += Math.round(tax.total_tax * 100);
-    }
-
-    const totalCgst = totalCgstPaise / 100;
-    const totalSgst = totalSgstPaise / 100;
-    const totalIgst = totalIgstPaise / 100;
-    const totalTax = totalTaxPaise / 100;
-
-    // For inclusive pricing (AU), total is just the subtotal (tax is already inside)
-    const totalAmount = gstInclusive ? subtotal : subtotal + totalTax;
-    const { grandTotal, roundOff } = computeGrandTotal(totalAmount, countryCode);
-
+    let orderNumber;
     const order = await prisma.$transaction(async (tx) => {
+      // Atomic per-outlet/day sequence (race-safe — runs inside the tx).
+      const dailySequence = await nextDailySequence(tx, data.outlet_id);
+      orderNumber = generateOrderNumber(outlet.code, dailySequence);
+
       const newOrder = await tx.order.create({
         data: {
           outlet_id: data.outlet_id,
@@ -291,12 +258,12 @@ async function createOrder(data, staffId) {
           staff_id: staffId,
           subtotal,
           taxable_amount: subtotal,
-          cgst: Math.round(totalCgst * 100) / 100,
-          sgst: Math.round(totalSgst * 100) / 100,
-          igst: Math.round(totalIgst * 100) / 100,
-          total_tax: Math.round(totalTax * 100) / 100,
-          total_amount: Math.round(totalAmount * 100) / 100,
-          round_off: Math.round(roundOff * 100) / 100,
+          cgst: round2(totalCgst),
+          sgst: round2(totalSgst),
+          igst: round2(totalIgst),
+          total_tax: round2(totalTax),
+          total_amount: round2(totalAmount),
+          round_off: round2(roundOff),
           grand_total: grandTotal,
           source: data.source || 'pos',
           notes: data.notes || null,
@@ -304,6 +271,9 @@ async function createOrder(data, staffId) {
         },
       });
 
+      // Items must be created individually to map addons to their new ids;
+      // all addon rows are then flushed in a single createMany.
+      const allAddonRows = [];
       for (const oi of orderItemsData) {
         const createdItem = await tx.orderItem.create({
           data: {
@@ -325,10 +295,11 @@ async function createOrder(data, staffId) {
         });
 
         if (oi.addons.length > 0) {
-          await tx.orderItemAddon.createMany({
-            data: oi.addons.map((a) => ({ ...a, order_item_id: createdItem.id })),
-          });
+          for (const a of oi.addons) allAddonRows.push({ ...a, order_item_id: createdItem.id });
         }
+      }
+      if (allAddonRows.length > 0) {
+        await tx.orderItemAddon.createMany({ data: allAddonRows });
       }
 
       await tx.orderStatusHistory.create({
@@ -516,6 +487,10 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
     let addedSubtotal = 0;
 
     await prisma.$transaction(async (tx) => {
+      // NOTE: this loop intentionally differs from buildOrderItems — addItems does
+      // not enforce is_available and uses its own error messages. Kept inline to
+      // preserve exact behavior. Addon rows are batched into one createMany.
+      const allAddonRows = [];
       for (const item of items) {
         const menuItem = menuItemMap.get(item.menu_item_id);
         if (!menuItem) throw new BadRequestError(`Menu item not found: ${item.menu_item_id}`);
@@ -556,10 +531,11 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
         });
 
         if (orderAddons.length > 0) {
-          await tx.orderItemAddon.createMany({
-            data: orderAddons.map((a) => ({ ...a, order_item_id: createdItem.id })),
-          });
+          for (const a of orderAddons) allAddonRows.push({ ...a, order_item_id: createdItem.id });
         }
+      }
+      if (allAddonRows.length > 0) {
+        await tx.orderItemAddon.createMany({ data: allAddonRows });
       }
 
       // Recalculate full order totals using proper tax engine
@@ -571,12 +547,12 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
         data: {
           subtotal: totals.subtotal,
           taxable_amount: totals.subtotal,
-          cgst: Math.round(totals.cgst * 100) / 100,
-          sgst: Math.round(totals.sgst * 100) / 100,
-          igst: Math.round(totals.igst * 100) / 100,
-          total_tax: Math.round(totals.totalTax * 100) / 100,
-          total_amount: Math.round(totals.totalAmount * 100) / 100,
-          round_off: Math.round(totals.roundOff * 100) / 100,
+          cgst: round2(totals.cgst),
+          sgst: round2(totals.sgst),
+          igst: round2(totals.igst),
+          total_tax: round2(totals.totalTax),
+          total_amount: round2(totals.totalAmount),
+          round_off: round2(totals.roundOff),
           grand_total: totals.grandTotal,
         },
       });
@@ -664,27 +640,7 @@ async function generateKOT(orderId, outletId = null) {
         const io = getIO();
         if (io) {
           for (const kot of kots) {
-            const payload = {
-              id: kot.id,
-              kot_number: kot.kot_number,
-              station: kot.station,
-              status: 'pending',
-              outlet_id: order.outlet_id,
-              order_id: orderId,
-              order_number: order.order_number,
-              order_type: order.order_type,
-              table_id: order.table_id,
-              items_count: kot.items.length,
-              kot_items: kot.items.map(item => ({
-                order_item: {
-                  name: item.name,
-                  variant_name: item.variant_name,
-                  quantity: item.quantity,
-                  notes: item.notes,
-                  addons: item.addons?.map(a => ({ name: a.name })) || [],
-                },
-              })),
-            };
+            const payload = buildKotSocketPayload(kot, order, kot.items);
             io.of('/kitchen').to(`outlet:${order.outlet_id}`).emit('new_kot', payload);
             io.of('/kitchen').to(`station:${order.outlet_id}:${kot.station}`).emit('new_kot', payload);
           }
@@ -1238,7 +1194,11 @@ async function refundOrder(orderId, data, userId) {
   if (!order) throw new NotFoundError('Order not found');
   if (order.status !== 'paid') throw new BadRequestError('Can only refund paid orders');
 
-  const payment = order.payments.find(p => p.status === 'completed');
+  // processPayment writes payments with status 'success' (not 'completed'); accept
+  // both for legacy rows and require a positive amount so we don't pick a prior refund.
+  const payment = order.payments.find(
+    p => (p.status === 'success' || p.status === 'completed') && Number(p.amount) > 0
+  );
   if (!payment) throw new BadRequestError('No completed payment found');
 
   const refund = await prisma.payment.create({
@@ -1461,75 +1421,19 @@ async function punchKOT(data, staffId) {
   }
 
   const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]));
-  const dailySequence = todayOrderCount + 1;
-  const orderNumber = generateOrderNumber(outlet.code, dailySequence);
+  // Pre-tx order number (used for socket payloads). The authoritative, race-safe
+  // daily_sequence is re-allocated atomically inside the transaction below; the
+  // count()+1 here is only a provisional value if the tx allocation succeeds.
+  let dailySequence = todayOrderCount + 1;
+  let orderNumber = generateOrderNumber(outlet.code, dailySequence);
 
-  let subtotal = 0;
-  const orderItemsData = [];
-
-  for (const item of data.items) {
-    const menuItem = menuItemMap.get(item.menu_item_id);
-    if (!menuItem) throw new BadRequestError(`Menu item not found: ${item.menu_item_id}`);
-    if (!menuItem.is_available) throw new BadRequestError(`Item '${menuItem.name}' is currently unavailable`);
-
-    let unitPrice = Number(menuItem.base_price);
-    let variantPrice = 0, variantName = null;
-    if (item.variant_id) {
-      const variant = menuItem.variants.find(v => v.id === item.variant_id);
-      if (!variant) throw new BadRequestError(`Variant not found for ${menuItem.name}`);
-      variantPrice = Number(variant.price_addition);
-      variantName = variant.name;
-    }
-
-    let addonsTotal = 0;
-    const orderAddons = [];
-    for (const addonReq of (item.addons || [])) {
-      const addon = menuItem.addons.find(a => a.id === addonReq.addon_id);
-      if (!addon) throw new BadRequestError(`Addon not found: ${addonReq.addon_id}`);
-      const addonLineTotal = Number(addon.price) * (addonReq.quantity || 1);
-      addonsTotal += addonLineTotal;
-      orderAddons.push({ addon_id: addon.id, name: addon.name, price: Number(addon.price), quantity: addonReq.quantity || 1 });
-    }
-
-    const itemTotal = (unitPrice + variantPrice + addonsTotal) * item.quantity;
-    subtotal += itemTotal;
-    orderItemsData.push({
-      menu_item_id: item.menu_item_id,
-      variant_id: item.variant_id || null,
-      name: menuItem.name,
-      variant_name: variantName,
-      quantity: item.quantity,
-      unit_price: unitPrice,
-      variant_price: variantPrice,
-      addons_total: addonsTotal,
-      item_total: itemTotal,
-      gst_rate: Number(menuItem.gst_rate) || defaultGstRate,
-      kitchen_station: menuItem.kitchen_station,
-      notes: item.notes || null,
-      addons: orderAddons,
-    });
-  }
-
-  // ── 3. Tax calculation ───────────────────────────────────────────────────
+  // Build items + per-item tax via the shared pure pricing engine (identical
+  // math to createOrder; replaces the previously copy-pasted inline loops).
   const taxCfg = { ...outletTaxConfig, customer_state: data.delivery_address_state || '' };
-  let totalCgstPaise = 0, totalSgstPaise = 0, totalIgstPaise = 0, totalTaxPaise = 0;
-
-  for (const oi of orderItemsData) {
-    const tax = calculateItemTax(
-      { base_price: oi.unit_price + oi.variant_price + (oi.addons_total / oi.quantity), quantity: oi.quantity, gst_rate: oi.gst_rate, is_inclusive: gstInclusive },
-      taxCfg
-    );
-    oi.item_tax = tax.total_tax;
-    oi.taxable_amount = tax.taxable_amount;
-    totalCgstPaise += Math.round(tax.cgst * 100);
-    totalSgstPaise += Math.round(tax.sgst * 100);
-    totalIgstPaise += Math.round(tax.igst * 100);
-    totalTaxPaise += Math.round(tax.total_tax * 100);
-  }
-
-  const totalTax = totalTaxPaise / 100;
-  const totalAmount = gstInclusive ? subtotal : subtotal + totalTax;
-  const { grandTotal, roundOff } = computeGrandTotal(totalAmount, countryCode);
+  const { orderItemsData, subtotal, tax } = buildOrderItems(data.items, menuItemMap, taxCfg);
+  const {
+    cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff,
+  } = computeOrderTotals(subtotal, taxCfg, countryCode, tax);
 
   // ── 4. Single transaction: create order + items + KOTs ──────────────────
   const stationGroups = {};
@@ -1542,6 +1446,12 @@ async function punchKOT(data, staffId) {
   let createdOrder, createdKots;
 
   await prisma.$transaction(async (tx) => {
+    // Atomic per-outlet/day sequence (race-safe — runs inside the tx, replacing
+    // the provisional count()+1 computed above). Falls back to count()+1 if the
+    // counter table is not yet migrated.
+    dailySequence = await nextDailySequence(tx, data.outlet_id);
+    orderNumber = generateOrderNumber(outlet.code, dailySequence);
+
     // Create order
     createdOrder = await tx.order.create({
       data: {
@@ -1554,12 +1464,12 @@ async function punchKOT(data, staffId) {
         staff_id: staffId,
         subtotal,
         taxable_amount: subtotal,
-        cgst: Math.round((totalCgstPaise / 100) * 100) / 100,
-        sgst: Math.round((totalSgstPaise / 100) * 100) / 100,
-        igst: Math.round((totalIgstPaise / 100) * 100) / 100,
-        total_tax: Math.round(totalTax * 100) / 100,
-        total_amount: Math.round(totalAmount * 100) / 100,
-        round_off: Math.round(roundOff * 100) / 100,
+        cgst: round2(totalCgst),
+        sgst: round2(totalSgst),
+        igst: round2(totalIgst),
+        total_tax: round2(totalTax),
+        total_amount: round2(totalAmount),
+        round_off: round2(roundOff),
         grand_total: grandTotal,
         source: data.source || 'pos',
         notes: data.notes || null,

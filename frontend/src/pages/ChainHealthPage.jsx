@@ -79,7 +79,7 @@ function DimBar({ dim }) {
           style={{ width: `${pct}%`, background: color }} />
       </div>
       {dim.signal && (
-        <p className="text-xs" style={{ color: 'var(--text-tertiary, #9ca3af)' }}>{dim.signal}</p>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{dim.signal}</p>
       )}
     </div>
   );

@@ -44,31 +44,34 @@ const createInventoryItemSchema = Joi.object({
   max_threshold: Joi.number().precision(2).min(0).default(0),
 });
 
+// Canonical unit names + common aliases used by the frontend UI
+const VALID_UNITS = ['kg', 'g', 'gm', 'l', 'ltr', 'ml', 'pcs', 'dozen', 'box', 'packet', 'pkt', 'bunch', 'roll', 'sleeve', 'ctn', 'tray'];
+
 const createItemSchema = Joi.object({
   name: Joi.string().trim().max(100).required(),
-  sku: Joi.string().trim().max(50),
-  category: Joi.string().trim().max(50),
-  unit: Joi.string().valid('kg', 'g', 'l', 'ml', 'pcs', 'dozen', 'box', 'packet').required(),
-  cost_per_unit: Joi.number().min(0).required(),
-  min_threshold: Joi.number().min(0),
-  max_threshold: Joi.number().min(0),
-  auto_order_enabled: Joi.boolean(),
-  reorder_qty: Joi.number().min(0),
-  preferred_supplier_id: Joi.string().uuid().allow(null),
+  sku: Joi.string().trim().max(50).allow('', null),
+  category: Joi.string().trim().max(50).allow('', null),
+  unit: Joi.string().valid(...VALID_UNITS).required(),
+  cost_per_unit: Joi.number().min(0).default(0),
+  min_threshold: Joi.number().min(0).default(0),
+  max_threshold: Joi.number().min(0).default(0),
+  auto_order_enabled: Joi.boolean().default(false),
+  reorder_qty: Joi.number().min(0).allow(null),
+  preferred_supplier_id: Joi.string().uuid().allow(null, ''),
   outlet_id: Joi.string().uuid().required(),
 });
 
 const updateItemSchema = Joi.object({
   name: Joi.string().trim().max(100),
-  sku: Joi.string().trim().max(50),
-  category: Joi.string().trim().max(50),
-  unit: Joi.string().valid('kg', 'g', 'l', 'ml', 'pcs', 'dozen', 'box', 'packet'),
+  sku: Joi.string().trim().max(50).allow('', null),
+  category: Joi.string().trim().max(50).allow('', null),
+  unit: Joi.string().valid(...VALID_UNITS),
   cost_per_unit: Joi.number().min(0),
   min_threshold: Joi.number().min(0),
   max_threshold: Joi.number().min(0),
   auto_order_enabled: Joi.boolean(),
-  reorder_qty: Joi.number().min(0),
-  preferred_supplier_id: Joi.string().uuid().allow(null),
+  reorder_qty: Joi.number().min(0).allow(null),
+  preferred_supplier_id: Joi.string().uuid().allow(null, ''),
   outlet_id: Joi.string().uuid(),
 });
 
@@ -95,8 +98,10 @@ const restockOrderSchema = Joi.object({
 });
 
 const aiSuggestItemsSchema = Joi.object({
-  outlet_id: Joi.string().uuid().required(),
-  prompt: Joi.string().max(500),
+  outlet_id: Joi.string().uuid().allow('', null),
+  // Frontend sends restaurant_type; controller reads restaurant_type
+  restaurant_type: Joi.string().trim().max(200).required(),
+  region: Joi.string().valid('IN', 'AU').default('IN'),
 });
 
 const aiSuggestRecipeSchema = Joi.object({
@@ -109,8 +114,10 @@ const aiBuildPOSchema = Joi.object({
 });
 
 const aiAutofillItemSchema = Joi.object({
-  outlet_id: Joi.string().uuid().required(),
-  name: Joi.string().trim().max(100).required(),
+  outlet_id: Joi.string().uuid().allow('', null),
+  // Frontend sends item_name; controller reads item_name
+  item_name: Joi.string().trim().max(100).required(),
+  region: Joi.string().valid('IN', 'AU').default('IN'),
 });
 
 module.exports = {

@@ -597,31 +597,14 @@ async function restockFromCancelledOrder(orderId) {
   return { restocked: transactions.length };
 }
 
-/**
- * List all suppliers for an outlet.
- */
-async function listSuppliers(outletId) {
-  const prisma = getDbClient();
-  return prisma.supplier.findMany({
-    where: { outlet_id: outletId, is_deleted: false },
-    orderBy: { name: 'asc' },
-  });
-}
-
-/**
- * Create a supplier.
- */
-async function createSupplier(outletId, data) {
-  const prisma = getDbClient();
-  return prisma.supplier.create({
-    data: { outlet_id: outletId, ...data },
-  });
-}
+// NOTE: Supplier CRUD lives exclusively in modules/inventory/procurement.service.js
+// (the canonical owner, mounted at /api/suppliers). The duplicate listSuppliers/
+// createSupplier that previously lived here were removed to eliminate two divergent
+// live endpoints.
 
 module.exports = {
   getStock, adjustStock, deductByRecipe, recordWastage, createRecipe, getRecipeCost,
   listInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem,
   getLowStock, getWastageLogs, getConsumptionReport,
   checkAndAutoOrder, restockFromCancelledOrder,
-  listSuppliers, createSupplier,
 };

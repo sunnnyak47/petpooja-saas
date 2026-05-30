@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { LC } from '../../src/constants/colors';
 import { TYPE } from '../../src/constants/typography';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useEODPreview, useEODHistory } from '../../src/hooks/useOwnerApi';
@@ -29,17 +30,6 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CONTENT_W = Math.min(SCREEN_W, 480);
 
 
-function fmt(v) {
-  const n = parseFloat(v);
-  if (!n || isNaN(n)) return '₹0';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
-}
-
-function fmtFull(v) {
-  return `₹${(v || 0).toLocaleString('en-IN')}`;
-}
 
 function StatusDot({ status }) {
   const colors = {
@@ -57,6 +47,7 @@ function StatusDot({ status }) {
 export default function CashReconScreen() {
   const { outletId, currentOutlet } = useOutlet();
   const { colors } = useTheme();
+  const { symbol, locale, dateLocale, fmt, fmtFull } = useCurrency();
   const { data: previewData, isLoading: loadingPreview, isError: errorPreview, refetch: refetchPreview } = useEODPreview(outletId);
   const { data: historyData, isLoading: loadingHistory, isError: errorHistory, refetch: refetchHistory } = useEODHistory(outletId);
 
@@ -121,7 +112,7 @@ export default function CashReconScreen() {
             const p = preview || {};
             const uri = await exportReportPdf({
               title: 'Cash Reconciliation',
-              subtitle: `Today's Session • ${new Date().toLocaleDateString('en-IN')}`,
+              subtitle: `Today's Session • ${new Date().toLocaleDateString(dateLocale)}`,
               outletName: currentOutlet?.name || 'PetPooja',
               sections: [
                 {
@@ -129,26 +120,26 @@ export default function CashReconScreen() {
                   rows: [
                     { label: 'Status', value: p.status === 'open' ? 'Active' : 'Closed' },
                     { label: 'Opened At', value: p.openedAt || '--' },
-                    { label: 'Opening Cash', value: `₹${(p.openingCash || 0).toLocaleString('en-IN')}` },
-                    { label: 'Total Sales', value: `₹${(p.totalSales || 0).toLocaleString('en-IN')}` },
+                    { label: 'Opening Cash', value: `${symbol}${(p.openingCash || 0).toLocaleString(locale)}` },
+                    { label: 'Total Sales', value: `${symbol}${(p.totalSales || 0).toLocaleString(locale)}` },
                     { label: 'Total Orders', value: `${p.totalOrders || 0}` },
-                    { label: 'Expected Cash', value: `₹${(p.expectedCash || 0).toLocaleString('en-IN')}` },
+                    { label: 'Expected Cash', value: `${symbol}${(p.expectedCash || 0).toLocaleString(locale)}` },
                   ],
                 },
                 {
                   heading: 'Payment Breakdown',
                   rows: payments.map(pay => ({
                     label: pay.label,
-                    value: `₹${(pay.amount || 0).toLocaleString('en-IN')} (${pay.pct}%)`,
+                    value: `${symbol}${(pay.amount || 0).toLocaleString(locale)} (${pay.pct}%)`,
                   })),
                 },
                 {
                   heading: 'Deductions',
                   rows: [
-                    { label: 'Voids', value: `-₹${(p.voids || 0).toLocaleString('en-IN')}` },
-                    { label: 'Refunds', value: `-₹${(p.refunds || 0).toLocaleString('en-IN')}` },
-                    { label: 'Discounts', value: `-₹${(p.discounts || 0).toLocaleString('en-IN')}` },
-                    { label: 'Tips Collected', value: `+₹${(p.tips || 0).toLocaleString('en-IN')}` },
+                    { label: 'Voids', value: `-${symbol}${(p.voids || 0).toLocaleString(locale)}` },
+                    { label: 'Refunds', value: `-${symbol}${(p.refunds || 0).toLocaleString(locale)}` },
+                    { label: 'Discounts', value: `-${symbol}${(p.discounts || 0).toLocaleString(locale)}` },
+                    { label: 'Tips Collected', value: `+${symbol}${(p.tips || 0).toLocaleString(locale)}` },
                   ],
                 },
               ],
@@ -282,7 +273,7 @@ export default function CashReconScreen() {
                       <Text style={[s.histBadgeText, {
                         color: isBalanced ? '#007A2E' : isShort ? '#EE0000' : '#F5A623',
                       }]}>
-                        {isBalanced ? 'Balanced' : isShort ? `Short ₹${Math.abs(day.variance)}` : `Over ₹${day.variance}`}
+                        {isBalanced ? 'Balanced' : isShort ? `Short ${symbol}${Math.abs(day.variance)}` : `Over ${symbol}${day.variance}`}
                       </Text>
                     </View>
                   </View>

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { useRegion } from '../hooks/useRegion';
 import Modal from '../components/Modal';
 import {
   Plus, Truck, Trash2, Settings, Package,
@@ -71,6 +72,8 @@ function Section({ title, icon: Icon, count, children, defaultOpen = false }) {
 /* ─── Add Material Modal (with AI autofill) ─────────────────── */
 function AddMaterialModal({ outletId, editItem, onClose }) {
   const qc = useQueryClient();
+  const { symbol } = useCurrency();
+  const region = useRegion();
   const [form, setForm] = useState(editItem ? {
     name:               editItem.name || '',
     sku:                editItem.sku  || '',
@@ -93,7 +96,7 @@ function AddMaterialModal({ outletId, editItem, onClose }) {
     if (!form.name.trim()) return toast.error('Enter an item name first');
     setAILoading(true);
     try {
-      const res = await api.post('/inventory/ai/autofill-item', { item_name: form.name });
+      const res = await api.post('/inventory/ai/autofill-item', { item_name: form.name, region });
       const data = res.data?.data || res.data;
       setForm(f => ({ ...f, ...data }));
       toast.success('AI filled the details!');
@@ -245,7 +248,7 @@ export default function InventoryPage() {
   // Suppliers query (for suppliers section)
   const { data: suppliersData } = useQuery({
     queryKey: ['inv-suppliers', outletId],
-    queryFn: () => api.get(`/inventory/suppliers?outlet_id=${outletId}`),
+    queryFn: () => api.get(`/suppliers?outlet_id=${outletId}`),
     enabled: !!outletId,
   });
   const suppliers = suppliersData?.data || [];
@@ -274,12 +277,15 @@ export default function InventoryPage() {
   });
   const recipes = recipesData?.data || [];
 
+  // Adjust item state — holds the item passed from ItemGrid "Adjust" button
+  const [adjustItem, setAdjustItem] = useState(null);
+
   // Supplier mutations
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', contact_person: '', phone: '', email: '', payment_terms: 'Cash on Delivery' });
 
   const supplierMut = useMutation({
-    mutationFn: (d) => api.post('/inventory/suppliers', { ...d, outlet_id: outletId }),
+    mutationFn: (d) => api.post('/suppliers', { ...d, outlet_id: outletId }),
     onSuccess: () => {
       toast.success('Supplier added');
       qc.invalidateQueries({ queryKey: ['inv-suppliers'] });
@@ -373,27 +379,36 @@ export default function InventoryPage() {
       {/* ══ ZONE A — AI Insight Strip ══════════════════════════ */}
       <AIInsightStrip outletId={outletId} onAction={handleInsightAction} />
 
-      {/* ══ ZONE B — Quick Actions ══════════════════════════════ */}
+      {/* ══ ZONE B — Quick Actions (refined: clean white cards, accent on icon only) ══ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { key: 'delivery', label: 'Received Delivery', icon: Truck,    color: 'var(--success)', desc: 'Add incoming stock' },
-          { key: 'wastage',  label: 'Log Wastage',       icon: Trash2,   color: 'var(--danger)',  desc: 'Record spoilage/damage' },
-          { key: 'po',       label: 'Create PO',         icon: Zap,      color: 'var(--accent)',  desc: 'AI builds order list' },
-          { key: 'adjust',   label: 'Adjust Stock',      icon: Settings, color: 'var(--warning)', desc: 'Manual correction' },
+          { key: 'delivery', label: 'Received Delivery', icon: Truck,    color: '#10b981', desc: 'Add incoming stock' },
+          { key: 'wastage',  label: 'Log Wastage',       icon: Trash2,   color: '#ef4444', desc: 'Record spoilage / damage' },
+          { key: 'po',       label: 'Create PO',         icon: Zap,      color: '#6366f1', desc: 'Auto-build supplier order' },
+          { key: 'adjust',   label: 'Adjust Stock',      icon: Settings, color: '#f59e0b', desc: 'Manual count correction' },
         ].map(({ key, label, icon: Icon, color, desc }) => (
           <button key={key}
             onClick={() => setSheet(key)}
-            className="flex flex-col items-start p-4 rounded-3xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="relative flex flex-col items-start p-4 rounded-xl text-left transition-all overflow-hidden group"
             style={{
-              background: `color-mix(in srgb, ${color} 8%, var(--bg-secondary))`,
-              border: `1.5px solid color-mix(in srgb, ${color} 20%, transparent)`,
-            }}>
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3"
-              style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
-              <Icon className="w-5 h-5" style={{ color }} />
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = color + '60'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = `0 8px 22px -10px ${color}40`; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.04)'; }}>
+            {/* top edge accent */}
+            <span className="absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: color }} />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+              style={{
+                background: color + '14',
+                border: `1px solid ${color}26`,
+              }}>
+              <Icon className="w-4 h-4" style={{ color }} strokeWidth={2.2} />
             </div>
-            <p className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>{label}</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
+            <p className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>{label}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
           </button>
         ))}
       </div>
@@ -402,7 +417,7 @@ export default function InventoryPage() {
       <ItemGrid
         outletId={outletId}
         onItemClick={setSelectedItem}
-        onAdjust={(item) => { setSelectedItem(null); setSheet('adjust'); }}
+        onAdjust={(item) => { setSelectedItem(null); setAdjustItem(item); setSheet('adjust'); }}
       />
 
       {/* ══ ADVANCED SECTIONS (collapsed) ════════════════════ */}
@@ -574,7 +589,13 @@ export default function InventoryPage() {
       {/* ══ SHEETS ══════════════════════════════════════════════ */}
       {sheet === 'delivery' && <ReceivedDeliverySheet outletId={outletId} onClose={() => setSheet(null)} />}
       {sheet === 'wastage'  && <LogWastageSheet       outletId={outletId} onClose={() => setSheet(null)} />}
-      {sheet === 'adjust'   && <AdjustStockSheet      outletId={outletId} onClose={() => setSheet(null)} />}
+      {sheet === 'adjust'   && (
+        <AdjustStockSheet
+          outletId={outletId}
+          prefillItem={adjustItem}
+          onClose={() => { setSheet(null); setAdjustItem(null); }}
+        />
+      )}
       {sheet === 'po'       && <CreatePOSheet         outletId={outletId} onClose={() => setSheet(null)} />}
 
       {/* ══ ITEM DETAIL PANEL ═══════════════════════════════════ */}

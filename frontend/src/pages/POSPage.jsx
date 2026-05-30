@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import hybridAPI from '../api/offlineAPI';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRegion } from '../hooks/useRegion';
+import { useMenuItems } from '../hooks/queries/useMenuItems';
 import { AU_TAG_MAP } from '../constants/dietaryTags';
 import toast from 'react-hot-toast';
 import {
@@ -78,6 +79,9 @@ export default function POSPage() {
   const voice = useVoiceOrder(voiceLang);
   const [billedOrder, setBilledOrder] = useState(null);
   const [selectedItemForModifiers, setSelectedItemForModifiers] = useState(null);
+  // True while a Punch-KOT request is in flight — keeps the cart intact until the
+  // server confirms so a failed order can never merge into the cashier's next cart.
+  const [punching, setPunching] = useState(false);
 
   // Manager Auth for Void/Comp/Discount
   const [showManagerPin, setShowManagerPin] = useState(false);
@@ -99,6 +103,11 @@ export default function POSPage() {
   const [newCustomerForm, setNewCustomerForm] = useState({ full_name: '', phone: '' });
   const [isCompMode, setIsCompMode] = useState(false);
   const [tempOrderId, setTempOrderId] = useState(null);
+  // Ref mirror of tempOrderId so the long-lived socket handler always reads the
+  // CURRENT order id (the effect only re-subscribes on outlet/online change, so
+  // reading the state var directly would capture a stale value).
+  const tempOrderIdRef = useRef(null);
+  useEffect(() => { tempOrderIdRef.current = tempOrderId; }, [tempOrderId]);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [isBilled, setIsBilled] = useState(false);
   // Server-authoritative grand total — used for split/payment to avoid frontend vs backend rounding drift
@@ -219,10 +228,9 @@ export default function POSPage() {
   // cap raised to 500, even Siena's-class restaurants (249 items) fit in
   // a single response. Cache it forever within the session — categories
   // tab filtering happens client-side so we never refetch on tab change.
-  const { data: cloudMenuData } = useQuery({
-    queryKey: ['menuItems', outletId],
-    queryFn: () => api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then((r) => r.data),
-    enabled: !!outletId && !IS_ELECTRON,
+  // Shared via useMenuItems so POS / Menu / RunningOrders reuse one cache entry.
+  const { data: cloudMenuData } = useMenuItems(outletId, {
+    enabled: !IS_ELECTRON,
     staleTime: 60_000,
   });
 
@@ -381,6 +389,7 @@ export default function POSPage() {
     if (!outletId || !isOnline) return;
     // Connect to /orders namespace (only when online)
     const socket = io(`${SOCKET_URL}/orders`, {
+      auth: { token: localStorage.getItem('accessToken') },
       transports: ['websocket'],
       withCredentials: true
     });
@@ -400,7 +409,9 @@ export default function POSPage() {
     });
 
     socket.on('order_status_change', (data) => {
-        if (tempOrderId === data.order_id) {
+        // Read the ref, not the closed-over state, so this matches the order
+        // currently open on the terminal (not whatever was open at mount).
+        if (tempOrderIdRef.current === data.order_id) {
            if (data.status === 'billed') setIsBilled(true);
            if (data.status === 'cancelled') {
               dispatch(clearCart());
@@ -414,7 +425,7 @@ export default function POSPage() {
     return () => {
       socket.disconnect();
     };
-  }, [outletId, queryClient]);
+  }, [outletId, isOnline, queryClient, dispatch]);
 
   const handleAddItem = (item) => {
     // Guard: out-of-stock check
@@ -518,16 +529,15 @@ export default function POSPage() {
   const handlePunchKOT = async () => {
     if (cart.length === 0) return toast.error('Cart is empty');
 
-    // ── FAST PATH: new order — optimistic fire-and-forget ──────────────────
+    // ── FAST PATH: new order — single combined punch-kot call ──────────────
+    // Correctness over "fire-and-forget": we keep the cart until the server
+    // confirms. Clearing instantly then re-adding on failure corrupted the NEXT
+    // order (addToCart merges by item+variant+addons). The combined endpoint is
+    // sub-second, so awaiting it still feels fast — and the button shows a
+    // loading state via `punching` so it can't be double-fired.
     if (!tempOrderId && !(IS_ELECTRON && !isOnline)) {
-      const cartSnapshot = [...cart];
-
-      // ① Show success & clear cart INSTANTLY — don't wait for server
-      toast.success('🚀 Sent to Kitchen!', { duration: 2500 });
-      dispatch(clearCart());
-      setGratuity(0);
-      setAppliedLoyaltyPoints(0);
-      setAppliedLoyaltyDiscount(0);
+      if (punching) return; // guard against double-tap
+      setPunching(true);
 
       const payload = {
         outlet_id: outletId,
@@ -536,7 +546,7 @@ export default function POSPage() {
         customer_id: selectedCustomer?.id || null,
         notes: orderNotes || null,
         status: 'created',
-        items: cartSnapshot.map(c => ({
+        items: cart.map(c => ({
           menu_item_id: c.menu_item_id,
           menu_item_name: c.name,
           unit_price: Number(c.base_price),
@@ -551,25 +561,31 @@ export default function POSPage() {
         discount_reason: discount?.reason || null,
       };
 
-      // ② API runs completely in background — user is already on next order
-      api.post('/orders/punch-kot', payload)
-        .then(res => {
-          const data = res.data?.data ?? res.data;
-          const orderId = data?.order?.id;
-          if (selectedTable && orderId) {
-            setTempOrderId(orderId);
-          } else {
-            setTempOrderId(null);
-            setCurrentOrder(null);
-          }
-          queryClient.invalidateQueries({ queryKey: ['running-orders'] });
-        })
-        .catch(err => {
-          const msg = err.response?.data?.message || err.message || 'KOT sync failed';
-          toast.error(`⚠️ ${msg} — check Running Orders`, { duration: 5000 });
-          // Restore cart so staff can retry
-          cartSnapshot.forEach(item => dispatch(addToCart(item)));
-        });
+      try {
+        const res = await api.post('/orders/punch-kot', payload);
+        const data = res.data?.data ?? res.data;
+        const orderId = data?.order?.id;
+
+        // Success — NOW clear the cart and reset extras.
+        toast.success('🚀 Sent to Kitchen!', { duration: 2000 });
+        dispatch(clearCart());
+        setGratuity(0);
+        setAppliedLoyaltyPoints(0);
+        setAppliedLoyaltyDiscount(0);
+        if (selectedTable && orderId) {
+          setTempOrderId(orderId);
+        } else {
+          setTempOrderId(null);
+          setCurrentOrder(null);
+        }
+        queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      } catch (err) {
+        // Failure — cart is untouched, staff can simply retry.
+        const msg = err.response?.data?.message || err.message || 'KOT failed';
+        toast.error(`⚠️ ${msg} — cart kept, please retry`, { duration: 5000 });
+      } finally {
+        setPunching(false);
+      }
 
       return;
     }
@@ -1625,8 +1641,8 @@ export default function POSPage() {
                   * If cart has items, primarily show PUNCH KOT. 
                   * Hide GENERATE BILL if items are pending.
                   */
-                 <button onClick={handlePunchKOT} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-500/20">
-                    <Send className="w-4 h-4"/> <span>PUNCH KOT & PRINT</span>
+                 <button onClick={handlePunchKOT} disabled={punching} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-500/20 disabled:opacity-60 disabled:cursor-not-allowed">
+                    <Send className="w-4 h-4"/> <span>{punching ? 'Sending…' : 'PUNCH KOT & PRINT'}</span>
                  </button>
                )}
             </div>

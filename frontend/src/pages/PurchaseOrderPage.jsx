@@ -13,13 +13,20 @@ import api from '../lib/api';
 import { useTheme } from '../themes/ThemeContext';
 import toast from 'react-hot-toast';
 import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
+import { useRegion } from '../hooks/useRegion';
 
 /* ── helpers ─────────────────────────────────── */
-const fmt = (n, currency = 'INR') => formatCurrencyStatic(n, currency);
-const CATEGORIES = [
+// fmt is now only used as a fallback — prefer format() from useCurrency() inside components
+const IN_CATEGORIES = [
   'ALL', 'Vegetables', 'Dairy', 'Grains & Flours', 'Spices & Masalas',
   'Meat & Fish', 'Dry Goods', 'Packaging', 'Beverages', 'Other',
 ];
+const AU_CATEGORIES = [
+  'ALL', 'Produce', 'Dairy & Eggs', 'Meat & Poultry', 'Seafood',
+  'Pantry', 'Frozen', 'Beverages', 'Packaging', 'Cleaning', 'Other',
+];
+const IN_TAX_RATES = [0, 5, 12, 18, 28];
+const AU_TAX_RATES = [0, 10];
 const STATUS_COLORS = {
   draft:    { bg: '#f1f5f9', text: '#64748b', label: 'Draft' },
   approved: { bg: '#dcfce7', text: '#16a34a', label: 'Approved' },
@@ -44,6 +51,9 @@ function StatusBadge({ status }) {
 ═══════════════════════════════════════════════ */
 export default function PurchaseOrderPage() {
   const { isDark } = useTheme();
+  const { format } = useCurrency();
+  const region = useRegion();
+  const isAU = region === 'AU';
   const navigate = useNavigate();
 
   // view states: 'list' | 'create' | 'detail'
@@ -85,6 +95,7 @@ export default function PurchaseOrderPage() {
   if (view === 'create') {
     return <CreatePOView
       isDark={isDark} card={card} border={border} text={text} muted={muted} bg={bg}
+      isAU={isAU}
       suppliers={suppliers} presets={presets}
       onSaved={() => { loadAll(); setView('list'); }}
       onBack={() => setView('list')}
@@ -94,6 +105,7 @@ export default function PurchaseOrderPage() {
     return <PODetailView
       poId={selectedPO}
       isDark={isDark} card={card} border={border} text={text} muted={muted} bg={bg}
+      isAU={isAU}
       suppliers={suppliers}
       onBack={() => { loadAll(); setView('list'); setSelectedPO(null); }}
     />;
@@ -176,7 +188,7 @@ export default function PurchaseOrderPage() {
                       {po.order_date ? new Date(po.order_date).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-3">{po._count?.po_items ?? po.po_items?.length ?? 0} items</td>
-                    <td className="px-4 py-3 font-semibold">{fmt(po.grand_total)}</td>
+                    <td className="px-4 py-3 font-semibold">{format(po.grand_total)}</td>
                     <td className="px-4 py-3"><StatusBadge status={po.status} /></td>
                     <td className="px-4 py-3">
                       <button onClick={e => { e.stopPropagation(); setSelectedPO(po.id); setView('detail'); }}
@@ -198,8 +210,10 @@ export default function PurchaseOrderPage() {
 /* ═══════════════════════════════════════════════
    CREATE PO VIEW
 ═══════════════════════════════════════════════ */
-function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, presets, onSaved, onBack }) {
-  const { symbol } = useCurrency();
+function CreatePOView({ isDark, card, border, text, muted, bg, isAU, suppliers, presets, onSaved, onBack }) {
+  const { symbol, format } = useCurrency();
+  const CATEGORIES = isAU ? AU_CATEGORIES : IN_CATEGORIES;
+  const TAX_RATES  = isAU ? AU_TAX_RATES  : IN_TAX_RATES;
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [search, setSearch]     = useState('');
   const [lineItems, setLineItems] = useState([]);
@@ -332,7 +346,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                   </p>
                   {preset.default_rate > 0 && (
                     <p className="text-xs font-bold mt-0.5" style={{ color: '#3b82f6' }}>
-                      {fmt(preset.default_rate)}/{preset.unit}
+                      {format(preset.default_rate)}/{preset.unit}
                     </p>
                   )}
                 </button>
@@ -355,7 +369,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ color: muted }}>
-                      {['Item', 'Category', 'HSN', 'Unit', 'Qty', `Rate (${symbol})`, 'GST%', 'Amount', ''].map(h => (
+                      {['Item', 'Category', isAU ? 'Code' : 'HSN', 'Unit', 'Qty', `Rate (${symbol})`, 'GST%', 'Amount', ''].map(h => (
                         <th key={h} className="text-left pb-2 pr-2 font-semibold">{h}</th>
                       ))}
                     </tr>
@@ -374,7 +388,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                           <td className="py-2 pr-2 whitespace-nowrap" style={{ color: muted }}>{item.category}</td>
                           <td className="py-2 pr-2">
                             <input value={item.hsn_code} onChange={e => updateItem(i, 'hsn_code', e.target.value)}
-                              placeholder="HSN"
+                              placeholder={isAU ? 'Code' : 'HSN'}
                               className="w-16 px-1 py-0.5 rounded text-xs outline-none"
                               style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}`, color: text }} />
                           </td>
@@ -399,11 +413,11 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
                             <select value={item.tax_rate} onChange={e => updateItem(i, 'tax_rate', e.target.value)}
                               className="w-14 px-1 py-0.5 rounded text-xs outline-none"
                               style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}`, color: text }}>
-                              {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
+                              {TAX_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                             </select>
                           </td>
                           <td className="py-2 pr-2 font-semibold whitespace-nowrap">
-                            {fmt(amt + tax)}
+                            {format(amt + tax)}
                           </td>
                           <td className="py-2">
                             <button onClick={() => removeItem(i)} className="p-1 rounded hover:opacity-70">
@@ -478,15 +492,15 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span style={{ color: muted }}>Subtotal</span>
-                <span>{fmt(subtotal)}</span>
+                <span>{format(subtotal)}</span>
               </div>
               <div className="flex justify-between">
-                <span style={{ color: muted }}>GST</span>
-                <span>{fmt(taxTotal)}</span>
+                <span style={{ color: muted }}>{isAU ? 'GST (10%)' : 'GST'}</span>
+                <span>{format(taxTotal)}</span>
               </div>
               <div className="flex justify-between font-bold text-base border-t pt-2 mt-2" style={{ borderColor: border }}>
                 <span>Grand Total</span>
-                <span style={{ color: '#3b82f6' }}>{fmt(grandTotal)}</span>
+                <span style={{ color: '#3b82f6' }}>{format(grandTotal)}</span>
               </div>
             </div>
             <button
@@ -505,7 +519,8 @@ function CreatePOView({ isDark, card, border, text, muted, bg, suppliers, preset
 /* ═══════════════════════════════════════════════
    PO DETAIL VIEW
 ═══════════════════════════════════════════════ */
-function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
+function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBack }) {
+  const { format } = useCurrency();
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [whatsappPhone, setWhatsappPhone] = useState('');
@@ -720,7 +735,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               {supplier.phone && <p style={{ color: muted }} className="text-sm">{supplier.phone}</p>}
               {supplier.email && <p style={{ color: muted }} className="text-sm">{supplier.email}</p>}
               {supplier.address && <p style={{ color: muted }} className="text-sm">{supplier.address}</p>}
-              {supplier.gstin && <p className="text-xs mt-1">GSTIN: {supplier.gstin}</p>}
+              {supplier.gstin && <p className="text-xs mt-1">{isAU ? 'ABN' : 'GSTIN'}: {supplier.gstin}</p>}
             </div>
             <div style={{ background: card, border: `1px solid ${border}` }} className="rounded-xl p-4">
               <p style={{ color: muted }} className="text-xs font-semibold mb-2">ORDER INFO</p>
@@ -754,7 +769,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: isDark ? '#0f172a' : '#f8fafc', color: muted }}>
-                    {['#', 'Item', 'HSN', 'Unit', 'Qty', 'Rate', 'GST%', 'Amount'].map(h => (
+                    {['#', 'Item', isAU ? 'Code' : 'HSN', 'Unit', 'Qty', 'Rate', 'GST%', 'Amount'].map(h => (
                       <th key={h} className="px-4 py-2 text-left text-xs font-semibold">{h}</th>
                     ))}
                   </tr>
@@ -770,9 +785,9 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
                         <td className="px-4 py-2 text-xs font-mono" style={{ color: muted }}>{item.hsn_code || '—'}</td>
                         <td className="px-4 py-2 text-xs">{item.unit}</td>
                         <td className="px-4 py-2">{item.quantity ?? item.ordered_quantity}</td>
-                        <td className="px-4 py-2">{fmt(item.unit_rate ?? item.unit_cost)}</td>
+                        <td className="px-4 py-2">{format(item.unit_rate ?? item.unit_cost)}</td>
                         <td className="px-4 py-2">{item.tax_rate}%</td>
-                        <td className="px-4 py-2 font-semibold">{fmt(amt + tax)}</td>
+                        <td className="px-4 py-2 font-semibold">{format(amt + tax)}</td>
                       </tr>
                     );
                   })}
@@ -789,21 +804,21 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span style={{ color: muted }}>Subtotal</span>
-                <span>{fmt(po.total_amount)}</span>
+                <span>{format(po.total_amount)}</span>
               </div>
               <div className="flex justify-between">
-                <span style={{ color: muted }}>GST</span>
-                <span>{fmt(po.tax_amount)}</span>
+                <span style={{ color: muted }}>{isAU ? 'GST (10%)' : 'GST'}</span>
+                <span>{format(po.tax_amount)}</span>
               </div>
               {parseFloat(po.discount_amount) > 0 && (
                 <div className="flex justify-between" style={{ color: '#16a34a' }}>
                   <span>Discount</span>
-                  <span>-{fmt(po.discount_amount)}</span>
+                  <span>-{format(po.discount_amount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg border-t pt-2" style={{ borderColor: border }}>
                 <span>Grand Total</span>
-                <span style={{ color: '#3b82f6' }}>{fmt(po.grand_total)}</span>
+                <span style={{ color: '#3b82f6' }}>{format(po.grand_total)}</span>
               </div>
             </div>
           </div>
@@ -928,7 +943,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, onBack }) {
               <div className="flex justify-between">
                 <span style={{ color: muted }}>Grand Total</span>
                 <span className="font-bold" style={{ color: '#16a34a' }}>
-                  {fmt(po.grand_total || 0)}
+                  {format(po.grand_total || 0)}
                 </span>
               </div>
             </div>
