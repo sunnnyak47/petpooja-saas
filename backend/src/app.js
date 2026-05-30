@@ -380,6 +380,22 @@ async function startApp() {
       }
     }
 
+    // ── Create outlet_daily_counters if missing (race-safe order sequencing) ──
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS outlet_daily_counters (
+          id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id  UUID        NOT NULL,
+          day        VARCHAR(10) NOT NULL,
+          seq        INTEGER     NOT NULL DEFAULT 0,
+          CONSTRAINT outlet_daily_counters_outlet_day_key UNIQUE (outlet_id, day)
+        )
+      `);
+      logger.info('outlet_daily_counters table ensured');
+    } catch (e) {
+      logger.warn('outlet_daily_counters create skipped:', { error: e.message });
+    }
+
     // ── Create Xero tables if they don't exist ───────────────────────────
     // All statements are idempotent (CREATE TABLE IF NOT EXISTS).
     const xeroTableDDL = [

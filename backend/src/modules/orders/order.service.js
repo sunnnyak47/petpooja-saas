@@ -83,10 +83,15 @@ async function nextDailySequence(tx, outletId, now = new Date()) {
     return counter.seq;
   } catch (err) {
     // Fallback: legacy local-midnight count()+1 (pre-migration safety net).
+    // IMPORTANT: use the non-transactional client here — when the upsert above fails
+    // because outlet_daily_counters doesn't exist yet, PostgreSQL marks the tx as
+    // aborted; any subsequent query on `tx` would fail with "current transaction is
+    // aborted". Using getDbClient() bypasses that aborted state entirely.
     logger.warn('OutletDailyCounter unavailable — falling back to count()+1', { error: err.message });
+    const prisma = getDbClient();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
-    const todayOrderCount = await tx.order.count({
+    const todayOrderCount = await prisma.order.count({
       where: { outlet_id: outletId, created_at: { gte: todayStart } },
     });
     return todayOrderCount + 1;
