@@ -48,6 +48,8 @@ export default function SettingsPage() {
     currency: isAU ? 'AUD' : 'INR',
     timezone: isAU ? 'Australia/Sydney' : 'Asia/Kolkata',
     language: 'en',
+    // Dine-in / POS behaviour
+    require_table_for_dine_in: false,
     // Tax / Compliance
     default_gst_slab: '5',
     gst_inclusive: false,
@@ -227,6 +229,16 @@ export default function SettingsPage() {
                 <option value="Australia/Darwin">ACST — Darwin</option>
               </select>
             </Field>
+
+            <div className="pt-2 border-t border-border/60">
+              <SectionTitle title="Dine-In Orders" subtitle="Control how dine-in orders are placed at the POS" />
+              <ToggleSwitch
+                label="Require table selection for dine-in"
+                description="When ON, a dine-in order cannot be placed until a table is selected. Turn OFF to make the table optional."
+                checked={settings.require_table_for_dine_in}
+                onChange={(v) => updateSetting('require_table_for_dine_in', v)}
+              />
+            </div>
           </div>
         );
       case 'tax': {

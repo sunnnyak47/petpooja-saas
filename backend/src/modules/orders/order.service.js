@@ -225,6 +225,16 @@ async function createOrder(data, staffId) {
       if (table.status === 'occupied' && table.current_order_id) {
         throw new BadRequestError('Table is already occupied. Use add items to existing order.');
       }
+    } else if ((data.order_type || 'dine_in') === 'dine_in') {
+      // Table is mandatory for dine-in orders only when the outlet enables it.
+      const setting = await prisma.outletSetting.findFirst({
+        where: { outlet_id: data.outlet_id, setting_key: 'require_table_for_dine_in' },
+        select: { setting_value: true },
+      });
+      const requireTable = setting?.setting_value === 'true';
+      if (requireTable) {
+        throw new BadRequestError('Please select a table before placing a dine-in order.');
+      }
     }
 
     const menuItemIds = data.items.map((i) => i.menu_item_id);
@@ -1406,18 +1416,25 @@ async function punchKOT(data, staffId) {
   const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '', default_gst_rate: defaultGstRate };
 
   // ── 2. Fetch menu items & compute pricing (parallel with table check) ────
-  const [menuItems, todayOrderCount, tableRow] = await Promise.all([
+  const [menuItems, todayOrderCount, tableRow, requireTableSetting] = await Promise.all([
     prisma.menuItem.findMany({
       where: { id: { in: data.items.map(i => i.menu_item_id) }, outlet_id: data.outlet_id, is_deleted: false },
       include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
     }),
     prisma.order.count({ where: { outlet_id: data.outlet_id, created_at: { gte: (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })() } } }),
     data.table_id ? prisma.table.findFirst({ where: { id: data.table_id, outlet_id: data.outlet_id, is_deleted: false } }) : Promise.resolve(null),
+    (data.order_type || 'dine_in') === 'dine_in' && !data.table_id
+      ? prisma.outletSetting.findFirst({ where: { outlet_id: data.outlet_id, setting_key: 'require_table_for_dine_in' }, select: { setting_value: true } })
+      : Promise.resolve(null),
   ]);
 
   if (data.table_id && !tableRow) throw new NotFoundError('Table not found');
   if (tableRow?.status === 'occupied' && tableRow?.current_order_id) {
     throw new BadRequestError('Table is already occupied. Use add items to existing order.');
+  }
+  // Table mandatory for dine-in when the outlet enables the setting.
+  if (requireTableSetting?.setting_value === 'true') {
+    throw new BadRequestError('Please select a table before placing a dine-in order.');
   }
 
   const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]));

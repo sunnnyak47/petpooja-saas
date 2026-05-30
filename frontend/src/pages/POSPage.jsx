@@ -282,6 +282,27 @@ export default function POSPage() {
   const tables = cloudTables || [];
   const tablesForSelect = tables;
 
+  // Outlet POS settings — used to enforce mandatory table for dine-in
+  const { data: outletSettings } = useQuery({
+    queryKey: ['outlet-settings', outletId],
+    queryFn: async () => {
+      const res = await api.get(`/ho/settings?outlet_id=${outletId}`);
+      return res.data?.data || res.data || {};
+    },
+    enabled: !!outletId && isOnline,
+    staleTime: 60_000,
+  });
+  const requireTableForDineIn = outletSettings?.require_table_for_dine_in === true;
+
+  // Returns true if the order may proceed; otherwise shows a toast and returns false.
+  const ensureTableSelected = () => {
+    if (requireTableForDineIn && orderType === 'dine_in' && !selectedTable?.id) {
+      toast.error('Please select a table before placing this dine-in order.');
+      return false;
+    }
+    return true;
+  };
+
   const { data: customerResults } = useQuery({
     queryKey: ['customersSearch', outletId, customerSearchInput],
     queryFn: async () => {
@@ -502,6 +523,8 @@ export default function POSPage() {
 
   const handleCreateOrder = async (isHold = false) => {
     if (cart.length === 0) return toast.error('Cart is empty');
+    // "Held" orders are parked, not sent to the kitchen — allow without a table.
+    if (!isHold && !ensureTableSelected()) return;
     try {
       const order = await handleCreateOrderCore(isHold ? 'held' : 'created');
       if (!order?.id) return toast.error('Failed to create order. Please try again.');
@@ -528,6 +551,7 @@ export default function POSPage() {
 
   const handlePunchKOT = async () => {
     if (cart.length === 0) return toast.error('Cart is empty');
+    if (!ensureTableSelected()) return;
 
     // ── FAST PATH: new order — single combined punch-kot call ──────────────
     // Correctness over "fire-and-forget": we keep the cart until the server
