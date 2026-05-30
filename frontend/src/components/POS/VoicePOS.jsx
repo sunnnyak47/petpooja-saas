@@ -235,6 +235,11 @@ export default function VoicePOS({ onClose }) {
   const [isPlacingOrder, setIsPlacingOrder]   = useState(false);
   const [placedOrder, setPlacedOrder]         = useState(null);
 
+  // "Don't Stop" — keep mic alive until manually toggled off
+  const [keepListening, setKeepListening]       = useState(false);
+  const keepListeningRef                         = useRef(false);
+  const startListeningRef                        = useRef(null); // avoids circular dep
+
   /* ── Refs ── */
   const recognitionRef = useRef(null);
   const silenceTimer   = useRef(null);
@@ -422,6 +427,10 @@ export default function VoicePOS({ onClose }) {
       speak(errMsg);
     } finally {
       setIsThinking(false);
+      // In "Don't Stop" mode — restart mic automatically after each turn
+      if (keepListeningRef.current) {
+        setTimeout(() => { startListeningRef.current?.(); }, 700);
+      }
     }
   }, [conversationHistory, cart, outletId, tables, speak, isThinking, handlePlaceOrder]);
 
@@ -431,11 +440,13 @@ export default function VoicePOS({ onClose }) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
 
+    try { recognitionRef.current?.abort(); } catch (_) {}
+
     const recognition = new SR();
     recognitionRef.current = recognition;
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = true;  // keep listening until tapped again or silence
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
@@ -454,16 +465,27 @@ export default function VoicePOS({ onClose }) {
         else interim += t;
       }
       setInterimText(interim);
-      // Auto-stop after 2.5s silence (gives time for natural pauses)
-      clearTimeout(silenceTimer.current);
-      silenceTimer.current = setTimeout(() => recognition.stop(), 2500);
+      // In "Don't Stop" mode — no silence timer: browser keeps the stream open.
+      // In normal mode — auto-stop after 2.5s silence.
+      if (!keepListeningRef.current) {
+        clearTimeout(silenceTimer.current);
+        silenceTimer.current = setTimeout(() => {
+          try { recognition.stop(); } catch (_) {}
+        }, 2500);
+      }
     };
 
     recognition.onend = () => {
       setIsListening(false);
       setInterimText('');
       clearTimeout(silenceTimer.current);
-      if (finalTranscript.trim()) sendTurn(finalTranscript.trim());
+      if (finalTranscript.trim()) {
+        sendTurn(finalTranscript.trim());
+        // sendTurn's finally will restart mic in keep-listening mode
+      } else if (keepListeningRef.current) {
+        // No speech heard — restart immediately (waiting for customer)
+        setTimeout(() => { if (keepListeningRef.current) startListeningRef.current?.(); }, 300);
+      }
     };
 
     recognition.onerror = (e) => {
@@ -472,15 +494,26 @@ export default function VoicePOS({ onClose }) {
       if (e.error === 'not-allowed') {
         toast.error('Microphone not allowed. Please use text mode.');
         setInputMode('text');
+        // Kill keep-listening mode on permission error
+        keepListeningRef.current = false;
+        setKeepListening(false);
+      } else if (keepListeningRef.current && e.error !== 'aborted') {
+        // Any other error — try to recover after a short pause
+        setTimeout(() => { if (keepListeningRef.current) startListeningRef.current?.(); }, 800);
       }
     };
 
     recognition.start();
   }, [lang, isThinking, isListening, sendTurn]);
 
+  // Keep ref in sync so sendTurn can call startListening without circular dep
+  startListeningRef.current = startListening;
+
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
+    keepListeningRef.current = false;
+    setKeepListening(false);
     clearTimeout(silenceTimer.current);
+    try { recognitionRef.current?.stop(); } catch (_) {}
   }, []);
 
   /* ── Toggle mic (tap to start / tap to stop) ── */
@@ -560,9 +593,11 @@ export default function VoicePOS({ onClose }) {
   const currentLang = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
   const selectedTable = tables.find(t => t.id === selectedTableId);
 
-  const statusText = isListening ? '🎤 Listening...' :
-    isThinking ? '🤖 Processing...' :
-    isSpeaking ? '🔊 Speaking...' : null;
+  const statusText = isThinking ? '🤖 Processing...' :
+    isSpeaking ? '🔊 Speaking...' :
+    isListening && keepListening ? '🔴 Live — mic always on' :
+    isListening ? '🎤 Listening...' :
+    keepListening ? '⏳ Waiting to restart mic…' : null;
 
   /* ── Render ── */
   return createPortal(
@@ -783,26 +818,53 @@ export default function VoicePOS({ onClose }) {
 
               {/* Voice mode */}
               {inputMode === 'voice' && (
-                <div className="flex items-center justify-center gap-4 py-1">
+                <div className="flex flex-col items-center gap-2 py-1">
                   {!supported ? (
                     <p className="text-xs text-amber-600">Speech not supported in this browser. Use text mode or open in Chrome.</p>
                   ) : (
                     <>
-                      <MicWave active={isListening} thinking={isThinking} />
+                      <div className="flex items-center justify-center gap-4">
+                        <MicWave active={isListening || keepListening} thinking={isThinking} />
+                        <button
+                          onClick={toggleListening}
+                          disabled={isThinking}
+                          className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all
+                            ${isListening || keepListening
+                              ? 'bg-red-500 text-white scale-110 shadow-red-500/30 ring-4 ring-red-500/20'
+                              : isThinking
+                              ? 'bg-surface text-secondary cursor-not-allowed'
+                              : 'bg-accent text-white hover:scale-105 active:scale-95 shadow-accent/30'}`}
+                        >
+                          {isThinking ? <Loader2 size={22} className="animate-spin" /> :
+                            (isListening || keepListening) ? <MicOff size={22} /> : <Mic size={22} />}
+                        </button>
+                        <MicWave active={isListening || keepListening} thinking={isThinking} />
+                      </div>
+
+                      {/* Don't Stop toggle */}
                       <button
-                        onClick={toggleListening}
-                        disabled={isThinking}
-                        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all
-                          ${isListening
-                            ? 'bg-red-500 text-white scale-110 shadow-red-500/30 ring-4 ring-red-500/20'
-                            : isThinking
-                            ? 'bg-surface text-secondary cursor-not-allowed'
-                            : 'bg-accent text-white hover:scale-105 active:scale-95 shadow-accent/30'}`}
+                        onClick={() => {
+                          const next = !keepListening;
+                          keepListeningRef.current = next;
+                          setKeepListening(next);
+                          if (next && !isListening && !isThinking) {
+                            // Activate mic immediately when turning on Don't Stop
+                            setTimeout(() => startListeningRef.current?.(), 100);
+                          } else if (!next) {
+                            // Turning off: stop current recognition
+                            clearTimeout(silenceTimer.current);
+                            try { recognitionRef.current?.stop(); } catch (_) {}
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          keepListening
+                            ? 'bg-red-500/15 text-red-500 border border-red-500/40 ring-2 ring-red-500/20'
+                            : 'bg-surface text-secondary border border-border hover:border-accent hover:text-accent'
+                        }`}
                       >
-                        {isThinking ? <Loader2 size={22} className="animate-spin" /> :
-                          isListening ? <MicOff size={22} /> : <Mic size={22} />}
+                        <span className={`w-1.5 h-1.5 rounded-full ${keepListening ? 'bg-red-500 animate-pulse' : 'bg-secondary'}`} />
+                        {keepListening ? "Don't Stop (click to stop)" : "Don't Stop"}
                       </button>
-                      <MicWave active={isListening} thinking={isThinking} />
                     </>
                   )}
                 </div>
