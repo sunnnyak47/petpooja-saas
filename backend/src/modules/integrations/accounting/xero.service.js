@@ -783,8 +783,11 @@ class XeroService {
 
     const prisma = getDbClient();
 
-    const periodStart = new Date(`${fromDate}T00:00:00.000Z`);
-    const periodEnd = new Date(`${toDate}T23:59:59.999Z`);
+    // from/to may arrive as Date objects (Joi coerces them) or YYYY-MM-DD
+    // strings — normalise to a date-only string before building UTC bounds.
+    const toDateStr = (v) => (v instanceof Date ? v.toISOString() : String(v)).split('T')[0];
+    const periodStart = new Date(`${toDateStr(fromDate)}T00:00:00.000Z`);
+    const periodEnd = new Date(`${toDateStr(toDate)}T23:59:59.999Z`);
 
     const orders = await prisma.order.findMany({
       where: {
