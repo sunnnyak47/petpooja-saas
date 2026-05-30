@@ -56,10 +56,26 @@ async function seedDemoData(outletId) {
   await prisma.xeroAccount.createMany({ data: accounts.map(a => ({ ...a, connection_id: conn.id })) });
 
   // ── 3. Transactions (36 months of daily aggregates) ──────────────────────
-  // Monthly revenue baseline with seasonal factors and slight growth trend
+  // Monthly revenue baseline with seasonal factors, a growth trend AND realistic
+  // month-to-month variance ("proper gaps") — without noise the data is a
+  // perfectly smooth curve where every cost ratio is identical, which makes the
+  // predictions look synthetic and leaves the expense-optimizer nothing to flag.
   const now       = new Date();
   const txnRows   = [];
   let   refSeq    = 1;
+
+  // Seeded PRNG (mulberry32) keyed off the outletId so the generated data is
+  // stable/reproducible per outlet rather than reshuffling on every re-seed.
+  let seedState = 0;
+  for (let i = 0; i < outletId.length; i++) seedState = (seedState * 31 + outletId.charCodeAt(i)) >>> 0;
+  const rand = () => {
+    seedState |= 0; seedState = (seedState + 0x6D2B79F5) | 0;
+    let t = Math.imul(seedState ^ (seedState >>> 15), 1 | seedState);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  // Returns a multiplier in [1-spread, 1+spread] from the seeded stream.
+  const jitter = (spread) => 1 + (rand() * 2 - 1) * spread;
 
   // Seasonal multipliers by month (index 0=Jan)
   const seasonal  = [0.85, 0.80, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20, 1.05, 1.00, 1.10, 1.30];
@@ -71,8 +87,30 @@ async function seedDemoData(outletId) {
     const mnth  = d.getMonth(); // 0-based
     const growth = 1 + (35 - mo) * 0.004; // ~15% growth over 3 years
     const sf    = seasonal[mnth];
-    const rev   = Math.round(baseRev * sf * growth);
+    // Revenue noise: ±8% normal wobble, plus an occasional off month (dip/spike)
+    // so the series has natural gaps instead of tracing a clean curve.
+    let revNoise = jitter(0.08);
+    const eventRoll = rand();
+    if (eventRoll > 0.92) revNoise *= 1.12;       // ~8% chance of a standout month
+    else if (eventRoll < 0.08) revNoise *= 0.86;  // ~8% chance of a soft month
+    const rev   = Math.round(baseRev * sf * growth * revNoise);
     const dateStr = `${yr}-${String(mnth + 1).padStart(2,'0')}-15`; // mid-month date
+
+    // Cost ratios drift around their target each month (relative ± spread) so
+    // some months land over the industry benchmark — that's what gives the
+    // predictive expense-optimizer real, actionable signal.
+    const cogsFoodPct = 0.22 * jitter(0.12);
+    const cogsBevPct  = 0.10 * jitter(0.12);
+    const wagesPct    = 0.26 * jitter(0.14);   // labour is the most volatile line
+    const casualPct   = 0.06 * jitter(0.20);
+    const rentPct     = 0.10;                  // rent is fixed — no drift
+    const utilPct     = 0.025 * jitter(0.15);
+    const mktPct      = 0.03 * jitter(0.30);   // marketing spend is lumpy
+    const repairsPct  = 0.02 * jitter(0.40);   // repairs are sporadic
+    const suppliesPct = 0.02 * jitter(0.18);
+    const acctPct     = 0.01 * jitter(0.10);
+    const insPct      = 0.008;                 // insurance is fixed
+    const depPct      = 0.015;                 // depreciation is fixed
 
     const addRow = (ref, acctCode, acctName, acctType, cat, amt, contact) => {
       const net = Math.round(amt);
@@ -94,35 +132,36 @@ async function seedDemoData(outletId) {
       });
     };
 
-    // Revenue (positive)
-    addRow(`REV-${yr}-${mnth+1}-A`, '200', 'Food & Beverage Revenue', 'REVENUE', 'Revenue', Math.round(rev * 0.88));
-    addRow(`REV-${yr}-${mnth+1}-B`, '201', 'Catering Revenue',        'REVENUE', 'Revenue', Math.round(rev * 0.12));
+    // Revenue (positive) — split also wobbles a little
+    const cateringShare = 0.12 * jitter(0.20);
+    addRow(`REV-${yr}-${mnth+1}-A`, '200', 'Food & Beverage Revenue', 'REVENUE', 'Revenue', Math.round(rev * (1 - cateringShare)));
+    addRow(`REV-${yr}-${mnth+1}-B`, '201', 'Catering Revenue',        'REVENUE', 'Revenue', Math.round(rev * cateringShare));
 
     // COGS ~32% of revenue (negative)
-    addRow(`COGS-${yr}-${mnth+1}-F`, '300', 'Cost of Sales – Food', 'EXPENSE', 'Cost of Sales', -Math.round(rev * 0.22));
-    addRow(`COGS-${yr}-${mnth+1}-B`, '301', 'Cost of Sales – Bev',  'EXPENSE', 'Cost of Sales', -Math.round(rev * 0.10));
+    addRow(`COGS-${yr}-${mnth+1}-F`, '300', 'Cost of Sales – Food', 'EXPENSE', 'Cost of Sales', -Math.round(rev * cogsFoodPct));
+    addRow(`COGS-${yr}-${mnth+1}-B`, '301', 'Cost of Sales – Bev',  'EXPENSE', 'Cost of Sales', -Math.round(rev * cogsBevPct));
 
     // Labour ~32%
-    addRow(`LAB-${yr}-${mnth+1}-W`, '400', 'Wages & Salaries', 'EXPENSE', 'Labour', -Math.round(rev * 0.26), 'Payroll AUS');
-    addRow(`LAB-${yr}-${mnth+1}-C`, '401', 'Casual Labour',    'EXPENSE', 'Labour', -Math.round(rev * 0.06), 'Workpac Staffing');
+    addRow(`LAB-${yr}-${mnth+1}-W`, '400', 'Wages & Salaries', 'EXPENSE', 'Labour', -Math.round(rev * wagesPct), 'Payroll AUS');
+    addRow(`LAB-${yr}-${mnth+1}-C`, '401', 'Casual Labour',    'EXPENSE', 'Labour', -Math.round(rev * casualPct), 'Workpac Staffing');
 
     // Occupancy ~12%
-    addRow(`OCC-${yr}-${mnth+1}-R`, '450', 'Rent & Outgoings', 'EXPENSE', 'Occupancy', -Math.round(rev * 0.10), 'GPT Property Group');
-    addRow(`OCC-${yr}-${mnth+1}-U`, '451', 'Utilities',        'EXPENSE', 'Occupancy', -Math.round(rev * 0.025), 'AGL Energy');
+    addRow(`OCC-${yr}-${mnth+1}-R`, '450', 'Rent & Outgoings', 'EXPENSE', 'Occupancy', -Math.round(rev * rentPct), 'GPT Property Group');
+    addRow(`OCC-${yr}-${mnth+1}-U`, '451', 'Utilities',        'EXPENSE', 'Occupancy', -Math.round(rev * utilPct), 'AGL Energy');
 
     // Marketing ~3%
-    addRow(`MKT-${yr}-${mnth+1}`, '500', 'Marketing & Advertising', 'EXPENSE', 'Marketing', -Math.round(rev * 0.03), 'Meta Ads');
+    addRow(`MKT-${yr}-${mnth+1}`, '500', 'Marketing & Advertising', 'EXPENSE', 'Marketing', -Math.round(rev * mktPct), 'Meta Ads');
 
     // Operations ~4%
-    addRow(`OPS-${yr}-${mnth+1}-R`, '600', 'Repairs & Maintenance',  'EXPENSE', 'Operations', -Math.round(rev * 0.02), 'Local Repairs Co');
-    addRow(`OPS-${yr}-${mnth+1}-S`, '601', 'Supplies & Consumables', 'EXPENSE', 'Operations', -Math.round(rev * 0.02), 'Bidfood Australia');
+    addRow(`OPS-${yr}-${mnth+1}-R`, '600', 'Repairs & Maintenance',  'EXPENSE', 'Operations', -Math.round(rev * repairsPct), 'Local Repairs Co');
+    addRow(`OPS-${yr}-${mnth+1}-S`, '601', 'Supplies & Consumables', 'EXPENSE', 'Operations', -Math.round(rev * suppliesPct), 'Bidfood Australia');
 
     // Admin ~2%
-    addRow(`ADM-${yr}-${mnth+1}-A`, '700', 'Accounting & Legal', 'EXPENSE', 'Admin', -Math.round(rev * 0.01), 'Deloitte Accounting');
-    addRow(`ADM-${yr}-${mnth+1}-I`, '701', 'Insurance',          'EXPENSE', 'Admin', -Math.round(rev * 0.008), 'QBE Insurance');
+    addRow(`ADM-${yr}-${mnth+1}-A`, '700', 'Accounting & Legal', 'EXPENSE', 'Admin', -Math.round(rev * acctPct), 'Deloitte Accounting');
+    addRow(`ADM-${yr}-${mnth+1}-I`, '701', 'Insurance',          'EXPENSE', 'Admin', -Math.round(rev * insPct), 'QBE Insurance');
 
     // Depreciation ~1.5%
-    addRow(`DEP-${yr}-${mnth+1}`, '800', 'Depreciation', 'EXPENSE', 'Depreciation', -Math.round(rev * 0.015));
+    addRow(`DEP-${yr}-${mnth+1}`, '800', 'Depreciation', 'EXPENSE', 'Depreciation', -Math.round(rev * depPct));
   }
 
   // Batch insert transactions
@@ -159,7 +198,15 @@ async function seedDemoData(outletId) {
       { code: 'EQ01', name: 'Retained Earnings',     type: 'EQUITY',         sub_type: 'Equity',          balance: Math.round(55000 * scale) },
       { code: 'EQ02', name: 'Share Capital',         type: 'EQUITY',         sub_type: 'Equity',          balance: 50000 },
     ];
-    bsRows.push(...bsLines.map(l => ({ ...l, connection_id: conn.id, as_at_date: asAt })));
+    bsRows.push(...bsLines.map(l => ({
+      connection_id: conn.id,
+      as_at_date:    asAt,
+      account_code:  l.code,
+      account_name:  l.name,
+      account_type:  l.type,
+      sub_type:      l.sub_type,
+      balance:       l.balance,
+    })));
   }
   await prisma.xeroBalanceSheetLine.createMany({ data: bsRows });
 
@@ -233,8 +280,10 @@ async function seedDemoData(outletId) {
   });
 
   // ── 9. Tracking (Dine-In vs Takeaway) ────────────────────────────────────
+  // Name must be 'Service Type' — the predictions engine matches on it to build
+  // channel-growth projections (xero.predictions.service.js §6).
   const trackCat = await prisma.xeroTrackingCategory.create({
-    data: { connection_id: conn.id, name: 'Revenue Stream' },
+    data: { connection_id: conn.id, name: 'Service Type' },
   });
   const optDineIn   = await prisma.xeroTrackingOption.create({ data: { category_id: trackCat.id, name: 'Dine-In' } });
   const optTakeaway = await prisma.xeroTrackingOption.create({ data: { category_id: trackCat.id, name: 'Takeaway' } });
@@ -242,10 +291,16 @@ async function seedDemoData(outletId) {
   const trackRows = [];
   for (let mo = 35; mo >= 0; mo--) {
     const d   = new Date(now.getFullYear(), now.getMonth() - mo, 1);
-    const rev = Math.round(baseRev * seasonal[d.getMonth()] * (1 + (35 - mo) * 0.004));
+    const rev = Math.round(baseRev * seasonal[d.getMonth()] * (1 + (35 - mo) * 0.004) * jitter(0.08));
+    // Channel mix shifts over time: takeaway share grows from ~28% to ~38%
+    // across the 3 years, so the channel-growth prediction sees a real trend.
+    const monthsElapsed = 35 - mo;
+    const takeawayShare = Math.min(0.40, 0.28 + monthsElapsed * 0.003) * jitter(0.06);
+    const dineRev = Math.round(rev * (1 - takeawayShare));
+    const takeRev = Math.round(rev * takeawayShare);
     trackRows.push(
-      { connection_id: conn.id, option_id: optDineIn.id,   year: d.getFullYear(), month: d.getMonth() + 1, revenue: Math.round(rev * 0.68), cost: Math.round(rev * 0.68 * 0.32), transaction_count: Math.round(rev / 45) },
-      { connection_id: conn.id, option_id: optTakeaway.id, year: d.getFullYear(), month: d.getMonth() + 1, revenue: Math.round(rev * 0.32), cost: Math.round(rev * 0.32 * 0.28), transaction_count: Math.round(rev / 25) },
+      { connection_id: conn.id, option_id: optDineIn.id,   year: d.getFullYear(), month: d.getMonth() + 1, revenue: dineRev, cost: Math.round(dineRev * 0.32 * jitter(0.08)), transaction_count: Math.round(dineRev / 45) },
+      { connection_id: conn.id, option_id: optTakeaway.id, year: d.getFullYear(), month: d.getMonth() + 1, revenue: takeRev, cost: Math.round(takeRev * 0.28 * jitter(0.08)), transaction_count: Math.round(takeRev / 25) },
     );
   }
   await prisma.xeroTrackingSummary.createMany({ data: trackRows });
