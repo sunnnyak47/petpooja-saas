@@ -263,8 +263,16 @@ export default function useVoiceOrder(langOverride) {
             action,
           };
         });
-        // Pause mic during confirm — user will resume manually
-        sessionActiveRef.current = false;
+        // Keep listening — re-arm the mic so the operator can keep adding items
+        // without re-tapping. The staged order grows live in the confirm modal.
+        // Mic only stops when the user manually toggles off or says "done".
+        if (settings.continuousMode && !completed && !userSaidDone && !manualStopRef.current && sessionActiveRef.current) {
+          setTimeout(() => {
+            if (sessionActiveRef.current && !manualStopRef.current) startListening();
+          }, 500);
+        } else {
+          sessionActiveRef.current = false;
+        }
       } else {
         // Legacy behaviour: commit straight to Redux
         syncCartToRedux(newCart, action);
@@ -297,7 +305,7 @@ export default function useVoiceOrder(langOverride) {
     recognitionRef.current = recognition;
     recognition.lang = lang;
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;   // capture full multi-part orders, not just the first phrase
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
@@ -334,18 +342,22 @@ export default function useVoiceOrder(langOverride) {
       }
       setTranscript(finalTranscript + interim);
 
-      // Reset silence timer on every result chunk
+      // Reset silence timer on every result chunk. Fires only once the speaker
+      // actually pauses, so the FULL multi-word order is accumulated first.
+      // 1.8s floor prevents clipping people mid-sentence on a low setting.
       clearTimeout(silenceTimer.current);
       silenceTimer.current = setTimeout(() => {
         try { recognition.stop(); } catch (_) {}
-      }, Math.max(800, Number(settings.silenceTimeoutMs) || 2500));
+      }, Math.max(1800, Number(settings.silenceTimeoutMs) || 2800));
     };
 
     recognition.onend = () => cleanup(finalTranscript.trim());
 
     recognition.onerror = (e) => {
       if (e.error === 'not-allowed') toast.error('Microphone not allowed. Check browser permissions.');
-      else if (e.error === 'no-speech') toast('No speech detected.', { icon: '🎤', duration: 1500 });
+      // Suppress "no speech" spam while a continuous session is active — the
+      // mic just silently re-arms (operator is waiting for the customer).
+      else if (e.error === 'no-speech' && !sessionActiveRef.current) toast('No speech detected.', { icon: '🎤', duration: 1500 });
       else if (e.error === 'audio-capture') toast.error('No microphone found.');
       else if (e.error === 'network') toast.error('Network error during speech recognition.');
       cleanup('');

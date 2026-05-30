@@ -465,14 +465,16 @@ export default function VoicePOS({ onClose }) {
         else interim += t;
       }
       setInterimText(interim);
-      // In "Don't Stop" mode — no silence timer: browser keeps the stream open.
-      // In normal mode — auto-stop after 2.5s silence.
-      if (!keepListeningRef.current) {
-        clearTimeout(silenceTimer.current);
-        silenceTimer.current = setTimeout(() => {
-          try { recognition.stop(); } catch (_) {}
-        }, 2500);
-      }
+      // ALWAYS run the silence timer — this is what captures the FULL sentence.
+      // Each new word resets it; only fires once the speaker actually pauses,
+      // so multi-word orders are accumulated before we send. 3.5s gives plenty
+      // of room for natural pauses ("two butter chicken … and … three naan").
+      // In "Don't Stop" mode the mic auto-restarts after, so this never ends
+      // the session — it just marks end-of-utterance.
+      clearTimeout(silenceTimer.current);
+      silenceTimer.current = setTimeout(() => {
+        try { recognition.stop(); } catch (_) {}
+      }, 3500);
     };
 
     recognition.onend = () => {
@@ -489,18 +491,15 @@ export default function VoicePOS({ onClose }) {
     };
 
     recognition.onerror = (e) => {
-      setIsListening(false);
-      setInterimText('');
-      if (e.error === 'not-allowed') {
+      // NOTE: do NOT restart here — `onend` always fires after an error and
+      // owns the restart logic. Restarting here too causes double mic sessions.
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         toast.error('Microphone not allowed. Please use text mode.');
         setInputMode('text');
-        // Kill keep-listening mode on permission error
-        keepListeningRef.current = false;
+        keepListeningRef.current = false;   // kill keep-listening on permission error
         setKeepListening(false);
-      } else if (keepListeningRef.current && e.error !== 'aborted') {
-        // Any other error — try to recover after a short pause
-        setTimeout(() => { if (keepListeningRef.current) startListeningRef.current?.(); }, 800);
       }
+      // 'no-speech', 'aborted', 'network' etc. → handled by onend
     };
 
     recognition.start();
