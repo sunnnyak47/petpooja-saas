@@ -190,7 +190,15 @@ class XeroService {
       let detail = text.substring(0, 200);
       try {
         const parsed = JSON.parse(text);
-        detail = parsed.Detail || parsed.Message || parsed.detail || detail;
+        // Xero validation exceptions nest the real reason inside
+        // Elements[].ValidationErrors[].Message — surface those first.
+        const nested = (parsed.Elements || [])
+          .flatMap(el => el.ValidationErrors || [])
+          .map(ve => ve.Message)
+          .filter(Boolean);
+        detail = nested.length
+          ? nested.join('; ')
+          : (parsed.Detail || parsed.Message || parsed.detail || detail);
       } catch (_) { /* keep raw text */ }
       const hint = (res.status === 401 || res.status === 403)
         ? ' — your Xero connection lacks the required permission. Please Disconnect and reconnect to Xero.'
