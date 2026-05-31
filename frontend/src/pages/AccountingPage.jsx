@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/api';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
-  RefreshCw, Loader2,
+  RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
 } from 'lucide-react';
 
 /* ── Currency helper ───────────────────────────────────────────────────────── */
@@ -28,6 +28,17 @@ function fmtAUD(v) {
 /* ── Date helpers ──────────────────────────────────────────────────────────── */
 const today = () => new Date().toISOString().split('T')[0];
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().split('T')[0];
+const iso = (d) => d.toISOString().split('T')[0];
+const quarterStart = () => {
+  const n = new Date();
+  const q = Math.floor(n.getMonth() / 3) * 3;
+  return iso(new Date(n.getFullYear(), q, 1));
+};
+const quarterEnd = () => {
+  const n = new Date();
+  const q = Math.floor(n.getMonth() / 3) * 3;
+  return iso(new Date(n.getFullYear(), q + 3, 0));
+};
 
 /* ── Account-type colour map ───────────────────────────────────────────────── */
 const TYPE_COLORS = {
@@ -49,6 +60,10 @@ const TABS = [
   { key: 'trial',   label: 'Trial Balance',     icon: Scale },
   { key: 'pnl',     label: 'Profit & Loss',     icon: TrendingUp },
   { key: 'balance', label: 'Balance Sheet',     icon: Landmark },
+  { key: 'bas',     label: 'BAS / Tax',         icon: Receipt },
+  { key: 'cashflow', label: 'Cash Flow',        icon: Banknote },
+  { key: 'aging',   label: 'Aging',             icon: Clock },
+  { key: 'journal', label: 'Manual Journal',    icon: BookText },
 ];
 
 /* ── Reusable bits ─────────────────────────────────────────────────────────── */
@@ -122,6 +137,15 @@ function DateField({ label, value, onChange }) {
   );
 }
 
+function StatCard({ label, value, color }) {
+  return (
+    <Card className="p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      <p className="text-xl font-extrabold tracking-tight" style={{ color: color || 'var(--text-primary)' }}>{value}</p>
+    </Card>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  MAIN COMPONENT                                                            */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -139,6 +163,11 @@ export default function AccountingPage() {
   const [bsAsOf, setBsAsOf] = useState(today());
   const [ledgerFrom, setLedgerFrom] = useState(daysAgo(30));
   const [ledgerTo, setLedgerTo] = useState(today());
+  const [basFrom, setBasFrom] = useState(quarterStart());
+  const [basTo, setBasTo] = useState(quarterEnd());
+  const [cfFrom, setCfFrom] = useState(daysAgo(30));
+  const [cfTo, setCfTo] = useState(today());
+  const [agingAsOf, setAgingAsOf] = useState(today());
 
   const outletQ = outletId ? `&outlet_id=${outletId}` : '';
 
@@ -146,7 +175,7 @@ export default function AccountingPage() {
   const chartQ = useQuery({
     queryKey: ['acct-chart', outletId],
     queryFn: () => api.get(`/accounting/chart?_=1${outletQ}`).then((r) => r.data?.data ?? r.data),
-    enabled: tab === 'chart',
+    enabled: tab === 'chart' || tab === 'journal',
     staleTime: 120_000,
   });
 
@@ -178,6 +207,34 @@ export default function AccountingPage() {
     staleTime: 60_000,
   });
 
+  const basQ = useQuery({
+    queryKey: ['acct-bas', outletId, basFrom, basTo],
+    queryFn: () => api.get(`/accounting/bas?from=${basFrom}&to=${basTo}${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'bas',
+    staleTime: 60_000,
+  });
+
+  const cashflowQ = useQuery({
+    queryKey: ['acct-cashflow', outletId, cfFrom, cfTo],
+    queryFn: () => api.get(`/accounting/cash-flow?from=${cfFrom}&to=${cfTo}${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'cashflow',
+    staleTime: 60_000,
+  });
+
+  const receivablesQ = useQuery({
+    queryKey: ['acct-receivables', outletId, agingAsOf],
+    queryFn: () => api.get(`/accounting/receivables-aging?as_of=${agingAsOf}${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'aging',
+    staleTime: 60_000,
+  });
+
+  const payablesQ = useQuery({
+    queryKey: ['acct-payables', outletId, agingAsOf],
+    queryFn: () => api.get(`/accounting/payables-aging?as_of=${agingAsOf}${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'aging',
+    staleTime: 60_000,
+  });
+
   /* ── Mutations ────────────────────────────────────────────────────────── */
   const invalidateAll = () =>
     queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('acct-') });
@@ -192,6 +249,38 @@ export default function AccountingPage() {
     mutationFn: () => api.post('/accounting/backfill', outletId ? { outlet_id: outletId } : {}),
     onSuccess: () => { toast.success('Backfilled journal entries from history'); invalidateAll(); },
     onError: (e) => toast.error(e?.message || 'Backfill failed'),
+  });
+
+  const payBillM = useMutation({
+    mutationFn: ({ po_id, amount }) => api.post('/accounting/pay-bill', { po_id, amount, method: 'bank' }),
+    onSuccess: () => {
+      toast.success('Bill paid');
+      queryClient.invalidateQueries({ queryKey: ['acct-payables'] });
+      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('acct-') });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Payment failed'),
+  });
+
+  const addAccountM = useMutation({
+    mutationFn: (payload) => api.post('/accounting/accounts', outletId ? { ...payload, outlet_id: outletId } : payload),
+    onSuccess: () => { toast.success('Account added'); queryClient.invalidateQueries({ queryKey: ['acct-chart'] }); },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Add account failed'),
+  });
+
+  const deactivateAccountM = useMutation({
+    mutationFn: (id) => api.delete(`/accounting/accounts/${id}`),
+    onSuccess: () => { toast.success('Account deactivated'); queryClient.invalidateQueries({ queryKey: ['acct-chart'] }); },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Deactivate failed'),
+  });
+
+  const journalM = useMutation({
+    mutationFn: (payload) => api.post('/accounting/manual-journal', outletId ? { ...payload, outlet_id: outletId } : payload),
+    onSuccess: () => {
+      toast.success('Journal entry posted');
+      queryClient.invalidateQueries({ queryKey: ['acct-ledger'] });
+      queryClient.invalidateQueries({ queryKey: ['acct-trial'] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Journal post failed'),
   });
 
   return (
@@ -252,7 +341,7 @@ export default function AccountingPage() {
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────────── */}
-      {tab === 'chart' && <ChartTab query={chartQ} />}
+      {tab === 'chart' && <ChartTab query={chartQ} addM={addAccountM} deactivateM={deactivateAccountM} />}
       {tab === 'ledger' && (
         <LedgerTab
           query={ledgerQ}
@@ -269,6 +358,21 @@ export default function AccountingPage() {
       {tab === 'balance' && (
         <BalanceSheetTab query={balanceQ} asOf={bsAsOf} setAsOf={setBsAsOf} />
       )}
+      {tab === 'bas' && (
+        <BasTab query={basQ} from={basFrom} to={basTo} setFrom={setBasFrom} setTo={setBasTo} />
+      )}
+      {tab === 'cashflow' && (
+        <CashFlowTab query={cashflowQ} from={cfFrom} to={cfTo} setFrom={setCfFrom} setTo={setCfTo} />
+      )}
+      {tab === 'aging' && (
+        <AgingTab
+          receivablesQ={receivablesQ} payablesQ={payablesQ}
+          asOf={agingAsOf} setAsOf={setAgingAsOf} payBillM={payBillM}
+        />
+      )}
+      {tab === 'journal' && (
+        <ManualJournalTab chartQuery={chartQ} journalM={journalM} />
+      )}
     </div>
   );
 }
@@ -276,10 +380,80 @@ export default function AccountingPage() {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  TAB 1: CHART OF ACCOUNTS                                                  */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-function ChartTab({ query }) {
+function AddAccountForm({ addM, onDone }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [type, setType] = useState('ASSET');
+  const [subtype, setSubtype] = useState('');
+  const [gst, setGst] = useState(false);
+
+  const submit = () => {
+    if (!code.trim() || !name.trim()) { toast.error('Code and name are required'); return; }
+    addM.mutate(
+      { code: code.trim(), name: name.trim(), type, subtype: subtype.trim() || undefined, gst },
+      { onSuccess: () => { setCode(''); setName(''); setSubtype(''); setGst(false); onDone?.(); } },
+    );
+  };
+
+  const inputCls = 'px-3 py-2 rounded-lg border text-sm';
+  const inputStyle = { background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Code</label>
+          <input className={inputCls} style={{ ...inputStyle, width: 110 }} value={code} onChange={(e) => setCode(e.target.value)} placeholder="1000" />
+        </div>
+        <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Name</label>
+          <input className={inputCls} style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="Cash on hand" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Type</label>
+          <select className={inputCls} style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
+            {['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'].map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Subtype</label>
+          <input className={inputCls} style={{ ...inputStyle, width: 140 }} value={subtype} onChange={(e) => setSubtype(e.target.value)} placeholder="optional" />
+        </div>
+        <label className="flex items-center gap-2 text-xs font-medium pb-2.5" style={{ color: 'var(--text-primary)' }}>
+          <input type="checkbox" checked={gst} onChange={(e) => setGst(e.target.checked)} />
+          GST
+        </label>
+        <button onClick={submit} disabled={addM.isPending} className="btn-primary btn-sm">
+          {addM.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          Save
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function ChartTab({ query, addM, deactivateM }) {
+  const [showForm, setShowForm] = useState(false);
   if (query.isLoading) return <LoadingState />;
   const accounts = Array.isArray(query.data) ? query.data : (query.data?.accounts ?? []);
-  if (!accounts.length) return <EmptyState message="No accounts yet — seed the chart of accounts to get started." />;
+
+  const header = (
+    <div className="flex items-center justify-between">
+      <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Chart of Accounts</h3>
+      <button onClick={() => setShowForm((v) => !v)} className="btn-secondary btn-sm">
+        <Plus className="w-3.5 h-3.5" />{showForm ? 'Close' : 'Add Account'}
+      </button>
+    </div>
+  );
+
+  if (!accounts.length) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {showForm && <AddAccountForm addM={addM} onDone={() => setShowForm(false)} />}
+        <EmptyState message="No accounts yet — seed the chart of accounts to get started." />
+      </div>
+    );
+  }
 
   // Group by type, preserving a sensible order.
   const order = ['asset', 'liability', 'equity', 'revenue', 'income', 'expense'];
@@ -295,6 +469,8 @@ function ChartTab({ query }) {
 
   return (
     <div className="space-y-6">
+      {header}
+      {showForm && <AddAccountForm addM={addM} onDone={() => setShowForm(false)} />}
       {groupKeys.map((g) => (
         <Card key={g} className="overflow-hidden">
           <div className="p-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
@@ -307,7 +483,7 @@ function ChartTab({ query }) {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: 'var(--bg-primary)' }}>
-                  {['Code', 'Name', 'Subtype', 'GST', 'Status'].map((h) => (
+                  {['Code', 'Name', 'Subtype', 'GST', 'Status', ''].map((h) => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{h}</th>
                   ))}
                 </tr>
@@ -329,6 +505,18 @@ function ChartTab({ query }) {
                       >
                         {a.is_active ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {a.id && a.is_active ? (
+                        <button
+                          onClick={() => deactivateM.mutate(a.id)}
+                          disabled={deactivateM.isPending}
+                          className="text-xs font-semibold hover:underline"
+                          style={{ color: 'var(--danger)' }}
+                        >
+                          Deactivate
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -656,6 +844,344 @@ function BalanceSheetTab({ query, asOf, setAsOf }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB 6: BAS / TAX                                                          */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function BasTab({ query, from, to, setFrom, setTo }) {
+  return (
+    <div className="space-y-6">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <DateField label="From" value={from} onChange={setFrom} />
+          <DateField label="To" value={to} onChange={setTo} />
+        </div>
+      </Card>
+
+      {query.isLoading ? (
+        <LoadingState />
+      ) : !query.data ? (
+        <EmptyState message="No BAS data for this period." />
+      ) : (() => {
+        const d = query.data;
+        const payable = !!d.payable;
+        const net = Number(d.net_gst) || 0;
+        const netColor = payable ? 'var(--danger)' : 'var(--success)';
+        return (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>
+                Net GST {d.period_label ? `· ${d.period_label}` : ''}
+              </p>
+              <p className="text-4xl font-extrabold tracking-tight" style={{ color: netColor }}>{fmtAUD(Math.abs(net))}</p>
+              <p className="text-sm font-semibold mt-1" style={{ color: netColor }}>
+                {payable ? 'Payable to ATO' : 'Refund from ATO'}
+              </p>
+            </Card>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="G1 Total sales" value={fmtAUD(d.G1_total_sales)} />
+              <StatCard label="1A GST on sales" value={fmtAUD(d.gst_on_sales_1A)} color="#06b6d4" />
+              <StatCard label="G11 Purchases" value={fmtAUD(d.G11_purchases)} />
+              <StatCard label="1B GST on purchases" value={fmtAUD(d.gst_on_purchases_1B)} color="#f59e0b" />
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB 7: CASH FLOW                                                          */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function CashFlowTab({ query, from, to, setFrom, setTo }) {
+  return (
+    <div className="space-y-6">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <DateField label="From" value={from} onChange={setFrom} />
+          <DateField label="To" value={to} onChange={setTo} />
+        </div>
+      </Card>
+
+      {query.isLoading ? (
+        <LoadingState />
+      ) : !query.data ? (
+        <EmptyState message="No cash-flow data for this period." />
+      ) : (() => {
+        const d = query.data;
+        const inflows = d.inflows || [];
+        const outflows = d.outflows || [];
+        const net = Number(d.net_change) || 0;
+        const netColor = net >= 0 ? 'var(--success)' : 'var(--danger)';
+        return (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Net Change</p>
+              <p className="text-4xl font-extrabold tracking-tight" style={{ color: netColor }}>{fmtAUD(net)}</p>
+            </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-5">
+                <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Inflows</h3>
+                {inflows.length === 0 ? (
+                  <p className="text-xs py-4 text-center" style={{ color: 'var(--text-secondary)' }}>No inflows</p>
+                ) : (
+                  inflows.map((r, i) => <AmountRow key={i} name={r.label} amount={r.amount} color="#22c55e" />)
+                )}
+                <div className="flex items-center justify-between pt-3 mt-1">
+                  <span className="text-xs font-extrabold uppercase" style={{ color: 'var(--text-secondary)' }}>Total In</span>
+                  <span className="text-sm font-extrabold" style={{ color: '#22c55e' }}>{fmtAUD(d.total_in)}</span>
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Outflows</h3>
+                {outflows.length === 0 ? (
+                  <p className="text-xs py-4 text-center" style={{ color: 'var(--text-secondary)' }}>No outflows</p>
+                ) : (
+                  outflows.map((r, i) => <AmountRow key={i} name={r.label} amount={r.amount} color="#ef4444" />)
+                )}
+                <div className="flex items-center justify-between pt-3 mt-1">
+                  <span className="text-xs font-extrabold uppercase" style={{ color: 'var(--text-secondary)' }}>Total Out</span>
+                  <span className="text-sm font-extrabold" style={{ color: '#ef4444' }}>{fmtAUD(d.total_out)}</span>
+                </div>
+              </Card>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB 8: AGING (Receivables + Payables)                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+const BUCKET_KEYS = ['0-30', '31-60', '61-90', '90+'];
+
+function BucketCards({ buckets = {} }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {BUCKET_KEYS.map((k) => (
+        <StatCard
+          key={k}
+          label={`${k} days`}
+          value={fmtAUD(buckets[k])}
+          color={k === '90+' ? 'var(--danger)' : k === '61-90' ? '#f59e0b' : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AgingSection({ title, query, partyKey, payBillM }) {
+  if (query.isLoading) return <LoadingState />;
+  const d = query.data || {};
+  const items = d.items || [];
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3" style={{ borderColor: 'var(--border)' }}>
+        <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        <span className="text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>Total {fmtAUD(d.total)}</span>
+      </div>
+      <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+        <BucketCards buckets={d.buckets} />
+      </div>
+      {items.length === 0 ? (
+        <EmptyState message={`No ${title.toLowerCase()} outstanding.`} />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: 'var(--bg-primary)' }}>
+                {['Ref', partyKey === 'supplier' ? 'Supplier' : 'Customer', 'Date', 'Days', 'Amount', payBillM ? '' : null]
+                  .filter((h) => h !== null)
+                  .map((h, i) => (
+                    <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                  ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, i) => {
+                const poId = it.po_id ?? it.id ?? null;
+                return (
+                  <tr key={it.ref ?? i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{it.ref || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-primary)' }}>{it[partyKey] || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{it.date ? new Date(it.date).toLocaleDateString('en-AU') : '—'}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: Number(it.days) > 90 ? 'var(--danger)' : 'var(--text-secondary)' }}>{it.days ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtAUD(it.amount)}</td>
+                    {payBillM && (
+                      <td className="px-4 py-2.5 text-right">
+                        {poId ? (
+                          <button
+                            onClick={() => payBillM.mutate({ po_id: poId, amount: it.amount })}
+                            disabled={payBillM.isPending}
+                            className="btn-primary btn-sm"
+                          >
+                            <Banknote className="w-3.5 h-3.5" />Pay
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="PO id unavailable"
+                            className="btn-secondary btn-sm opacity-50 cursor-not-allowed"
+                          >
+                            <Banknote className="w-3.5 h-3.5" />Pay
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function AgingTab({ receivablesQ, payablesQ, asOf, setAsOf, payBillM }) {
+  return (
+    <div className="space-y-6">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <DateField label="As of" value={asOf} onChange={setAsOf} />
+        </div>
+      </Card>
+      <AgingSection title="Receivables" query={receivablesQ} partyKey="customer" />
+      <AgingSection title="Payables" query={payablesQ} partyKey="supplier" payBillM={payBillM} />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB 9: MANUAL JOURNAL                                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function ManualJournalTab({ chartQuery, journalM }) {
+  const accounts = Array.isArray(chartQuery.data) ? chartQuery.data : (chartQuery.data?.accounts ?? []);
+  const [entryDate, setEntryDate] = useState(today());
+  const [memo, setMemo] = useState('');
+  const [lines, setLines] = useState([
+    { account_code: '', debit: '', credit: '', description: '' },
+    { account_code: '', debit: '', credit: '', description: '' },
+  ]);
+
+  const updateLine = (idx, field, value) =>
+    setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
+  const addLine = () => setLines((ls) => [...ls, { account_code: '', debit: '', credit: '', description: '' }]);
+  const removeLine = (idx) => setLines((ls) => (ls.length > 2 ? ls.filter((_, i) => i !== idx) : ls));
+
+  const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+  const balanced = totalDebit > 0 && Math.abs(totalDebit - totalCredit) < 0.005;
+  const allCoded = lines.every((l) => l.account_code);
+  const canSubmit = balanced && allCoded && !journalM.isPending;
+
+  const submit = () => {
+    if (!canSubmit) { toast.error('Entry must be coded and balanced'); return; }
+    const payload = {
+      entry_date: entryDate,
+      memo: memo.trim() || undefined,
+      lines: lines.map((l) => ({
+        account_code: l.account_code,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+        description: l.description.trim() || undefined,
+      })),
+    };
+    journalM.mutate(payload, {
+      onSuccess: () => {
+        setMemo('');
+        setEntryDate(today());
+        setLines([
+          { account_code: '', debit: '', credit: '', description: '' },
+          { account_code: '', debit: '', credit: '', description: '' },
+        ]);
+      },
+    });
+  };
+
+  const inputCls = 'px-2 py-1.5 rounded-lg border text-xs w-full';
+  const inputStyle = { background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <DateField label="Entry date" value={entryDate} onChange={setEntryDate} />
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Memo</label>
+            <input className="px-3 py-2 rounded-lg border text-sm" style={inputStyle} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Description of this entry" />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: 'var(--bg-primary)' }}>
+                {['Account', 'Description', 'Debit', 'Credit', ''].map((h, i) => (
+                  <th key={`${h}-${i}`} className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td className="px-3 py-2" style={{ minWidth: 180 }}>
+                    <select className={inputCls} style={inputStyle} value={l.account_code} onChange={(e) => updateLine(i, 'account_code', e.target.value)}>
+                      <option value="">Select account…</option>
+                      {accounts.map((a) => (
+                        <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2" style={{ minWidth: 160 }}>
+                    <input className={inputCls} style={inputStyle} value={l.description} onChange={(e) => updateLine(i, 'description', e.target.value)} placeholder="optional" />
+                  </td>
+                  <td className="px-3 py-2" style={{ width: 120 }}>
+                    <input type="number" step="0.01" min="0" className={inputCls} style={inputStyle} value={l.debit} onChange={(e) => updateLine(i, 'debit', e.target.value)} placeholder="0.00" />
+                  </td>
+                  <td className="px-3 py-2" style={{ width: 120 }}>
+                    <input type="number" step="0.01" min="0" className={inputCls} style={inputStyle} value={l.credit} onChange={(e) => updateLine(i, 'credit', e.target.value)} placeholder="0.00" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {lines.length > 2 && (
+                      <button onClick={() => removeLine(i)} className="text-xs font-semibold hover:underline" style={{ color: 'var(--danger)' }}>Remove</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: 'var(--bg-primary)', borderTop: '2px solid var(--border)' }}>
+                <td className="px-3 py-2.5 text-xs font-bold" style={{ color: 'var(--text-secondary)' }} colSpan={2}>Totals</td>
+                <td className="px-3 py-2.5 text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{fmtAUD(totalDebit)}</td>
+                <td className="px-3 py-2.5 text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{fmtAUD(totalCredit)}</td>
+                <td className="px-3 py-2.5" />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={addLine} className="btn-secondary btn-sm"><Plus className="w-3.5 h-3.5" />Add line</button>
+          <BalancedBadge balanced={balanced} />
+        </div>
+        <button onClick={submit} disabled={!canSubmit} className="btn-primary btn-sm" style={{ opacity: canSubmit ? 1 : 0.5 }}>
+          {journalM.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookText className="w-3.5 h-3.5" />}
+          Post Journal
+        </button>
+      </div>
     </div>
   );
 }

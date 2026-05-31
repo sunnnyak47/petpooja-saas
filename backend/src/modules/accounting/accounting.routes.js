@@ -20,8 +20,19 @@ router.get('/trial-balance', authenticate, VIEW, c.trialBalance);
 router.get('/profit-loss', authenticate, VIEW, c.profitAndLoss);
 router.get('/balance-sheet', authenticate, VIEW, c.balanceSheet);
 
+router.get('/bas', authenticate, VIEW, c.bas);
+router.get('/cash-flow', authenticate, VIEW, c.cashFlow);
+router.get('/receivables-aging', authenticate, VIEW, c.receivablesAging);
+router.get('/payables-aging', authenticate, VIEW, c.payablesAging);
+router.get('/accounts', authenticate, VIEW, c.accountsList);
+
 /* ── Posting (write) ────────────────────────────── */
 router.post('/seed', authenticate, MANAGE, c.seed);
 router.post('/backfill', authenticate, MANAGE, c.backfill);
+router.post('/pay-bill', authenticate, MANAGE, c.payBill);
+router.post('/accounts', authenticate, MANAGE, c.createAccount);
+router.patch('/accounts/:id', authenticate, MANAGE, c.updateAccount);
+router.delete('/accounts/:id', authenticate, MANAGE, c.deactivateAccount);
+router.post('/manual-journal', authenticate, MANAGE, c.manualJournal);
 
 module.exports = router;

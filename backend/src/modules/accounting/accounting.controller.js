@@ -6,7 +6,10 @@
 
 const posting = require('./accounting.posting.service');
 const statements = require('./accounting.statements.service');
-const { sendSuccess } = require('../../utils/response');
+const bas = require('./accounting.bas.service');
+const aging = require('./accounting.aging.service');
+const chart = require('./accounting.chart.service');
+const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
 
@@ -82,6 +85,103 @@ async function backfill(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/* ── BAS & Cash Flow ────────────────────────────── */
+
+async function basReport(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await bas.getBASReport(outletId, req.query.from, req.query.to);
+    sendSuccess(res, result, 'BAS report retrieved');
+  } catch (error) { next(error); }
+}
+
+async function cashFlow(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await bas.getCashFlow(outletId, req.query.from, req.query.to);
+    sendSuccess(res, result, 'Cash flow retrieved');
+  } catch (error) { next(error); }
+}
+
+/* ── Aging & Bill Payment ───────────────────────── */
+
+async function receivablesAging(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await aging.getReceivablesAging(outletId, req.query.as_of);
+    sendSuccess(res, result, 'Receivables aging retrieved');
+  } catch (error) { next(error); }
+}
+
+async function payablesAging(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await aging.getPayablesAging(outletId, req.query.as_of);
+    sendSuccess(res, result, 'Payables aging retrieved');
+  } catch (error) { next(error); }
+}
+
+async function payBill(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await aging.payBill(outletId, {
+      po_id: req.body.po_id,
+      amount: req.body.amount,
+      method: req.body.method,
+      date: req.body.date,
+      created_by: req.user.id,
+    });
+    sendSuccess(res, result, 'Bill paid');
+  } catch (error) { next(error); }
+}
+
+/* ── Chart of Accounts (managed) ────────────────── */
+
+async function accountsList(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await chart.listAccounts(outletId);
+    sendSuccess(res, result, 'Accounts retrieved');
+  } catch (error) { next(error); }
+}
+
+async function createAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await chart.createAccount(outletId, req.body);
+    sendCreated(res, result, 'Account created');
+  } catch (error) { next(error); }
+}
+
+async function updateAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await chart.updateAccount(outletId, req.params.id, req.body);
+    sendSuccess(res, result, 'Account updated');
+  } catch (error) { next(error); }
+}
+
+async function deactivateAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await chart.deactivateAccount(outletId, req.params.id);
+    sendSuccess(res, result, 'Account deactivated');
+  } catch (error) { next(error); }
+}
+
+async function manualJournal(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await chart.postManualJournal(outletId, {
+      entry_date: req.body.entry_date,
+      memo: req.body.memo,
+      lines: req.body.lines,
+      created_by: req.user.id,
+    });
+    sendCreated(res, result, 'Manual journal posted');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   listChart,
   ledger,
@@ -90,4 +190,14 @@ module.exports = {
   balanceSheet,
   seed,
   backfill,
+  bas: basReport,
+  cashFlow,
+  receivablesAging,
+  payablesAging,
+  payBill,
+  accountsList,
+  createAccount,
+  updateAccount,
+  deactivateAccount,
+  manualJournal,
 };
