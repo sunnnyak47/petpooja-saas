@@ -453,6 +453,38 @@ async function startApp() {
       logger.warn('Accounting ledger tables skipped:', { error: e.message });
     }
 
+    // ── Ensure expenses table + its columns (schema drift on prod) ───────────
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS expenses (
+          id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id      UUID         NOT NULL,
+          title          VARCHAR(200) NOT NULL,
+          description    VARCHAR(500),
+          amount         DECIMAL(12,2) NOT NULL,
+          category       VARCHAR(50)  NOT NULL DEFAULT 'Misc',
+          expense_date   DATE         NOT NULL DEFAULT now(),
+          payment_method VARCHAR(30)  NOT NULL DEFAULT 'Cash',
+          notes          TEXT,
+          created_by     UUID,
+          is_deleted     BOOLEAN      NOT NULL DEFAULT false,
+          created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+        )`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE expenses
+        ADD COLUMN IF NOT EXISTS title          VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS description    VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS category        VARCHAR(50) NOT NULL DEFAULT 'Misc',
+        ADD COLUMN IF NOT EXISTS expense_date    DATE NOT NULL DEFAULT now(),
+        ADD COLUMN IF NOT EXISTS payment_method  VARCHAR(30) NOT NULL DEFAULT 'Cash',
+        ADD COLUMN IF NOT EXISTS notes           TEXT,
+        ADD COLUMN IF NOT EXISTS created_by      UUID,
+        ADD COLUMN IF NOT EXISTS is_deleted      BOOLEAN NOT NULL DEFAULT false`);
+      logger.info('expenses table ensured');
+    } catch (e) {
+      logger.warn('expenses table skipped:', { error: e.message });
+    }
+
     // ── Create outlet_daily_counters if missing (race-safe order sequencing) ──
     try {
       await prisma.$executeRawUnsafe(`
