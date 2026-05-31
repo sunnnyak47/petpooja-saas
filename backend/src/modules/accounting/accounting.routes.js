@@ -9,6 +9,8 @@ const router = express.Router();
 const c = require('./accounting.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
+const { validate } = require('../../middleware/validate.middleware');
+const bankV = require('./accounting.bank.validation');
 
 const VIEW = hasPermission('VIEW_REPORTS');
 const MANAGE = hasPermission('MANAGE_INVENTORY');
@@ -38,5 +40,19 @@ router.delete('/accounts/:id', authenticate, MANAGE, c.deactivateAccount);
 router.post('/manual-journal', authenticate, MANAGE, c.manualJournal);
 router.post('/periods/lock', authenticate, MANAGE, c.lockPeriod);
 router.post('/periods/unlock', authenticate, MANAGE, c.unlockPeriod);
+
+/* ── Bank accounts & reconciliation ─────────────── */
+router.get('/bank-accounts', authenticate, VIEW, c.listBankAccounts);
+router.post('/bank-accounts', authenticate, MANAGE, validate(bankV.createBankAccountSchema), c.createBankAccount);
+router.patch('/bank-accounts/:id', authenticate, MANAGE, validate(bankV.updateBankAccountSchema), c.updateBankAccount);
+router.delete('/bank-accounts/:id', authenticate, MANAGE, c.deactivateBankAccount);
+router.post('/bank-accounts/:id/import', authenticate, MANAGE, validate(bankV.importStatementSchema), c.importStatement);
+router.get('/bank-accounts/:id/statement-lines', authenticate, VIEW, c.listStatementLines);
+router.get('/bank-accounts/:id/suggest-matches', authenticate, VIEW, c.suggestMatches);
+router.get('/bank-accounts/:id/reconciliation', authenticate, VIEW, c.reconciliationSummary);
+router.post('/bank-accounts/:id/auto-reconcile', authenticate, MANAGE, c.autoReconcile);
+router.post('/reconcile', authenticate, MANAGE, validate(bankV.reconcileSchema), c.reconcileLine);
+router.post('/unreconcile', authenticate, MANAGE, validate(bankV.unreconcileSchema), c.unreconcileLine);
+router.post('/statement-lines/:id/adjustment', authenticate, MANAGE, validate(bankV.adjustmentSchema), c.statementAdjustment);
 
 module.exports = router;

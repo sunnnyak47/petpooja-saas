@@ -10,6 +10,11 @@ const bas = require('./accounting.bas.service');
 const aging = require('./accounting.aging.service');
 const chart = require('./accounting.chart.service');
 const period = require('./accounting.period.service');
+const bank = require('./accounting.bank.service');
+const statement = require('./accounting.statement.service');
+const parser = require('./accounting.statement.parser');
+const recon = require('./accounting.reconciliation.service');
+const bankreport = require('./accounting.bankreport.service');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
@@ -217,6 +222,122 @@ async function billPayments(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/* ── Bank Accounts ──────────────────────────────── */
+
+async function listBankAccounts(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await bank.listBankAccounts(outletId);
+    sendSuccess(res, result, 'Bank accounts retrieved');
+  } catch (error) { next(error); }
+}
+
+async function createBankAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await bank.createBankAccount(outletId, req.body);
+    sendCreated(res, result, 'Bank account created');
+  } catch (error) { next(error); }
+}
+
+async function updateBankAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await bank.updateBankAccount(outletId, req.params.id, req.body);
+    sendSuccess(res, result, 'Bank account updated');
+  } catch (error) { next(error); }
+}
+
+async function deactivateBankAccount(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await bank.deactivateBankAccount(outletId, req.params.id);
+    sendSuccess(res, result, 'Bank account deactivated');
+  } catch (error) { next(error); }
+}
+
+/* ── Bank Statements ────────────────────────────── */
+
+async function importStatement(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const bankId = req.params.id;
+    let lines;
+    let errors;
+    if (req.body.csv && typeof req.body.csv === 'string') {
+      const parsed = parser.parseCSV(req.body.csv);
+      lines = parsed.lines;
+      errors = parsed.errors;
+    } else {
+      lines = req.body.lines || [];
+    }
+    const result = await statement.importStatement(outletId, bankId, lines);
+    sendSuccess(res, { ...result, parse_errors: errors || [] }, 'Statement imported');
+  } catch (error) { next(error); }
+}
+
+async function listStatementLines(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await statement.listStatementLines(outletId, {
+      bank_account_id: req.params.id,
+      reconciled: req.query.reconciled === undefined ? undefined : (req.query.reconciled === 'true'),
+      limit: Number(req.query.limit) || 200,
+    });
+    sendSuccess(res, result, 'Statement lines retrieved');
+  } catch (error) { next(error); }
+}
+
+async function statementAdjustment(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await statement.createAdjustmentJournal(outletId, req.params.id, req.body.account_code, req.user.id);
+    sendSuccess(res, result, 'Adjustment journal created');
+  } catch (error) { next(error); }
+}
+
+/* ── Reconciliation ─────────────────────────────── */
+
+async function suggestMatches(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await recon.suggestMatches(outletId, req.params.id);
+    sendSuccess(res, result, 'Match suggestions retrieved');
+  } catch (error) { next(error); }
+}
+
+async function reconciliationSummary(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await bankreport.getReconciliationSummary(outletId, req.params.id);
+    sendSuccess(res, result, 'Reconciliation summary retrieved');
+  } catch (error) { next(error); }
+}
+
+async function autoReconcile(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await recon.autoReconcile(outletId, req.params.id);
+    sendSuccess(res, result, 'Auto reconciliation complete');
+  } catch (error) { next(error); }
+}
+
+async function reconcileLine(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await recon.reconcile(outletId, req.body.statement_line_id, req.body.journal_line_id);
+    sendSuccess(res, result, 'Line reconciled');
+  } catch (error) { next(error); }
+}
+
+async function unreconcileLine(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await recon.unreconcile(outletId, req.body.statement_line_id);
+    sendSuccess(res, result, 'Line unreconciled');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   listChart,
   ledger,
@@ -239,4 +360,16 @@ module.exports = {
   lockPeriod,
   unlockPeriod,
   billPayments,
+  listBankAccounts,
+  createBankAccount,
+  updateBankAccount,
+  deactivateBankAccount,
+  importStatement,
+  listStatementLines,
+  statementAdjustment,
+  suggestMatches,
+  reconciliationSummary,
+  autoReconcile,
+  reconcileLine,
+  unreconcileLine,
 };

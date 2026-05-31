@@ -13,6 +13,7 @@ import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
+import BankReconciliation from '../components/accounting/BankReconciliation';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
   RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
@@ -66,6 +67,7 @@ const TABS = [
   { key: 'aging',   label: 'Aging',             icon: Clock },
   { key: 'journal', label: 'Manual Journal',    icon: BookText },
   { key: 'lock',    label: 'Period Lock',       icon: Lock },
+  { key: 'bankrec', label: 'Bank Rec',          icon: Landmark },
 ];
 
 /* ── Reusable bits ─────────────────────────────────────────────────────────── */
@@ -402,6 +404,9 @@ export default function AccountingPage() {
       )}
       {tab === 'lock' && (
         <PeriodLockTab query={periodsQ} lockM={lockPeriodM} unlockM={unlockPeriodM} />
+      )}
+      {tab === 'bankrec' && (
+        <BankReconciliation outletId={outletId} />
       )}
     </div>
   );

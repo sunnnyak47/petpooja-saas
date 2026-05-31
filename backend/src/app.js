@@ -471,6 +471,36 @@ async function startApp() {
           note      TEXT,
           CONSTRAINT accounting_period_locks_outlet_period_key UNIQUE (outlet_id, period)
         )`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS bank_accounts (
+          id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id       UUID          NOT NULL,
+          name            VARCHAR(120)  NOT NULL,
+          bsb             VARCHAR(10),
+          account_number  VARCHAR(30),
+          gl_account_code VARCHAR(10)   NOT NULL DEFAULT '091',
+          opening_balance DECIMAL(14,2) NOT NULL DEFAULT 0,
+          is_active       BOOLEAN       NOT NULL DEFAULT true,
+          is_deleted      BOOLEAN       NOT NULL DEFAULT false,
+          created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+          updated_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bank_accounts_outlet ON bank_accounts(outlet_id)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS bank_statement_lines (
+          id                      UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id               UUID          NOT NULL,
+          bank_account_id         UUID          NOT NULL,
+          txn_date                DATE          NOT NULL,
+          description             VARCHAR(300),
+          amount                  DECIMAL(14,2) NOT NULL,
+          reconciled              BOOLEAN       NOT NULL DEFAULT false,
+          matched_journal_line_id UUID,
+          imported_at             TIMESTAMPTZ   NOT NULL DEFAULT now(),
+          is_deleted              BOOLEAN       NOT NULL DEFAULT false
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bank_stmt_outlet_acct ON bank_statement_lines(outlet_id, bank_account_id)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bank_stmt_recon ON bank_statement_lines(bank_account_id, reconciled)`);
       logger.info('Accounting ledger tables ensured');
     } catch (e) {
       logger.warn('Accounting ledger tables skipped:', { error: e.message });
