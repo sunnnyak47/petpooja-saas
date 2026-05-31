@@ -340,6 +340,8 @@ async function startApp() {
                                 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`],
       // tables: auto_free_at added for predictive auto-free feature
       ['tables', `ADD COLUMN IF NOT EXISTS auto_free_at TIMESTAMPTZ`],
+      // purchase_orders: supplier_id must be nullable (POs can be supplier-less)
+      ['purchase_orders', `ALTER COLUMN supplier_id DROP NOT NULL`],
       // purchase_orders: columns added across procurement iterations
       ['purchase_orders', `ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50),
                            ADD COLUMN IF NOT EXISTS terms            TEXT,
