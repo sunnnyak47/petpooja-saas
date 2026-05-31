@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp, Download, FileSpreadsheet, Calculator } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp, Download, FileSpreadsheet, Calculator, DownloadCloud, LineChart } from 'lucide-react';
 
 const INTEGRATIONS_META = {
   xero: {
@@ -63,6 +64,7 @@ const INTEGRATIONS_META = {
 export default function AUIntegrationsPage() {
   const { user } = useSelector(s => s.auth);
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const outletId = user?.outlet_id;
 
   const [connectModal, setConnectModal] = useState(null); // { type, fields }
@@ -166,6 +168,16 @@ export default function AUIntegrationsPage() {
       qc.invalidateQueries(['au-integrations']);
     },
     onError: e => toast.error(e?.response?.data?.message || 'Xero sync failed'),
+  });
+
+  // Import data FROM Xero (pull) — populates the analytics + predictions tabs.
+  const importXeroMut = useMutation({
+    mutationFn: () => api.post('/integrations/au/xero/sync-full', {}).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Importing financial data from Xero — analytics & predictions will refresh shortly');
+      qc.invalidateQueries(['au-integrations']);
+    },
+    onError: e => toast.error(e?.response?.data?.message || 'Xero import failed'),
   });
 
   const exportMyobMut = useMutation({
@@ -289,9 +301,19 @@ export default function AUIntegrationsPage() {
                   {isConnected ? (
                     <>
                       {type === 'xero' && (
-                        <button onClick={() => exportXeroMut.mutate()} disabled={exportXeroMut.isPending}
+                        <button onClick={() => importXeroMut.mutate()} disabled={importXeroMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                          style={{ background: meta.color }}>
+                          style={{ background: meta.color }}
+                          title="Import P&L, balance sheet, invoices & more from Xero">
+                          <DownloadCloud className={`w-3 h-3 inline mr-1 ${importXeroMut.isPending ? 'animate-spin' : ''}`} />
+                          {importXeroMut.isPending ? 'Importing…' : 'Import from Xero'}
+                        </button>
+                      )}
+                      {type === 'xero' && (
+                        <button onClick={() => exportXeroMut.mutate()} disabled={exportXeroMut.isPending}
+                          className="px-3 py-2 rounded-lg text-xs font-semibold border disabled:opacity-60"
+                          style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                          title="Push POS sales to Xero as invoices">
                           <RefreshCw className={`w-3 h-3 inline mr-1 ${exportXeroMut.isPending ? 'animate-spin' : ''}`} />
                           Sync Sales
                         </button>
@@ -348,6 +370,19 @@ export default function AUIntegrationsPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Xero: jump to the imported data + live predictions */}
+                {type === 'xero' && isConnected && (
+                  <button
+                    onClick={() => navigate('/xero-analytics')}
+                    className="mt-2 w-full py-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5"
+                    style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+                    title="View imported Xero data, financial analytics and live predictions"
+                  >
+                    <LineChart className="w-3.5 h-3.5" />
+                    View Analytics &amp; Predictions
+                  </button>
+                )}
               </div>
             </div>
           );
