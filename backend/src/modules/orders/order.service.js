@@ -873,7 +873,21 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       }
     }
 
-    return { payment: result.payment, order: await getOrderById(orderId) };
+    const fullOrder = await getOrderById(orderId);
+
+    // Post a double-entry journal to the native ledger when the order is paid.
+    // Fire-and-forget — never let accounting break the payment flow.
+    if (fullOrder?.is_paid) {
+      setImmediate(() => {
+        try {
+          require('../accounting/accounting.posting.service')
+            .postOrderPaid(fullOrder)
+            .catch((e) => logger.warn('Ledger postOrderPaid failed', { error: e.message }));
+        } catch (e) { logger.warn('Ledger hook error', { error: e.message }); }
+      });
+    }
+
+    return { payment: result.payment, order: fullOrder };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     throw error;

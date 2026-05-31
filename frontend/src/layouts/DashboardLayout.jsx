@@ -16,7 +16,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
-  HeartPulse, Palmtree, IdCard,
+  HeartPulse, Palmtree, IdCard, Landmark,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
@@ -85,6 +85,7 @@ const ownerNav = [
   { path: '/reports',           label: 'Reports',          icon: BarChart3, feature: 'reports' },
   { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
   { path: '/xero-analytics',   label: 'Financials',       icon: TrendingUp, feature: 'reports' },
+  { path: '/accounting',       label: 'Accounting',       icon: Landmark, feature: 'reports' },
   { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
   { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
@@ -136,6 +137,7 @@ const ownerNavAU = [
   { path: '/menu-analytics',   label: 'Menu Analytics',    icon: FlameKindling, feature: 'menu' },
   { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },
   { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
+  { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports' },
   { path: '/gst-compliance',  label: 'GST & BAS',         icon: Receipt,       feature: 'reports' },
 
   // ── System: integrations, settings ──

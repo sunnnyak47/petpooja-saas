@@ -204,8 +204,67 @@ model Outlet {
   whatsapp_send_logs     WhatsAppSendLog[]
   xero_connections       XeroConnection[]
   expenses               Expense[]
+  chart_accounts         ChartAccount[]
+  journal_entries        JournalEntry[]
 
   @@map("outlets")
+}
+
+// ── Native double-entry accounting ledger ───────────────────────────────────
+// ChartAccount = the account list; JournalEntry/JournalLine = balanced
+// double-entry transactions auto-posted from orders, POs and expenses.
+model ChartAccount {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String        @db.Uuid
+  code       String        @db.VarChar(10)
+  name       String        @db.VarChar(120)
+  type       String        @db.VarChar(20) // ASSET | LIABILITY | EQUITY | REVENUE | EXPENSE
+  subtype    String?       @db.VarChar(40)
+  gst        Boolean       @default(false)
+  is_active  Boolean       @default(true)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  is_deleted Boolean       @default(false)
+  outlet     Outlet        @relation(fields: [outlet_id], references: [id])
+  lines      JournalLine[]
+
+  @@unique([outlet_id, code])
+  @@index([outlet_id, type])
+  @@map("chart_accounts")
+}
+
+model JournalEntry {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String        @db.Uuid
+  entry_date DateTime      @db.Date
+  source     String        @db.VarChar(30) // order | purchase_order | expense | manual
+  source_id  String?       @db.Uuid
+  reference  String?       @db.VarChar(60)
+  memo       String?
+  created_by String?       @db.Uuid
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  is_deleted Boolean       @default(false)
+  outlet     Outlet        @relation(fields: [outlet_id], references: [id])
+  lines      JournalLine[]
+
+  @@index([outlet_id, entry_date])
+  @@index([source, source_id])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entry_id    String       @db.Uuid
+  account_id  String       @db.Uuid
+  debit       Decimal      @default(0) @db.Decimal(14, 2)
+  credit      Decimal      @default(0) @db.Decimal(14, 2)
+  description String?      @db.VarChar(200)
+  entry       JournalEntry @relation(fields: [entry_id], references: [id])
+  account     ChartAccount @relation(fields: [account_id], references: [id])
+
+  @@index([entry_id])
+  @@index([account_id])
+  @@map("journal_lines")
 }
 
 model User {
@@ -872,47 +931,47 @@ model PurchaseOrder {
 }
 
 model POItem {
-  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  purchase_order_id String        @db.Uuid
-  inventory_item_id String?       @db.Uuid
-  item_name         String        @db.VarChar(200)
-  category          String?       @db.VarChar(50)
-  ordered_quantity  Decimal       @db.Decimal(12, 3)
-  unit              String        @default("kg") @db.VarChar(20)
-  unit_cost         Decimal       @db.Decimal(10, 2)
-  tax_rate          Decimal       @default(0) @db.Decimal(5, 2)
-  tax_amount        Decimal       @default(0) @db.Decimal(12, 2)
-  total_cost        Decimal       @default(0) @db.Decimal(12, 2)
-  received_quantity Decimal       @default(0) @db.Decimal(12, 3)
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchase_order_id String         @db.Uuid
+  inventory_item_id String?        @db.Uuid
+  item_name         String         @db.VarChar(200)
+  category          String?        @db.VarChar(50)
+  ordered_quantity  Decimal        @db.Decimal(12, 3)
+  unit              String         @default("kg") @db.VarChar(20)
+  unit_cost         Decimal        @db.Decimal(10, 2)
+  tax_rate          Decimal        @default(0) @db.Decimal(5, 2)
+  tax_amount        Decimal        @default(0) @db.Decimal(12, 2)
+  total_cost        Decimal        @default(0) @db.Decimal(12, 2)
+  received_quantity Decimal        @default(0) @db.Decimal(12, 3)
   notes             String?
-  hsn_code          String?       @db.VarChar(20)
-  created_at        DateTime      @default(now()) @db.Timestamptz(6)
-  is_deleted        Boolean       @default(false)
-  updated_at        DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  hsn_code          String?        @db.VarChar(20)
+  created_at        DateTime       @default(now()) @db.Timestamptz(6)
+  is_deleted        Boolean        @default(false)
+  updated_at        DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
   inventory_item    InventoryItem? @relation(fields: [inventory_item_id], references: [id])
-  purchase_order    PurchaseOrder @relation(fields: [purchase_order_id], references: [id])
+  purchase_order    PurchaseOrder  @relation(fields: [purchase_order_id], references: [id])
 
   @@map("po_items")
 }
 
 model ItemPreset {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id             String    @db.Uuid
-  name                  String    @db.VarChar(200)
-  category              String    @db.VarChar(50)
-  default_quantity      Decimal   @default(1) @db.Decimal(10, 3)
-  unit                  String    @default("kg") @db.VarChar(20)
-  default_rate          Decimal   @default(0) @db.Decimal(10, 2)
-  sku                   String?   @db.VarChar(50)
-  hsn_code              String?   @db.VarChar(20)
-  tax_rate              Decimal   @default(0) @db.Decimal(5, 2)
-  preferred_supplier_id String?   @db.Uuid
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id             String   @db.Uuid
+  name                  String   @db.VarChar(200)
+  category              String   @db.VarChar(50)
+  default_quantity      Decimal  @default(1) @db.Decimal(10, 3)
+  unit                  String   @default("kg") @db.VarChar(20)
+  default_rate          Decimal  @default(0) @db.Decimal(10, 2)
+  sku                   String?  @db.VarChar(50)
+  hsn_code              String?  @db.VarChar(20)
+  tax_rate              Decimal  @default(0) @db.Decimal(5, 2)
+  preferred_supplier_id String?  @db.Uuid
   notes                 String?
-  use_count             Int       @default(0)
-  is_active             Boolean   @default(true)
-  is_deleted            Boolean   @default(false)
-  created_at            DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  use_count             Int      @default(0)
+  is_active             Boolean  @default(true)
+  is_deleted            Boolean  @default(false)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   outlet             Outlet    @relation(fields: [outlet_id], references: [id])
   preferred_supplier Supplier? @relation("preset_supplier", fields: [preferred_supplier_id], references: [id])
@@ -923,15 +982,15 @@ model ItemPreset {
 }
 
 model WhatsAppSendLog {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id     String         @db.Uuid
-  po_id         String?        @db.Uuid
-  phone         String         @db.VarChar(20)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id     String   @db.Uuid
+  po_id         String?  @db.Uuid
+  phone         String   @db.VarChar(20)
   message       String?
-  status        String         @default("sent") @db.VarChar(20)
-  wa_message_id String?        @db.VarChar(100)
+  status        String   @default("sent") @db.VarChar(20)
+  wa_message_id String?  @db.VarChar(100)
   error         String?
-  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
 
   outlet         Outlet         @relation(fields: [outlet_id], references: [id])
   purchase_order PurchaseOrder? @relation(fields: [po_id], references: [id])
@@ -1127,68 +1186,68 @@ model CampaignLog {
 }
 
 model StaffProfile {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id           String    @db.Uuid
-  outlet_id         String    @db.Uuid
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id   String @db.Uuid
+  outlet_id String @db.Uuid
 
   // ── Basic employment ──────────────────────────────────────────
   employee_code     String?   @db.VarChar(20)
   department        String?   @db.VarChar(50)
   designation       String?   @db.VarChar(100)
   manager_pin       String?   @db.VarChar(10)
-  employment_type   String?   @db.VarChar(20)   // full_time | part_time | casual | contract
+  employment_type   String?   @db.VarChar(20) // full_time | part_time | casual | contract
   contract_end_date DateTime? @db.Date
   join_date         DateTime? @db.Date
-  end_date          DateTime? @db.Date           // termination / resignation date
+  end_date          DateTime? @db.Date // termination / resignation date
 
   // ── Pay ───────────────────────────────────────────────────────
-  hourly_rate       Decimal?  @db.Decimal(8, 2)
-  monthly_salary    Decimal?  @db.Decimal(10, 2)
+  hourly_rate    Decimal? @db.Decimal(8, 2)
+  monthly_salary Decimal? @db.Decimal(10, 2)
 
   // ── Personal details ─────────────────────────────────────────
-  photo_url         String?   @db.VarChar(500)
-  date_of_birth     DateTime? @db.Date
-  gender            String?   @db.VarChar(20)
-  nationality       String?   @db.VarChar(60)
-  address           String?   @db.VarChar(500)
-  blood_group       String?   @db.VarChar(5)
+  photo_url     String?   @db.VarChar(500)
+  date_of_birth DateTime? @db.Date
+  gender        String?   @db.VarChar(20)
+  nationality   String?   @db.VarChar(60)
+  address       String?   @db.VarChar(500)
+  blood_group   String?   @db.VarChar(5)
 
   // ── Emergency contact ─────────────────────────────────────────
-  emergency_contact      String?  @db.VarChar(15)
-  emergency_contact_name String?  @db.VarChar(100)
-  emergency_relationship String?  @db.VarChar(50)
+  emergency_contact      String? @db.VarChar(15)
+  emergency_contact_name String? @db.VarChar(100)
+  emergency_relationship String? @db.VarChar(50)
 
   // ── Banking / payroll ─────────────────────────────────────────
-  bank_bsb           String?  @db.VarChar(10)
-  bank_account       String?  @db.VarChar(20)
-  bank_account_name  String?  @db.VarChar(100)
-  tax_file_number    String?  @db.VarChar(20)   // AU: TFN; IN: PAN
-  superannuation_fund String? @db.VarChar(100)  // AU super fund name
+  bank_bsb            String? @db.VarChar(10)
+  bank_account        String? @db.VarChar(20)
+  bank_account_name   String? @db.VarChar(100)
+  tax_file_number     String? @db.VarChar(20) // AU: TFN; IN: PAN
+  superannuation_fund String? @db.VarChar(100) // AU super fund name
   super_member_number String? @db.VarChar(50)
 
   // ── Compliance & working rights ───────────────────────────────
-  right_to_work_checked  Boolean?  @default(false)
-  visa_type              String?   @db.VarChar(50)
-  visa_expiry            DateTime? @db.Date
-  induction_completed    Boolean?  @default(false)
-  induction_date         DateTime? @db.Date
-  wwcc_number            String?   @db.VarChar(50)   // Working With Children Check (AU)
-  wwcc_expiry            DateTime? @db.Date
-  rsa_number             String?   @db.VarChar(50)   // Responsible Service of Alcohol (AU)
-  rsa_expiry             DateTime? @db.Date
-  food_safety_cert       String?   @db.VarChar(50)
-  food_safety_expiry     DateTime? @db.Date
-  police_check_date      DateTime? @db.Date
-  police_check_expiry    DateTime? @db.Date
+  right_to_work_checked Boolean?  @default(false)
+  visa_type             String?   @db.VarChar(50)
+  visa_expiry           DateTime? @db.Date
+  induction_completed   Boolean?  @default(false)
+  induction_date        DateTime? @db.Date
+  wwcc_number           String?   @db.VarChar(50) // Working With Children Check (AU)
+  wwcc_expiry           DateTime? @db.Date
+  rsa_number            String?   @db.VarChar(50) // Responsible Service of Alcohol (AU)
+  rsa_expiry            DateTime? @db.Date
+  food_safety_cert      String?   @db.VarChar(50)
+  food_safety_expiry    DateTime? @db.Date
+  police_check_date     DateTime? @db.Date
+  police_check_expiry   DateTime? @db.Date
 
   // ── Notes ─────────────────────────────────────────────────────
-  notes             String?
+  notes String?
 
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
-  is_deleted        Boolean   @default(false)
-  outlet            Outlet    @relation(fields: [outlet_id], references: [id])
-  user              User      @relation(fields: [user_id], references: [id])
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  is_deleted Boolean  @default(false)
+  outlet     Outlet   @relation(fields: [outlet_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id])
 
   @@unique([user_id, outlet_id])
   @@map("staff_profiles")
@@ -1432,55 +1491,55 @@ model DailySummary {
 }
 
 model EODReport {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id          String    @db.Uuid
-  report_date        DateTime  @db.Date
-  status             String    @default("draft") @db.VarChar(20)   // draft | locked
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id   String   @db.Uuid
+  report_date DateTime @db.Date
+  status      String   @default("draft") @db.VarChar(20) // draft | locked
 
   // System-calculated from orders
-  total_orders       Int       @default(0)
-  total_revenue      Decimal   @default(0) @db.Decimal(12, 2)
-  total_tax          Decimal   @default(0) @db.Decimal(10, 2)
-  total_discount     Decimal   @default(0) @db.Decimal(10, 2)
-  void_count         Int       @default(0)
-  void_amount        Decimal   @default(0) @db.Decimal(12, 2)
-  refund_count       Int       @default(0)
-  refund_amount      Decimal   @default(0) @db.Decimal(12, 2)
+  total_orders   Int     @default(0)
+  total_revenue  Decimal @default(0) @db.Decimal(12, 2)
+  total_tax      Decimal @default(0) @db.Decimal(10, 2)
+  total_discount Decimal @default(0) @db.Decimal(10, 2)
+  void_count     Int     @default(0)
+  void_amount    Decimal @default(0) @db.Decimal(12, 2)
+  refund_count   Int     @default(0)
+  refund_amount  Decimal @default(0) @db.Decimal(12, 2)
 
   // Order type breakdown
-  dine_in_orders     Int       @default(0)
-  dine_in_revenue    Decimal   @default(0) @db.Decimal(12, 2)
-  takeaway_orders    Int       @default(0)
-  takeaway_revenue   Decimal   @default(0) @db.Decimal(12, 2)
-  delivery_orders    Int       @default(0)
-  delivery_revenue   Decimal   @default(0) @db.Decimal(12, 2)
-  online_orders      Int       @default(0)
-  online_revenue     Decimal   @default(0) @db.Decimal(12, 2)
+  dine_in_orders   Int     @default(0)
+  dine_in_revenue  Decimal @default(0) @db.Decimal(12, 2)
+  takeaway_orders  Int     @default(0)
+  takeaway_revenue Decimal @default(0) @db.Decimal(12, 2)
+  delivery_orders  Int     @default(0)
+  delivery_revenue Decimal @default(0) @db.Decimal(12, 2)
+  online_orders    Int     @default(0)
+  online_revenue   Decimal @default(0) @db.Decimal(12, 2)
 
   // Payment breakdown (system-calculated)
-  cash_system        Decimal   @default(0) @db.Decimal(12, 2)
-  card_system        Decimal   @default(0) @db.Decimal(12, 2)
-  upi_system         Decimal   @default(0) @db.Decimal(12, 2)
-  other_system       Decimal   @default(0) @db.Decimal(12, 2)
+  cash_system  Decimal @default(0) @db.Decimal(12, 2)
+  card_system  Decimal @default(0) @db.Decimal(12, 2)
+  upi_system   Decimal @default(0) @db.Decimal(12, 2)
+  other_system Decimal @default(0) @db.Decimal(12, 2)
 
   // Cash drawer
-  opening_cash       Decimal   @default(0) @db.Decimal(12, 2)
-  denomination_count Json?                                          // {2000:2, 500:5, 200:3, ...}
-  cash_actual        Decimal   @default(0) @db.Decimal(12, 2)      // sum of denominations
-  cash_difference    Decimal   @default(0) @db.Decimal(12, 2)      // actual - (opening + system cash)
+  opening_cash       Decimal @default(0) @db.Decimal(12, 2)
+  denomination_count Json? // {2000:2, 500:5, 200:3, ...}
+  cash_actual        Decimal @default(0) @db.Decimal(12, 2) // sum of denominations
+  cash_difference    Decimal @default(0) @db.Decimal(12, 2) // actual - (opening + system cash)
 
   // Top items snapshot
-  top_items          Json?                                          // [{name, qty, revenue}]
+  top_items Json? // [{name, qty, revenue}]
 
   // Reconciliation notes
   discrepancy_reason String?
   notes              String?
 
   // Audit
-  closed_by          String?   @db.Uuid
-  closed_at          DateTime? @db.Timestamptz(6)
-  created_at         DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  closed_by  String?   @db.Uuid
+  closed_at  DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
 
   outlet Outlet @relation(fields: [outlet_id], references: [id])
   closer User?  @relation("eod_closer", fields: [closed_by], references: [id])
@@ -1935,23 +1994,23 @@ model AnalyticsCache {
 // ─── XERO INTEGRATION ─────────────────────────────────────────────
 
 model XeroConnection {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id    String   @db.Uuid
-  org_name     String   @db.VarChar(200)
-  abn          String?  @db.VarChar(20)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String    @db.Uuid
+  org_name     String    @db.VarChar(200)
+  abn          String?   @db.VarChar(20)
   address      String?
-  currency     String   @default("AUD") @db.VarChar(5)
-  country_code String   @default("AU") @db.VarChar(5)
-  timezone     String?  @db.VarChar(50)
-  is_connected Boolean  @default(true)
+  currency     String    @default("AUD") @db.VarChar(5)
+  country_code String    @default("AU") @db.VarChar(5)
+  timezone     String?   @db.VarChar(50)
+  is_connected Boolean   @default(true)
   last_synced  DateTime? @db.Timestamptz(6)
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
-  is_deleted   Boolean  @default(false)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  is_deleted   Boolean   @default(false)
 
-  outlet       Outlet   @relation(fields: [outlet_id], references: [id])
-  accounts     XeroAccount[]
-  transactions XeroTransaction[]
+  outlet              Outlet                 @relation(fields: [outlet_id], references: [id])
+  accounts            XeroAccount[]
+  transactions        XeroTransaction[]
   bank_accounts       XeroBankAccount[]
   balance_sheet_lines XeroBalanceSheetLine[]
   invoices            XeroInvoice[]
@@ -1974,7 +2033,7 @@ model XeroAccount {
   is_active     Boolean  @default(true)
   created_at    DateTime @default(now()) @db.Timestamptz(6)
 
-  connection    XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, code])
   @@map("xero_accounts")
@@ -1999,7 +2058,7 @@ model XeroTransaction {
   currency        String   @default("AUD") @db.VarChar(5)
   created_at      DateTime @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, transaction_ref])
   @@index([connection_id, date])
@@ -2021,45 +2080,45 @@ model XeroBankAccount {
   is_active       Boolean  @default(true)
   created_at      DateTime @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, account_number])
   @@map("xero_bank_accounts")
 }
 
 model XeroBalanceSheetLine {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  connection_id   String   @db.Uuid
-  as_at_date      DateTime @db.Date
-  account_code    String   @db.VarChar(10)
-  account_name    String   @db.VarChar(200)
-  account_type    String   @db.VarChar(30)
-  sub_type        String   @db.VarChar(30)
-  balance         Decimal  @db.Decimal(14, 2)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id String   @db.Uuid
+  as_at_date    DateTime @db.Date
+  account_code  String   @db.VarChar(10)
+  account_name  String   @db.VarChar(200)
+  account_type  String   @db.VarChar(30)
+  sub_type      String   @db.VarChar(30)
+  balance       Decimal  @db.Decimal(14, 2)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@index([connection_id, as_at_date])
   @@map("xero_balance_sheet_lines")
 }
 
 model XeroInvoice {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  connection_id   String   @db.Uuid
-  invoice_number  String   @db.VarChar(30)
-  contact         String   @db.VarChar(200)
-  type            String   @db.VarChar(10)
-  status          String   @db.VarChar(20)
-  date            DateTime @db.Date
-  due_date        DateTime @db.Date
-  total           Decimal  @db.Decimal(12, 2)
-  amount_paid     Decimal  @db.Decimal(12, 2)
-  amount_due      Decimal  @db.Decimal(12, 2)
-  currency        String   @default("AUD") @db.VarChar(5)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id  String   @db.Uuid
+  invoice_number String   @db.VarChar(30)
+  contact        String   @db.VarChar(200)
+  type           String   @db.VarChar(10)
+  status         String   @db.VarChar(20)
+  date           DateTime @db.Date
+  due_date       DateTime @db.Date
+  total          Decimal  @db.Decimal(12, 2)
+  amount_paid    Decimal  @db.Decimal(12, 2)
+  amount_due     Decimal  @db.Decimal(12, 2)
+  currency       String   @default("AUD") @db.VarChar(5)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, invoice_number])
   @@index([connection_id, status])
@@ -2068,62 +2127,62 @@ model XeroInvoice {
 }
 
 model XeroBASReturn {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  connection_id   String   @db.Uuid
-  quarter         Int
-  year            Int
-  period_start    DateTime @db.Date
-  period_end      DateTime @db.Date
-  gst_collected   Decimal  @db.Decimal(12, 2)
-  gst_paid        Decimal  @db.Decimal(12, 2)
-  net_gst         Decimal  @db.Decimal(12, 2)
-  payg_withheld   Decimal  @db.Decimal(12, 2)
-  total_payable   Decimal  @db.Decimal(12, 2)
-  status          String   @db.VarChar(20)
-  lodged_date     DateTime? @db.Date
-  due_date        DateTime @db.Date
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id String    @db.Uuid
+  quarter       Int
+  year          Int
+  period_start  DateTime  @db.Date
+  period_end    DateTime  @db.Date
+  gst_collected Decimal   @db.Decimal(12, 2)
+  gst_paid      Decimal   @db.Decimal(12, 2)
+  net_gst       Decimal   @db.Decimal(12, 2)
+  payg_withheld Decimal   @db.Decimal(12, 2)
+  total_payable Decimal   @db.Decimal(12, 2)
+  status        String    @db.VarChar(20)
+  lodged_date   DateTime? @db.Date
+  due_date      DateTime  @db.Date
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, year, quarter])
   @@map("xero_bas_returns")
 }
 
 model XeroContact {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  connection_id     String   @db.Uuid
-  name              String   @db.VarChar(200)
-  contact_type      String   @db.VarChar(20)
-  abn               String?  @db.VarChar(20)
-  email             String?  @db.VarChar(200)
-  phone             String?  @db.VarChar(30)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id     String    @db.Uuid
+  name              String    @db.VarChar(200)
+  contact_type      String    @db.VarChar(20)
+  abn               String?   @db.VarChar(20)
+  email             String?   @db.VarChar(200)
+  phone             String?   @db.VarChar(30)
   address           String?
-  city              String?  @db.VarChar(100)
-  state             String?  @db.VarChar(10)
-  postcode          String?  @db.VarChar(10)
-  is_active         Boolean  @default(true)
-  total_spend       Decimal  @default(0) @db.Decimal(12, 2)
-  total_revenue     Decimal  @default(0) @db.Decimal(12, 2)
-  transaction_count Int      @default(0)
+  city              String?   @db.VarChar(100)
+  state             String?   @db.VarChar(10)
+  postcode          String?   @db.VarChar(10)
+  is_active         Boolean   @default(true)
+  total_spend       Decimal   @default(0) @db.Decimal(12, 2)
+  total_revenue     Decimal   @default(0) @db.Decimal(12, 2)
+  transaction_count Int       @default(0)
   first_transaction DateTime? @db.Date
   last_transaction  DateTime? @db.Date
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
 
-  connection        XeroConnection @relation(fields: [connection_id], references: [id])
+  connection XeroConnection @relation(fields: [connection_id], references: [id])
 
   @@unique([connection_id, name])
   @@map("xero_contacts")
 }
 
 model XeroTrackingCategory {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  connection_id   String   @db.Uuid
-  name            String   @db.VarChar(100)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id String   @db.Uuid
+  name          String   @db.VarChar(100)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
 
-  connection      XeroConnection @relation(fields: [connection_id], references: [id])
-  options         XeroTrackingOption[]
+  connection XeroConnection       @relation(fields: [connection_id], references: [id])
+  options    XeroTrackingOption[]
 
   @@unique([connection_id, name])
   @@map("xero_tracking_categories")
@@ -2135,8 +2194,8 @@ model XeroTrackingOption {
   name        String   @db.VarChar(100)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 
-  category    XeroTrackingCategory @relation(fields: [category_id], references: [id])
-  summaries   XeroTrackingSummary[]
+  category  XeroTrackingCategory  @relation(fields: [category_id], references: [id])
+  summaries XeroTrackingSummary[]
 
   @@unique([category_id, name])
   @@map("xero_tracking_options")
@@ -2153,8 +2212,8 @@ model XeroTrackingSummary {
   transaction_count Int
   created_at        DateTime @default(now()) @db.Timestamptz(6)
 
-  connection        XeroConnection @relation(fields: [connection_id], references: [id])
-  option            XeroTrackingOption @relation(fields: [option_id], references: [id])
+  connection XeroConnection     @relation(fields: [connection_id], references: [id])
+  option     XeroTrackingOption @relation(fields: [option_id], references: [id])
 
   @@unique([connection_id, option_id, year, month])
   @@index([connection_id, year, month])
@@ -2204,10 +2263,10 @@ model Expense {
 //   CREATE UNIQUE INDEX "outlet_daily_counters_outlet_id_day_key"
 //     ON "outlet_daily_counters" ("outlet_id", "day");
 model OutletDailyCounter {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id  String   @db.Uuid
-  day        String   @db.VarChar(10) // YYYY-MM-DD
-  seq        Int      @default(0)
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id String @db.Uuid
+  day       String @db.VarChar(10) // YYYY-MM-DD
+  seq       Int    @default(0)
 
   @@unique([outlet_id, day])
   @@map("outlet_daily_counters")

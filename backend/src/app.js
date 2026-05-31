@@ -205,6 +205,8 @@ app.use('/api/online-orders', onlineOrderRoutes);
 app.use('/api/inventory', inventoryRoutes);
 // Procurement routes handle: /api/purchase-orders/*, /api/suppliers/*, /api/presets/*
 app.use('/api', require('./modules/inventory/procurement.routes'));
+// Native accounting ledger — /api/accounting/*
+app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
@@ -400,6 +402,55 @@ async function startApp() {
       } catch (e) {
         logger.warn(`Schema drift skipped (${tbl}):`, { error: e.message });
       }
+    }
+
+    // ── Create native accounting ledger tables if missing ───────────────────
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS chart_accounts (
+          id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id  UUID         NOT NULL,
+          code       VARCHAR(10)  NOT NULL,
+          name       VARCHAR(120) NOT NULL,
+          type       VARCHAR(20)  NOT NULL,
+          subtype    VARCHAR(40),
+          gst        BOOLEAN      NOT NULL DEFAULT false,
+          is_active  BOOLEAN      NOT NULL DEFAULT true,
+          created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          is_deleted BOOLEAN      NOT NULL DEFAULT false,
+          CONSTRAINT chart_accounts_outlet_code_key UNIQUE (outlet_id, code)
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_chart_accounts_outlet_type ON chart_accounts(outlet_id, type)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS journal_entries (
+          id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id  UUID        NOT NULL,
+          entry_date DATE        NOT NULL,
+          source     VARCHAR(30) NOT NULL,
+          source_id  UUID,
+          reference  VARCHAR(60),
+          memo       TEXT,
+          created_by UUID,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          is_deleted BOOLEAN     NOT NULL DEFAULT false
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_entries_outlet_date ON journal_entries(outlet_id, entry_date)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_entries_source ON journal_entries(source, source_id)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS journal_lines (
+          id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          entry_id    UUID          NOT NULL,
+          account_id  UUID          NOT NULL,
+          debit       DECIMAL(14,2) NOT NULL DEFAULT 0,
+          credit      DECIMAL(14,2) NOT NULL DEFAULT 0,
+          description VARCHAR(200)
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_lines_entry ON journal_lines(entry_id)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id)`);
+      logger.info('Accounting ledger tables ensured');
+    } catch (e) {
+      logger.warn('Accounting ledger tables skipped:', { error: e.message });
     }
 
     // ── Create outlet_daily_counters if missing (race-safe order sequencing) ──

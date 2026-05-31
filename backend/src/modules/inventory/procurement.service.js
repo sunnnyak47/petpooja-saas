@@ -588,6 +588,17 @@ async function receivePurchaseOrder(outletId, poId, data, userId) {
     }
     await tx.purchaseOrder.update({ where: { id: poId }, data: { status: 'received' } });
     return grn;
+  }).then((grn) => {
+    // Post the bill (Dr COGS/GST, Cr Accounts Payable) to the native ledger.
+    // Fire-and-forget — never let accounting break PO receipt.
+    setImmediate(async () => {
+      try {
+        const prisma = getDbClient();
+        const po = await prisma.purchaseOrder.findUnique({ where: { id: poId } });
+        if (po) await require('../accounting/accounting.posting.service').postPurchaseOrderReceived(po);
+      } catch (e) { logger.warn('Ledger postPurchaseOrderReceived failed', { error: e.message }); }
+    });
+    return grn;
   });
 }
 

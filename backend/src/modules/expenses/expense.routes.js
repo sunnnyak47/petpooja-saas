@@ -84,6 +84,16 @@ router.post('/expenses', authenticate, MANAGE, async (req, res, next) => {
     });
 
     logger.info('Expense created', { id: expense.id, outlet_id: outletId, amount });
+
+    // Post to the native ledger (Dr expense account, Cr Cash). Fire-and-forget.
+    setImmediate(() => {
+      try {
+        require('../accounting/accounting.posting.service')
+          .postExpense(expense)
+          .catch((err) => logger.warn('Ledger postExpense failed', { error: err.message }));
+      } catch (err) { logger.warn('Ledger expense hook error', { error: err.message }); }
+    });
+
     sendCreated(res, expense, 'Expense recorded');
   } catch (e) { next(e); }
 });

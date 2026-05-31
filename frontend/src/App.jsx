@@ -70,6 +70,7 @@ import ChainHealthPage from './pages/ChainHealthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import GSTCompliancePage from './pages/GSTCompliancePage';
 import XeroAnalyticsPage from './pages/XeroAnalyticsPage';
+import AccountingPage from './pages/AccountingPage';
 
 /* ── 404 Page ───────────────────────────────────────────────────────────────── */
 function NotFoundPage() {
@@ -261,6 +262,7 @@ export default function App() {
         <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="xero-analytics"    element={<XeroAnalyticsPage />} />
+        <Route path="accounting"        element={<AccountingPage />} />
         <Route path="reservations"       element={<ReservationsPage />} />
 
         {/* Chain Health Score */}
