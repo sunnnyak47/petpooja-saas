@@ -17,7 +17,7 @@ import BankReconciliation from '../components/accounting/BankReconciliation';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
   RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
-  Lock, Unlock, CalendarDays, FileCheck,
+  Lock, Unlock, CalendarDays, FileCheck, Download,
 } from 'lucide-react';
 
 /* ── Currency helper ───────────────────────────────────────────────────────── */
@@ -53,6 +53,35 @@ const TYPE_COLORS = {
 };
 function typeColor(type) {
   return TYPE_COLORS[String(type || '').toLowerCase()] || '#94a3b8';
+}
+
+/* ── CSV export helper ─────────────────────────────────────────────────────── */
+// NOTE: the app's axios interceptor returns response.data directly, so for a
+// blob response `res` IS the blob — handle `res.data ?? res`.
+async function downloadCSV(path, params, filename) {
+  try {
+    const res = await api.get(path, { params, responseType: 'blob' });
+    const blob = new Blob([res?.data ?? res], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    toast.error('Export failed');
+  }
+}
+
+function ExportCsvButton({ onClick }) {
+  return (
+    <button onClick={onClick} className="btn-secondary btn-sm" title="Export CSV">
+      <Download className="w-3.5 h-3.5" />
+      Export CSV
+    </button>
+  );
 }
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
@@ -409,13 +438,13 @@ export default function AccountingPage() {
         />
       )}
       {tab === 'trial' && (
-        <TrialBalanceTab query={trialQ} asOf={tbAsOf} setAsOf={setTbAsOf} />
+        <TrialBalanceTab query={trialQ} asOf={tbAsOf} setAsOf={setTbAsOf} outletId={outletId} />
       )}
       {tab === 'pnl' && (
-        <PnlTab query={pnlQ} from={pnlFrom} to={pnlTo} setFrom={setPnlFrom} setTo={setPnlTo} />
+        <PnlTab query={pnlQ} from={pnlFrom} to={pnlTo} setFrom={setPnlFrom} setTo={setPnlTo} outletId={outletId} />
       )}
       {tab === 'balance' && (
-        <BalanceSheetTab query={balanceQ} asOf={bsAsOf} setAsOf={setBsAsOf} />
+        <BalanceSheetTab query={balanceQ} asOf={bsAsOf} setAsOf={setBsAsOf} outletId={outletId} />
       )}
       {tab === 'bas' && (
         <BasTab query={basQ} from={basFrom} to={basTo} setFrom={setBasFrom} setTo={setBasTo} />
@@ -685,7 +714,7 @@ function LedgerTab({ query, from, to, setFrom, setTo }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  TAB 3: TRIAL BALANCE                                                      */
 /* ═══════════════════════════════════════════════════════════════════════════ */
-function TrialBalanceTab({ query, asOf, setAsOf }) {
+function TrialBalanceTab({ query, asOf, setAsOf, outletId }) {
   return (
     <div className="space-y-6">
       <Card className="p-4">
@@ -710,7 +739,16 @@ function TrialBalanceTab({ query, asOf, setAsOf }) {
                   As of {query.data.as_of ? new Date(query.data.as_of).toLocaleDateString('en-AU') : asOf}
                 </p>
               </div>
-              <BalancedBadge balanced={balanced} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <ExportCsvButton
+                  onClick={() => downloadCSV(
+                    '/accounting/export/trial-balance.csv',
+                    { ...(outletId ? { outlet_id: outletId } : {}), as_of: asOf },
+                    `trial-balance_${asOf}.csv`,
+                  )}
+                />
+                <BalancedBadge balanced={balanced} />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -765,7 +803,7 @@ function AmountRow({ name, code, amount, color }) {
   );
 }
 
-function PnlTab({ query, from, to, setFrom, setTo }) {
+function PnlTab({ query, from, to, setFrom, setTo, outletId }) {
   return (
     <div className="space-y-6">
       <Card className="p-4">
@@ -789,11 +827,22 @@ function PnlTab({ query, from, to, setFrom, setTo }) {
           <div className="space-y-6">
             {/* Net profit hero */}
             <Card className="p-6">
-              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Net Profit</p>
-              <p className="text-4xl font-extrabold tracking-tight" style={{ color: netColor }}>{fmtAUD(netProfit)}</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                {d.from ? new Date(d.from).toLocaleDateString('en-AU') : from} → {d.to ? new Date(d.to).toLocaleDateString('en-AU') : to}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Net Profit</p>
+                  <p className="text-4xl font-extrabold tracking-tight" style={{ color: netColor }}>{fmtAUD(netProfit)}</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                    {d.from ? new Date(d.from).toLocaleDateString('en-AU') : from} → {d.to ? new Date(d.to).toLocaleDateString('en-AU') : to}
+                  </p>
+                </div>
+                <ExportCsvButton
+                  onClick={() => downloadCSV(
+                    '/accounting/export/profit-loss.csv',
+                    { ...(outletId ? { outlet_id: outletId } : {}), from, to },
+                    `profit-loss_${from}_${to}.csv`,
+                  )}
+                />
+              </div>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -877,7 +926,7 @@ function BalanceSection({ title, section, color }) {
   );
 }
 
-function BalanceSheetTab({ query, asOf, setAsOf }) {
+function BalanceSheetTab({ query, asOf, setAsOf, outletId }) {
   return (
     <div className="space-y-6">
       <Card className="p-4">
@@ -901,7 +950,16 @@ function BalanceSheetTab({ query, asOf, setAsOf }) {
                   As of {d.as_of ? new Date(d.as_of).toLocaleDateString('en-AU') : asOf}
                 </p>
               </div>
-              <BalancedBadge balanced={!!d.balanced} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <ExportCsvButton
+                  onClick={() => downloadCSV(
+                    '/accounting/export/balance-sheet.csv',
+                    { ...(outletId ? { outlet_id: outletId } : {}), as_of: asOf },
+                    `balance-sheet_${asOf}.csv`,
+                  )}
+                />
+                <BalancedBadge balanced={!!d.balanced} />
+              </div>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -425,6 +425,66 @@ model BASLodgement {
   @@map("bas_lodgements")
 }
 
+// ── Phase 7: budgets + customer invoices (standalone, raw outlet_id) ─────────
+model Budget {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String       @db.Uuid
+  name       String       @db.VarChar(120)
+  fy_year    Int          // financial year start year, e.g. 2026
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  is_deleted Boolean      @default(false)
+  lines      BudgetLine[]
+
+  @@index([outlet_id])
+  @@map("budgets")
+}
+
+model BudgetLine {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  budget_id    String  @db.Uuid
+  account_code String  @db.VarChar(10)
+  amount       Decimal @default(0) @db.Decimal(14, 2) // annual budgeted amount
+  budget       Budget  @relation(fields: [budget_id], references: [id])
+
+  @@index([budget_id])
+  @@map("budget_lines")
+}
+
+model CustomerInvoice {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String                @db.Uuid
+  invoice_number String                @db.VarChar(40)
+  customer_id    String?               @db.Uuid
+  customer_name  String?               @db.VarChar(150)
+  issue_date     DateTime              @db.Date
+  due_date       DateTime?             @db.Date
+  status         String                @default("draft") @db.VarChar(20) // draft | sent | paid | void
+  subtotal       Decimal               @default(0) @db.Decimal(14, 2)
+  gst            Decimal               @default(0) @db.Decimal(14, 2)
+  total          Decimal               @default(0) @db.Decimal(14, 2)
+  notes          String?
+  journal_entry_id String?             @db.Uuid
+  created_at     DateTime              @default(now()) @db.Timestamptz(6)
+  is_deleted     Boolean               @default(false)
+  lines          CustomerInvoiceLine[]
+
+  @@index([outlet_id, status])
+  @@map("customer_invoices")
+}
+
+model CustomerInvoiceLine {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id  String          @db.Uuid
+  description String          @db.VarChar(300)
+  quantity    Decimal         @default(1) @db.Decimal(12, 2)
+  unit_price  Decimal         @default(0) @db.Decimal(14, 2)
+  amount      Decimal         @default(0) @db.Decimal(14, 2)
+  invoice     CustomerInvoice @relation(fields: [invoice_id], references: [id])
+
+  @@index([invoice_id])
+  @@map("customer_invoice_lines")
+}
+
 model User {
   id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   head_office_id         String?              @db.Uuid

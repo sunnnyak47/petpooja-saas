@@ -542,6 +542,26 @@ async function startApp() {
         reference VARCHAR(60), lodged_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         is_deleted BOOLEAN NOT NULL DEFAULT false)`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bas_lodge_outlet ON bas_lodgements(outlet_id, period_start)`);
+      // Phase 7: budgets + customer invoices
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS budgets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), outlet_id UUID NOT NULL, name VARCHAR(120) NOT NULL,
+        fy_year INT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), is_deleted BOOLEAN NOT NULL DEFAULT false)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_budgets_outlet ON budgets(outlet_id)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS budget_lines (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), budget_id UUID NOT NULL, account_code VARCHAR(10) NOT NULL,
+        amount DECIMAL(14,2) NOT NULL DEFAULT 0)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_budget_lines_budget ON budget_lines(budget_id)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS customer_invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), outlet_id UUID NOT NULL, invoice_number VARCHAR(40) NOT NULL,
+        customer_id UUID, customer_name VARCHAR(150), issue_date DATE NOT NULL, due_date DATE,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft', subtotal DECIMAL(14,2) NOT NULL DEFAULT 0,
+        gst DECIMAL(14,2) NOT NULL DEFAULT 0, total DECIMAL(14,2) NOT NULL DEFAULT 0, notes TEXT,
+        journal_entry_id UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), is_deleted BOOLEAN NOT NULL DEFAULT false)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_cust_inv_outlet ON customer_invoices(outlet_id, status)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS customer_invoice_lines (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), invoice_id UUID NOT NULL, description VARCHAR(300) NOT NULL,
+        quantity DECIMAL(12,2) NOT NULL DEFAULT 1, unit_price DECIMAL(14,2) NOT NULL DEFAULT 0, amount DECIMAL(14,2) NOT NULL DEFAULT 0)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_cust_inv_lines_inv ON customer_invoice_lines(invoice_id)`);
       logger.info('Accounting ledger tables ensured');
     } catch (e) {
       logger.warn('Accounting ledger tables skipped:', { error: e.message });

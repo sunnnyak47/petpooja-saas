@@ -85,14 +85,14 @@ export default function PayrollPage() {
   /* ── Pay runs list ─────────────────────────────────────────────────────── */
   const { data: payRuns = [], isLoading: runsLoading } = useQuery({
     queryKey: ['pay-runs', outletId],
-    queryFn: () => api.get('/payroll/pay-runs', { params: { outlet_id: outletId } }).then(r => r.data.data),
+    queryFn: () => api.get('/payroll/pay-runs', { params: { outlet_id: outletId } }).then(r => r.data),
     staleTime: 60_000,
   });
 
   /* ── Selected pay run detail ───────────────────────────────────────────── */
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ['pay-run', selectedId, outletId],
-    queryFn: () => api.get(`/payroll/pay-runs/${selectedId}`, { params: { outlet_id: outletId } }).then(r => r.data.data),
+    queryFn: () => api.get(`/payroll/pay-runs/${selectedId}`, { params: { outlet_id: outletId } }).then(r => r.data),
     enabled: !!selectedId,
   });
 
@@ -114,7 +114,7 @@ export default function PayrollPage() {
   const grossPreview = lines.reduce((sum, l) => sum + (parseFloat(l.gross) || 0), 0);
 
   const createMutation = useMutation({
-    mutationFn: (payload) => api.post('/payroll/pay-runs', payload).then(r => r.data.data),
+    mutationFn: (payload) => api.post('/payroll/pay-runs', payload).then(r => r.data),
     onSuccess: () => {
       toast.success('Pay run created');
       setShowForm(false);
@@ -125,7 +125,7 @@ export default function PayrollPage() {
   });
 
   const finaliseMutation = useMutation({
-    mutationFn: (id) => api.post(`/payroll/pay-runs/${id}/finalise`, { outlet_id: outletId }).then(r => r.data.data),
+    mutationFn: (id) => api.post(`/payroll/pay-runs/${id}/finalise`, { outlet_id: outletId }).then(r => r.data),
     onSuccess: () => {
       toast.success('Pay run finalised — journal posted');
       queryClient.invalidateQueries({ queryKey: ['pay-runs'] });

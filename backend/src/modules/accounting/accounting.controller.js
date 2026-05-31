@@ -16,6 +16,9 @@ const parser = require('./accounting.statement.parser');
 const recon = require('./accounting.reconciliation.service');
 const bankreport = require('./accounting.bankreport.service');
 const baslodge = require('./accounting.baslodgement.service');
+const budget = require('./accounting.budget.service');
+const invoice = require('./accounting.invoice.service');
+const xport = require('./accounting.export.service');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
@@ -368,6 +371,138 @@ async function lodgeBAS(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/* ── Budgets ────────────────────────────────────── */
+
+async function listBudgets(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await budget.listBudgets(outletId);
+    sendSuccess(res, result, 'Budgets retrieved');
+  } catch (error) { next(error); }
+}
+
+async function getBudget(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await budget.getBudget(outletId, req.params.id);
+    sendSuccess(res, result, 'Budget retrieved');
+  } catch (error) { next(error); }
+}
+
+async function createBudget(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await budget.createBudget(outletId, req.body);
+    sendCreated(res, result, 'Budget created');
+  } catch (error) { next(error); }
+}
+
+async function updateBudget(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await budget.updateBudget(outletId, req.params.id, req.body);
+    sendSuccess(res, result, 'Budget updated');
+  } catch (error) { next(error); }
+}
+
+async function deleteBudget(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await budget.deleteBudget(outletId, req.params.id);
+    sendSuccess(res, result, 'Budget deleted');
+  } catch (error) { next(error); }
+}
+
+async function budgetVsActual(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await budget.getBudgetVsActual(outletId, req.params.id, req.query.from, req.query.to);
+    sendSuccess(res, result, 'Budget vs actual retrieved');
+  } catch (error) { next(error); }
+}
+
+/* ── Invoices ───────────────────────────────────── */
+
+async function listInvoices(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await invoice.listInvoices(outletId, { status: req.query.status, limit: Number(req.query.limit) || 100 });
+    sendSuccess(res, result, 'Invoices retrieved');
+  } catch (error) { next(error); }
+}
+
+async function getInvoice(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await invoice.getInvoice(outletId, req.params.id);
+    sendSuccess(res, result, 'Invoice retrieved');
+  } catch (error) { next(error); }
+}
+
+async function createInvoice(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await invoice.createInvoice(outletId, req.body);
+    sendCreated(res, result, 'Invoice created');
+  } catch (error) { next(error); }
+}
+
+async function issueInvoice(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await invoice.issueInvoice(outletId, req.params.id);
+    sendSuccess(res, result, 'Invoice issued');
+  } catch (error) { next(error); }
+}
+
+async function markPaidInvoice(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await invoice.markPaid(outletId, req.params.id, { method: req.body.method });
+    sendSuccess(res, result, 'Invoice marked paid');
+  } catch (error) { next(error); }
+}
+
+async function voidInvoice(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await invoice.voidInvoice(outletId, req.params.id);
+    sendSuccess(res, result, 'Invoice voided');
+  } catch (error) { next(error); }
+}
+
+/* ── CSV Exports ────────────────────────────────── */
+
+async function exportTrialBalance(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { filename, csv } = await xport.exportTrialBalanceCSV(outletId, req.query.as_of);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (e) { next(e); }
+}
+
+async function exportProfitLoss(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { filename, csv } = await xport.exportProfitLossCSV(outletId, req.query.from, req.query.to);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (e) { next(e); }
+}
+
+async function exportBalanceSheet(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const { filename, csv } = await xport.exportBalanceSheetCSV(outletId, req.query.as_of);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (e) { next(e); }
+}
+
 module.exports = {
   listChart,
   ledger,
@@ -405,4 +540,19 @@ module.exports = {
   listBASLodgements,
   createBASLodgement,
   lodgeBAS,
+  listBudgets,
+  getBudget,
+  createBudget,
+  updateBudget,
+  deleteBudget,
+  budgetVsActual,
+  listInvoices,
+  getInvoice,
+  createInvoice,
+  issueInvoice,
+  markPaidInvoice,
+  voidInvoice,
+  exportTrialBalance,
+  exportProfitLoss,
+  exportBalanceSheet,
 };

@@ -88,6 +88,8 @@ const ownerNav = [
   { path: '/accounting',       label: 'Accounting',       icon: Landmark, feature: 'reports' },
   { path: '/payroll',          label: 'Payroll',          icon: Landmark, feature: 'reports' },
   { path: '/fixed-assets',     label: 'Fixed Assets',     icon: Landmark, feature: 'reports' },
+  { path: '/budgets',          label: 'Budgets',          icon: Landmark, feature: 'reports' },
+  { path: '/customer-invoices',label: 'Invoices',         icon: FileText, feature: 'reports' },
   { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
   { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
@@ -142,6 +144,8 @@ const ownerNavAU = [
   { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports' },
   { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'reports' },
   { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'reports' },
+  { path: '/budgets',         label: 'Budgets',           icon: Landmark,      feature: 'reports' },
+  { path: '/customer-invoices',label: 'Invoices',         icon: FileText,      feature: 'reports' },
   { path: '/gst-compliance',  label: 'GST & BAS',         icon: Receipt,       feature: 'reports' },
 
   // ── System: integrations, settings ──

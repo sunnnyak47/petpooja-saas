@@ -73,6 +73,8 @@ import XeroAnalyticsPage from './pages/XeroAnalyticsPage';
 import AccountingPage from './pages/AccountingPage';
 import PayrollPage from './pages/PayrollPage';
 import FixedAssetsPage from './pages/FixedAssetsPage';
+import BudgetsPage from './pages/BudgetsPage';
+import CustomerInvoicesPage from './pages/CustomerInvoicesPage';
 
 /* ── 404 Page ───────────────────────────────────────────────────────────────── */
 function NotFoundPage() {
@@ -267,6 +269,8 @@ export default function App() {
         <Route path="accounting"        element={<AccountingPage />} />
         <Route path="payroll"           element={<PayrollPage />} />
         <Route path="fixed-assets"      element={<FixedAssetsPage />} />
+        <Route path="budgets"           element={<BudgetsPage />} />
+        <Route path="customer-invoices" element={<CustomerInvoicesPage />} />
         <Route path="reservations"       element={<ReservationsPage />} />
 
         {/* Chain Health Score */}
