@@ -334,6 +334,97 @@ model BankStatementLine {
   @@map("bank_statement_lines")
 }
 
+// ── Phase 6: payroll, fixed assets, BAS lodgement (standalone, raw outlet_id) ─
+model PayRun {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  period_start DateTime @db.Date
+  period_end   DateTime @db.Date
+  pay_date     DateTime @db.Date
+  status       String   @default("draft") @db.VarChar(20) // draft | finalised
+  gross_total  Decimal  @default(0) @db.Decimal(14, 2)
+  paye_total   Decimal  @default(0) @db.Decimal(14, 2)
+  super_total  Decimal  @default(0) @db.Decimal(14, 2)
+  net_total    Decimal  @default(0) @db.Decimal(14, 2)
+  created_by   String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  is_deleted   Boolean  @default(false)
+  payslips     Payslip[]
+
+  @@index([outlet_id, period_start])
+  @@map("pay_runs")
+}
+
+model Payslip {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pay_run_id  String   @db.Uuid
+  outlet_id   String   @db.Uuid
+  staff_id    String?  @db.Uuid
+  staff_name  String?  @db.VarChar(150)
+  gross       Decimal  @default(0) @db.Decimal(12, 2)
+  paye        Decimal  @default(0) @db.Decimal(12, 2)
+  super_amt   Decimal  @default(0) @db.Decimal(12, 2)
+  net         Decimal  @default(0) @db.Decimal(12, 2)
+  hours       Decimal  @default(0) @db.Decimal(8, 2)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  pay_run     PayRun   @relation(fields: [pay_run_id], references: [id])
+
+  @@index([pay_run_id])
+  @@map("payslips")
+}
+
+model FixedAsset {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id                String   @db.Uuid
+  name                     String   @db.VarChar(150)
+  category                 String?  @db.VarChar(60)
+  purchase_date            DateTime @db.Date
+  cost                     Decimal  @db.Decimal(14, 2)
+  salvage_value            Decimal  @default(0) @db.Decimal(14, 2)
+  useful_life_months       Int      @default(60)
+  method                   String   @default("straight_line") @db.VarChar(20)
+  accumulated_depreciation Decimal  @default(0) @db.Decimal(14, 2)
+  is_disposed              Boolean  @default(false)
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  is_deleted               Boolean  @default(false)
+
+  @@index([outlet_id])
+  @@map("fixed_assets")
+}
+
+model DepreciationEntry {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id         String   @db.Uuid
+  outlet_id        String   @db.Uuid
+  period           String   @db.VarChar(7) // YYYY-MM
+  amount           Decimal  @db.Decimal(14, 2)
+  journal_entry_id String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([asset_id, period])
+  @@map("depreciation_entries")
+}
+
+model BASLodgement {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String   @db.Uuid
+  period_start DateTime @db.Date
+  period_end   DateTime @db.Date
+  g1           Decimal  @default(0) @db.Decimal(14, 2)
+  a1           Decimal  @default(0) @db.Decimal(14, 2)
+  g11          Decimal  @default(0) @db.Decimal(14, 2)
+  b1           Decimal  @default(0) @db.Decimal(14, 2)
+  net_gst      Decimal  @default(0) @db.Decimal(14, 2)
+  status       String   @default("draft") @db.VarChar(20) // draft | lodged
+  reference    String?  @db.VarChar(60)
+  lodged_at    DateTime? @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  is_deleted   Boolean  @default(false)
+
+  @@index([outlet_id, period_start])
+  @@map("bas_lodgements")
+}
+
 model User {
   id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   head_office_id         String?              @db.Uuid

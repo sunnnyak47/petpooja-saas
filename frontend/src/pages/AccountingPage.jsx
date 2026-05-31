@@ -17,7 +17,7 @@ import BankReconciliation from '../components/accounting/BankReconciliation';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
   RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
-  Lock, Unlock, CalendarDays,
+  Lock, Unlock, CalendarDays, FileCheck,
 } from 'lucide-react';
 
 /* ── Currency helper ───────────────────────────────────────────────────────── */
@@ -63,6 +63,7 @@ const TABS = [
   { key: 'pnl',     label: 'Profit & Loss',     icon: TrendingUp },
   { key: 'balance', label: 'Balance Sheet',     icon: Landmark },
   { key: 'bas',     label: 'BAS / Tax',         icon: Receipt },
+  { key: 'baslodge', label: 'BAS Lodge',        icon: FileCheck },
   { key: 'cashflow', label: 'Cash Flow',        icon: Banknote },
   { key: 'aging',   label: 'Aging',             icon: Clock },
   { key: 'journal', label: 'Manual Journal',    icon: BookText },
@@ -239,6 +240,13 @@ export default function AccountingPage() {
     staleTime: 60_000,
   });
 
+  const basLodgeQ = useQuery({
+    queryKey: ['acct-baslodge', outletId],
+    queryFn: () => api.get(`/accounting/bas-lodgements?_=1${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'baslodge',
+    staleTime: 60_000,
+  });
+
   const periodsQ = useQuery({
     queryKey: ['acct-periods', outletId],
     queryFn: () => api.get(`/accounting/periods?_=1${outletQ}`).then((r) => r.data?.data ?? r.data),
@@ -300,6 +308,28 @@ export default function AccountingPage() {
     mutationFn: (id) => api.delete(`/accounting/accounts/${id}`),
     onSuccess: () => { toast.success('Account deactivated'); queryClient.invalidateQueries({ queryKey: ['acct-chart'] }); },
     onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Deactivate failed'),
+  });
+
+  const prepareBasM = useMutation({
+    mutationFn: ({ period_start, period_end }) =>
+      api.post('/accounting/bas-lodgements', outletId
+        ? { period_start, period_end, outlet_id: outletId }
+        : { period_start, period_end }),
+    onSuccess: () => {
+      toast.success('BAS prepared');
+      queryClient.invalidateQueries({ queryKey: ['acct-baslodge'] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Prepare BAS failed'),
+  });
+
+  const lodgeBasM = useMutation({
+    mutationFn: (id) =>
+      api.post(`/accounting/bas-lodgements/${id}/lodge`, outletId ? { outlet_id: outletId } : {}),
+    onSuccess: () => {
+      toast.success('BAS marked lodged');
+      queryClient.invalidateQueries({ queryKey: ['acct-baslodge'] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Lodge failed'),
   });
 
   const journalM = useMutation({
@@ -389,6 +419,9 @@ export default function AccountingPage() {
       )}
       {tab === 'bas' && (
         <BasTab query={basQ} from={basFrom} to={basTo} setFrom={setBasFrom} setTo={setBasTo} />
+      )}
+      {tab === 'baslodge' && (
+        <BasLodgeTab query={basLodgeQ} prepareM={prepareBasM} lodgeM={lodgeBasM} />
       )}
       {tab === 'cashflow' && (
         <CashFlowTab query={cashflowQ} from={cfFrom} to={cfTo} setFrom={setCfFrom} setTo={setCfTo} />
@@ -1229,6 +1262,108 @@ function ManualJournalTab({ chartQuery, journalM }) {
           Post Journal
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB: BAS LODGE                                                            */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function BasLodgeTab({ query, prepareM, lodgeM }) {
+  const [periodStart, setPeriodStart] = useState(quarterStart());
+  const [periodEnd, setPeriodEnd] = useState(quarterEnd());
+
+  const rows = Array.isArray(query.data) ? query.data : (query.data?.lodgements ?? []);
+
+  const submit = () => {
+    if (!periodStart || !periodEnd) { toast.error('Pick a start and end date'); return; }
+    prepareM.mutate({ period_start: periodStart, period_end: periodEnd });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Prepare form */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <DateField label="Period start" value={periodStart} onChange={setPeriodStart} />
+          <DateField label="Period end" value={periodEnd} onChange={setPeriodEnd} />
+          <button onClick={submit} disabled={prepareM.isPending} className="btn-primary btn-sm">
+            {prepareM.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck className="w-3.5 h-3.5" />}
+            Prepare BAS
+          </button>
+        </div>
+        <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
+          Computes G1/1A/G11/1B/Net GST from the ledger for the period.
+        </p>
+      </Card>
+
+      {/* Lodgements list */}
+      {query.isLoading ? (
+        <LoadingState />
+      ) : !rows.length ? (
+        <EmptyState message="No BAS lodgements yet — prepare one to get started." />
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
+            <FileCheck className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>BAS Lodgements</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: 'var(--bg-primary)' }}>
+                  {['Period', 'G1', 'Net GST', 'Status', ''].map((h, i) => (
+                    <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const lodged = String(r.status || '').toLowerCase() === 'lodged';
+                  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-AU') : '—');
+                  return (
+                    <tr key={r.id ?? i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-primary)' }}>
+                        {fmtDate(r.period_start)} → {fmtDate(r.period_end)}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{fmtAUD(r.g1)}</td>
+                      <td className="px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtAUD(r.net_gst)}</td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                          style={{
+                            background: lodged ? 'rgba(22,163,74,0.12)' : 'var(--bg-primary)',
+                            color: lodged ? 'var(--success)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          {lodged ? 'Lodged' : 'Draft'}
+                          {lodged && r.reference ? <span className="font-mono normal-case">· {r.reference}</span> : null}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {!lodged && r.id ? (
+                          <button
+                            onClick={() => lodgeM.mutate(r.id)}
+                            disabled={lodgeM.isPending}
+                            className="btn-secondary btn-sm"
+                          >
+                            <FileCheck className="w-3.5 h-3.5" />Mark Lodged
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Recording lodgement only — not transmitted to the ATO.
+            </p>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

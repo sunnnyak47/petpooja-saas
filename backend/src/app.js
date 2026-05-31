@@ -207,6 +207,9 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api', require('./modules/inventory/procurement.routes'));
 // Native accounting ledger — /api/accounting/*
 app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
+// Payroll — /api/payroll/* ; Fixed assets — /api/assets/*
+app.use('/api/payroll', require('./modules/payroll/payroll.routes'));
+app.use('/api/assets', require('./modules/assets/assets.routes'));
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
@@ -501,6 +504,44 @@ async function startApp() {
         )`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bank_stmt_outlet_acct ON bank_statement_lines(outlet_id, bank_account_id)`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bank_stmt_recon ON bank_statement_lines(bank_account_id, reconciled)`);
+      // Phase 6: payroll / fixed assets / BAS lodgement
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS pay_runs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), outlet_id UUID NOT NULL,
+        period_start DATE NOT NULL, period_end DATE NOT NULL, pay_date DATE NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft', gross_total DECIMAL(14,2) NOT NULL DEFAULT 0,
+        paye_total DECIMAL(14,2) NOT NULL DEFAULT 0, super_total DECIMAL(14,2) NOT NULL DEFAULT 0,
+        net_total DECIMAL(14,2) NOT NULL DEFAULT 0, created_by UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(), is_deleted BOOLEAN NOT NULL DEFAULT false)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_pay_runs_outlet ON pay_runs(outlet_id, period_start)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS payslips (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), pay_run_id UUID NOT NULL, outlet_id UUID NOT NULL,
+        staff_id UUID, staff_name VARCHAR(150), gross DECIMAL(12,2) NOT NULL DEFAULT 0,
+        paye DECIMAL(12,2) NOT NULL DEFAULT 0, super_amt DECIMAL(12,2) NOT NULL DEFAULT 0,
+        net DECIMAL(12,2) NOT NULL DEFAULT 0, hours DECIMAL(8,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_payslips_run ON payslips(pay_run_id)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS fixed_assets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), outlet_id UUID NOT NULL, name VARCHAR(150) NOT NULL,
+        category VARCHAR(60), purchase_date DATE NOT NULL, cost DECIMAL(14,2) NOT NULL,
+        salvage_value DECIMAL(14,2) NOT NULL DEFAULT 0, useful_life_months INT NOT NULL DEFAULT 60,
+        method VARCHAR(20) NOT NULL DEFAULT 'straight_line', accumulated_depreciation DECIMAL(14,2) NOT NULL DEFAULT 0,
+        is_disposed BOOLEAN NOT NULL DEFAULT false, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        is_deleted BOOLEAN NOT NULL DEFAULT false)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_fixed_assets_outlet ON fixed_assets(outlet_id)`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS depreciation_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), asset_id UUID NOT NULL, outlet_id UUID NOT NULL,
+        period VARCHAR(7) NOT NULL, amount DECIMAL(14,2) NOT NULL, journal_entry_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT depreciation_entries_asset_period_key UNIQUE (asset_id, period))`);
+      await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS bas_lodgements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(), outlet_id UUID NOT NULL,
+        period_start DATE NOT NULL, period_end DATE NOT NULL,
+        g1 DECIMAL(14,2) NOT NULL DEFAULT 0, a1 DECIMAL(14,2) NOT NULL DEFAULT 0,
+        g11 DECIMAL(14,2) NOT NULL DEFAULT 0, b1 DECIMAL(14,2) NOT NULL DEFAULT 0,
+        net_gst DECIMAL(14,2) NOT NULL DEFAULT 0, status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        reference VARCHAR(60), lodged_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        is_deleted BOOLEAN NOT NULL DEFAULT false)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bas_lodge_outlet ON bas_lodgements(outlet_id, period_start)`);
       logger.info('Accounting ledger tables ensured');
     } catch (e) {
       logger.warn('Accounting ledger tables skipped:', { error: e.message });

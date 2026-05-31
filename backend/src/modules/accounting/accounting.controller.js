@@ -15,6 +15,7 @@ const statement = require('./accounting.statement.service');
 const parser = require('./accounting.statement.parser');
 const recon = require('./accounting.reconciliation.service');
 const bankreport = require('./accounting.bankreport.service');
+const baslodge = require('./accounting.baslodgement.service');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
@@ -338,6 +339,35 @@ async function unreconcileLine(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/* ── BAS Lodgements ─────────────────────────────── */
+
+async function listBASLodgements(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await baslodge.listLodgements(outletId);
+    sendSuccess(res, result, 'BAS lodgements retrieved');
+  } catch (error) { next(error); }
+}
+
+async function createBASLodgement(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await baslodge.createLodgement(outletId, {
+      period_start: req.body.period_start,
+      period_end: req.body.period_end,
+    });
+    sendCreated(res, result, 'BAS lodgement created');
+  } catch (error) { next(error); }
+}
+
+async function lodgeBAS(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await baslodge.lodge(outletId, req.params.id);
+    sendSuccess(res, result, 'BAS lodged');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   listChart,
   ledger,
@@ -372,4 +402,7 @@ module.exports = {
   autoReconcile,
   reconcileLine,
   unreconcileLine,
+  listBASLodgements,
+  createBASLodgement,
+  lodgeBAS,
 };

@@ -23,6 +23,9 @@ router.get('/profit-loss', authenticate, VIEW, c.profitAndLoss);
 router.get('/balance-sheet', authenticate, VIEW, c.balanceSheet);
 
 router.get('/bas', authenticate, VIEW, c.bas);
+router.get('/bas-lodgements', authenticate, VIEW, c.listBASLodgements);
+router.post('/bas-lodgements', authenticate, MANAGE, c.createBASLodgement);
+router.post('/bas-lodgements/:id/lodge', authenticate, MANAGE, c.lodgeBAS);
 router.get('/cash-flow', authenticate, VIEW, c.cashFlow);
 router.get('/receivables-aging', authenticate, VIEW, c.receivablesAging);
 router.get('/payables-aging', authenticate, VIEW, c.payablesAging);

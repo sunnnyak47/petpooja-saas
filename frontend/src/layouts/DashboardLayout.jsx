@@ -86,6 +86,8 @@ const ownerNav = [
   { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
   { path: '/xero-analytics',   label: 'Financials',       icon: TrendingUp, feature: 'reports' },
   { path: '/accounting',       label: 'Accounting',       icon: Landmark, feature: 'reports' },
+  { path: '/payroll',          label: 'Payroll',          icon: Landmark, feature: 'reports' },
+  { path: '/fixed-assets',     label: 'Fixed Assets',     icon: Landmark, feature: 'reports' },
   { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
   { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
@@ -138,6 +140,8 @@ const ownerNavAU = [
   { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },
   { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
   { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports' },
+  { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'reports' },
+  { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'reports' },
   { path: '/gst-compliance',  label: 'GST & BAS',         icon: Receipt,       feature: 'reports' },
 
   // ── System: integrations, settings ──
