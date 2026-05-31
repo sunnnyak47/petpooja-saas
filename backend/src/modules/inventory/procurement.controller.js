@@ -93,7 +93,11 @@ async function createPurchaseOrder(req, res, next) {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const po = await procurementService.createPurchaseOrder(outletId, req.body, req.user.id);
     sendCreated(res, po, 'Purchase Order created');
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error.statusCode && error.isOperational) return next(error);
+    require('../../config/logger').error('[PO] create threw', { error: error.message, code: error.code, meta: error.meta, stack: error.stack });
+    return res.status(500).json({ success: false, data: null, message: 'PO_DEBUG: ' + error.message + (error.code ? ' [' + error.code + ']' : '') });
+  }
 }
 
 async function updatePurchaseOrder(req, res, next) {
