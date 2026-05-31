@@ -448,6 +448,29 @@ async function startApp() {
         )`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_lines_entry ON journal_lines(entry_id)`);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS bill_payments (
+          id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id         UUID          NOT NULL,
+          purchase_order_id UUID          NOT NULL,
+          amount            DECIMAL(12,2) NOT NULL,
+          method            VARCHAR(20)   NOT NULL DEFAULT 'bank',
+          paid_at           TIMESTAMPTZ   NOT NULL DEFAULT now(),
+          journal_entry_id  UUID,
+          created_by        UUID,
+          is_deleted        BOOLEAN       NOT NULL DEFAULT false
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bill_payments_outlet_po ON bill_payments(outlet_id, purchase_order_id)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS accounting_period_locks (
+          id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id UUID        NOT NULL,
+          period    VARCHAR(7)  NOT NULL,
+          locked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          locked_by UUID,
+          note      TEXT,
+          CONSTRAINT accounting_period_locks_outlet_period_key UNIQUE (outlet_id, period)
+        )`);
       logger.info('Accounting ledger tables ensured');
     } catch (e) {
       logger.warn('Accounting ledger tables skipped:', { error: e.message });

@@ -9,6 +9,7 @@ const statements = require('./accounting.statements.service');
 const bas = require('./accounting.bas.service');
 const aging = require('./accounting.aging.service');
 const chart = require('./accounting.chart.service');
+const period = require('./accounting.period.service');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
@@ -182,6 +183,40 @@ async function manualJournal(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/* ── Period Locks ───────────────────────────────── */
+
+async function listLocks(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await period.listLocks(outletId);
+    sendSuccess(res, result, 'Period locks retrieved');
+  } catch (error) { next(error); }
+}
+
+async function lockPeriod(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await period.lockPeriod(outletId, req.body.period, req.user.id, req.body.note);
+    sendCreated(res, result, 'Period locked');
+  } catch (error) { next(error); }
+}
+
+async function unlockPeriod(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await period.unlockPeriod(outletId, req.body.period);
+    sendSuccess(res, result, 'Period unlocked');
+  } catch (error) { next(error); }
+}
+
+async function billPayments(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await aging.listBillPayments(outletId, req.query.po_id);
+    sendSuccess(res, result, 'Bill payments retrieved');
+  } catch (error) { next(error); }
+}
+
 module.exports = {
   listChart,
   ledger,
@@ -200,4 +235,8 @@ module.exports = {
   updateAccount,
   deactivateAccount,
   manualJournal,
+  listLocks,
+  lockPeriod,
+  unlockPeriod,
+  billPayments,
 };

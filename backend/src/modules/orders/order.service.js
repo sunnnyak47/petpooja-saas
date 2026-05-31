@@ -1248,6 +1248,16 @@ async function refundOrder(orderId, data, userId) {
   });
   await prisma.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
   logger.info('Order refunded', { orderId, refundAmount: data.refund_amount, userId });
+
+  // Post a reversing journal to the ledger. Fire-and-forget — never break refund.
+  setImmediate(() => {
+    try {
+      require('../accounting/accounting.posting.service')
+        .reverseOrderRefund(order, data.refund_amount || Number(order.grand_total))
+        .catch((e) => logger.warn('Ledger reverseOrderRefund failed', { error: e.message }));
+    } catch (e) { logger.warn('Ledger refund hook error', { error: e.message }); }
+  });
+
   return refund;
 }
 

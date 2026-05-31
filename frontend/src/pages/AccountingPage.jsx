@@ -16,6 +16,7 @@ import api from '../lib/api';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
   RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
+  Lock, Unlock, CalendarDays,
 } from 'lucide-react';
 
 /* ── Currency helper ───────────────────────────────────────────────────────── */
@@ -64,6 +65,7 @@ const TABS = [
   { key: 'cashflow', label: 'Cash Flow',        icon: Banknote },
   { key: 'aging',   label: 'Aging',             icon: Clock },
   { key: 'journal', label: 'Manual Journal',    icon: BookText },
+  { key: 'lock',    label: 'Period Lock',       icon: Lock },
 ];
 
 /* ── Reusable bits ─────────────────────────────────────────────────────────── */
@@ -235,6 +237,13 @@ export default function AccountingPage() {
     staleTime: 60_000,
   });
 
+  const periodsQ = useQuery({
+    queryKey: ['acct-periods', outletId],
+    queryFn: () => api.get(`/accounting/periods?_=1${outletQ}`).then((r) => r.data?.data ?? r.data),
+    enabled: tab === 'lock',
+    staleTime: 60_000,
+  });
+
   /* ── Mutations ────────────────────────────────────────────────────────── */
   const invalidateAll = () =>
     queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('acct-') });
@@ -253,12 +262,30 @@ export default function AccountingPage() {
 
   const payBillM = useMutation({
     mutationFn: ({ po_id, amount }) => api.post('/accounting/pay-bill', { po_id, amount, method: 'bank' }),
-    onSuccess: () => {
-      toast.success('Bill paid');
+    onSuccess: (_r, vars) => {
+      toast.success(`Paid ${fmtAUD(vars?.amount)}`);
       queryClient.invalidateQueries({ queryKey: ['acct-payables'] });
       queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('acct-') });
     },
     onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Payment failed'),
+  });
+
+  const lockPeriodM = useMutation({
+    mutationFn: ({ period, note }) => api.post('/accounting/periods/lock', outletId ? { period, note, outlet_id: outletId } : { period, note }),
+    onSuccess: () => {
+      toast.success('Period locked');
+      queryClient.invalidateQueries({ queryKey: ['acct-periods'] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Lock failed'),
+  });
+
+  const unlockPeriodM = useMutation({
+    mutationFn: ({ period }) => api.post('/accounting/periods/unlock', outletId ? { period, outlet_id: outletId } : { period }),
+    onSuccess: () => {
+      toast.success('Period unlocked');
+      queryClient.invalidateQueries({ queryKey: ['acct-periods'] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Unlock failed'),
   });
 
   const addAccountM = useMutation({
@@ -372,6 +399,9 @@ export default function AccountingPage() {
       )}
       {tab === 'journal' && (
         <ManualJournalTab chartQuery={chartQ} journalM={journalM} />
+      )}
+      {tab === 'lock' && (
+        <PeriodLockTab query={periodsQ} lockM={lockPeriodM} unlockM={unlockPeriodM} />
       )}
     </div>
   );
@@ -1020,7 +1050,19 @@ function AgingSection({ title, query, partyKey, payBillM }) {
                       <td className="px-4 py-2.5 text-right">
                         {poId ? (
                           <button
-                            onClick={() => payBillM.mutate({ po_id: poId, amount: it.amount })}
+                            onClick={() => {
+                              const out = Number(it.amount) || 0;
+                              const raw = window.prompt(
+                                `Amount to pay (outstanding ${fmtAUD(out)}):`,
+                                String(out.toFixed(2)),
+                              );
+                              if (raw == null) return;
+                              const amount = Number(raw);
+                              if (!Number.isFinite(amount) || amount <= 0) {
+                                toast.error('Enter a valid amount'); return;
+                              }
+                              payBillM.mutate({ po_id: poId, amount });
+                            }}
                             disabled={payBillM.isPending}
                             className="btn-primary btn-sm"
                           >
@@ -1182,6 +1224,103 @@ function ManualJournalTab({ chartQuery, journalM }) {
           Post Journal
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  TAB 10: PERIOD LOCK                                                       */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function PeriodLockTab({ query, lockM, unlockM }) {
+  const [period, setPeriod] = useState('');
+  const [note, setNote] = useState('');
+
+  const inputCls = 'px-3 py-2 rounded-lg border text-sm';
+  const inputStyle = { background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+
+  const submit = () => {
+    if (!period) { toast.error('Pick a month to lock'); return; }
+    lockM.mutate(
+      { period, note: note.trim() || undefined },
+      { onSuccess: () => { setPeriod(''); setNote(''); } },
+    );
+  };
+
+  const periods = Array.isArray(query.data) ? query.data : (query.data?.periods ?? []);
+
+  return (
+    <div className="space-y-6">
+      {/* Lock form */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Month</label>
+            <input
+              type="month"
+              className={inputCls}
+              style={inputStyle}
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Note</label>
+            <input className={inputCls} style={inputStyle} value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" />
+          </div>
+          <button onClick={submit} disabled={lockM.isPending} className="btn-primary btn-sm">
+            {lockM.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+            Lock period
+          </button>
+        </div>
+        <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
+          Locking a month prevents any further journal entries (sales, bills, manual) from posting into it.
+        </p>
+      </Card>
+
+      {/* Locked periods list */}
+      {query.isLoading ? (
+        <LoadingState />
+      ) : !periods.length ? (
+        <EmptyState message="No locked periods yet." />
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
+            <CalendarDays className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Locked Periods</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: 'var(--bg-primary)' }}>
+                  {['Period', 'Locked', 'Note', ''].map((h, i) => (
+                    <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((p, i) => (
+                  <tr key={p.period ?? i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+                    <td className="px-4 py-2.5 text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{p.period}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {p.locked_at ? new Date(p.locked_at).toLocaleDateString('en-AU') : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{p.note || '—'}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        onClick={() => unlockM.mutate({ period: p.period })}
+                        disabled={unlockM.isPending}
+                        className="btn-secondary btn-sm"
+                      >
+                        <Unlock className="w-3.5 h-3.5" />Unlock
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

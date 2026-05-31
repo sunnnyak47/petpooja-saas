@@ -75,6 +75,22 @@ async function paidAgainstPo(prisma, outletId, poId) {
   return round2(paid);
 }
 
+/**
+ * Sum of real partial payments recorded in the billPayment table for a PO.
+ * Returns total paid (number, 2dp).
+ */
+async function paidViaBillPayments(prisma, outletId, poId) {
+  const rows = await prisma.billPayment.findMany({
+    where: { outlet_id: outletId, purchase_order_id: poId, is_deleted: false },
+    select: { amount: true },
+  });
+  let paid = 0;
+  for (const r of rows) {
+    paid += Number(r.amount) || 0;
+  }
+  return round2(paid);
+}
+
 // ---------------------------------------------------------------------------
 // 1) Receivables aging — money customers owe us
 // ---------------------------------------------------------------------------
@@ -153,7 +169,7 @@ async function getPayablesAging(outletId, asOf) {
 
   for (const po of pos) {
     const gross = round2(po.grand_total);
-    const paid = await paidAgainstPo(prisma, outletId, po.id);
+    const paid = await paidViaBillPayments(prisma, outletId, po.id);
     const outstanding = round2(gross - paid);
     if (outstanding <= 0.01) continue; // skip fully paid bills
 
@@ -162,6 +178,7 @@ async function getPayablesAging(outletId, asOf) {
     total = round2(total + outstanding);
     if (items.length < 100) {
       items.push({
+        id: po.id,
         ref: po.po_number,
         supplier: (po.supplier && po.supplier.name) || '—',
         date: po.created_at,
@@ -186,32 +203,41 @@ async function payBill(outletId, { po_id, amount, method, date, created_by } = {
     where: { id: po_id, outlet_id: outletId, is_deleted: false },
     select: { id: true, po_number: true, grand_total: true },
   });
-  if (!po) throw new Error(`payBill: purchase order ${po_id} not found for outlet ${outletId}`);
+  if (!po) throw new Error('Purchase order not found');
+
+  // Net of real partial payments already recorded.
+  const alreadyPaid = await paidViaBillPayments(prisma, outletId, po.id);
+  const outstanding = round2(Number(po.grand_total) - alreadyPaid);
 
   // Determine pay amount: explicit amount, else the full outstanding balance.
-  let payAmount;
-  if (amount !== undefined && amount !== null) {
-    payAmount = round2(amount);
-  } else {
-    const paid = await paidAgainstPo(prisma, outletId, po.id);
-    payAmount = round2(Number(po.grand_total) - paid);
-  }
+  const payAmount =
+    amount !== undefined && amount !== null ? round2(amount) : outstanding;
   if (payAmount <= 0) throw new Error('payBill: nothing outstanding to pay');
+  if (payAmount > outstanding + 0.01) {
+    throw new Error('Payment exceeds outstanding balance');
+  }
 
-  const account = method === 'cash' ? '090' : '091';
+  const payMethod = method || 'bank';
+  const account = payMethod === 'cash' ? '090' : '091';
 
-  // IDEMPOTENCY LIMITATION:
-  // postJournal de-duplicates non-manual entries by (source, source_id). We
-  // post bill payments with source='bill_payment' and source_id=po_id, so the
-  // FIRST payment for a PO succeeds but any SUBSEQUENT partial payment to the
-  // same PO is skipped (treated as a duplicate). Supporting multiple partial
-  // payments would require a unique source_id per payment (not possible without
-  // a schema change), so for now a PO is effectively settled in a single
-  // payment. The journalResult is returned as-is (may indicate skipped).
+  // Record the real payment row first. Its unique id is used as the journal
+  // source_id so every partial payment posts its own journal (no idempotency
+  // clash on (source, source_id)).
+  const payment = await prisma.billPayment.create({
+    data: {
+      outlet_id: outletId,
+      purchase_order_id: po.id,
+      amount: payAmount,
+      method: payMethod,
+      created_by,
+    },
+    select: { id: true },
+  });
+
   const journalResult = await posting.postJournal(outletId, {
     entry_date: date || new Date(),
     source: 'bill_payment',
-    source_id: po_id,
+    source_id: payment.id,
     reference: po.po_number,
     memo: `Payment for ${po.po_number}`,
     created_by,
@@ -221,11 +247,36 @@ async function payBill(outletId, { po_id, amount, method, date, created_by } = {
     ],
   });
 
+  if (journalResult && journalResult.id) {
+    await prisma.billPayment.update({
+      where: { id: payment.id },
+      data: { journal_entry_id: journalResult.id },
+    });
+  }
+
   logger.info(
-    `payBill: posted payment ${payAmount} for PO ${po.po_number} (outlet ${outletId}, method ${method || 'bank'})`
+    `payBill: posted payment ${payAmount} for PO ${po.po_number} (outlet ${outletId}, method ${payMethod})`
   );
 
-  return { success: true, po_number: po.po_number, amount: payAmount, ...journalResult };
+  return {
+    success: true,
+    po_number: po.po_number,
+    amount: payAmount,
+    outstanding_after: round2(outstanding - payAmount),
+    bill_payment_id: payment.id,
+  };
 }
 
-module.exports = { getReceivablesAging, getPayablesAging, payBill };
+// ---------------------------------------------------------------------------
+// 4) List recorded payments for a PO
+// ---------------------------------------------------------------------------
+async function listBillPayments(outletId, poId) {
+  const prisma = getDbClient();
+  return prisma.billPayment.findMany({
+    where: { outlet_id: outletId, purchase_order_id: poId, is_deleted: false },
+    select: { id: true, amount: true, method: true, paid_at: true },
+    orderBy: { paid_at: 'desc' },
+  });
+}
+
+module.exports = { getReceivablesAging, getPayablesAging, payBill, listBillPayments };

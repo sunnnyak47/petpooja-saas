@@ -25,6 +25,8 @@ router.get('/cash-flow', authenticate, VIEW, c.cashFlow);
 router.get('/receivables-aging', authenticate, VIEW, c.receivablesAging);
 router.get('/payables-aging', authenticate, VIEW, c.payablesAging);
 router.get('/accounts', authenticate, VIEW, c.accountsList);
+router.get('/periods', authenticate, VIEW, c.listLocks);
+router.get('/bill-payments', authenticate, VIEW, c.billPayments);
 
 /* ── Posting (write) ────────────────────────────── */
 router.post('/seed', authenticate, MANAGE, c.seed);
@@ -34,5 +36,7 @@ router.post('/accounts', authenticate, MANAGE, c.createAccount);
 router.patch('/accounts/:id', authenticate, MANAGE, c.updateAccount);
 router.delete('/accounts/:id', authenticate, MANAGE, c.deactivateAccount);
 router.post('/manual-journal', authenticate, MANAGE, c.manualJournal);
+router.post('/periods/lock', authenticate, MANAGE, c.lockPeriod);
+router.post('/periods/unlock', authenticate, MANAGE, c.unlockPeriod);
 
 module.exports = router;

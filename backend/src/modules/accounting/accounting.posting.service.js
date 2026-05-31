@@ -14,6 +14,7 @@
 
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
+const period = require('./accounting.period.service');
 
 // ---------------------------------------------------------------------------
 // Standard AU restaurant chart of accounts
@@ -129,6 +130,10 @@ async function postJournal(
   { entry_date, source, source_id, reference, memo, created_by, lines } = {}
 ) {
   const prisma = getDbClient();
+
+  if (await period.isPeriodLocked(outletId, entry_date)) {
+    throw new Error('Accounting period is locked for ' + (entry_date || ''));
+  }
 
   if (!Array.isArray(lines) || lines.length === 0) {
     throw new Error('postJournal: at least one line is required');
@@ -386,6 +391,77 @@ async function postExpense(expense) {
   }
 }
 
+async function reverseOrderRefund(order, refundAmount) {
+  try {
+    if (!order || !order.outlet_id || !order.id) {
+      return { posted: false, error: 'invalid order' };
+    }
+
+    const grandTotalCents = toCents(order.grand_total);
+    const totalTaxCents = toCents(order.total_tax);
+
+    let refundCents = refundAmount == null ? grandTotalCents : toCents(refundAmount);
+    if (refundCents <= 0) {
+      return { posted: false, error: 'invalid refund amount' };
+    }
+    if (refundCents > grandTotalCents) refundCents = grandTotalCents;
+
+    let refundTaxCents;
+    let refundNetCents;
+    if (refundCents < grandTotalCents && grandTotalCents > 0) {
+      refundTaxCents = Math.round((totalTaxCents * refundCents) / grandTotalCents);
+      refundNetCents = refundCents - refundTaxCents;
+    } else {
+      refundTaxCents = totalTaxCents;
+      refundNetCents = grandTotalCents - totalTaxCents;
+    }
+
+    const payments = Array.isArray(order.payments) ? order.payments : [];
+    const firstMethod = String((payments[0] && payments[0].method) || '').toLowerCase();
+    const cashCode = firstMethod === 'cash' ? '090' : '091';
+
+    const lines = [
+      {
+        account_code: '200',
+        debit: fromCents(refundNetCents),
+        credit: 0,
+        description: 'Reverse food & beverage sales (refund)',
+      },
+    ];
+
+    if (refundTaxCents !== 0) {
+      lines.push({
+        account_code: '820',
+        debit: fromCents(refundTaxCents),
+        credit: 0,
+        description: 'Reverse GST collected (refund)',
+      });
+    }
+
+    lines.push({
+      account_code: cashCode,
+      debit: 0,
+      credit: fromCents(refundCents),
+      description: cashCode === '090' ? 'Cash refunded' : 'Bank/card refunded',
+    });
+
+    const result = await postJournal(order.outlet_id, {
+      entry_date: order.paid_at || order.created_at,
+      source: 'refund',
+      source_id: order.id,
+      reference: order.order_number,
+      memo: 'Refund for ' + order.order_number,
+      created_by: order.staff_id || null,
+      lines,
+    });
+
+    return { posted: !result.skipped, ...result };
+  } catch (err) {
+    logger.error(`reverseOrderRefund failed for order ${order && order.id}: ${err.message}`);
+    return { posted: false, error: err.message };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Backfill historical data
 // ---------------------------------------------------------------------------
@@ -473,5 +549,6 @@ module.exports = {
   postOrderPaid,
   postPurchaseOrderReceived,
   postExpense,
+  reverseOrderRefund,
   backfill,
 };
