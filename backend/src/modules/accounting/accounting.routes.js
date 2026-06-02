@@ -80,4 +80,7 @@ router.get('/export/trial-balance.csv', authenticate, VIEW, c.exportTrialBalance
 router.get('/export/profit-loss.csv', authenticate, VIEW, c.exportProfitLoss);
 router.get('/export/balance-sheet.csv', authenticate, VIEW, c.exportBalanceSheet);
 
+/* ── Reset (owner-only, requires { confirm:true }) ── */
+router.post('/reset', authenticate, MANAGE, c.resetAccounting);
+
 module.exports = router;

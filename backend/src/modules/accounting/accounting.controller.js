@@ -503,7 +503,54 @@ async function exportBalanceSheet(req, res, next) {
   } catch (e) { next(e); }
 }
 
+/* ── DANGER: reset all transactional accounting data for an outlet ─────────── */
+// Clears the ledger + every Phase 1-7 transactional table for the outlet but
+// KEEPS the chart of accounts (account structure is config, not test data).
+// Owner/super_admin only, and requires { confirm: true } in the body.
+async function resetAccounting(req, res, next) {
+  try {
+    const role = req.user?.role;
+    if (role !== 'owner' && role !== 'super_admin') {
+      return res.status(403).json({ success: false, data: null, message: 'Only an owner can reset accounting data' });
+    }
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ success: false, data: null, message: 'Pass { "confirm": true } to reset accounting data' });
+    }
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const keepChart = req.body.keep_chart !== false; // default: keep chart of accounts
+
+    // Delete children before parents to respect FKs.
+    const jeIds = (await prisma.journalEntry.findMany({ where: { outlet_id: outletId }, select: { id: true } })).map(j => j.id);
+    if (jeIds.length) await prisma.journalLine.deleteMany({ where: { entry_id: { in: jeIds } } });
+    await prisma.journalEntry.deleteMany({ where: { outlet_id: outletId } });
+
+    const invIds = (await prisma.customerInvoice.findMany({ where: { outlet_id: outletId }, select: { id: true } })).map(i => i.id);
+    if (invIds.length) await prisma.customerInvoiceLine.deleteMany({ where: { invoice_id: { in: invIds } } });
+    await prisma.customerInvoice.deleteMany({ where: { outlet_id: outletId } });
+
+    const budIds = (await prisma.budget.findMany({ where: { outlet_id: outletId }, select: { id: true } })).map(b => b.id);
+    if (budIds.length) await prisma.budgetLine.deleteMany({ where: { budget_id: { in: budIds } } });
+    await prisma.budget.deleteMany({ where: { outlet_id: outletId } });
+
+    const prIds = (await prisma.payRun.findMany({ where: { outlet_id: outletId }, select: { id: true } })).map(r => r.id);
+    if (prIds.length) await prisma.payslip.deleteMany({ where: { pay_run_id: { in: prIds } } });
+    await prisma.payRun.deleteMany({ where: { outlet_id: outletId } });
+
+    await prisma.depreciationEntry.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.fixedAsset.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.bASLodgement.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.bankStatementLine.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.bankAccount.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.accountingPeriodLock.deleteMany({ where: { outlet_id: outletId } });
+    await prisma.billPayment.deleteMany({ where: { outlet_id: outletId } });
+    if (!keepChart) await prisma.chartAccount.deleteMany({ where: { outlet_id: outletId } });
+
+    return sendSuccess(res, { reset: true, journal_entries_removed: jeIds.length, kept_chart: keepChart }, 'Accounting data reset');
+  } catch (e) { next(e); }
+}
+
 module.exports = {
+  resetAccounting,
   listChart,
   ledger,
   trialBalance,
