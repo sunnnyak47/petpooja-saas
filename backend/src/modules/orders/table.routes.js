@@ -12,6 +12,7 @@ const { validate } = require('../../middleware/validate.middleware');
 const {
   createTableSchema,
   updateTableStatusSchema,
+  bulkUpdateTableStatusSchema,
   autoFreeActionSchema,
   updateTableSchema,
   createTableAreaSchema,
@@ -27,6 +28,9 @@ router.delete('/areas/:id', authenticate, hasPermission('MANAGE_POS'), tableCont
 
 /* ── Floor Plan bulk save ── */
 router.post('/floor-plan', authenticate, hasPermission('MANAGE_POS'), validate(saveFloorPlanSchema), tableController.saveFloorPlan);
+
+/* ── Bulk status (tick-select → mark free / change status). Before /:id ── */
+router.patch('/bulk-status', authenticate, hasPermission('MANAGE_POS'), validate(bulkUpdateTableStatusSchema), tableController.bulkUpdateTableStatus);
 
 /* ── Tables ── */
 router.get('/', authenticate, enforceOutletScope, tableController.listTables);

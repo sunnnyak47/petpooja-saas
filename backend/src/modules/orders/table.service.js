@@ -132,6 +132,39 @@ async function updateTableStatus(tableId, status) {
 }
 
 /**
+ * Bulk-updates the status of multiple tables at once (tick-select → mark free /
+ * change status). Emits a socket event per table so all devices stay in sync.
+ * @param {string[]} tableIds
+ * @param {string} status
+ * @returns {Promise<{ updated: number, table_ids: string[] }>}
+ */
+async function bulkUpdateTableStatus(tableIds, status) {
+  const prisma = getDbClient();
+  const tables = await prisma.table.findMany({
+    where: { id: { in: tableIds }, is_deleted: false },
+    select: { id: true, outlet_id: true, table_number: true },
+  });
+  if (tables.length === 0) throw new NotFoundError('No matching tables found');
+
+  // When freeing tables, also clear their current order link.
+  await prisma.table.updateMany({
+    where: { id: { in: tables.map((t) => t.id) } },
+    data: { status, ...(status === 'available' ? { current_order_id: null } : {}) },
+  });
+
+  const io = getIO();
+  if (io) {
+    for (const t of tables) {
+      io.of('/orders').to(`outlet:${t.outlet_id}`).emit('table_status_change', {
+        table_id: t.id, status, table_number: t.table_number,
+      });
+    }
+  }
+
+  return { updated: tables.length, table_ids: tables.map((t) => t.id) };
+}
+
+/**
  * Soft deletes a table.
  */
 async function deleteTable(tableId) {
@@ -338,6 +371,7 @@ module.exports = {
   createTable,
   updateTable,
   updateTableStatus,
+  bulkUpdateTableStatus,
   deleteTable,
   saveFloorPlan,
   listTableAreas,

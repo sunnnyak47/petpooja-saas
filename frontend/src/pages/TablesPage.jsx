@@ -8,7 +8,7 @@ import {
   Users, Plus, Trash2, Loader2, Edit3, Save, X, Move,
   Square, Circle, RectangleHorizontal, RotateCw, Layers,
   Eye, EyeOff, Ban, Palette, ChevronDown, Grid3X3,
-  Maximize2, Minimize2, ZoomIn, ZoomOut,
+  Maximize2, Minimize2, ZoomIn, ZoomOut, Check, ListChecks,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
@@ -192,6 +192,32 @@ export default function TablesPage() {
     },
     onError: (e) => toast.error(e.message || 'Failed'),
   });
+
+  /* ── multi-select: tick tables → bulk mark free / change status ── */
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleSelect = (id) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const clearSelection = () => setSelectedIds(new Set());
+  const exitSelectMode = () => { setSelectMode(false); clearSelection(); };
+
+  const bulkStatusMut = useMutation({
+    mutationFn: ({ ids, status }) => api.patch('/kitchen/tables/bulk-status', { table_ids: ids, status }),
+    onSuccess: (res) => {
+      toast.success(res?.data?.message || res?.message || 'Tables updated');
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      exitSelectMode();
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Bulk update failed'),
+  });
+  const applyBulkStatus = (status) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) { toast.error('Select at least one table'); return; }
+    bulkStatusMut.mutate({ ids, status });
+  };
 
   /* ── save floor plan ── */
   const handleSave = () => {
@@ -552,20 +578,75 @@ export default function TablesPage() {
               );
             })}
           </div>
-          {/* search */}
-          <input
-            type="text"
-            placeholder="Search by table number…"
-            value={searchQ}
-            onChange={e => setSearchQ(e.target.value)}
-            className="px-3 py-2 rounded-lg text-xs outline-none transition-colors"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-              minWidth: 220,
-            }}
-          />
+          {/* search + multi-select toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search by table number…"
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              className="px-3 py-2 rounded-lg text-xs outline-none transition-colors"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+                minWidth: 200,
+              }}
+            />
+            <button
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap"
+              style={{
+                background: selectMode ? 'var(--accent)' : 'var(--bg-card)',
+                color: selectMode ? 'var(--accent-text, #fff)' : 'var(--text-secondary)',
+                border: '1px solid ' + (selectMode ? 'var(--accent)' : 'var(--border)'),
+              }}>
+              <ListChecks className="w-3.5 h-3.5" />
+              {selectMode ? 'Cancel' : 'Select'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk action bar (visible in select mode) ── */}
+      {!editMode && selectMode && (
+        <div className="flex items-center justify-between flex-wrap gap-3 px-4 py-3 rounded-xl"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {selectedIds.size} selected
+            </span>
+            <button onClick={() => {
+              const ids = tables.filter(t => statusFilter === 'all' || t.status === statusFilter).map(t => t.id);
+              setSelectedIds(new Set(ids));
+            }} className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>Select all</button>
+            {selectedIds.size > 0 && (
+              <button onClick={clearSelection} className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Clear</button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => applyBulkStatus('available')}
+              disabled={selectedIds.size === 0 || bulkStatusMut.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-50"
+              style={{ background: '#10b981' }}>
+              {bulkStatusMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Mark Free
+            </button>
+            <select
+              onChange={(e) => { if (e.target.value) { applyBulkStatus(e.target.value); e.target.value = ''; } }}
+              disabled={selectedIds.size === 0 || bulkStatusMut.isPending}
+              defaultValue=""
+              className="px-3 py-2 rounded-lg text-xs font-semibold outline-none disabled:opacity-50"
+              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              <option value="" disabled>Set status…</option>
+              <option value="available">Free</option>
+              <option value="occupied">Busy</option>
+              <option value="reserved">Reserved</option>
+              <option value="dirty">Dirty</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -651,28 +732,37 @@ export default function TablesPage() {
                     const cfg = STATUS_CFG[t.status] || STATUS_CFG.available;
                     const order = t.orders?.[0];
                     const isBusy = t.status === 'occupied' || t.status === 'held' || t.status === 'part_paid';
+                    const isChecked = selectedIds.has(t.id);
                     return (
                       <button
                         key={t.id}
-                        onClick={() => openDetail(t)}
+                        onClick={() => (selectMode ? toggleSelect(t.id) : openDetail(t))}
                         className="relative text-left rounded-xl p-4 transition-all group overflow-hidden"
                         style={{
                           background: 'var(--bg-card)',
-                          border: `1px solid var(--border)`,
+                          border: `1px solid ${selectMode && isChecked ? cfg.border : 'var(--border)'}`,
+                          boxShadow: selectMode && isChecked ? `0 0 0 2px ${cfg.border}` : 'none',
                           minHeight: 130,
                         }}
                         onMouseEnter={e => {
                           e.currentTarget.style.borderColor = cfg.border + '70';
                           e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = `0 8px 22px -8px ${cfg.border}33`;
+                          e.currentTarget.style.boxShadow = (selectMode && isChecked) ? `0 0 0 2px ${cfg.border}` : `0 8px 22px -8px ${cfg.border}33`;
                         }}
                         onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = 'var(--border)';
+                          e.currentTarget.style.borderColor = (selectMode && isChecked) ? cfg.border : 'var(--border)';
                           e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
+                          e.currentTarget.style.boxShadow = (selectMode && isChecked) ? `0 0 0 2px ${cfg.border}` : 'none';
                         }}>
                         {/* top status stripe */}
                         <span className="absolute top-0 left-0 right-0 h-1" style={{ background: cfg.border }} />
+                        {/* multi-select checkbox */}
+                        {selectMode && (
+                          <span className="absolute top-2 right-2 z-10 w-5 h-5 rounded-md flex items-center justify-center"
+                            style={{ background: isChecked ? cfg.border : 'var(--bg-secondary)', border: `1.5px solid ${isChecked ? cfg.border : 'var(--border)'}` }}>
+                            {isChecked && <Check className="w-3.5 h-3.5" style={{ color: '#fff' }} />}
+                          </span>
+                        )}
 
                         {/* header row */}
                         <div className="flex items-start justify-between mb-3 mt-1">

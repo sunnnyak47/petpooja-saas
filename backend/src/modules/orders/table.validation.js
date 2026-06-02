@@ -24,6 +24,11 @@ const updateTableStatusSchema = Joi.object({
   status: Joi.string().valid('available', 'occupied', 'dirty', 'reserved', 'blocked').required(),
 });
 
+const bulkUpdateTableStatusSchema = Joi.object({
+  table_ids: Joi.array().items(Joi.string().uuid()).min(1).required(),
+  status: Joi.string().valid('available', 'occupied', 'dirty', 'reserved', 'blocked').required(),
+});
+
 const autoFreeActionSchema = Joi.object({
   action: Joi.string().valid('free', 'cancel', 'reschedule').required(),
   minutes: Joi.number().integer().min(1).max(240).when('action', { is: 'reschedule', then: Joi.required() }),
@@ -95,6 +100,7 @@ const saveFloorPlanSchema = Joi.object({
 module.exports = {
   createTableSchema,
   updateTableStatusSchema,
+  bulkUpdateTableStatusSchema,
   autoFreeActionSchema,
   updateTableSchema,
   createTableAreaSchema,

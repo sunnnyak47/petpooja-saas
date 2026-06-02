@@ -40,6 +40,14 @@ async function updateTableStatus(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/** PATCH /api/orders/tables/bulk-status — { table_ids: [], status } */
+async function bulkUpdateTableStatus(req, res, next) {
+  try {
+    const result = await tableService.bulkUpdateTableStatus(req.body.table_ids, req.body.status);
+    sendSuccess(res, result, `${result.updated} table(s) updated`);
+  } catch (error) { next(error); }
+}
+
 /** DELETE /api/orders/tables/:id */
 async function deleteTable(req, res, next) {
   try {
@@ -104,6 +112,7 @@ module.exports = {
   createTable,
   updateTable,
   updateTableStatus,
+  bulkUpdateTableStatus,
   deleteTable,
   saveFloorPlan,
   listTableAreas,

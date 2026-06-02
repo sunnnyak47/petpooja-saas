@@ -124,6 +124,23 @@ router.delete('/tables/:id', authenticate, enforceOutletScope, async (req, res, 
   } catch (error) { next(error); }
 });
 
+// Bulk status update — tick-select multiple tables → mark free / change status.
+// Defined BEFORE /tables/:id/status so 'bulk-status' isn't captured as an :id.
+router.patch('/tables/bulk-status', authenticate, async (req, res, next) => {
+  try {
+    const { table_ids, status } = req.body;
+    if (!Array.isArray(table_ids) || table_ids.length === 0) {
+      return res.status(400).json({ success: false, data: null, message: 'table_ids is required' });
+    }
+    const valid = ['available', 'occupied', 'dirty', 'reserved', 'blocked'];
+    if (!valid.includes(status)) {
+      return res.status(400).json({ success: false, data: null, message: 'Invalid status' });
+    }
+    const result = await tableService.bulkUpdateTableStatus(table_ids, status);
+    sendSuccess(res, result, `${result.updated} table(s) updated`);
+  } catch (error) { next(error); }
+});
+
 router.patch('/tables/:id/status', authenticate, async (req, res, next) => {
   try {
     const table = await tableService.updateTableStatus(req.params.id, req.body.status);
