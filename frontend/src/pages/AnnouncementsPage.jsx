@@ -30,6 +30,7 @@ export default function AnnouncementsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const today = new Date().toISOString().split('T')[0];
 
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['announcements'],
@@ -362,6 +363,7 @@ export default function AnnouncementsPage() {
                 </label>
                 <input
                   type="date"
+                  min={today}
                   value={form.expires_at}
                   onChange={e => setForm(p => ({ ...p, expires_at: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-sm border outline-none transition-shadow focus:ring-2"

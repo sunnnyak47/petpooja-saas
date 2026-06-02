@@ -30,6 +30,7 @@ export default function DiscountsPage() {
   const { symbol } = useCurrency();
   const region = useRegion();
   const isAU = region === 'AU';
+  const today = new Date().toISOString().split('T')[0];
   const [hubTab, setHubTab] = useState('deals'); // deals | holiday
 
   const [showModal, setShowModal] = useState(false);
@@ -318,11 +319,11 @@ export default function DiscountsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-surface-400 font-bold mb-1 block">Start Date</label>
-              <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="input w-full" />
+              <input type="date" min={today} value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="input w-full" />
             </div>
             <div>
               <label className="text-xs text-surface-400 font-bold mb-1 block">End Date</label>
-              <input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="input w-full" />
+              <input type="date" min={form.start_date || today} value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="input w-full" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

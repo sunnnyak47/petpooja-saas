@@ -33,6 +33,7 @@ function PromoForm({ initial, onSave, onClose, currencySymbol }) {
     applicable_plans: ['STARTER', 'PRO', 'ENTERPRISE'],
     max_uses: '', valid_until: '', description: '',
   });
+  const today = new Date().toISOString().split('T')[0];
 
   const togglePlan = (plan) => {
     setForm(f => ({
@@ -111,7 +112,7 @@ function PromoForm({ initial, onSave, onClose, currencySymbol }) {
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Valid Until (blank = forever)</label>
-              <input type="date" value={form.valid_until ? form.valid_until.slice(0, 10) : ''}
+              <input type="date" min={today} value={form.valid_until ? form.valid_until.slice(0, 10) : ''}
                 onChange={e => setForm(f => ({ ...f, valid_until: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                 style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />

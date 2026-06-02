@@ -47,6 +47,7 @@ export default function RosteringPage() {
   const qc = useQueryClient();
   const outletId = user?.outlet_id;
   const { format: formatCurrency, currency } = useCurrency();
+  const today = new Date().toISOString().split('T')[0];
 
   const [activeTab, setActiveTab] = useState('roster'); // roster | availability | certifications
   const [weekBase, setWeekBase] = useState(new Date());
@@ -409,13 +410,13 @@ export default function RosteringPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>Start Date</label>
-                  <input type="date" value={rosterForm.start_date} onChange={e => setRosterForm(p => ({ ...p, start_date: e.target.value }))}
+                  <input type="date" min={today} value={rosterForm.start_date} onChange={e => setRosterForm(p => ({ ...p, start_date: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
                     style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                 </div>
                 <div>
                   <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>End Date</label>
-                  <input type="date" value={rosterForm.end_date} onChange={e => setRosterForm(p => ({ ...p, end_date: e.target.value }))}
+                  <input type="date" min={rosterForm.start_date || today} value={rosterForm.end_date} onChange={e => setRosterForm(p => ({ ...p, end_date: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
                     style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                 </div>
@@ -536,7 +537,7 @@ export default function RosteringPage() {
                 </div>
                 <div>
                   <label className="text-xs mb-1 block" style={{ color: 'var(--text-secondary)' }}>Expiry Date</label>
-                  <input type="date" value={certForm.expiry_date} onChange={e => setCertForm(p => ({ ...p, expiry_date: e.target.value }))}
+                  <input type="date" min={today} value={certForm.expiry_date} onChange={e => setCertForm(p => ({ ...p, expiry_date: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
                     style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                 </div>

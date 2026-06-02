@@ -214,6 +214,7 @@ function CreatePOView({ isDark, card, border, text, muted, bg, isAU, suppliers, 
   const { symbol, format } = useCurrency();
   const CATEGORIES = isAU ? AU_CATEGORIES : IN_CATEGORIES;
   const TAX_RATES  = isAU ? AU_TAX_RATES  : IN_TAX_RATES;
+  const today = new Date().toISOString().split('T')[0];
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [search, setSearch]     = useState('');
   const [lineItems, setLineItems] = useState([]);
@@ -452,13 +453,13 @@ function CreatePOView({ isDark, card, border, text, muted, bg, isAU, suppliers, 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label style={{ color: muted }} className="text-xs font-semibold block mb-1">Order Date *</label>
-                  <input type="date" value={form.order_date} onChange={e => setForm(f => ({ ...f, order_date: e.target.value }))}
+                  <input type="date" min={today} value={form.order_date} onChange={e => setForm(f => ({ ...f, order_date: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}`, color: text }} />
                 </div>
                 <div>
                   <label style={{ color: muted }} className="text-xs font-semibold block mb-1">Delivery Date</label>
-                  <input type="date" value={form.delivery_date} onChange={e => setForm(f => ({ ...f, delivery_date: e.target.value }))}
+                  <input type="date" min={form.order_date || today} value={form.delivery_date} onChange={e => setForm(f => ({ ...f, delivery_date: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: isDark ? '#0f172a' : '#f8fafc', border: `1px solid ${border}`, color: text }} />
                 </div>

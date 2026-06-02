@@ -214,7 +214,7 @@ export default function ReservationsPage() {
               ].map(f => (
                 <div key={f.key} className={f.key === 'customer_name' ? 'col-span-2' : ''}>
                   <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>{f.label}</label>
-                  <input type={f.type} value={form[f.key]} placeholder={f.placeholder}
+                  <input type={f.type} min={f.key === 'reservation_date' ? today : undefined} value={form[f.key]} placeholder={f.placeholder}
                     onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />

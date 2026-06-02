@@ -327,6 +327,7 @@ function ConfigureModal({ festival, savedConfig, outletId, onClose, onSave }) {
     outlet_id:        outletId,
   });
 
+  const today = new Date().toISOString().split('T')[0];
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
@@ -352,12 +353,12 @@ function ConfigureModal({ festival, savedConfig, outletId, onClose, onSave }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-surface-400 mb-1 block font-semibold">Start Date</label>
-              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)}
+              <input type="date" min={today} value={form.start_date} onChange={e => set('start_date', e.target.value)}
                 className="input w-full" />
             </div>
             <div>
               <label className="text-xs text-surface-400 mb-1 block font-semibold">End Date</label>
-              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)}
+              <input type="date" min={form.start_date || today} value={form.end_date} onChange={e => set('end_date', e.target.value)}
                 className="input w-full" />
             </div>
           </div>

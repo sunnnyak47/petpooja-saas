@@ -89,6 +89,7 @@ export default function CustomerInvoicesPage() {
   const { user } = useSelector(s => s.auth);
   const outletId = user?.outlet_id;
 
+  const today = new Date().toISOString().split('T')[0];
   const [showForm, setShowForm] = useState(false);
   const [busyId, setBusyId] = useState(null);          // row action in-flight
   const [creating, setCreating] = useState(false);
@@ -231,6 +232,7 @@ export default function CustomerInvoicesPage() {
               <label className={labelClass} style={{ color: 'var(--text-secondary)' }}>Issue Date</label>
               <input
                 type="date"
+                min={today}
                 value={form.issue_date}
                 onChange={e => setField('issue_date', e.target.value)}
                 className="px-3 py-2 rounded-lg border text-sm"
@@ -241,6 +243,7 @@ export default function CustomerInvoicesPage() {
               <label className={labelClass} style={{ color: 'var(--text-secondary)' }}>Due Date</label>
               <input
                 type="date"
+                min={form.issue_date || today}
                 value={form.due_date}
                 onChange={e => setField('due_date', e.target.value)}
                 className="px-3 py-2 rounded-lg border text-sm"
