@@ -64,6 +64,9 @@ let tray = null
 let isOnline = true
 let localServer = null        // HTTP server for production frontend serving
 let localServerPort = 0       // assigned at runtime
+let connFailStreak = 0        // consecutive failed connectivity probes
+let connInitialized = false   // whether the first connectivity probe has resolved
+const CONN_FAIL_THRESHOLD = 2 // require N misses before declaring offline (debounce cold-starts)
 
 const isDev = !app.isPackaged
 
@@ -352,48 +355,79 @@ function createTray() {
 // ONLINE / OFFLINE DETECTION
 // ─────────────────────────────────────
 /**
- * Checks internet connectivity by attempting a TCP connection
- * to Google's public DNS (8.8.8.8:53). Fires renderer notifications
- * and updates the tray tooltip on status change.
+ * Applies a connectivity result, firing renderer notifications and updating
+ * the tray only when the state actually changes (avoids redundant IPC spam).
+ * @param {boolean} online
+ */
+function applyConnectivity(online) {
+  // Always propagate the very first resolved probe so the sync engine (which
+  // starts as offline) and tray get synced to the real state, even if it
+  // happens to match main's optimistic initial `isOnline = true`.
+  if (online === isOnline && connInitialized) return
+  connInitialized = true
+  isOnline = online
+  syncEngine.setOnlineStatus(online)
+  notifyRenderer('connectivity-changed', { online })
+  updateTrayStatus(online)
+}
+
+/**
+ * Checks connectivity by issuing a lightweight HTTPS request to the actual
+ * backend health endpoint.
+ *
+ * Why not ping 8.8.8.8:53 (the old approach)? Raw TCP to Google's DNS port is
+ * blocked on many real networks — home routers, café/guest Wi-Fi, and corporate
+ * firewalls routinely allow only HTTPS (443) outbound and drop port 53 to
+ * external IPs. That produced a false "Offline" banner even when the internet
+ * (and our backend) worked fine. Probing the backend over HTTPS both avoids that
+ * blocked-port problem and makes "online" mean what the app actually cares
+ * about: the cloud API is reachable.
  */
 function checkConnectivity() {
-  const net = require('net')
-  const socket = new net.Socket()
-  const TIMEOUT_MS = 3000
+  const https = require('https')
+  const TIMEOUT_MS = 4000
 
-  socket.setTimeout(TIMEOUT_MS)
+  let base = store.get('apiUrl') || 'https://petpooja-saas.onrender.com'
+  let healthUrl
+  try {
+    healthUrl = new URL('/health', base)
+  } catch {
+    healthUrl = new URL('https://petpooja-saas.onrender.com/health')
+  }
 
-  socket.on('connect', () => {
-    socket.destroy()
-    if (!isOnline) {
-      isOnline = true
-      syncEngine.setOnlineStatus(true)
-      notifyRenderer('connectivity-changed', { online: true })
-      updateTrayStatus(true)
+  const req = https.request(
+    {
+      hostname: healthUrl.hostname,
+      port: healthUrl.port || 443,
+      path: healthUrl.pathname,
+      method: 'GET',
+      timeout: TIMEOUT_MS,
+    },
+    (res) => {
+      // Any HTTP response (even 4xx/5xx) proves the network path is open.
+      res.resume() // drain so the socket can free
+      connFailStreak = 0
+      applyConnectivity(true)
     }
+  )
+
+  // A single miss can be a cold-start or a dropped packet — only flip to
+  // offline after CONN_FAIL_THRESHOLD consecutive failures.
+  const registerFailure = () => {
+    connFailStreak += 1
+    if (connFailStreak >= CONN_FAIL_THRESHOLD) applyConnectivity(false)
+  }
+
+  req.on('timeout', () => {
+    req.destroy()
+    registerFailure()
   })
 
-  socket.on('timeout', () => {
-    socket.destroy()
-    if (isOnline) {
-      isOnline = false
-      syncEngine.setOnlineStatus(false)
-      notifyRenderer('connectivity-changed', { online: false })
-      updateTrayStatus(false)
-    }
+  req.on('error', () => {
+    registerFailure()
   })
 
-  socket.on('error', () => {
-    socket.destroy()
-    if (isOnline) {
-      isOnline = false
-      syncEngine.setOnlineStatus(false)
-      notifyRenderer('connectivity-changed', { online: false })
-      updateTrayStatus(false)
-    }
-  })
-
-  socket.connect(53, '8.8.8.8')
+  req.end()
 }
 
 /**
@@ -1249,7 +1283,7 @@ app.whenReady().then(async () => {
   // Wake up the Render backend immediately on launch — free tier spins down after
   // inactivity and takes up to 60s to cold-start. Pinging now means it's warm by
   // the time the user finishes typing their password.
-  fetch('https://petpooja-saas.onrender.com/api/health')
+  fetch(`${store.get('apiUrl') || 'https://petpooja-saas.onrender.com'}/health`)
     .then(() => console.log('[Backend] Server warm'))
     .catch(() => console.log('[Backend] Warming up...'))
 
