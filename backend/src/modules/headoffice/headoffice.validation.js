@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { phoneRequired, emailRequired } = require('../../utils/validators');
 
 /**
  * Schema for menu sync — push menu from source outlet to targets.
@@ -33,8 +34,8 @@ const createIndentSchema = Joi.object({
  */
 const registerRestaurantSchema = Joi.object({
   name: Joi.string().required().max(150),
-  email: Joi.string().email().required(),
-  phone: Joi.string().required().pattern(/^[+]?[0-9]{8,15}$/),
+  email: emailRequired,
+  phone: phoneRequired,
   password: Joi.string().required().min(6).max(100),
   legal_name: Joi.string().max(200),
   gstin: Joi.string().max(15).allow('', null),

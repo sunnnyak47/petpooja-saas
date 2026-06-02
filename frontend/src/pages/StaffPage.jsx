@@ -5,6 +5,7 @@ import api from '../lib/api';
 import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import {
   Users, UserPlus, Search, Clock, Phone, Edit2,
   RefreshCw, LogIn, LogOut, Key, IndianRupee,
@@ -153,6 +154,14 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
 
   const upd = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  function handleSave() {
+    if (!staff) {
+      if (form.phone && !isValidPhone(form.phone)) return toast.error('Please enter a valid phone number');
+      if (form.email && !isValidEmail(form.email)) return toast.error('Please enter a valid email address');
+    }
+    mutation.mutate(form);
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={staff ? 'Edit Staff' : 'Add Staff Member'} size="md">
       <div className="space-y-3">
@@ -169,7 +178,7 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
               </div>
               <div>
                 <label className="label">Phone *</label>
-                <input className="input" value={form.phone} onChange={e => upd('phone', e.target.value)} placeholder="9876543210" />
+                <input className="input" maxLength={PHONE_MAXLEN} value={form.phone} onChange={e => upd('phone', e.target.value)} placeholder={phonePlaceholder('AU')} />
               </div>
             </>
           )}
@@ -209,7 +218,7 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
         </div>
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="btn-ghost flex-1">Cancel</button>
-          <button onClick={() => mutation.mutate(form)} disabled={mutation.isPending}
+          <button onClick={handleSave} disabled={mutation.isPending}
             className="btn-primary flex-1">
             {mutation.isPending ? 'Saving…' : staff ? 'Update' : 'Add Staff'}
           </button>

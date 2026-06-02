@@ -4,14 +4,12 @@
  */
 
 const Joi = require('joi');
-
-// Lenient phone: allow digits, spaces, +, -, (), between 7–20 chars
-const phoneSchema = Joi.string().pattern(/^[0-9+\-\s().]{7,20}$/).allow('', null);
+const { phoneRequired, phoneOptional } = require('../../utils/validators');
 
 const createSupplierSchema = Joi.object({
   name: Joi.string().trim().max(150).required(),
   contact_person: Joi.string().trim().max(100).allow('', null),
-  phone: phoneSchema,
+  phone: phoneOptional,
   email: Joi.string().email().allow('', null),
   address: Joi.string().max(500).allow('', null),
   gstin: Joi.string().max(15).allow('', null),
@@ -23,7 +21,7 @@ const createSupplierSchema = Joi.object({
 const updateSupplierSchema = Joi.object({
   name: Joi.string().trim().max(150),
   contact_person: Joi.string().trim().max(100).allow('', null),
-  phone: phoneSchema,
+  phone: phoneOptional,
   email: Joi.string().email().allow('', null),
   address: Joi.string().max(500).allow('', null),
   gstin: Joi.string().max(15).allow('', null),
@@ -111,7 +109,7 @@ const receivePurchaseOrderSchema = Joi.object({
 });
 
 const sendWhatsAppSchema = Joi.object({
-  phone: Joi.string().pattern(/^[0-9]{10,15}$/).required(),
+  phone: phoneRequired,
 });
 
 module.exports = {

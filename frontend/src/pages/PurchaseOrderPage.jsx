@@ -14,6 +14,7 @@ import { useTheme } from '../themes/ThemeContext';
 import toast from 'react-hot-toast';
 import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import { useRegion } from '../hooks/useRegion';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 
 /* ── helpers ─────────────────────────────────── */
 // fmt is now only used as a fallback — prefer format() from useCurrency() inside components
@@ -632,6 +633,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBac
 
   const sendWhatsAppDirect = async () => {
     if (!whatsappPhone.trim()) { toast.error('Enter phone number'); return; }
+    if (!isValidPhone(whatsappPhone)) { toast.error('Please enter a valid phone number'); return; }
     setSending(true);
     try {
       toast('Sending PDF to WhatsApp…', { icon: '📤' });
@@ -652,6 +654,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBac
       return;
     }
     if (!whatsappPhone.trim()) { toast.error('Enter phone number'); return; }
+    if (!isValidPhone(whatsappPhone)) { toast.error('Please enter a valid phone number'); return; }
     setSending(true);
     try {
       toast('Preparing WhatsApp…', { icon: '📤' });
@@ -954,7 +957,8 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBac
             <input
               value={whatsappPhone}
               onChange={e => setWhatsappPhone(e.target.value)}
-              placeholder="+919876543210"
+              placeholder={phonePlaceholder(isAU ? 'AU' : 'IN')}
+              maxLength={PHONE_MAXLEN}
               className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-4"
               style={{ background: isDark ? '#0f172a' : '#f1f5f9', border: `1px solid ${border}`, color: text }}
               onKeyDown={e => e.key === 'Enter' && sendWhatsApp()}

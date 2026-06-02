@@ -4,13 +4,10 @@
  */
 
 const Joi = require('joi');
-
-// Accepts Indian 10-digit (6-9XXXXXXXXX) or Australian mobile/landline (+61 or 04xx or 02/03/07/08)
-const phoneRegex = /^(\+?61[0-9]{9}|0[2-9][0-9]{8}|[6-9][0-9]{9})$/;
+const { phoneRequired } = require('../../utils/validators');
 
 const createCustomerSchema = Joi.object({
-  phone: Joi.string().trim().pattern(phoneRegex).required()
-    .messages({ 'string.pattern.base': 'Phone must be a valid 10-digit Indian mobile number' }),
+  phone: phoneRequired,
   full_name: Joi.string().trim().min(2).max(150).allow('', null),
   email: Joi.string().trim().lowercase().email().max(150).allow('', null),
   date_of_birth: Joi.date().iso().allow(null),

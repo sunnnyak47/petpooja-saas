@@ -4,11 +4,12 @@
  */
 
 const Joi = require('joi');
+const { phoneOptional } = require('../../utils/validators');
 
 /** POST /api/reservations */
 const createReservationSchema = Joi.object({
   customer_name: Joi.string().required().max(150),
-  customer_phone: Joi.string().pattern(/^\+?[0-9]{10,15}$/),
+  customer_phone: phoneOptional,
   party_size: Joi.number().integer().min(1).max(50).required(),
   reservation_date: Joi.date().required(),
   reservation_time: Joi.string().pattern(/^[0-2][0-9]:[0-5][0-9]$/),
@@ -21,7 +22,7 @@ const createReservationSchema = Joi.object({
 const updateReservationSchema = Joi.object({
   status: Joi.string().valid('confirmed', 'cancelled', 'seated', 'completed', 'no_show'),
   customer_name: Joi.string().max(150),
-  customer_phone: Joi.string(),
+  customer_phone: phoneOptional,
   party_size: Joi.number().integer().min(1).max(50),
   reservation_date: Joi.date(),
   reservation_time: Joi.string(),

@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import {
   Users, User, Briefcase, ShieldCheck, Award, CalendarCheck,
   Plus, Trash2, Edit2, Search, ChevronRight, CheckCircle2,
@@ -74,7 +75,7 @@ function SectionCard({ title, icon: Icon, children }) {
   );
 }
 
-function Input({ label, name, type = 'text', value, onChange, options, disabled }) {
+function Input({ label, name, type = 'text', value, onChange, options, disabled, maxLength, placeholder }) {
   const base = {
     width: '100%', padding: '8px 12px', borderRadius: 8,
     border: '1px solid var(--border)', background: 'var(--bg-primary)',
@@ -90,7 +91,7 @@ function Input({ label, name, type = 'text', value, onChange, options, disabled 
         </select>
       ) : (
         <input type={type} name={name} value={value || ''} onChange={onChange}
-          disabled={disabled} style={base} />
+          disabled={disabled} maxLength={maxLength} placeholder={placeholder} style={base} />
       )}
     </div>
   );
@@ -166,7 +167,7 @@ function PersonalTab({ profile, editing, form, onChange }) {
       <Input label="Contact Name" name="emergency_contact_name" value={form.emergency_contact_name} onChange={onChange} />
       <Input label="Relationship" name="emergency_relationship" value={form.emergency_relationship} onChange={onChange}
         options={[{ value: 'partner', label: 'Partner/Spouse' }, { value: 'parent', label: 'Parent' }, { value: 'sibling', label: 'Sibling' }, { value: 'friend', label: 'Friend' }, { value: 'other', label: 'Other' }]} />
-      <Input label="Phone" name="emergency_contact" value={form.emergency_contact} onChange={onChange} />
+      <Input label="Phone" name="emergency_contact" value={form.emergency_contact} onChange={onChange} maxLength={PHONE_MAXLEN} placeholder={phonePlaceholder('AU')} />
     </div>
   );
 }
@@ -693,6 +694,11 @@ export default function StaffManagementPage() {
     onError: (e) => toast.error(e?.response?.data?.message || 'Save failed'),
   });
 
+  const handleSave = () => {
+    if (form.emergency_contact && !isValidPhone(form.emergency_contact)) return toast.error('Please enter a valid phone number');
+    saveMut.mutate();
+  };
+
   return (
     <div className="flex h-full" style={{ minHeight: '100vh' }}>
       {/* ── Left sidebar: staff list ── */}
@@ -777,7 +783,7 @@ export default function StaffManagementPage() {
                       style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
                       <X size={14} /> Cancel
                     </button>
-                    <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
+                    <button onClick={handleSave} disabled={saveMut.isPending}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium"
                       style={{ background: 'var(--accent)', color: '#fff', opacity: saveMut.isPending ? 0.6 : 1 }}>
                       <Save size={14} /> {saveMut.isPending ? 'Saving…' : 'Save'}

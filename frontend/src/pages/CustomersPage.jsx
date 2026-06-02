@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import {
   Search, Phone, Crown, Plus, Gift, Trash2, Loader2, Eye,
   ShoppingBag, Calendar, User, Send, Star, Cake, Mail,
@@ -502,6 +503,8 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (!formData.phone || !isValidPhone(formData.phone)) return toast.error('Please enter a valid phone number');
+    if (formData.email && !isValidEmail(formData.email)) return toast.error('Please enter a valid email address');
     const data = { ...formData };
     if (!data.date_of_birth) delete data.date_of_birth;
     if (!data.anniversary)   delete data.anniversary;
@@ -518,7 +521,7 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
         </div>
         <div>
           <label className="label">Phone *</label>
-          <input required className="input w-full" type="tel" placeholder={isAU ? '0412345678' : '9876543210'} value={formData.phone} onChange={set('phone')} />
+          <input required className="input w-full" type="tel" maxLength={PHONE_MAXLEN} placeholder={phonePlaceholder(isAU ? 'AU' : 'IN')} value={formData.phone} onChange={set('phone')} />
         </div>
         <div>
           <label className="label">Email</label>

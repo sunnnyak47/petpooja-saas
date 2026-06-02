@@ -9,6 +9,7 @@ import {
 
 import useBranding from '../../hooks/useBranding';
 import { useRegion } from '../../hooks/useRegion';
+import { isValidPhone, isValidEmail } from '../../lib/validation';
 
 export default function OwnerWizard({ headOffice }) {
   const { branding } = useBranding();
@@ -42,6 +43,18 @@ export default function OwnerWizard({ headOffice }) {
 
   const next = () => setStep(s => s + 1);
   const prev = () => setStep(s => s - 1);
+
+  const finishSetup = () => {
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      toast.error('Please enter a valid phone number');
+      return;
+    }
+    if (formData.email && !isValidEmail(formData.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    completeMutation.mutate(formData);
+  };
 
   return (
     <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
@@ -172,7 +185,7 @@ export default function OwnerWizard({ headOffice }) {
             </button>
           ) : (
             <button 
-              onClick={() => completeMutation.mutate(formData)}
+              onClick={finishSetup}
               disabled={completeMutation.isPending}
               className="bg-emerald-600 text-white px-12 py-3 rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 flex items-center gap-2 transition active:scale-95 disabled:opacity-50"
             >

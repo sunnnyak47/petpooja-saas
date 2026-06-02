@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { phoneOptional, emailOptional } = require('../../utils/validators');
 
 /** PATCH /api/ondc/profile */
 const updateSellerProfileSchema = Joi.object({
@@ -16,8 +17,8 @@ const updateSellerProfileSchema = Joi.object({
   city: Joi.string().max(100),
   state: Joi.string().max(100),
   pincode: Joi.string().max(6),
-  contact_email: Joi.string().email(),
-  contact_phone: Joi.string(),
+  contact_email: emailOptional,
+  contact_phone: phoneOptional,
 });
 
 /** POST /api/ondc/profile/submit */

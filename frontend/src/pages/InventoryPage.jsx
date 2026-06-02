@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useRegion } from '../hooks/useRegion';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import Modal from '../components/Modal';
 import {
   Plus, Truck, Trash2, Settings, Package,
@@ -283,6 +284,18 @@ export default function InventoryPage() {
   // Supplier mutations
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', contact_person: '', phone: '', email: '', payment_terms: 'Cash on Delivery' });
+
+  const saveSupplier = () => {
+    if (supplierForm.phone && !isValidPhone(supplierForm.phone)) {
+      toast.error('Please enter a valid phone number');
+      return;
+    }
+    if (supplierForm.email && !isValidEmail(supplierForm.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    supplierMut.mutate(supplierForm);
+  };
 
   const supplierMut = useMutation({
     mutationFn: (d) => api.post('/suppliers', { ...d, outlet_id: outletId }),
@@ -623,7 +636,7 @@ export default function InventoryPage() {
             {[
               { key: 'name',           label: 'Supplier Name *',  placeholder: 'Fresh Farms Pvt Ltd' },
               { key: 'contact_person', label: 'Contact Person',   placeholder: 'Raju Bhai' },
-              { key: 'phone',          label: 'Phone',            placeholder: '+91 98765 43210' },
+              { key: 'phone',          label: 'Phone',            placeholder: phonePlaceholder('AU') },
               { key: 'email',          label: 'Email',            placeholder: 'supplier@email.com' },
             ].map(({ key, label, placeholder }) => (
               <div key={key}>
@@ -631,6 +644,7 @@ export default function InventoryPage() {
                   style={{ color: 'var(--text-secondary)' }}>{label}</label>
                 <input
                   className="w-full px-4 py-3 rounded-2xl text-sm font-bold outline-none border-2 transition-all"
+                  maxLength={key === 'phone' ? PHONE_MAXLEN : undefined}
                   style={{
                     background: 'var(--bg-secondary)',
                     color: 'var(--text-primary)',
@@ -662,7 +676,7 @@ export default function InventoryPage() {
             </div>
 
             <button
-              onClick={() => supplierMut.mutate(supplierForm)}
+              onClick={saveSupplier}
               disabled={supplierMut.isPending || !supplierForm.name.trim()}
               className="w-full py-4 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--accent)' }}>

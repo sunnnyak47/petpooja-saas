@@ -4,8 +4,7 @@
  */
 
 const Joi = require('joi');
-
-const phoneRegex = /^[0-9]{10,15}$/;
+const { phoneRequired, phoneOptional } = require('../../utils/validators');
 
 /** POST /api/integrations/online-orders/:id/accept */
 const acceptOnlineOrderSchema = Joi.object({});
@@ -23,7 +22,7 @@ const createRazorpayOrderSchema = Joi.object({
   amount: Joi.number().min(1).required(),
   order_id: Joi.string().allow(null),
   customer_name: Joi.string().max(150),
-  customer_phone: Joi.string().pattern(phoneRegex),
+  customer_phone: phoneOptional,
 });
 
 /** POST /api/integrations/razorpay/verify */
@@ -42,14 +41,14 @@ const razorpayRefundSchema = Joi.object({
 
 /** POST /api/integrations/notify/sms */
 const sendSMSSchema = Joi.object({
-  phone: Joi.string().required().pattern(phoneRegex),
+  phone: phoneRequired,
   message: Joi.string().required().max(1000),
   template_id: Joi.string().max(50),
 });
 
 /** POST /api/integrations/notify/whatsapp */
 const sendWhatsAppSchema = Joi.object({
-  phone: Joi.string().required().pattern(phoneRegex),
+  phone: phoneRequired,
   template_name: Joi.string().required().max(100),
   parameters: Joi.array(),
 });

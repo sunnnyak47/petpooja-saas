@@ -4,12 +4,12 @@
  */
 
 const Joi = require('joi');
+const { phoneRequired, emailRequired } = require('../../utils/validators');
 
 const createStaffSchema = Joi.object({
   full_name: Joi.string().max(150).required(),
-  email: Joi.string().email().required(),
-  phone: Joi.string().pattern(/^[0-9]{10,15}$/).required()
-    .messages({ 'string.pattern.base': 'Phone must be 10-15 digits' }),
+  email: emailRequired,
+  phone: phoneRequired,
   password: Joi.string().min(6).max(100),
   employee_code: Joi.string().max(20),
   department: Joi.string().max(50),

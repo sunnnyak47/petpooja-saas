@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { phoneOptional } = require('../../utils/validators');
 
 const createOrderSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
@@ -56,7 +57,7 @@ const processPaymentSchema = Joi.object({
   method: Joi.string().valid('cash', 'card', 'card_pine_labs', 'upi', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid', 'due').required(),
   amount: Joi.number().precision(2).min(0).required(),
   transaction_id: Joi.string().max(100).allow('', null),
-  customer_phone: Joi.string().max(15).allow('', null),
+  customer_phone: phoneOptional,
   loyalty_points_redeem: Joi.number().integer().min(0).default(0),
   splits: Joi.array().items(Joi.object({
     method: Joi.string().required(),

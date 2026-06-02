@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useRegion } from '../hooks/useRegion';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder as phonePlaceholderFor } from '../lib/validation';
 import {
   Calendar, Clock, Users, Plus, Phone, Mail,
   CheckCircle2, XCircle, AlertCircle, ChevronDown,
@@ -52,6 +53,18 @@ export default function ReservationsPage() {
   const [confirmDelete, setConfirmDelete] = useState(null); // reservation object pending deletion
 
   const today = new Date().toISOString().split('T')[0];
+
+  const handleSave = () => {
+    if (form.customer_phone && !isValidPhone(form.customer_phone)) {
+      toast.error('Please enter a valid phone number');
+      return;
+    }
+    if (form.customer_email && !isValidEmail(form.customer_email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    saveMutation.mutate(editId ? form : { ...form, outlet_id: outletId });
+  };
 
   const { data: reservations = [], isLoading } = useQuery({
     queryKey: ['reservations'],
@@ -214,7 +227,9 @@ export default function ReservationsPage() {
               ].map(f => (
                 <div key={f.key} className={f.key === 'customer_name' ? 'col-span-2' : ''}>
                   <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>{f.label}</label>
-                  <input type={f.type} min={f.key === 'reservation_date' ? today : undefined} value={form[f.key]} placeholder={f.placeholder}
+                  <input type={f.type} min={f.key === 'reservation_date' ? today : undefined}
+                    maxLength={f.key === 'customer_phone' ? PHONE_MAXLEN : undefined}
+                    value={form[f.key]} placeholder={f.placeholder}
                     onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
@@ -237,7 +252,7 @@ export default function ReservationsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => saveMutation.mutate(editId ? form : { ...form, outlet_id: outletId })}
+                onClick={handleSave}
                 disabled={saveMutation.isPending || !form.customer_name || !form.reservation_date}
                 className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>

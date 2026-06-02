@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { phoneOptional, emailOptional } = require('../../utils/validators');
 
 const adjustStockSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
@@ -78,8 +79,8 @@ const updateItemSchema = Joi.object({
 const createSupplierSchema = Joi.object({
   name: Joi.string().trim().max(150).required(),
   contact_person: Joi.string().trim().max(100),
-  phone: Joi.string().pattern(/^[0-9]{10,15}$/),
-  email: Joi.string().email().allow('', null),
+  phone: phoneOptional,
+  email: emailOptional,
   address: Joi.string().max(500),
   gstin: Joi.string().max(15).allow('', null),
   abn: Joi.string().max(11).allow('', null),

@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { phoneRequired } = require('../../utils/validators');
 
 // Accepts Indian 10-digit (6-9XXXXXXXXX) or Australian mobile/landline (+61 or 04xx or 02/03/07/08)
 const phoneRegex = /^(\+?61[0-9]{9}|0[2-9][0-9]{8}|[6-9][0-9]{9})$/;
@@ -16,8 +17,7 @@ const registerSchema = Joi.object({
   full_name: Joi.string().trim().min(2).max(150).required()
     .messages({ 'string.min': 'Name must be at least 2 characters' }),
   email: Joi.string().trim().lowercase().email().max(150).required(),
-  phone: Joi.string().trim().pattern(phoneRegex).required()
-    .messages({ 'string.pattern.base': 'Phone must be a valid 10-digit Indian mobile number' }),
+  phone: phoneRequired,
   password: Joi.string().pattern(passwordRegex).required()
     .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),
   role: Joi.string().valid('owner', 'manager', 'cashier', 'kitchen_staff', 'delivery_boy').default('cashier'),
@@ -44,15 +44,14 @@ const refreshTokenSchema = Joi.object({
  * Schema for forgot password (OTP request).
  */
 const forgotPasswordSchema = Joi.object({
-  phone: Joi.string().trim().pattern(phoneRegex).required()
-    .messages({ 'string.pattern.base': 'Phone must be a valid 10-digit Indian mobile number' }),
+  phone: phoneRequired,
 });
 
 /**
  * Schema for OTP verification.
  */
 const verifyOtpSchema = Joi.object({
-  phone: Joi.string().trim().pattern(phoneRegex).required(),
+  phone: phoneRequired,
   otp: Joi.string().length(6).pattern(/^\d+$/).required()
     .messages({ 'string.length': 'OTP must be 6 digits' }),
 });
@@ -61,7 +60,7 @@ const verifyOtpSchema = Joi.object({
  * Schema for password reset.
  */
 const resetPasswordSchema = Joi.object({
-  phone: Joi.string().trim().pattern(phoneRegex).required(),
+  phone: phoneRequired,
   otp: Joi.string().length(6).pattern(/^\d+$/).required(),
   new_password: Joi.string().pattern(passwordRegex).required()
     .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),

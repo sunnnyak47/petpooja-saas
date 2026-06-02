@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCurrency } from '../hooks/useCurrency';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import {
   Users, Crown, Star, UserX, Gift, Send, Mail, Calendar,
   TrendingUp, Search, Plus, Award, Megaphone, Settings,
@@ -129,6 +130,12 @@ function CustomerModal({ customer, outletId, onClose }) {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const handleSave = () => {
+    if (!form.phone || !isValidPhone(form.phone)) return toast.error('Please enter a valid phone number');
+    if (form.email && !isValidEmail(form.email)) return toast.error('Please enter a valid email address');
+    mut.mutate(form);
+  };
+
   return (
     <ModalShell title={isEdit ? 'Edit Customer' : 'Add Customer'} onClose={onClose}>
       <div className="grid grid-cols-2 gap-4">
@@ -138,7 +145,7 @@ function CustomerModal({ customer, outletId, onClose }) {
         </div>
         <div>
           <label className="label">Phone *</label>
-          <input className="input w-full" value={form.phone} onChange={set('phone')} placeholder="+919876543210" required />
+          <input className="input w-full" maxLength={PHONE_MAXLEN} value={form.phone} onChange={set('phone')} placeholder={phonePlaceholder('AU')} required />
         </div>
         <div>
           <label className="label">Email</label>
@@ -178,7 +185,7 @@ function CustomerModal({ customer, outletId, onClose }) {
         <button
           className="btn-primary flex-1"
           disabled={mut.isPending || !form.phone}
-          onClick={() => mut.mutate(form)}
+          onClick={handleSave}
         >
           {mut.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Customer'}
         </button>
