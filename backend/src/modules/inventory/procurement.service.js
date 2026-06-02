@@ -171,11 +171,23 @@ function generatePONumber() {
   return `PO-${yr}${mo}-${rnd}`;
 }
 
+// Resolve a line item's unit rate across the many field-name aliases sent by
+// different UI screens. Picks the first POSITIVE candidate — NOT just the first
+// defined one — because the validation schema injects `unit_price: 0` as a
+// default, which would otherwise shadow the real unit_rate the PO form sends.
+function resolveRate(item) {
+  const candidates = [item.unit_price, item.unit_cost, item.unit_rate, item.rate];
+  const positive = candidates.find((v) => v != null && Number(v) > 0);
+  // Fall back to the first defined value (allows a genuine 0 rate) else 0.
+  const defined = candidates.find((v) => v != null);
+  return Number(positive ?? defined ?? 0);
+}
+
 function calcTotals(items) {
   let subtotal = 0, taxTotal = 0;
   for (const item of items) {
     const qty  = Number(item.quantity ?? item.ordered_quantity ?? 0);
-    const rate = Number(item.unit_price ?? item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
+    const rate = resolveRate(item);
     const tax  = Number(item.tax_rate ?? 0);
     const line = qty * rate;
     subtotal  += line;
@@ -186,7 +198,7 @@ function calcTotals(items) {
 
 function buildPOItemData(item, poId) {
   const qty  = Number(item.ordered_quantity ?? item.quantity ?? 0);
-  const rate = Number(item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
+  const rate = resolveRate(item);
   const tax  = Number(item.tax_rate ?? 0);
   const lineSub = qty * rate;
   const lineTax = lineSub * tax / 100;
@@ -365,7 +377,7 @@ async function createPurchaseOrder(outletId, data, userId) {
       po_items: {
         create: data.items.map(item => {
           const qty  = Number(item.quantity ?? item.ordered_quantity ?? 0);
-          const rate = Number(item.unit_price ?? item.unit_cost ?? item.unit_rate ?? item.rate ?? 0);
+          const rate = resolveRate(item);
           const tax  = Number(item.tax_rate ?? 0);
           const lineSub = qty * rate;
           const lineTax = lineSub * tax / 100;

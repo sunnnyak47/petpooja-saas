@@ -185,7 +185,7 @@ export default function PurchaseOrderPage() {
                     </td>
                     <td className="px-4 py-3">{po.supplier?.name ?? '—'}</td>
                     <td className="px-4 py-3" style={{ color: muted }}>
-                      {po.order_date ? new Date(po.order_date).toLocaleDateString() : '—'}
+                      {(po.order_date || po.created_at) ? new Date(po.order_date || po.created_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-4 py-3">{po._count?.po_items ?? po.po_items?.length ?? 0} items</td>
                     <td className="px-4 py-3 font-semibold">{format(po.grand_total)}</td>
@@ -695,7 +695,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBac
               <StatusBadge status={po.status} />
             </div>
             <p style={{ color: muted }} className="text-sm">
-              {po.order_date ? new Date(po.order_date).toLocaleDateString() : ''}
+              {(po.order_date || po.created_at) ? new Date(po.order_date || po.created_at).toLocaleDateString() : ''}
               {supplier.name ? ` · ${supplier.name}` : ''}
             </p>
           </div>
@@ -743,7 +743,7 @@ function PODetailView({ poId, isDark, card, border, text, muted, bg, isAU, onBac
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span style={{ color: muted }}>Order Date</span>
-                  <span>{po.order_date ? new Date(po.order_date).toLocaleDateString() : '—'}</span>
+                  <span>{(po.order_date || po.created_at) ? new Date(po.order_date || po.created_at).toLocaleDateString() : "—"}</span>
                 </div>
                 {po.delivery_date && (
                   <div className="flex justify-between">
