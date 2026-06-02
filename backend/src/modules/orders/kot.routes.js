@@ -117,6 +117,15 @@ router.post('/tables', authenticate, enforceOutletScope, async (req, res, next) 
   } catch (error) { next(error); }
 });
 
+// Bulk-create multiple tables with different configs in one call.
+router.post('/tables/bulk', authenticate, enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const result = await tableService.bulkCreateTables(outletId, req.body.tables || req.body.rows);
+    sendSuccess(res, result, `${result.created} table(s) created`, 201);
+  } catch (error) { next(error); }
+});
+
 router.delete('/tables/:id', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     await tableService.deleteTable(req.params.id);

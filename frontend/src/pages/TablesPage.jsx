@@ -96,6 +96,10 @@ export default function TablesPage() {
 
   /* ── form state ── */
   const [addForm, setAddForm]   = useState({ table_number: '', capacity: 4, shape: 'square', area_id: '' });
+  const blankRow = () => ({ table_number: '', capacity: 4, shape: 'square', area_id: '' });
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState([blankRow(), blankRow(), blankRow()]);
+  const [bulkGen, setBulkGen]   = useState({ prefix: 'T', start: 1, count: 5, capacity: 4, shape: 'square', area_id: '' });
   const [areaForm, setAreaForm] = useState({ name: '', color: '#e0e7ff' });
   const [editForm, setEditForm] = useState({});
   const [voidPin, setVoidPin]   = useState('');
@@ -148,6 +152,29 @@ export default function TablesPage() {
     },
     onError: (e) => toast.error(e.message || 'Failed to add table'),
   });
+
+  const bulkAddMut = useMutation({
+    mutationFn: (rows) => api.post('/kitchen/tables/bulk', { outlet_id: outletId, tables: rows }),
+    onSuccess: (res) => {
+      toast.success(res?.data?.message || res?.message || 'Tables created');
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      setBulkAddOpen(false);
+      setBulkRows([blankRow(), blankRow(), blankRow()]);
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Failed to add tables'),
+  });
+  // Quick generator: create N sequential rows from a prefix + start number.
+  const generateBulkRows = () => {
+    const start = Number(bulkGen.start) || 1;
+    const count = Math.max(1, Math.min(100, Number(bulkGen.count) || 1));
+    const rows = Array.from({ length: count }, (_, i) => ({
+      table_number: `${bulkGen.prefix || ''}${start + i}`,
+      capacity: Number(bulkGen.capacity) || 4,
+      shape: bulkGen.shape || 'square',
+      area_id: bulkGen.area_id || '',
+    }));
+    setBulkRows(rows);
+  };
 
   const deleteTableMut = useMutation({
     mutationFn: (id) => api.delete(`/kitchen/tables/${id}`),
@@ -478,6 +505,13 @@ export default function TablesPage() {
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; }}>
                 <Plus className="w-3.5 h-3.5" /> Add Table
+              </button>
+              <button onClick={() => setBulkAddOpen(true)}
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; }}>
+                <Layers className="w-3.5 h-3.5" /> Add Multiple
               </button>
               <button onClick={() => { setEditMode(true); setSelected(null); }}
                 className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2">
@@ -1231,6 +1265,80 @@ export default function TablesPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Add Multiple Tables */}
+      <Modal isOpen={bulkAddOpen} onClose={() => setBulkAddOpen(false)} title="Add Multiple Tables" size="xl">
+        <div className="space-y-4">
+          {/* Quick generator */}
+          <div className="rounded-xl p-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-secondary)' }}>Quick generate</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div><label className="block text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>Prefix</label>
+                <input className="input" style={{ width: 70 }} value={bulkGen.prefix} onChange={e => setBulkGen(g => ({ ...g, prefix: e.target.value }))} placeholder="T" /></div>
+              <div><label className="block text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>Start #</label>
+                <input type="number" className="input" style={{ width: 70 }} value={bulkGen.start} onChange={e => setBulkGen(g => ({ ...g, start: e.target.value }))} /></div>
+              <div><label className="block text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>How many</label>
+                <input type="number" min="1" max="100" className="input" style={{ width: 80 }} value={bulkGen.count} onChange={e => setBulkGen(g => ({ ...g, count: e.target.value }))} /></div>
+              <div><label className="block text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>Seats</label>
+                <input type="number" min="1" max="50" className="input" style={{ width: 70 }} value={bulkGen.capacity} onChange={e => setBulkGen(g => ({ ...g, capacity: e.target.value }))} /></div>
+              <div><label className="block text-[11px] mb-1" style={{ color: 'var(--text-secondary)' }}>Shape</label>
+                <select className="input" value={bulkGen.shape} onChange={e => setBulkGen(g => ({ ...g, shape: e.target.value }))}>
+                  {SHAPES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select></div>
+              <button type="button" onClick={generateBulkRows} className="btn-secondary btn-sm">Generate rows</button>
+            </div>
+            <p className="text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>Generate fills the list below — you can still edit each row's config individually.</p>
+          </div>
+
+          {/* Editable rows */}
+          <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+            <div className="flex items-center gap-2 text-[11px] font-semibold px-1" style={{ color: 'var(--text-secondary)' }}>
+              <span style={{ flex: 2 }}>Table number *</span><span style={{ width: 64 }}>Seats</span><span style={{ width: 110 }}>Shape</span>
+              {serverAreas.length > 0 && <span style={{ width: 120 }}>Zone</span>}<span style={{ width: 28 }} />
+            </div>
+            {bulkRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input className="input" style={{ flex: 2 }} placeholder={`e.g. T${i + 1}`} value={row.table_number}
+                  onChange={e => setBulkRows(rs => rs.map((r, j) => j === i ? { ...r, table_number: e.target.value } : r))} />
+                <input type="number" min="1" max="50" className="input" style={{ width: 64 }} value={row.capacity}
+                  onChange={e => setBulkRows(rs => rs.map((r, j) => j === i ? { ...r, capacity: e.target.value } : r))} />
+                <select className="input" style={{ width: 110 }} value={row.shape}
+                  onChange={e => setBulkRows(rs => rs.map((r, j) => j === i ? { ...r, shape: e.target.value } : r))}>
+                  {SHAPES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+                {serverAreas.length > 0 && (
+                  <select className="input" style={{ width: 120 }} value={row.area_id}
+                    onChange={e => setBulkRows(rs => rs.map((r, j) => j === i ? { ...r, area_id: e.target.value } : r))}>
+                    <option value="">No Zone</option>
+                    {serverAreas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                )}
+                <button type="button" onClick={() => setBulkRows(rs => rs.length > 1 ? rs.filter((_, j) => j !== i) : rs)}
+                  className="p-1.5 rounded-md" style={{ color: '#ef4444' }} title="Remove row">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button type="button" onClick={() => setBulkRows(rs => [...rs, blankRow()])} className="btn-ghost text-xs flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Add row
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {bulkRows.filter(r => String(r.table_number).trim()).length} ready
+              </span>
+              <button type="button" onClick={() => setBulkAddOpen(false)} className="btn-ghost">Cancel</button>
+              <button type="button" disabled={bulkAddMut.isPending || bulkRows.every(r => !String(r.table_number).trim())}
+                onClick={() => bulkAddMut.mutate(bulkRows.filter(r => String(r.table_number).trim()).map(r => ({ table_number: r.table_number, capacity: Number(r.capacity) || 4, shape: r.shape, area_id: r.area_id || null })))}
+                className="btn-primary">
+                {bulkAddMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Create Tables'}
+              </button>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       {/* Add Zone */}

@@ -6,7 +6,7 @@
 const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
-const { NotFoundError } = require('../../utils/errors');
+const { NotFoundError, BadRequestError } = require('../../utils/errors');
 
 /**
  * Lists all tables for an outlet with current order status.
@@ -129,6 +129,58 @@ async function updateTableStatus(tableId, status) {
     if (error instanceof NotFoundError) throw error;
     throw error;
   }
+}
+
+/**
+ * Bulk-creates multiple tables in one call, each with its own configuration
+ * (number, capacity, shape, area). Auto-positions each table progressively so
+ * they don't overlap on the floor plan. Skips rows with a blank table_number.
+ * @param {string} outletId
+ * @param {Array<{table_number,capacity,shape,area_id}>} rows
+ * @returns {Promise<{ created: number, tables: object[] }>}
+ */
+async function bulkCreateTables(outletId, rows) {
+  const prisma = getDbClient();
+  const clean = (rows || []).filter((r) => r && String(r.table_number || '').trim() !== '');
+  if (clean.length === 0) throw new BadRequestError('Provide at least one table with a number');
+
+  // Start positioning from the furthest-right existing table.
+  const existing = await prisma.table.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    select: { pos_x: true, pos_y: true },
+    orderBy: { pos_x: 'desc' },
+    take: 1,
+  });
+  let x = existing.length > 0 ? existing[0].pos_x + 100 : 20;
+  const y = existing.length > 0 ? existing[0].pos_y : 20;
+
+  const data = clean.map((r) => {
+    const row = {
+      outlet_id: outletId,
+      table_number: String(r.table_number).trim(),
+      seating_capacity: Number(r.capacity || r.seating_capacity) || 4,
+      area_id: r.area_id || null,
+      status: 'available',
+      pos_x: x,
+      pos_y: y,
+      width: 80,
+      height: 80,
+      shape: r.shape || 'square',
+      rotation: 0,
+    };
+    x += 100; // next table to the right
+    return row;
+  });
+
+  await prisma.table.createMany({ data });
+  const created = await prisma.table.findMany({
+    where: { outlet_id: outletId, table_number: { in: data.map((d) => d.table_number) }, is_deleted: false },
+  });
+
+  const io = getIO();
+  if (io) io.of('/orders').to(`outlet:${outletId}`).emit('tables_changed', { outlet_id: outletId });
+
+  return { created: data.length, tables: created };
 }
 
 /**
@@ -372,6 +424,7 @@ module.exports = {
   updateTable,
   updateTableStatus,
   bulkUpdateTableStatus,
+  bulkCreateTables,
   deleteTable,
   saveFloorPlan,
   listTableAreas,
