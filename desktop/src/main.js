@@ -802,6 +802,17 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
+  // macOS in-place auto-update requires a paid Apple Developer ID signature.
+  // This build is only ad-hoc signed (afterSign.js: `codesign --sign -`), so
+  // Squirrel.Mac refuses to apply a downloaded update on restart — the app
+  // quits but never swaps in the new version, reopening the SAME old build.
+  // To avoid dead-ending Mac users at a "Restart" button that does nothing, we
+  // send them to the releases page to download the new DMG and drag-install.
+  // Windows (NSIS) applies updates fine without signing, so it keeps the real
+  // silent download + quitAndInstall flow below.
+  const isMac = process.platform === 'darwin'
+  const RELEASES_PAGE = 'https://github.com/sunnnyak47/petpooja-saas/releases/latest'
+
   // Force the correct GitHub provider config
   autoUpdater.setFeedURL({
     provider: 'github',
@@ -818,6 +829,32 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     log.info(`[AutoUpdater] Update available: v${info.version}`)
     notifyRenderer('update-status', { status: 'available', version: info.version })
+
+    if (isMac) {
+      // No working silent install on an ad-hoc-signed macOS app — direct the
+      // user to download the DMG and drag-install instead.
+      dialog
+        .showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Update Available',
+          message: `Version ${info.version} is available!`,
+          detail:
+            `You're running v${app.getVersion()}. Click "Download Update" to get the new installer, ` +
+            `then drag "MS-RM System" into Applications (replace the old copy) and reopen it.`,
+          buttons: ['Download Update', 'Later'],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then(({ response }) => {
+          if (response === 0) {
+            log.info('[AutoUpdater] macOS: opening releases page for manual download')
+            shell.openExternal(RELEASES_PAGE)
+          }
+        })
+      return
+    }
+
+    // Windows: real silent download + install.
     dialog
       .showMessageBox(mainWindow, {
         type: 'info',
