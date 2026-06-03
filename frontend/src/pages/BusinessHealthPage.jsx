@@ -93,7 +93,7 @@ export default function BusinessHealthPage() {
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['performance-health', outletId, from, to],
-    queryFn: () => api.get(`/performance/health?from=${from}&to=${to}`).then(r => r.data.data),
+    queryFn: () => api.get(`/performance/health?from=${from}&to=${to}`).then(r => r.data),
     staleTime: 120_000,
   });
 
