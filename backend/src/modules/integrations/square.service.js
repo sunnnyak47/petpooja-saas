@@ -19,8 +19,10 @@ const logger = require('../../config/logger');
 // Pin an API version so Square doesn't silently change response shapes on us.
 const SQUARE_VERSION = '2025-01-23';
 
-// Scopes: payments (online + in-person/Terminal), orders, merchant profile, and
-// device management for the Square Terminal path.
+// Scopes: payments (online + in-person/Terminal), orders, merchant profile,
+// device management for the Terminal path, PLUS read scopes for every Square
+// module we pull into combined analytics (customers, loyalty, gift cards,
+// catalog, inventory, team/labor, invoices, bookings, disputes, cash drawers).
 const SCOPES = [
   'MERCHANT_PROFILE_READ',
   'PAYMENTS_WRITE',
@@ -29,6 +31,19 @@ const SCOPES = [
   'ORDERS_WRITE',
   'ORDERS_READ',
   'DEVICE_CREDENTIAL_MANAGEMENT',
+  // ── read-only analytics scopes ──
+  'ITEMS_READ',
+  'INVENTORY_READ',
+  'CUSTOMERS_READ',
+  'LOYALTY_READ',
+  'GIFTCARDS_READ',
+  'EMPLOYEES_READ',
+  'TIMECARDS_READ',
+  'INVOICES_READ',
+  'APPOINTMENTS_READ',
+  'DISPUTES_READ',
+  'BANK_ACCOUNTS_READ',
+  'CASH_DRAWER_READ',
 ];
 
 // Square OAuth access tokens last ~30 days. Refresh when fewer than 7 days remain.
@@ -300,6 +315,26 @@ async function createTerminalCheckout(outletId, { amount, device_id, order_id, i
   return { checkout_id: c.id, status: c.status, amount: Number(amount), order_id: order_id || null };
 }
 
+// ── Shared API context (used by the analytics pull service) ──────────────────
+/**
+ * Returns an authenticated Square REST context for an outlet — a valid access
+ * token (auto-refreshed), the env-correct API base, location, currency, and the
+ * pinned API version. The single entry point the pull service uses.
+ */
+async function getApiContext(outletId) {
+  const config = await getConfig(outletId);
+  if (!config?.connected) throw new Error('Square is not connected for this outlet');
+  const accessToken = await getValidAccessToken(outletId);
+  return {
+    apiBase: env().apiBase,
+    accessToken,
+    version: SQUARE_VERSION,
+    merchantId: config.merchant_id || null,
+    locationId: config.location_id || null,
+    currency: config.currency || 'AUD',
+  };
+}
+
 // ── Status + disconnect ──────────────────────────────────────────────────────
 async function getConnectionStatus(outletId) {
   const config = await getConfig(outletId);
@@ -338,6 +373,8 @@ module.exports = {
   verifyState,
   exchangeCodeForTokens,
   getValidAccessToken,
+  getApiContext,
+  SQUARE_VERSION,
   createPayment,
   createTerminalCheckout,
   getConnectionStatus,

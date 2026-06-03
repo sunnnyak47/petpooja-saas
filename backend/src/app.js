@@ -210,6 +210,8 @@ app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
 // Payroll — /api/payroll/* ; Fixed assets — /api/assets/*
 app.use('/api/payroll', require('./modules/payroll/payroll.routes'));
 app.use('/api/assets', require('./modules/assets/assets.routes'));
+// Combined performance analytics (Square modules × Xero financials)
+app.use('/api/performance', require('./modules/performance/performance.routes'));
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
@@ -809,6 +811,48 @@ async function startApp() {
       }
     }
     logger.info('Xero tables ensured.');
+    // ─────────────────────────────────────────────────────────────────────
+
+    // ── Square analytics snapshots (one row per outlet per day) ──────────────
+    // Pulled from every Square module (payments, payouts, orders, labor,
+    // customers, loyalty, gift cards, refunds, disputes) and fused with Xero
+    // financials by the performance metric engine. `data` holds the rich detail
+    // (hourly breakdown, top items, payment mix); the columns are the queryable
+    // rollups used for trends/forecasts.
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS square_snapshots (
+          id                   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id            UUID         NOT NULL,
+          snapshot_date        DATE         NOT NULL,
+          environment          VARCHAR(20),
+          payments_count       INTEGER      NOT NULL DEFAULT 0,
+          gross_sales          NUMERIC(14,2) NOT NULL DEFAULT 0,
+          fees                 NUMERIC(14,2) NOT NULL DEFAULT 0,
+          refunds              NUMERIC(14,2) NOT NULL DEFAULT 0,
+          net_sales            NUMERIC(14,2) NOT NULL DEFAULT 0,
+          tips                 NUMERIC(14,2) NOT NULL DEFAULT 0,
+          payout_total         NUMERIC(14,2) NOT NULL DEFAULT 0,
+          disputes_count       INTEGER      NOT NULL DEFAULT 0,
+          disputes_amount      NUMERIC(14,2) NOT NULL DEFAULT 0,
+          labor_hours          NUMERIC(12,2) NOT NULL DEFAULT 0,
+          labor_cost           NUMERIC(14,2) NOT NULL DEFAULT 0,
+          customers_count      INTEGER      NOT NULL DEFAULT 0,
+          loyalty_members      INTEGER      NOT NULL DEFAULT 0,
+          giftcard_outstanding NUMERIC(14,2) NOT NULL DEFAULT 0,
+          data                 JSONB,
+          created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          updated_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+          CONSTRAINT square_snapshots_outlet_date_key UNIQUE (outlet_id, snapshot_date)
+        )
+      `);
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX IF NOT EXISTS square_snapshots_outlet_date_idx ON square_snapshots (outlet_id, snapshot_date DESC)`
+      );
+      logger.info('square_snapshots table ensured.');
+    } catch (e) {
+      logger.warn('square_snapshots create skipped:', { error: e.message.slice(0, 120) });
+    }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
     logger.error('Failed to establish database connection during startup:', err.message);

@@ -137,6 +137,7 @@ const ownerNavAU = [
 
   // ── Analytics: reports, payments, compliance ──
   { section: 'Analytics' },
+  { path: '/business-health',  label: 'Business Health',   icon: HeartPulse,    feature: 'reports', isLive: true },
   { path: '/reports',          label: 'Reports',           icon: BarChart3,     feature: 'reports' },
   { path: '/menu-analytics',   label: 'Menu Analytics',    icon: FlameKindling, feature: 'menu' },
   { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },

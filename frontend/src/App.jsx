@@ -70,6 +70,7 @@ import ChainHealthPage from './pages/ChainHealthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import GSTCompliancePage from './pages/GSTCompliancePage';
 import XeroAnalyticsPage from './pages/XeroAnalyticsPage';
+import BusinessHealthPage from './pages/BusinessHealthPage';
 import AccountingPage from './pages/AccountingPage';
 import PayrollPage from './pages/PayrollPage';
 import FixedAssetsPage from './pages/FixedAssetsPage';
@@ -266,6 +267,7 @@ export default function App() {
         <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="xero-analytics"    element={<XeroAnalyticsPage />} />
+        <Route path="business-health"   element={<BusinessHealthPage />} />
         <Route path="accounting"        element={<AccountingPage />} />
         <Route path="payroll"           element={<PayrollPage />} />
         <Route path="fixed-assets"      element={<FixedAssetsPage />} />
