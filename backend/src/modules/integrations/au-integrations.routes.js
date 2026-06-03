@@ -235,6 +235,40 @@ router.get('/square/status', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Square webhook — Square POSTs event notifications here (NO auth; HMAC-verified).
+// On money-moving events we debounce-refresh that outlet's analytics in near-real-time.
+// Always respond 200 fast so Square doesn't enter a retry storm.
+router.post('/square/webhook', async (req, res) => {
+  try {
+    const signature = req.headers['x-square-hmacsha256-signature'];
+    const ok = squareService.verifyWebhookSignature(signature, req.rawBody || JSON.stringify(req.body || {}));
+    if (!ok) {
+      logger.warn('[Square] webhook rejected — invalid signature');
+      return res.status(403).json({ success: false, message: 'invalid signature' });
+    }
+
+    const event = req.body || {};
+    const type = event.type || '';
+    const merchantId = event.merchant_id || null;
+
+    const RELEVANT = [
+      'payment.created', 'payment.updated',
+      'refund.created', 'refund.updated',
+      'payout.paid', 'payout.sent',
+      'dispute.created', 'dispute.state.updated', 'dispute.state.changed',
+    ];
+    if (RELEVANT.includes(type) && merchantId) {
+      const outletId = await squareService.findOutletByMerchant(merchantId);
+      if (outletId) require('../performance/performance.cron').triggerPull(outletId);
+    }
+    return res.status(200).json({ success: true });
+  } catch (e) {
+    logger.error('[Square] webhook error', { error: e.message });
+    // Swallow with 200 so a transient bug doesn't make Square retry forever.
+    return res.status(200).json({ success: true });
+  }
+});
+
 // Legacy manual-token connect (kept for backward compatibility / direct testing).
 router.post('/square/connect', authenticate, validate(squareConnectSchema), async (req, res, next) => {
   try {

@@ -335,6 +335,50 @@ async function getApiContext(outletId) {
   };
 }
 
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+/** The full public webhook URL Square signs against (must match the dashboard). */
+function webhookUrl() {
+  if (process.env.SQUARE_WEBHOOK_URL) return process.env.SQUARE_WEBHOOK_URL;
+  const redir = process.env.SQUARE_REDIRECT_URL || '';
+  return redir ? redir.replace(/\/oauth\/callback$/, '/webhook') : '';
+}
+
+/**
+ * Verify a Square webhook. Square signs base64(HMAC-SHA256(signatureKey, url + rawBody)).
+ * @param {string} signatureHeader  value of the `x-square-hmacsha256-signature` header
+ * @param {Buffer|string} rawBody   the exact raw request body
+ * @returns {boolean}
+ */
+function verifyWebhookSignature(signatureHeader, rawBody) {
+  const key = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY || '';
+  const url = webhookUrl();
+  if (!key || !url || !signatureHeader) return false;
+  const body = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody || '');
+  const expected = crypto.createHmac('sha256', key).update(url + body).digest('base64');
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(a, b); } catch { return false; }
+}
+
+/** Map a Square merchant_id back to the outlet that connected it (webhook routing). */
+async function findOutletByMerchant(merchantId) {
+  if (!merchantId) return null;
+  try {
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT outlet_id FROM outlet_settings
+       WHERE setting_key LIKE 'au_integration_square_%'
+         AND setting_value::jsonb->>'merchant_id' = $1
+       LIMIT 1`,
+      merchantId,
+    );
+    return rows?.[0]?.outlet_id || null;
+  } catch (e) {
+    logger.warn('[Square] findOutletByMerchant failed', { error: e.message });
+    return null;
+  }
+}
+
 // ── Status + disconnect ──────────────────────────────────────────────────────
 async function getConnectionStatus(outletId) {
   const config = await getConfig(outletId);
@@ -375,6 +419,8 @@ module.exports = {
   getValidAccessToken,
   getApiContext,
   SQUARE_VERSION,
+  verifyWebhookSignature,
+  findOutletByMerchant,
   createPayment,
   createTerminalCheckout,
   getConnectionStatus,

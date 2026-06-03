@@ -64,7 +64,13 @@ app.use(cors({
 /* ------------------------------------------------------------------
    PARSING & COMPRESSION
    ------------------------------------------------------------------ */
-app.use(express.json({ limit: '10mb' }));
+// Capture the raw request body (req.rawBody) so webhook handlers can verify
+// HMAC signatures over the exact bytes Square/other providers signed. The parsed
+// JSON in req.body is still available as normal.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 
@@ -212,6 +218,8 @@ app.use('/api/payroll', require('./modules/payroll/payroll.routes'));
 app.use('/api/assets', require('./modules/assets/assets.routes'));
 // Combined performance analytics (Square modules × Xero financials)
 app.use('/api/performance', require('./modules/performance/performance.routes'));
+// Register the nightly Square auto-pull cron (also exposes the webhook trigger)
+require('./modules/performance/performance.cron');
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
