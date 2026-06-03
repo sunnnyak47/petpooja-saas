@@ -45,16 +45,17 @@ function Card({ children, className = '', style = {} }) {
 
 function StatCard({ label, value, color, icon: Icon, subtext }) {
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{label}</p>
-          <p className="text-2xl font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>{value}</p>
+          <p className="text-xs font-medium mb-1 truncate" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+          {/* Numbers must never truncate — wrap if a card is narrow, never clip to "$.." */}
+          <p className="text-xl font-bold tracking-tight tabular-nums break-words" style={{ color: 'var(--text-primary)' }}>{value}</p>
           {subtext && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{subtext}</p>}
         </div>
         {Icon && (
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}18` }}>
-            <Icon className="w-5 h-5" style={{ color }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}18` }}>
+            <Icon className="w-4 h-4" style={{ color }} />
           </div>
         )}
       </div>
@@ -234,7 +235,7 @@ export default function BusinessHealthPage() {
       {/* ── KPI grid (only when Square connected) ───────────────────────────── */}
       {squareConnected && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="True Net Profit"
               value={fmt(kpis.true_net_profit)}
@@ -264,7 +265,7 @@ export default function BusinessHealthPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Cash Forecast"
               value={fmt(kpis.cash_forecast)}
@@ -395,7 +396,7 @@ export default function BusinessHealthPage() {
             <DollarSign className="w-4 h-4" style={{ color: '#16a34a' }} />
             <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Xero Financials</h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <StatCard label="Revenue" value={fmt(xero.revenue)} color="#16a34a" icon={TrendingUp} />
             <StatCard label="Expenses" value={fmt(xero.expenses)} color="#dc2626" icon={Receipt} />
             <StatCard label="COGS" value={fmt(xero.cogs)} color="#d97706" icon={Receipt} />
