@@ -45,12 +45,22 @@ const squareConnectSchema = Joi.object({
   location_id: Joi.string(),
 });
 
-/** POST /au/square/process-payment */
+/** POST /au/square/process-payment — online card (Web Payments SDK token) */
 const squarePaymentSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
-  amount: Joi.number().min(1).required(),
-  order_id: Joi.string(),
-  source_id: Joi.string(),
+  amount: Joi.number().positive().required(),
+  source_id: Joi.string().required(), // card nonce/token from the Web Payments SDK
+  order_id: Joi.string().allow('', null),
+  idempotency_key: Joi.string().max(45).allow('', null),
+});
+
+/** POST /au/square/terminal-checkout — in-person via a physical Square Terminal */
+const squareTerminalSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  amount: Joi.number().positive().required(),
+  device_id: Joi.string().required(), // paired Square Terminal device id
+  order_id: Joi.string().allow('', null),
+  idempotency_key: Joi.string().max(45).allow('', null),
 });
 
 /** POST /au/myob/connect */
@@ -103,6 +113,7 @@ module.exports = {
   xeroGSTSummarySchema,
   squareConnectSchema,
   squarePaymentSchema,
+  squareTerminalSchema,
   myobConnectSchema,
   myobExportSchema,
   googleReviewsConnectSchema,

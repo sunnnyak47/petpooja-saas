@@ -20,11 +20,8 @@ const INTEGRATIONS_META = {
     description: 'Card & contactless payments — process, reconcile, track fees',
     logo: '🟦',
     color: '#000000',
-    fields: [
-      { key: 'access_token', label: 'Access Token', type: 'password', placeholder: 'Square Access Token' },
-      { key: 'merchant_name', label: 'Merchant Name', type: 'text', placeholder: 'Your Square merchant name' },
-      { key: 'location_id', label: 'Location ID', type: 'text', placeholder: 'Square Location ID' },
-    ],
+    useOAuth: true, // OAuth2 flow — owner connects their own Square account
+    fields: [],
   },
   myob: {
     name: 'MYOB',
@@ -135,6 +132,39 @@ export default function AUIntegrationsPage() {
         .catch(e => toast.error(e?.message || 'Xero callback failed'));
     }
   }, [outletId, qc]);
+
+  // Square OAuth2: get the authorize URL and send the owner there (same window).
+  // Square redirects back to our backend callback, which bounces the browser to
+  // /?square=connected#/au-integrations (handled by the effect below).
+  const squareAuthMut = useMutation({
+    mutationFn: () => api.get('/integrations/au/square/oauth/authorize', { params: { outlet_id: outletId } }).then(r => r.data),
+    onSuccess: (data) => {
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error('Square OAuth not configured on the server');
+      }
+    },
+    onError: e => toast.error(e?.response?.data?.message || 'Failed to start Square connection'),
+  });
+
+  // Handle the Square OAuth return flag (?square=connected|denied|invalid|error).
+  useEffect(() => {
+    const flag = new URLSearchParams(window.location.search).get('square');
+    if (!flag) return;
+    if (flag === 'connected') {
+      toast.success('🟦 Square connected! You can now take card payments.');
+      qc.invalidateQueries({ queryKey: ['au-integrations'] });
+    } else if (flag === 'denied') {
+      toast('Square connection was cancelled', { icon: '⚠️' });
+    } else {
+      toast.error('Square connection failed — please try again');
+    }
+    // Strip the query param but preserve the hash route.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('square');
+    window.history.replaceState({}, '', url.pathname + url.hash);
+  }, [qc]);
 
   const connectMut = useMutation({
     mutationFn: ({ type, data }) => api.post(`/integrations/au/${type.replace('_', '-')}/connect`, { ...data, outlet_id: outletId }),
@@ -347,22 +377,25 @@ export default function AUIntegrationsPage() {
                   ) : (
                     <button
                       onClick={() => {
-                        if (meta.useOAuth) {
-                          // Xero uses OAuth2 — go directly to auth URL
+                        if (type === 'xero') {
                           xeroAuthMut.mutate();
+                        } else if (type === 'square') {
+                          squareAuthMut.mutate();
                         } else {
                           setConnectModal(type);
                           setFormData({});
                         }
                       }}
-                      disabled={meta.useOAuth && xeroAuthMut.isPending}
+                      disabled={(type === 'xero' && xeroAuthMut.isPending) || (type === 'square' && squareAuthMut.isPending)}
                       className="flex-1 py-2 rounded-lg text-xs font-semibold text-white flex items-center justify-center gap-1 disabled:opacity-60"
                       style={{ background: meta.color }}
                     >
                       {meta.useOAuth ? (
                         <>
                           <ExternalLink className="w-3 h-3" />
-                          {xeroAuthMut.isPending ? 'Opening...' : 'Connect with Xero'}
+                          {((type === 'xero' && xeroAuthMut.isPending) || (type === 'square' && squareAuthMut.isPending))
+                            ? 'Opening...'
+                            : `Connect with ${meta.name}`}
                         </>
                       ) : (
                         <>Connect <ArrowRight className="w-3 h-3" /></>

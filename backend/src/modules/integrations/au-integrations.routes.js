@@ -14,6 +14,7 @@ const {
   xeroGSTSummarySchema,
   squareConnectSchema,
   squarePaymentSchema,
+  squareTerminalSchema,
   myobConnectSchema,
   myobExportSchema,
   googleReviewsConnectSchema,
@@ -26,6 +27,7 @@ const logger = require('../../config/logger');
 const prisma = require('../../config/database').getDbClient();
 const xeroService = require('./accounting/xero.service');
 const myobService = require('./accounting/myob.service');
+const squareService = require('./square.service');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function getIntegrationKey(outletId, type) { return `au_integration_${type}_${outletId}`; }
@@ -187,54 +189,90 @@ router.delete('/xero/disconnect', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── SQUARE ────────────────────────────────────────────────────────────────
-router.get('/square/status', authenticate, async (req, res, next) => {
+// ── SQUARE (multi-tenant OAuth + real payments via square.service.js) ───────
+// Each restaurant owner connects their OWN Square account; payments charge to
+// that outlet's account. See square.service.js for the OAuth + Payments logic.
+
+// Start OAuth — frontend opens the returned URL so the owner can authorize.
+router.get('/square/oauth/authorize', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
-    const cfg = await getIntegration(outletId, 'square');
-    sendSuccess(res, {
-      connected: !!cfg?.connected,
-      merchant_name: cfg?.merchant_name || null,
-      location_id: cfg?.location_id || null,
-      last_transaction: cfg?.last_transaction || null,
-      total_processed: cfg?.total_processed || 0,
-    }, 'Square status');
+    if (!squareService.isConfigured()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Square is not configured on the server (missing SQUARE_APPLICATION_ID / SECRET / REDIRECT_URL).',
+      });
+    }
+    const url = squareService.getAuthorizationUrl(outletId);
+    sendSuccess(res, { url }, 'Square authorization URL');
   } catch (e) { next(e); }
 });
 
+// OAuth callback — Square redirects the browser here directly (NO auth middleware,
+// since there's no JWT on a browser redirect). The outlet is recovered from the
+// HMAC-signed `state`. On success we bounce the browser back to the integrations
+// page with a ?square=… flag the frontend reads.
+router.get('/square/oauth/callback', async (req, res) => {
+  const frontend = require('../../config/app').frontendUrl;
+  const back = (flag) => res.redirect(`${frontend}/?square=${flag}#/au-integrations`);
+  try {
+    const { code, state, error } = req.query;
+    if (error) { logger.warn('[Square] OAuth denied by user', { error }); return back('denied'); }
+    const outletId = squareService.verifyState(state);
+    if (!outletId || !code) return back('invalid');
+    await squareService.exchangeCodeForTokens(outletId, code);
+    return back('connected');
+  } catch (e) {
+    logger.error('[Square] OAuth callback error', { error: e.message });
+    return back('error');
+  }
+});
+
+router.get('/square/status', authenticate, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    sendSuccess(res, await squareService.getConnectionStatus(outletId), 'Square status');
+  } catch (e) { next(e); }
+});
+
+// Legacy manual-token connect (kept for backward compatibility / direct testing).
 router.post('/square/connect', authenticate, validate(squareConnectSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { access_token, merchant_name, location_id } = req.body;
     await saveIntegration(outletId, 'square', {
       connected: true, access_token, merchant_name, location_id,
-      connected_at: new Date().toISOString(), total_processed: 0
+      environment: process.env.SQUARE_ENV || 'sandbox',
+      connected_at: new Date().toISOString(), total_processed: 0,
     });
     sendSuccess(res, { connected: true, merchant_name, location_id }, 'Square connected');
   } catch (e) { next(e); }
 });
 
+// Online card payment (Web Payments SDK tokenizes the card → source_id).
 router.post('/square/process-payment', authenticate, validate(squarePaymentSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    const { amount, order_id, source_id } = req.body;
-    // In production: call Square Create Payment API
-    const squarePaymentId = `sq_${Date.now()}_${require('crypto').randomBytes(4).toString('hex')}`;
-    const cfg = await getIntegration(outletId, 'square');
-    await saveIntegration(outletId, 'square', {
-      ...cfg,
-      last_transaction: new Date().toISOString(),
-      total_processed: (cfg?.total_processed || 0) + Number(amount)
-    });
-    sendSuccess(res, { payment_id: squarePaymentId, amount, status: 'COMPLETED', order_id }, 'Payment processed via Square');
+    const { amount, order_id, source_id, idempotency_key } = req.body;
+    const result = await squareService.createPayment(outletId, { amount, order_id, source_id, idempotency_key });
+    sendSuccess(res, result, 'Payment processed via Square');
+  } catch (e) { next(e); }
+});
+
+// In-person payment pushed to a physical Square Terminal/Reader.
+router.post('/square/terminal-checkout', authenticate, validate(squareTerminalSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { amount, device_id, order_id, idempotency_key } = req.body;
+    const result = await squareService.createTerminalCheckout(outletId, { amount, device_id, order_id, idempotency_key });
+    sendSuccess(res, result, 'Terminal checkout started');
   } catch (e) { next(e); }
 });
 
 router.delete('/square/disconnect', authenticate, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    await saveIntegration(outletId, 'square', { connected: false });
-    sendSuccess(res, null, 'Square disconnected');
+    sendSuccess(res, await squareService.disconnect(outletId), 'Square disconnected');
   } catch (e) { next(e); }
 });
 
