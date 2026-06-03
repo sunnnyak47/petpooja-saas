@@ -39,16 +39,27 @@ function triggerPull(outletId) {
   pullOutlet(outletId, 2); // fire and forget — webhook already responded 200
 }
 
-/** Find every outlet with a connected Square integration and refresh it. */
+/**
+ * Nightly refresh of BOTH sides of the analytics: Square snapshots for every
+ * connected outlet, then a Xero re-sync for every Xero-connected outlet.
+ *
+ * Why Xero is refreshed here (daily) and NOT on webhooks: Xero's financials
+ * change slowly and `syncFromXero` is heavy + Xero enforces strict API rate
+ * limits (60/min, 5000/day per org). A once-daily, off-peak resync keeps the
+ * financial side fresh without risking throttling. Payments stay real-time via
+ * the Square webhook.
+ */
 async function nightlyPull() {
   const prisma = getDbClient();
-  let outlets = [];
+
+  // ── Square-connected outlets ──
+  let squareOutlets = [];
   try {
     const rows = await prisma.$queryRawUnsafe(
       `SELECT outlet_id, setting_value FROM outlet_settings
        WHERE setting_key LIKE 'au_integration_square_%'`,
     );
-    outlets = (rows || [])
+    squareOutlets = (rows || [])
       .filter((r) => {
         try {
           const cfg = typeof r.setting_value === 'string' ? JSON.parse(r.setting_value) : r.setting_value;
@@ -57,14 +68,39 @@ async function nightlyPull() {
       })
       .map((r) => r.outlet_id);
   } catch (e) {
-    logger.error('[performance] nightly pull: outlet scan failed', { error: e.message });
-    return;
+    logger.error('[performance] nightly: Square outlet scan failed', { error: e.message });
   }
 
-  logger.info(`[performance] nightly Square pull for ${outlets.length} outlet(s)`);
-  // Sequential to avoid hammering the Square API / rate limits.
-  for (const outletId of outlets) {
+  // ── Xero-connected outlets ──
+  let xeroOutlets = [];
+  try {
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT outlet_id FROM xero_connections WHERE is_connected = true`,
+    );
+    xeroOutlets = (rows || []).map((r) => r.outlet_id);
+  } catch (e) {
+    logger.warn('[performance] nightly: Xero outlet scan failed', { error: e.message });
+  }
+
+  logger.info(`[performance] nightly refresh: ${squareOutlets.length} Square + ${xeroOutlets.length} Xero outlet(s)`);
+
+  // Sequential to avoid hammering either API / rate limits.
+  for (const outletId of squareOutlets) {
     await pullOutlet(outletId, 3);
+  }
+
+  // Lazy-require Xero service so this module loads cheaply at startup.
+  let xeroService = null;
+  try { xeroService = require('../integrations/accounting/xero.service'); } catch (_e) { /* unavailable */ }
+  if (xeroService && typeof xeroService.syncFromXero === 'function') {
+    for (const outletId of xeroOutlets) {
+      try {
+        await xeroService.syncFromXero(outletId);
+        logger.info(`[performance] Xero resync ok for ${outletId}`);
+      } catch (e) {
+        logger.warn(`[performance] Xero resync failed for ${outletId}: ${e.message}`);
+      }
+    }
   }
 }
 
