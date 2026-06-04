@@ -18,6 +18,12 @@
 const square = require('../integrations/square.service');
 const prisma = require('../../config/database').getDbClient();
 const logger = require('../../config/logger');
+const { fetchCatalog } = require('./square.fetch.catalog');
+const { fetchInventory } = require('./square.fetch.inventory');
+const { fetchOrderEconomics } = require('./square.fetch.order-economics');
+const { fetchStaffPerformance } = require('./square.fetch.staff');
+const { fetchCustomerRFM } = require('./square.fetch.rfm');
+const { fetchCashDrawer } = require('./square.fetch.cashdrawer');
 
 // Pagination safety cap — never loop more than this many pages per module.
 const MAX_PAGES = 25;
@@ -353,6 +359,25 @@ async function pullAll(outletId, { days = 30 } = {}) {
     logger.warn('[SquarePull] gift cards unavailable', { error: e.message });
   }
 
+  // ── Phase-2 operations analytics (period-level, fetched once) ──────────────
+  // Each fetcher is fault-tolerant (returns { available:false } on a missing
+  // scope or error) and never throws, so Promise.all is safe.
+  const operations = {};
+  try {
+    const [catalog, inventory, order_economics, staff, rfm, cash_drawer] = await Promise.all([
+      fetchCatalog(ctx),
+      fetchInventory(ctx, locationId),
+      fetchOrderEconomics(ctx, locationId, beginISO, endISO),
+      fetchStaffPerformance(ctx, locationId, beginISO, endISO),
+      fetchCustomerRFM(ctx, beginISO, endISO),
+      fetchCashDrawer(ctx, locationId, beginISO, endISO),
+    ]);
+    Object.assign(operations, { catalog, inventory, order_economics, staff, rfm, cash_drawer });
+  } catch (e) {
+    logger.warn('[SquarePull] operations analytics failed', { error: e.message });
+  }
+  const hasOps = Object.values(operations).some(o => o && o.available);
+
   // Attribute current totals to the latest day's row (creating it if needed).
   const latest = map.size
     ? [...map.keys()].sort().slice(-1)[0]
@@ -363,6 +388,8 @@ async function pullAll(outletId, { days = 30 } = {}) {
     a.loyalty_members = loyaltyMembers;
     a.giftcard_outstanding = giftcardOutstanding;
   }
+  // Ensure a row exists to carry the operations payload even with no payments.
+  if (hasOps && !map.has(latest)) acc(map, latest);
 
   // ── Upsert one row per day ──────────────────────────────────────────────────
   const dates = [...map.keys()].sort();
@@ -391,6 +418,7 @@ async function pullAll(outletId, { days = 30 } = {}) {
       .slice(0, 10);
 
     const dataObj = { payment_mix, hourly, top_items, modules };
+    if (dateStr === latest && hasOps) dataObj.operations = operations;
 
     try {
       await prisma.$executeRawUnsafe(

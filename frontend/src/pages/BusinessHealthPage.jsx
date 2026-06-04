@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import {
   TrendingUp, CreditCard, Wallet, Users, Gift, Receipt, Landmark,
   AlertTriangle, CheckCircle2, RefreshCw, Percent, Clock, Info, ArrowRight,
+  Tag, Package, UserCheck, PieChart, Banknote,
 } from 'lucide-react';
 
 /* ── Formatting helpers ────────────────────────────────────────────────────── */
@@ -156,6 +157,7 @@ export default function BusinessHealthPage() {
   const xero = data?.xero || null;
   const kpis = data?.kpis || {};
   const recon = data?.reconciliation || null;
+  const ops = data?.operations || {};
   const alerts = data?.alerts || [];
   const trends = data?.trends || [];
   const paymentMix = sq.payment_mix || [];
@@ -367,6 +369,228 @@ export default function BusinessHealthPage() {
               )}
             </div>
           </Card>
+
+          {/* ── Order Economics ───────────────────────────────────────────── */}
+          {ops.order_economics?.available && (() => {
+            const oe = ops.order_economics;
+            const channels = oe.channel_mix || [];
+            const dayparts = oe.daypart || [];
+            const chMax = Math.max(...channels.map(x => Number(x.amount || 0)), 1);
+            const dpMax = Math.max(...dayparts.map(x => Number(x.amount || 0)), 1);
+            return (
+              <Card>
+                <SectionHeader title="Order Economics" />
+                <div className="p-5 space-y-6">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      ['Discounts Given', fmt(oe.discounts_total), Tag],
+                      ['Returns / Refunds', fmt(oe.returns_total), Receipt],
+                      ['Orders', num(oe.orders_count), Receipt],
+                    ].map(([label, value, Icon], i) => (
+                      <div key={i} className="rounded-lg border px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                          <Icon className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)', opacity: 0.55 }} />
+                        </div>
+                        <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-secondary)' }}>Sales by Channel</p>
+                      {channels.length === 0 ? (
+                        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-secondary)' }}>No channel data.</p>
+                      ) : (
+                        <div className="space-y-3.5">
+                          {channels.map((c, i) => (
+                            <div key={i}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{c.channel || 'Other'}</span>
+                                <span className="text-[13px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmt(c.amount)} · {num(c.count)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+                                <div className="h-full rounded-full" style={{ width: `${Math.min((Number(c.amount || 0) / chMax) * 100, 100)}%`, background: 'var(--accent)' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-secondary)' }}>Sales by Daypart</p>
+                      {dayparts.length === 0 ? (
+                        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-secondary)' }}>No daypart data.</p>
+                      ) : (
+                        <div className="space-y-3.5">
+                          {dayparts.map((d, i) => (
+                            <div key={i}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{d.part || 'Other'}</span>
+                                <span className="text-[13px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmt(d.amount)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+                                <div className="h-full rounded-full" style={{ width: `${Math.min((Number(d.amount || 0) / dpMax) * 100, 100)}%`, background: 'var(--accent)' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* ── Menu & Inventory ──────────────────────────────────────────── */}
+          {(ops.catalog?.available || ops.inventory?.available) && (() => {
+            const cat = ops.catalog || {};
+            const inv = ops.inventory || {};
+            const lowStock = inv.low_stock || [];
+            const topCategories = cat.top_categories || [];
+            const stats = [];
+            if (cat.available) {
+              stats.push(['Menu Items', num(cat.total_items), Package]);
+              stats.push(['Categories', num(cat.total_categories), Tag]);
+              stats.push(['Modifier Groups', num(cat.total_modifiers), Tag]);
+            }
+            if (inv.available) stats.push(['Out of Stock', num(inv.out_of_stock), AlertTriangle]);
+            return (
+              <Card>
+                <SectionHeader title="Menu & Inventory" />
+                <div className="p-5 space-y-6">
+                  {stats.length > 0 && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {stats.map(([label, value, Icon], i) => (
+                        <div key={i} className="rounded-lg border px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                            <Icon className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)', opacity: 0.55 }} />
+                          </div>
+                          <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight" style={{ color: 'var(--text-primary)' }}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {lowStock.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Low stock</p>
+                        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                          {lowStock.map((s, i) => (
+                            <div key={i} className="flex items-center justify-between py-2.5" style={{ borderColor: 'var(--border)' }}>
+                              <span className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{s.name || 'Item'}</span>
+                              <span className="text-[13px] font-semibold tabular-nums flex-shrink-0" style={{ color: 'var(--text-primary)' }}>{num(s.qty)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {topCategories.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Top categories</p>
+                        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                          {topCategories.map((c, i) => (
+                            <div key={i} className="flex items-center justify-between py-2.5" style={{ borderColor: 'var(--border)' }}>
+                              <span className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{c.name || 'Category'}</span>
+                              <span className="text-[13px] tabular-nums flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{num(c.item_count)} items</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* ── Staff Performance ─────────────────────────────────────────── */}
+          {ops.staff?.available && (() => {
+            const topStaff = ops.staff.top_staff || [];
+            return (
+              <Card>
+                <SectionHeader title="Staff Performance" />
+                <div className="px-5">
+                  {topStaff.length === 0 ? (
+                    <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>No staff sales data.</p>
+                  ) : (
+                    <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                      {topStaff.map((s, i) => (
+                        <div key={i} className="flex items-center gap-3 py-3" style={{ borderColor: 'var(--border)' }}>
+                          <span className="text-xs font-semibold tabular-nums w-4 text-right flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{s.name || 'Staff'}</p>
+                            <p className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>{num(s.orders)} orders · {fmt(s.tips)} tips</p>
+                          </div>
+                          <span className="text-[13px] font-semibold tabular-nums flex-shrink-0" style={{ color: 'var(--text-primary)' }}>{fmt(s.sales)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* ── Customer Segments ─────────────────────────────────────────── */}
+          {ops.rfm?.available && (() => {
+            const segments = ops.rfm.segments || [];
+            return (
+              <Card>
+                <SectionHeader
+                  title="Customer Segments"
+                  right={<span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{num(ops.rfm.total_customers)} customers</span>}
+                />
+                <div className="p-5">
+                  {segments.length === 0 ? (
+                    <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>No segment data.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      {segments.map((s, i) => (
+                        <div key={i} className="rounded-lg border px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--accent)', opacity: 0.6 }} />
+                            <span className="text-[11px] font-medium uppercase tracking-wide truncate" style={{ color: 'var(--text-secondary)' }}>{s.segment || 'Segment'}</span>
+                          </div>
+                          <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight" style={{ color: 'var(--text-primary)' }}>{num(s.count)}</p>
+                          <p className="mt-1 text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>Avg {fmt(s.avg_spend)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* ── Cash Drawer ───────────────────────────────────────────────── */}
+          {ops.cash_drawer?.available && (() => {
+            const cd = ops.cash_drawer;
+            const overShort = Number(cd.over_short || 0);
+            return (
+              <Card>
+                <SectionHeader title="Cash Drawer" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {[
+                    ['Shifts', num(cd.shifts), 'var(--text-primary)'],
+                    ['Expected', fmt(cd.expected_total), 'var(--text-primary)'],
+                    ['Counted', fmt(cd.actual_total), 'var(--text-primary)'],
+                    ['Over / Short', fmt(cd.over_short), overShort >= 0 ? '#16a34a' : '#dc2626'],
+                  ].map(([label, value, color], i) => (
+                    <div key={i} className="px-5 py-4" style={{ borderColor: 'var(--border)' }}>
+                      <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+                      <p className="mt-1.5 text-xl font-semibold tabular-nums tracking-tight" style={{ color }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
         </>
       )}
 

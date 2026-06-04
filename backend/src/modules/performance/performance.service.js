@@ -136,6 +136,7 @@ async function aggregateSquare(outletId, fromStr, toStr) {
     top_items: [],
     hourly: [],
     modules: {},
+    operations: null,
     rows: [],
   };
 
@@ -222,6 +223,12 @@ async function aggregateSquare(outletId, fromStr, toStr) {
       for (const [k, v] of Object.entries(data.modules)) {
         modules[k] = Boolean(modules[k]) || Boolean(v);
       }
+    }
+
+    // operations = period-level payload stored on the latest day's row.
+    // Rows are ASC, so the last one seen (most recent) wins.
+    if (data.operations && typeof data.operations === 'object') {
+      agg.operations = data.operations;
     }
 
     agg.rows.push({
@@ -580,6 +587,7 @@ async function getBusinessHealth(outletId, { from, to } = {}) {
     xero,
     kpis,
     reconciliation,
+    operations: sq.operations || null,
     trends,
     headline,
     alerts: alerts.slice(0, 4),
