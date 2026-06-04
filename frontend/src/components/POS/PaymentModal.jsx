@@ -10,8 +10,32 @@ import {
   CheckCircle2, Loader, Copy, RefreshCw, Shield, X, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import api from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useRegion } from '../../hooks/useRegion';
+
+/* Load the Square Web Payments SDK once (sandbox or production build). */
+function loadSquareWebSdk(environment) {
+  return new Promise((resolve, reject) => {
+    if (window.Square) return resolve(window.Square);
+    const src = environment === 'production'
+      ? 'https://web.squarecdn.com/v1/square.js'
+      : 'https://sandbox.web.squarecdn.com/v1/square.js';
+    let s = document.querySelector(`script[src="${src}"]`);
+    if (s) {
+      s.addEventListener('load', () => resolve(window.Square));
+      s.addEventListener('error', () => reject(new Error('Square SDK failed to load')));
+      if (window.Square) resolve(window.Square);
+      return;
+    }
+    s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve(window.Square);
+    s.onerror = () => reject(new Error('Square SDK failed to load'));
+    document.body.appendChild(s);
+  });
+}
 
 const METHODS_IN = [
   { id: 'cash',  label: 'Cash',       icon: Banknote,            color: '#16a34a' },
@@ -63,6 +87,14 @@ export default function PaymentModal({
   const [upiPaid, setUpiPaid]         = useState(false);
   const [copied, setCopied]           = useState(false);
 
+  // ── Square Web Payments (online card, AU) ──
+  const outletId = useSelector(s => s.auth?.user?.outlet_id);
+  const [squareCfg, setSquareCfg]     = useState(null); // { connected, application_id, location_id, environment }
+  const [sqLoading, setSqLoading]     = useState(false);
+  const [sqError, setSqError]         = useState('');
+  const sqCardRef = useRef(null);
+  const squareReady = isAU && !!squareCfg?.connected && !!squareCfg?.application_id && !!squareCfg?.location_id;
+
   // Load settings from localStorage (set in SettingsPage)
   useEffect(() => {
     try {
@@ -84,6 +116,70 @@ export default function PaymentModal({
       setCopied(false);
     }
   }, [isOpen]);
+
+  // Fetch Square connection status when the modal opens (AU only).
+  useEffect(() => {
+    if (!isOpen || !isAU) return;
+    let cancelled = false;
+    api.get('/integrations/au/square/status', { params: { outlet_id: outletId } })
+      .then(res => res.data)
+      .then(cfg => { if (!cancelled) setSquareCfg(cfg); })
+      .catch(() => { if (!cancelled) setSquareCfg(null); });
+    return () => { cancelled = true; };
+  }, [isOpen, isAU, outletId]);
+
+  // Mount/teardown the Square secure card field when the Card method is active.
+  useEffect(() => {
+    let destroyed = false;
+    async function setup() {
+      if (!isOpen || method !== 'card' || !squareReady) return;
+      setSqError('');
+      setSqLoading(true);
+      try {
+        await loadSquareWebSdk(squareCfg.environment);
+        if (destroyed || !window.Square) return;
+        const payments = window.Square.payments(squareCfg.application_id, squareCfg.location_id);
+        const card = await payments.card();
+        if (destroyed) { try { await card.destroy(); } catch {} return; }
+        await card.attach('#square-card-container');
+        sqCardRef.current = card;
+      } catch (e) {
+        if (!destroyed) setSqError(e?.message || 'Could not load the secure card field');
+      } finally {
+        if (!destroyed) setSqLoading(false);
+      }
+    }
+    setup();
+    return () => {
+      destroyed = true;
+      if (sqCardRef.current) { try { sqCardRef.current.destroy(); } catch {} sqCardRef.current = null; }
+    };
+  }, [isOpen, method, squareReady, squareCfg]);
+
+  // Tokenize the card via Square and charge it through our backend.
+  const handleSquareCard = async () => {
+    if (!sqCardRef.current) return toast.error('Card field is not ready yet');
+    setProcessing(true);
+    try {
+      const result = await sqCardRef.current.tokenize();
+      if (result.status !== 'OK') {
+        throw new Error(result.errors?.[0]?.message || 'Card could not be verified');
+      }
+      const res = await api.post('/integrations/au/square/process-payment', {
+        outlet_id: outletId,
+        amount: effectiveAmount,
+        source_id: result.token,
+        order_id: orderId,
+      }).then(r => r.data);
+      toast.success('Card payment approved ✓');
+      await onSuccess('card', effectiveAmount, res?.payment_id);
+      onClose();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e?.message || 'Square payment failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const effectiveAmount = method === 'part' && partAmount ? Number(partAmount) : amount;
 
@@ -146,6 +242,8 @@ export default function PaymentModal({
     if (method === 'due' && !customer) return toast.error('Attach a customer to record due payment');
     if (method === 'part' && (!partAmount || Number(partAmount) <= 0)) return toast.error('Enter partial amount');
     if (method === 'card' && razorpayEnabled && !isAU) return handleRazorpay();
+    // AU + Square connected → charge the real card via the Web Payments SDK.
+    if (method === 'card' && squareReady) return handleSquareCard();
 
     setProcessing(true);
     try {
@@ -275,15 +373,40 @@ export default function PaymentModal({
             <div className="flex items-center gap-2">
               <CreditCard className="w-5 h-5" style={{ color: '#0ea5e9' }} />
               <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Card Payment</span>
+              {squareReady && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#0ea5e918', color: '#0ea5e9' }}>
+                  Square {squareCfg.environment === 'production' ? 'Live' : 'Sandbox'}
+                </span>
+              )}
             </div>
-            {!isAU && razorpayEnabled && razorpayKey ? (
+
+            {squareReady ? (
+              /* AU + Square connected → real in-browser card field (PCI-safe) */
+              sqError ? (
+                <p className="text-xs" style={{ color: 'var(--danger)' }}>{sqError}</p>
+              ) : (
+                <>
+                  <div id="square-card-container" className="rounded-xl border p-3 bg-white min-h-[52px]" style={{ borderColor: 'var(--border)' }} />
+                  {sqLoading && (
+                    <p className="text-xs flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                      <Loader className="w-3 h-3 animate-spin" /> Loading secure card field…
+                    </p>
+                  )}
+                  <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                    <Shield className="w-3 h-3" /> Encrypted by Square — card details never touch our servers.
+                  </p>
+                </>
+              )
+            ) : !isAU && razorpayEnabled && razorpayKey ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ background: 'color-mix(in srgb, #0ea5e9 8%, transparent)', borderColor: 'color-mix(in srgb, #0ea5e9 25%, transparent)' }}>
                 <Shield className="w-4 h-4 flex-shrink-0" style={{ color: '#0ea5e9' }} />
                 <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Razorpay Checkout will open — supports Card, UPI, NetBanking & Wallets</p>
               </div>
             ) : (
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Manual card swipe.{!isAU && <> Enable Razorpay in <strong>Settings → Payment</strong> for digital checkout.</>}
+                Manual card swipe.
+                {!isAU && <> Enable Razorpay in <strong>Settings → Payment</strong> for digital checkout.</>}
+                {isAU && <> Connect <strong>Square</strong> in Integrations to charge cards here.</>}
               </p>
             )}
           </div>
@@ -344,13 +467,16 @@ export default function PaymentModal({
             processing ||
             (method === 'upi' && !!upiVpa && !upiPaid) ||
             (method === 'part' && (!partAmount || Number(partAmount) <= 0)) ||
-            (method === 'due' && !customer)
+            (method === 'due' && !customer) ||
+            (method === 'card' && squareReady && (sqLoading || !!sqError))
           }
           className="w-full py-4 rounded-xl text-base font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           style={{ background: method === 'due' ? 'var(--danger)' : method === 'upi' ? '#7c3aed' : method === 'eftpos' ? '#7c3aed' : method === 'card' ? '#0ea5e9' : 'var(--success)' }}
         >
           {processing
             ? <><Loader className="w-5 h-5 animate-spin" /> Processing...</>
+            : method === 'card' && squareReady
+            ? <>Pay {format(effectiveAmount)} <ChevronRight className="w-4 h-4" /></>
             : method === 'card' && razorpayEnabled && razorpayKey && !isAU
             ? <>Open Razorpay Checkout <ChevronRight className="w-4 h-4" /></>
             : method === 'upi' && upiVpa && !upiPaid

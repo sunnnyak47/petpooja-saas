@@ -386,6 +386,9 @@ async function getConnectionStatus(outletId) {
     connected: !!config?.connected,
     configured: isConfigured(),
     environment: config?.environment || (env().isProd ? 'production' : 'sandbox'),
+    // Public application id — safe to expose; the Web Payments SDK needs it
+    // client-side to tokenize cards (paired with the outlet's location_id).
+    application_id: env().appId || null,
     merchant_name: config?.merchant_name || null,
     merchant_id: config?.merchant_id || null,
     location_id: config?.location_id || null,
