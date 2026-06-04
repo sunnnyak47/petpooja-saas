@@ -252,10 +252,16 @@ router.post('/square/webhook', async (req, res) => {
     const merchantId = event.merchant_id || null;
 
     const RELEVANT = [
+      // money movement (real-time payments analytics)
       'payment.created', 'payment.updated',
       'refund.created', 'refund.updated',
       'payout.paid', 'payout.sent',
       'dispute.created', 'dispute.state.updated', 'dispute.state.changed',
+      // operations analytics (real-time menu/stock/customer/channel data)
+      'order.created', 'order.updated', 'order.fulfillment.updated',
+      'inventory.count.updated',
+      'customer.created',
+      'loyalty.account.created',
     ];
     if (RELEVANT.includes(type) && merchantId) {
       const outletId = await squareService.findOutletByMerchant(merchantId);
