@@ -28,6 +28,26 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/**
+ * Fire-and-forget ping to wake the (free-tier) backend, which spins down after
+ * ~15 min idle and can take up to ~50s to cold-start. Calling this when the
+ * login screen mounts means the server is usually warm by the time the user
+ * submits credentials — avoiding the "first attempt always times out" problem.
+ * Any HTTP response (even 404) proves the dyno is awake; errors are ignored.
+ */
+export function warmupBackend() {
+  return api.get('/health', { timeout: 60000 }).catch(() => {});
+}
+
+/** True when an axios error looks like a cold-start (timeout / network), not an auth failure. */
+export function isColdStartError(error) {
+  return (
+    error?.code === 'ECONNABORTED' ||
+    /timeout/i.test(error?.message || '') ||
+    (!error?.response && /network/i.test(error?.message || ''))
+  );
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;

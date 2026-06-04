@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, ChefHat, TrendingUp, Activity, Shield, ArrowUpRight } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../lib/api';
+import api, { warmupBackend, isColdStartError } from '../lib/api';
 import { loginSuccess, setLoading } from '../store/slices/authSlice';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -39,6 +39,10 @@ export default function LoginPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Wake the (possibly cold-started) backend as soon as the login page loads,
+  // so it's warm by the time the user submits — fixes "first login always times out".
+  useEffect(() => { warmupBackend(); }, []);
+
   const validateEmail = (val) => {
     if (!val) return 'Email is required.';
     if (!EMAIL_RE.test(val)) return 'Please enter a valid email address.';
@@ -52,8 +56,23 @@ export default function LoginPage() {
     if (!password) return toast.error('Please enter your password.');
     setLoadingState(true);
     dispatch(setLoading(true));
+    // Generous timeout so a cold-starting backend (up to ~50s) doesn't abort.
+    const submit = () => api.post('/auth/login', { login, password }, { timeout: 60000 });
     try {
-      const res = await api.post('/auth/login', { login, password });
+      let res;
+      try {
+        res = await submit();
+      } catch (firstErr) {
+        // If the first attempt died on a cold-start timeout/network blip, the
+        // server is now waking — retry once transparently instead of erroring.
+        if (isColdStartError(firstErr)) {
+          toast.loading('Waking up the server…', { id: 'warm', duration: 4000 });
+          res = await submit();
+          toast.dismiss('warm');
+        } else {
+          throw firstErr;
+        }
+      }
       const payload = res.data?.data || res.data;
       dispatch(loginSuccess(payload));
       localStorage.setItem('accessToken', payload.accessToken);
@@ -61,7 +80,10 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${payload.user?.full_name || payload.user?.email || 'User'}`);
       navigate('/');
     } catch (error) {
-      const msg = error.message || 'Login failed';
+      toast.dismiss('warm');
+      const msg = isColdStartError(error)
+        ? 'Server is waking up — please tap Continue once more.'
+        : (error.message || 'Login failed');
       if (msg.toLowerCase().includes('email') || msg.toLowerCase().includes('user')) {
         setEmailError('No account found with this email address.');
       } else {

@@ -1,0 +1,24 @@
+name: Keep backend warm
+
+# Render's free tier spins the backend down after ~15 min idle, causing a ~50s
+# cold start (and the "first login times out" problem). Pinging /health every
+# ~10 min keeps the dyno awake during active periods.
+#
+# Caveats: GitHub's scheduled runs can be delayed or skipped under load, and
+# schedules are auto-disabled after ~60 days with no repo activity. This is a
+# best-effort keep-warm; the frontend also warms the server on the login screen
+# and retries cold-start timeouts, so login works even if a ping is missed.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          curl -s -m 60 -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
+            https://petpooja-saas.onrender.com/health || true
