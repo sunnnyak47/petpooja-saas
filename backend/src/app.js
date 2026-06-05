@@ -223,10 +223,14 @@ require('./modules/performance/performance.cron');
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
+// DPDP (India) data-rights: consent, data export, erasure
+app.use('/api/privacy', require('./modules/customers/customer.privacy.routes'));
 app.use('/api/staff', staffRoutes);
 const eodRoutes = require('./modules/reports/eod.routes');
 app.use('/api/reports/eod', eodRoutes);
 app.use('/api/reports', reportsRoutes);
+// India GST returns (GSTR-1, GSTR-3B) export
+app.use('/api/gst', require('./modules/reports/gstr.routes'));
 app.use('/api/integrations', integrationRoutes);
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
@@ -860,6 +864,17 @@ async function startApp() {
       logger.info('square_snapshots table ensured.');
     } catch (e) {
       logger.warn('square_snapshots create skipped:', { error: e.message.slice(0, 120) });
+    }
+
+    // ── DPDP (India) consent columns on customers ────────────────────────────
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT false`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS consent_at TIMESTAMPTZ`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS consent_source VARCHAR(50)`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS anonymised_at TIMESTAMPTZ`);
+      logger.info('customers DPDP consent columns ensured.');
+    } catch (e) {
+      logger.warn('customers DPDP columns skipped:', { error: e.message.slice(0, 120) });
     }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {
