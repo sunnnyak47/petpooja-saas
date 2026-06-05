@@ -72,6 +72,9 @@ jobs:
       - name: Apply schema to test database
         run: npx prisma db push --skip-generate --accept-data-loss
 
+      - name: Seed reference data (roles, etc.)
+        run: npm run prisma:seed
+
       # Report-only for now — flip `continue-on-error` to false once the
       # remaining pre-existing lint errors are cleaned up.
       - name: Lint
