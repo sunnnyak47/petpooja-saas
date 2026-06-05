@@ -12,6 +12,7 @@ import {
   Search, Phone, Crown, Plus, Gift, Trash2, Loader2, Eye,
   ShoppingBag, Calendar, User, Send, Star, Cake, Mail,
   Heart, TrendingUp, AlertTriangle, CheckCircle2, X,
+  Download, ShieldOff,
 } from 'lucide-react';
 
 const SEGMENT_STYLES = {
@@ -31,6 +32,7 @@ const EMPTY_FORM = {
   full_name: '', phone: '', email: '', gender: '',
   date_of_birth: '', anniversary: '',
   dietary_preference: '', notes: '',
+  marketing_consent: false,
 };
 
 // Upcoming birthday check (within 7 days)
@@ -58,6 +60,8 @@ export default function CustomersPage() {
   const [isAddOpen, setIsAddOpen]         = useState(false);
   const [isEditOpen, setIsEditOpen]       = useState(false);
   const [isDeleteOpen, setIsDeleteOpen]   = useState(false);
+  const [isEraseOpen, setIsEraseOpen]     = useState(false);
+  const [isExporting, setIsExporting]     = useState(false);
   const [isDetailOpen, setIsDetailOpen]   = useState(false);
   const [isCampaignOpen, setCampaignOpen] = useState(false);
   const [selectedCustomer, setSelected]   = useState(null);
@@ -84,10 +88,25 @@ export default function CustomersPage() {
     enabled: isCampaignOpen,
   });
 
+  // ── DPDP consent persistence ─────────────────────────────────
+  // The /customers create/update schema strips unknown fields, so marketing
+  // consent is recorded via the dedicated privacy endpoint once we have an id.
+  async function persistConsent(id, consent) {
+    if (!id) return;
+    try {
+      await api.patch(`/privacy/customers/${id}/consent`, { marketing_consent: !!consent, source: 'pos' });
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to save marketing consent');
+    }
+  }
+
   // ── Mutations ────────────────────────────────────────────────
   const addMut = useMutation({
     mutationFn: d => api.post('/customers', d),
-    onSuccess: () => {
+    onSuccess: async (res, vars) => {
+      const newId = res?.data?.id || res?.id;
+      // New customers default to no consent server-side; only call when opted in.
+      if (vars?.marketing_consent) await persistConsent(newId, true);
       toast.success('Customer added & linked to loyalty program');
       qc.invalidateQueries({ queryKey: ['customers'] });
       setIsAddOpen(false);
@@ -98,7 +117,8 @@ export default function CustomersPage() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => api.patch(`/customers/${id}`, data),
-    onSuccess: () => {
+    onSuccess: async (res, vars) => {
+      await persistConsent(vars?.id, vars?.data?.marketing_consent);
       toast.success('Customer updated');
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customerDetail'] });
@@ -106,6 +126,43 @@ export default function CustomersPage() {
     },
     onError: e => toast.error(e.response?.data?.message || 'Failed'),
   });
+
+  const eraseMut = useMutation({
+    mutationFn: id => api.post(`/privacy/customers/${id}/erase`),
+    onSuccess: () => {
+      toast.success('Customer personal data erased (DPDP)');
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['customerDetail'] });
+      setIsEraseOpen(false);
+      setIsDetailOpen(false);
+      setIsEditOpen(false);
+    },
+    onError: e => toast.error(e.response?.data?.message || e.message || 'Failed to erase customer'),
+  });
+
+  // ── DPDP data export (right to access / portability) ─────────
+  async function exportCustomerData(c) {
+    if (!c?.id) return;
+    setIsExporting(true);
+    try {
+      const res = await api.get(`/privacy/customers/${c.id}/export`);
+      const bundle = res?.data ?? res;
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `customer_${c.id}_data.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Customer data exported');
+    } catch (e) {
+      toast.error(e.response?.data?.message || e.message || 'Failed to export data');
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   const deleteMut = useMutation({
     mutationFn: id => api.delete(`/customers/${id}`),
@@ -141,6 +198,7 @@ export default function CustomersPage() {
       date_of_birth: c.date_of_birth ? c.date_of_birth.slice(0, 10) : '',
       anniversary: c.anniversary ? c.anniversary.slice(0, 10) : '',
       dietary_preference: c.dietary_preference || '', notes: c.notes || '',
+      marketing_consent: !!c.marketing_consent,
     });
     setIsEditOpen(true);
   }
@@ -261,6 +319,8 @@ export default function CustomersPage() {
                         <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openDetail(c)} className="p-1.5 text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-colors" title="View"><Eye className="w-4 h-4" /></button>
                           <button onClick={() => openEdit(c)} className="p-1.5 text-surface-500 hover:text-white hover:bg-surface-700 rounded-lg transition-colors" title="Edit"><User className="w-4 h-4" /></button>
+                          <button onClick={() => exportCustomerData(c)} disabled={isExporting} className="p-1.5 text-surface-500 hover:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-colors disabled:opacity-50" title="Export data (DPDP)"><Download className="w-4 h-4" /></button>
+                          <button onClick={() => { setSelected(c); setIsEraseOpen(true); }} className="p-1.5 text-surface-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors" title="Erase personal data (DPDP)"><ShieldOff className="w-4 h-4" /></button>
                           <button onClick={() => { setSelected(c); setIsDeleteOpen(true); }} className="p-1.5 text-surface-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
@@ -291,6 +351,10 @@ export default function CustomersPage() {
           loading={updateMut.isPending}
           onCancel={() => setIsEditOpen(false)}
           submitLabel="Save Changes"
+          customer={selectedCustomer}
+          onExport={() => exportCustomerData(selectedCustomer)}
+          onErase={() => setIsEraseOpen(true)}
+          exporting={isExporting}
         />
       </Modal>
 
@@ -491,12 +555,23 @@ export default function CustomersPage() {
         message={`Delete "${selectedCustomer?.full_name || selectedCustomer?.phone}"? This cannot be undone.`}
         isLoading={deleteMut.isPending}
       />
+
+      {/* Erase Confirm (DPDP right to erasure) */}
+      <ConfirmDialog
+        isOpen={isEraseOpen}
+        onClose={() => setIsEraseOpen(false)}
+        onConfirm={() => eraseMut.mutate(selectedCustomer?.id)}
+        title="Erase Personal Data (DPDP)"
+        message="This permanently anonymises the customer's personal data and cannot be undone. Order history is retained for tax law."
+        confirmText="Erase Data"
+        isLoading={eraseMut.isPending}
+      />
     </div>
   );
 }
 
 // ── Reusable customer form ──────────────────────────────────────
-function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, submitLabel }) {
+function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, submitLabel, customer, onExport, onErase, exporting }) {
   const region = useRegion();
   const isAU = region === 'AU';
   const set = (key) => e => setFormData(f => ({ ...f, [key]: e.target.value }));
@@ -567,6 +642,46 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
         <label className="label">Notes / Preferences</label>
         <textarea className="input w-full h-16 text-sm py-2 resize-none" placeholder="Allergies, preferences, special notes…" value={formData.notes} onChange={set('notes')} />
       </div>
+
+      {/* ── Marketing consent (India DPDP Act 2023) ── */}
+      <div className="rounded-xl p-3" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 w-4 h-4 flex-shrink-0 accent-current"
+            style={{ accentColor: 'var(--accent)' }}
+            checked={!!formData.marketing_consent}
+            onChange={e => setFormData(f => ({ ...f, marketing_consent: e.target.checked }))}
+          />
+          <span className="flex-1">
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Marketing consent (WhatsApp/SMS)</span>
+            <span className="block text-[10px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>Required under DPDP Act 2023 to send marketing messages.</span>
+          </span>
+        </label>
+      </div>
+
+      {/* ── Data & Privacy actions (existing customer only, DPDP) ── */}
+      {customer?.id && (onExport || onErase) && (
+        <div className="rounded-xl p-3 space-y-2" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
+          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Data &amp; Privacy</p>
+          <div className="flex gap-2 flex-wrap">
+            {onExport && (
+              <button type="button" onClick={onExport} disabled={exporting} className="btn-surface gap-2 text-sm flex-1 disabled:opacity-50">
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {exporting ? 'Exporting…' : 'Export data'}
+              </button>
+            )}
+            {onErase && (
+              <button type="button" onClick={onErase} className="gap-2 text-sm flex-1 px-4 py-2.5 rounded-xl font-medium transition-all flex items-center justify-center"
+                style={{ background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)', border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)' }}>
+                <ShieldOff className="w-4 h-4" /> Erase (DPDP)
+              </button>
+            )}
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Export delivers the customer&apos;s data as JSON. Erase permanently anonymises personal data (order history is retained for tax law).</p>
+        </div>
+      )}
+
       <div className="flex gap-3 pt-2 border-t border-surface-700/50">
         <button type="button" onClick={onCancel} className="btn-surface flex-1">Cancel</button>
         <button type="submit" disabled={loading} className="btn-primary flex-1 gap-2">

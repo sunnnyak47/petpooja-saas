@@ -90,6 +90,7 @@ const ownerNav = [
   { path: '/fixed-assets',     label: 'Fixed Assets',     icon: Landmark, feature: 'reports' },
   { path: '/budgets',          label: 'Budgets',          icon: Landmark, feature: 'reports' },
   { path: '/customer-invoices',label: 'Invoices',         icon: FileText, feature: 'reports' },
+  { path: '/gst-returns',      label: 'GST Returns',      icon: Receipt, feature: 'reports', region: 'IN' },
   { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu' },
   { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
@@ -108,6 +109,7 @@ const ownerNav = [
   { path: '/staff-management', label: 'Staff Management', icon: IdCard,       feature: 'staff' },
   { path: '/fraud',          label: 'Fraud Detection', icon: ShieldAlert, feature: 'fraud' },
   { path: '/audit-log',     label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
+  { path: '/privacy-policy', label: 'Privacy & DPDP', icon: Shield },
   { path: '/subscription',  label: 'Subscription',    icon: Star },
   { path: '/settings',      label: 'Settings',        icon: Settings },
 ];

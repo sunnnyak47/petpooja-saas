@@ -231,6 +231,8 @@ app.use('/api/reports/eod', eodRoutes);
 app.use('/api/reports', reportsRoutes);
 // India GST returns (GSTR-1, GSTR-3B) export
 app.use('/api/gst', require('./modules/reports/gstr.routes'));
+// India GSTN e-invoicing (IRN) for B2B customer invoices
+app.use('/api/einvoice', require('./modules/accounting/einvoice.routes'));
 app.use('/api/integrations', integrationRoutes);
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
@@ -875,6 +877,20 @@ async function startApp() {
       logger.info('customers DPDP consent columns ensured.');
     } catch (e) {
       logger.warn('customers DPDP columns skipped:', { error: e.message.slice(0, 120) });
+    }
+
+    // ── B2B buyer + e-invoicing (IRN) columns on customer_invoices ───────────
+    try {
+      for (const col of [
+        'buyer_gstin VARCHAR(20)', 'buyer_state VARCHAR(100)', 'place_of_supply VARCHAR(50)',
+        'einvoice_irn VARCHAR(80)', 'einvoice_ack_no VARCHAR(40)', 'einvoice_ack_date TIMESTAMPTZ',
+        'einvoice_qr TEXT', 'einvoice_status VARCHAR(20)',
+      ]) {
+        await prisma.$executeRawUnsafe(`ALTER TABLE customer_invoices ADD COLUMN IF NOT EXISTS ${col}`);
+      }
+      logger.info('customer_invoices e-invoice columns ensured.');
+    } catch (e) {
+      logger.warn('customer_invoices e-invoice columns skipped:', { error: e.message.slice(0, 120) });
     }
     // ─────────────────────────────────────────────────────────────────────
   } catch (err) {

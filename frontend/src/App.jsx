@@ -69,6 +69,8 @@ import ReservationsPage from './pages/ReservationsPage';
 import ChainHealthPage from './pages/ChainHealthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import GSTCompliancePage from './pages/GSTCompliancePage';
+import GstReturnsPage from './pages/GstReturnsPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import XeroAnalyticsPage from './pages/XeroAnalyticsPage';
 import BusinessHealthPage from './pages/BusinessHealthPage';
 import AccountingPage from './pages/AccountingPage';
@@ -246,6 +248,8 @@ export default function App() {
         <Route path="qr-codes"        element={<FeatureGate feature="qr_codes"><QRCodesPage /></FeatureGate>} />
         <Route path="qr-orders"       element={<FeatureGate feature="qr_orders"><TableQROrdersPage /></FeatureGate>} />
         <Route path="gst-compliance"  element={<ProtectedRoute><GSTCompliancePage /></ProtectedRoute>} />
+        <Route path="gst-returns"     element={<ProtectedRoute><GstReturnsPage /></ProtectedRoute>} />
+        <Route path="privacy-policy"  element={<ProtectedRoute><PrivacyPolicyPage /></ProtectedRoute>} />
 
         {/* The "Super Root" — guarded by RoleGuard for super_admin only */}
         <Route path="super-admin" element={<RoleGuard allowed={['super_admin']}><SuperAdminPage /></RoleGuard>} />
