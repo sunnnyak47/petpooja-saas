@@ -136,19 +136,23 @@ router.post('/razorpay/verify', authenticate, validate(verifyRazorpayPaymentSche
 });
 
 /** POST /api/integrations/razorpay/webhook — Razorpay webhook */
-router.post('/razorpay/webhook', webhookLimiter, async (req, res, next) => {
+router.post('/razorpay/webhook', webhookLimiter, async (req, res) => {
   try {
     const signature = req.headers['x-razorpay-signature'] || '';
-    const rawBody = JSON.stringify(req.body);
+    // Verify against the EXACT raw bytes Razorpay signed (captured by the
+    // express.json verify hook), not a re-serialised body.
+    const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
     const isValid = paymentService.verifyRazorpayWebhook(signature, rawBody);
 
     if (!isValid) {
+      logger.warn('Razorpay webhook rejected — invalid signature');
       return res.status(401).json({ success: false, message: 'Invalid signature' });
     }
 
-    const event = req.body;
-    logger.info('Razorpay webhook received', { event: event.event });
-
+    // Act on the event (capture/fail/refund → update Payment + order). Never let
+    // a processing error make Razorpay retry forever — always 200.
+    const result = await require('./razorpay.webhook.service').processEvent(req.body || {});
+    logger.info('Razorpay webhook processed', { event: req.body?.event, handled: result?.handled });
     res.status(200).json({ success: true });
   } catch (error) {
     logger.error('Razorpay webhook failed', { error: error.message });

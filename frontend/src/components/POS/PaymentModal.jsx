@@ -195,17 +195,46 @@ export default function PaymentModal({
     });
   };
 
-  /* ── Razorpay handler ── */
+  /* ── Razorpay handler (secure: server-created order + server-side signature verify) ── */
   const handleRazorpay = async () => {
-    if (!razorpayKey) return toast.error('Add Razorpay Key ID in Settings → Payment');
     setProcessing(true);
+
+    // 1) Load the Razorpay checkout SDK.
     const loaded = await loadRazorpay();
     if (!loaded) { setProcessing(false); return toast.error('Razorpay failed to load. Check internet.'); }
 
+    // 2) Create the order SERVER-SIDE. The server returns the publishable key,
+    //    the Razorpay order id, the amount (paise) and currency. Never trust a
+    //    client-only amount checkout — the order id ties the payment to the server.
+    let order;
+    try {
+      order = await api.post('/integrations/razorpay/create-order', {
+        amount: effectiveAmount,
+        order_id: orderId,
+        customer_name: customer?.full_name,
+        customer_phone: customer?.phone,
+      }).then(r => r.data);
+    } catch (e) {
+      toast.error(e?.message || 'Could not start Razorpay payment');
+      setProcessing(false);
+      return;
+    }
+
+    if (!order || (!order.id && !order.key)) {
+      toast.error('Could not start Razorpay payment');
+      setProcessing(false);
+      return;
+    }
+
+    // Mock mode = backend has no real keys → test key, no real signature to verify.
+    const isMock = !!order.mock || order.key === 'rzp_test_mock' || String(order.id || '').startsWith('order_mock_');
+
+    // 3) Build options from the SERVER response (key + order_id are authoritative).
     const options = {
-      key: razorpayKey,
-      amount: Math.round(effectiveAmount * 100),
-      currency: 'INR',
+      key: order.key || razorpayKey,
+      amount: order.amount || Math.round(effectiveAmount * 100),
+      currency: order.currency || 'INR',
+      order_id: order.id,
       name: merchantName,
       description: `Order #${orderNumber || orderId}`,
       prefill: {
@@ -214,20 +243,39 @@ export default function PaymentModal({
         contact: customer?.phone    || '',
       },
       theme: { color: '#2563eb' },
-      handler: (response) => {
-        toast.success(`Payment captured: ${response.razorpay_payment_id}`);
-        onSuccess('card', effectiveAmount, response.razorpay_payment_id);
-        onClose();
+      // 4) On checkout success, VERIFY the signature server-side BEFORE completing.
+      handler: async (response) => {
+        try {
+          const res = await api.post('/integrations/razorpay/verify', {
+            razorpay_order_id:   response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature:  response.razorpay_signature,
+          });
+          // Accept server-verified signature, or mock mode (no real signature exists).
+          if (res?.data?.verified || isMock) {
+            toast.success(`Payment captured: ${response.razorpay_payment_id}`);
+            await onSuccess('card', effectiveAmount, response.razorpay_payment_id);
+            onClose();
+          } else {
+            toast.error('Payment verification failed');
+            setProcessing(false);
+          }
+        } catch (e) {
+          // Verify failed (bad signature → 400, or network) → do NOT complete the order.
+          toast.error(e?.message || 'Payment verification failed');
+          setProcessing(false);
+        }
       },
       modal: {
         ondismiss: () => setProcessing(false),
       },
     };
 
+    // 5) Open checkout; handle gateway-side failures.
     try {
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', (r) => {
-        toast.error('Razorpay payment failed: ' + r.error.description);
+        toast.error('Razorpay payment failed: ' + (r?.error?.description || 'unknown error'));
         setProcessing(false);
       });
       rzp.open();

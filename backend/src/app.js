@@ -234,6 +234,8 @@ app.use('/api/gst', require('./modules/reports/gstr.routes'));
 // India GSTN e-invoicing (IRN) for B2B customer invoices
 app.use('/api/einvoice', require('./modules/accounting/einvoice.routes'));
 app.use('/api/integrations', integrationRoutes);
+// Payment reconciliation (gateway/recorded payments vs orders)
+app.use('/api/payment-reconciliation', require('./modules/integrations/payment.reconciliation.routes'));
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
 app.use('/api/ho', headofficeRoutes);
