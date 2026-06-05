@@ -7,7 +7,7 @@
  */
 
 const {
-  superadminService, prisma, MOCK_STATS,
+  superadminService, prisma, MOCK_STATS, logger,
 } = require('./_shared');
 
 Object.assign(superadminService, {
@@ -147,7 +147,7 @@ Object.assign(superadminService, {
           const keys = await redis.keys('session:*');
           activeSessions = keys.length;
         }
-      } catch (e) { console.warn('Redis session count failed:', e.message); }
+      } catch (e) { logger.warn('Redis session count failed', { error: e.message }); }
 
       return {
         stats: {
@@ -174,7 +174,7 @@ Object.assign(superadminService, {
         }
       };
     } catch (error) {
-      console.error('Dashboard Stats Error:', error.message);
+      logger.error('Dashboard Stats Error', { error: error.message });
       return MOCK_STATS;
     }
   },
@@ -344,7 +344,7 @@ Object.assign(superadminService, {
         })),
       };
     } catch (error) {
-      console.error('getGlobalLiveStats Error:', error.message);
+      logger.error('getGlobalLiveStats Error', { error: error.message });
       return { today: { orders: 0, revenue: 0 }, this_month: { orders: 0 }, active_chains: 0, top_chains_this_month: [], recent_orders: [] };
     }
   },

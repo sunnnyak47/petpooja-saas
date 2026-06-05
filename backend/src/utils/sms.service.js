@@ -24,10 +24,10 @@ async function sendSms(phone, message) {
   if (!AUTH_KEY) {
     // Mock mode — log to console for local dev / staging
     logger.info('📱 MOCK SMS SENT:', { to: phone, message });
-    console.log(`\n================================================`);
-    console.log(`📱  SMS TO: ${phone}`);
-    console.log(`💬  MESSAGE: ${message}`);
-    console.log(`================================================\n`);
+    logger.info(`\n================================================`);
+    logger.info(`📱  SMS TO: ${phone}`);
+    logger.info(`💬  MESSAGE: ${message}`);
+    logger.info(`================================================\n`);
     return;
   }
 

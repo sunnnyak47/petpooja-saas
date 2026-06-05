@@ -28,7 +28,7 @@ Object.assign(superadminService, {
         }
       });
     } catch (dbError) {
-      console.warn('DB unreachable during superadmin login:', dbError.message);
+      logger.warn('DB unreachable during superadmin login', { error: dbError.message });
       throw new UnauthorizedError('Service temporarily unavailable. Try again.');
     }
 
@@ -106,7 +106,7 @@ Object.assign(superadminService, {
 
       return { chains, total, page: Number(page), limit: Number(limit) };
     } catch (error) {
-      console.error('listChains Error:', error.message);
+      logger.error('listChains Error', { error: error.message });
       return { chains: [], total: 0, page: 1, limit: 20 };
     }
   },
@@ -200,7 +200,7 @@ Object.assign(superadminService, {
     });
 
     if (existingUser) {
-      console.warn(`[ONBOARD] Conflict: User already exists with email ${contact_email} or phone ${contact_phone}`);
+      logger.warn(`[ONBOARD] Conflict: User already exists with email ${contact_email} or phone ${contact_phone}`);
       throw new ConflictError('Owner Email or Phone already registered');
     }
 

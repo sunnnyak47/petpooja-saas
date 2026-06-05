@@ -175,8 +175,8 @@ router.post('/xero/sync-full', authenticate, async (req, res, next) => {
     const outletId = req.user.outlet_id;
     // Start in background — sync takes 10–30s; respond immediately so the UI doesn't timeout
     xeroService.syncFromXero(outletId)
-      .then(r => console.info(`[Xero] Manual sync done ${outletId}:`, r))
-      .catch(e => console.error(`[Xero] Manual sync error ${outletId}:`, e.message));
+      .then(r => logger.info(`[Xero] Manual sync done ${outletId}`, { result: r }))
+      .catch(e => logger.error(`[Xero] Manual sync error ${outletId}`, { error: e.message }));
     sendSuccess(res, { syncing: true }, 'Xero sync started — data will appear in ~30 seconds');
   } catch (err) { next(err); }
 });

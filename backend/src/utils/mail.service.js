@@ -108,13 +108,13 @@ async function sendMail({ to, subject, html, text }) {
 
   // Console-only fallback
   if (!transporter) {
-    console.log('\n' + '─'.repeat(72));
-    console.log(`📧  EMAIL (console-only — no SMTP configured)`);
-    console.log(`To:      ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log('─'.repeat(72));
-    console.log((text || html || '').slice(0, 1200));
-    console.log('─'.repeat(72) + '\n');
+    logger.info('\n' + '─'.repeat(72));
+    logger.info(`📧  EMAIL (console-only — no SMTP configured)`);
+    logger.info(`To:      ${to}`);
+    logger.info(`Subject: ${subject}`);
+    logger.info('─'.repeat(72));
+    logger.info((text || html || '').slice(0, 1200));
+    logger.info('─'.repeat(72) + '\n');
     return { transport: 'console', previewUrl: null };
   }
 
@@ -126,11 +126,11 @@ async function sendMail({ to, subject, html, text }) {
   });
 
   if (previewUrl) {
-    console.log('\n' + '─'.repeat(72));
-    console.log(`📧  EMAIL PREVIEW (Ethereal): ${previewUrl}`);
-    console.log(`    To:      ${to}`);
-    console.log(`    Subject: ${subject}`);
-    console.log('─'.repeat(72) + '\n');
+    logger.info('\n' + '─'.repeat(72));
+    logger.info(`📧  EMAIL PREVIEW (Ethereal): ${previewUrl}`);
+    logger.info(`    To:      ${to}`);
+    logger.info(`    Subject: ${subject}`);
+    logger.info('─'.repeat(72) + '\n');
   }
 
   return { transport: transportKind, messageId: info.messageId, previewUrl };

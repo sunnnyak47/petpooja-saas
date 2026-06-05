@@ -5,8 +5,33 @@
 
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
-const { round2, classifyPaymentMethod, getDateRange, validOrderWhere } = require('./report-helpers');
+const {
+  round2, classifyPaymentMethod, getDateRange, validOrderWhere,
+  DEFAULT_TZ, safeTz, dayKeyInTz, hourInTz, weekdayInTz,
+} = require('./report-helpers');
 const { cached, getPersisted, setPersisted } = require('../../utils/reportCache');
+
+/**
+ * Resolve the bucketing timezone for an outlet's reports.
+ * Prefers the Outlet.timezone column (schema default "Asia/Kolkata"); falls back
+ * to DEFAULT_TZ (REPORT_TZ env or Asia/Kolkata) on any lookup failure so reports
+ * never break on a missing/unseeded outlet. Result is validated via safeTz.
+ * @param {object} prisma - Prisma client.
+ * @param {string} outletId
+ * @param {string} [tz] - Explicit override; if provided, skips the DB lookup.
+ * @returns {Promise<string>} A safe IANA timezone name.
+ */
+async function resolveOutletTz(prisma, outletId, tz) {
+  if (tz) return safeTz(tz);
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId }, select: { timezone: true },
+    });
+    return safeTz(outlet?.timezone);
+  } catch (_) {
+    return DEFAULT_TZ;
+  }
+}
 
 /** Cache TTLs (seconds) tuned per report volatility. */
 const TTL = {
@@ -19,12 +44,15 @@ const TTL = {
  * Generates a daily sales summary for an outlet.
  * @param {string} outletId - Outlet UUID
  * @param {string} date - Date string (YYYY-MM-DD)
+ * @param {string} [tz] - Optional IANA timezone for day boundaries (defaults to the
+ *   outlet's timezone, then DEFAULT_TZ). The `date` is interpreted as a local day.
  * @returns {Promise<object>} Daily sales summary
  */
-async function getDailySales(outletId, date) {
+async function getDailySales(outletId, date, tz) {
   const prisma = getDbClient();
   try {
-    const { start, end } = getDateRange(date, date);
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
+    const { start, end } = getDateRange(date, date, outletTz);
     const baseWhere = {
       outlet_id: outletId,
       is_deleted: false,
@@ -307,20 +335,21 @@ async function getDashboard(outletId) {
  * Gets hourly revenue breakdown for a date.
  * @param {string} outletId - Outlet UUID
  * @param {string} date - Date string
+ * @param {string} [tz] - Optional IANA timezone (defaults to the outlet's timezone,
+ *   then DEFAULT_TZ). Both the day window and the hour buckets use this zone.
  * @returns {Promise<object[]>}
  */
-async function getHourlyBreakdown(outletId, date) {
+async function getHourlyBreakdown(outletId, date, tz) {
   const prisma = getDbClient();
   try {
-    const { start, end } = getDateRange(date, date);
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
+    const { start, end } = getDateRange(date, date, outletTz);
 
-    return await cached(`hourly:${outletId}:${date}`, TTL.SHORT, async () => {
-      // NOTE: hour buckets use the server-local clock to mirror the original
-      // `new Date().getHours()` behaviour. We only select created_at + grand_total
-      // (no nested includes), so the payload stays small; bucketing in JS keeps the
-      // hour-of-day identical to the legacy output regardless of the DB session tz.
-      // TODO(reports-tz): switch to SQL EXTRACT(HOUR FROM created_at AT TIME ZONE
-      // <outlet_tz>) once getDateRange honours the outlet timezone.
+    return await cached(`hourly:${outletId}:${date}:${outletTz}`, TTL.SHORT, async () => {
+      // Hour buckets are computed in the outlet timezone (`outletTz`) so an order at
+      // 00:15 IST lands in hour 0 of the correct local day, not shifted by the
+      // server/UTC clock. We select only created_at + grand_total (no nested
+      // includes) and bucket in JS via hourInTz, which is DST-aware.
       const orders = await prisma.order.findMany({
         where: {
           outlet_id: outletId, is_deleted: false,
@@ -335,7 +364,8 @@ async function getHourlyBreakdown(outletId, date) {
       }));
 
       for (const order of orders) {
-        const hour = new Date(order.created_at).getHours();
+        const hour = hourInTz(order.created_at, outletTz);
+        if (hour === null) continue; // skip rows with invalid timestamps
         hourly[hour].orders++;
         hourly[hour].revenue += Number(order.grand_total);
       }
@@ -386,20 +416,23 @@ async function getCategoryWiseSales(outletId, from, to) {
   } catch(e) { throw e; }
 }
 
-async function getGstReport(outletId, from, to) {
+async function getGstReport(outletId, from, to, tz) {
   const prisma = getDbClient();
   try {
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
     const fromDate = from ? new Date(from) : new Date();
     if(!from) fromDate.setHours(0,0,0,0);
     const toDate = to ? new Date(to) : new Date();
     if(!to) toDate.setDate(toDate.getDate() + 1);
 
-    return await cached(`gst-report:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
-      // Aggregate subtotal/total_tax per UTC calendar day directly in Postgres.
-      // The legacy code keyed on created_at.toISOString().split('T')[0] (UTC date),
-      // so we bucket with `AT TIME ZONE 'UTC'` to reproduce identical day keys.
+    return await cached(`gst-report:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.MEDIUM, async () => {
+      // Aggregate subtotal/total_tax per LOCAL calendar day directly in Postgres.
+      // created_at is timestamptz; `AT TIME ZONE 'UTC' AT TIME ZONE $tz` yields the
+      // outlet's local wall-clock time, so day keys match the outlet's day cut-offs
+      // (e.g. IST midnight) rather than UTC. tz is bound as a parameter (no string
+      // interpolation) and resolveOutletTz/safeTz validate it.
       const rows = await prisma.$queryRaw`
-        SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS date,
+        SELECT to_char((created_at AT TIME ZONE 'UTC' AT TIME ZONE ${outletTz})::date, 'YYYY-MM-DD') AS date,
                COALESCE(SUM(subtotal), 0)  AS taxable,
                COALESCE(SUM(total_tax), 0) AS total_tax
         FROM orders
@@ -509,15 +542,16 @@ async function getTopSellingItems(outletId, limit = 5) {
  * @param {string} from
  * @param {string} to
  */
-async function getGstDetailedReport(outletId, from, to) {
+async function getGstDetailedReport(outletId, from, to, tz) {
   const prisma = getDbClient();
   try {
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
     const fromDate = from ? new Date(from) : new Date();
     if (!from) fromDate.setHours(0, 0, 0, 0);
     const toDate = to ? new Date(to) : new Date();
     if (to) toDate.setHours(23, 59, 59, 999);
 
-    return await cached(`gst-detailed:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.LONG, async () => {
+    return await cached(`gst-detailed:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.LONG, async () => {
     const orders = await prisma.order.findMany({
       where: {
         outlet_id: outletId,
@@ -550,7 +584,10 @@ async function getGstDetailedReport(outletId, from, to) {
     let totalTaxable = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0, totalTax = 0;
 
     for (const order of orders) {
-      const dateStr = order.created_at.toISOString().split('T')[0];
+      // Bucket on the outlet-local day (was UTC via toISOString) so the daily
+      // register matches the outlet's calendar day cut-offs.
+      const dateStr = dayKeyInTz(order.created_at, outletTz);
+      if (!dateStr) continue; // skip invalid timestamps
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = { date: dateStr, order_count: 0, gross_revenue: 0, discount: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total_tax: 0, grand_total: 0 };
       }
@@ -681,8 +718,8 @@ async function getGstDetailedReport(outletId, from, to) {
 /**
  * Generate GST export CSV (GSTR-1, GSTR-3B summary, HSN, rate-wise).
  */
-async function exportGstCsv(outletId, from, to, type = 'gstr1') {
-  const data = await getGstDetailedReport(outletId, from, to);
+async function exportGstCsv(outletId, from, to, type = 'gstr1', tz) {
+  const data = await getGstDetailedReport(outletId, from, to, tz);
 
   let csv = '';
   const fmt = (n) => Number(n || 0).toFixed(2);
@@ -845,14 +882,15 @@ async function getInventoryValuation(outletId) {
  * @param {string} from
  * @param {string} to
  */
-async function getRevenueTrendRange(outletId, from, to) {
+async function getRevenueTrendRange(outletId, from, to, tz) {
   const prisma = getDbClient();
+  const outletTz = await resolveOutletTz(prisma, outletId, tz);
   const fromDate = new Date(from);
   fromDate.setHours(0, 0, 0, 0);
   const toDate = new Date(to);
   toDate.setHours(23, 59, 59, 999);
 
-  return await cached(`revenue-trend-range:${outletId}:${from}:${to}`, TTL.SHORT, async () => {
+  return await cached(`revenue-trend-range:${outletId}:${from}:${to}:${outletTz}`, TTL.SHORT, async () => {
     const orders = await prisma.order.findMany({
       where: { outlet_id: outletId, is_deleted: false, is_paid: true, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } },
       select: { grand_total: true, created_at: true, order_type: true },
@@ -860,7 +898,9 @@ async function getRevenueTrendRange(outletId, from, to) {
 
     const dailyMap = {};
     for (const order of orders) {
-      const day = order.created_at.toISOString().split('T')[0];
+      // Outlet-local day key (was UTC via toISOString).
+      const day = dayKeyInTz(order.created_at, outletTz);
+      if (!day) continue; // skip invalid timestamps
       if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, orders: 0 };
       dailyMap[day].revenue += Number(order.grand_total);
       dailyMap[day].orders++;
@@ -948,11 +988,14 @@ async function getBASReport(outletId, from, to) {
  * category breakdown, P&L statement, and daily revenue trend.
  * @param {string} outletId
  * @param {string} range - 'today' | 'week' | 'month' | 'quarter'
+ * @param {string} [tz] - Optional IANA timezone (defaults to the outlet's timezone,
+ *   then DEFAULT_TZ). Used for the heatmap and daily-revenue day/hour buckets.
  */
-async function getAdvancedReport(outletId, range = 'week') {
+async function getAdvancedReport(outletId, range = 'week', tz) {
   const prisma = getDbClient();
   try {
-    return await cached(`advanced:${outletId}:${range}`, TTL.LONG, async () => {
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
+    return await cached(`advanced:${outletId}:${range}:${outletTz}`, TTL.LONG, async () => {
     const round2 = (n) => Math.round(n * 100) / 100;
 
     // Compute date range from the range parameter
@@ -1021,9 +1064,11 @@ async function getAdvancedReport(outletId, range = 'week') {
     const heatmap = [];
     const heatmapGrid = {};
     for (const order of orders) {
-      const d = new Date(order.created_at);
-      const hour = d.getHours();
-      const day = d.getDay(); // 0=Sun, 6=Sat
+      // Hour-of-day and weekday in the outlet timezone (was server-local
+      // getHours()/getDay()), so the heatmap isn't shifted for non-UTC markets.
+      const hour = hourInTz(order.created_at, outletTz);
+      const day = weekdayInTz(order.created_at, outletTz); // 0=Sun, 6=Sat
+      if (hour === null || day === null) continue; // skip invalid timestamps
       const key = `${hour}-${day}`;
       heatmapGrid[key] = (heatmapGrid[key] || 0) + 1;
     }
@@ -1128,17 +1173,20 @@ async function getAdvancedReport(outletId, range = 'week') {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dailyMap = {};
 
-    // Initialize last 7 days
+    // Initialize last 7 days, keyed + labelled in the outlet timezone so the keys
+    // line up with the order day-keys below (was UTC toISOString + local getDay()).
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      dailyMap[key] = { day: dayNames[d.getDay()], v: 0 };
+      const key = dayKeyInTz(d, outletTz);
+      if (!key) continue;
+      const wd = weekdayInTz(d, outletTz);
+      dailyMap[key] = { day: wd === null ? '' : dayNames[wd], v: 0 };
     }
 
     for (const order of orders) {
-      const key = new Date(order.created_at).toISOString().split('T')[0];
-      if (dailyMap[key]) {
+      const key = dayKeyInTz(order.created_at, outletTz);
+      if (key && dailyMap[key]) {
         dailyMap[key].v += Number(order.grand_total || 0);
       }
     }

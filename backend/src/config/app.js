@@ -4,6 +4,8 @@
  * @module config/app
  */
 
+const logger = require('./logger');
+
 const appConfig = {
   /** Application name */
   name: process.env.APP_NAME || 'MS-RM System',
@@ -30,7 +32,7 @@ const appConfig = {
     secret: (() => {
       const s = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
       if (!s && process.env.NODE_ENV === 'production') {
-        console.error('FATAL: JWT_ACCESS_SECRET or JWT_SECRET must be set in production');
+        logger.error('FATAL: JWT_ACCESS_SECRET or JWT_SECRET must be set in production');
         process.exit(1);
       }
       return s || 'dev_only_secret_' + require('crypto').randomBytes(16).toString('hex');
@@ -38,7 +40,7 @@ const appConfig = {
     refreshSecret: (() => {
       const s = process.env.JWT_REFRESH_SECRET;
       if (!s && process.env.NODE_ENV === 'production') {
-        console.error('FATAL: JWT_REFRESH_SECRET must be set in production');
+        logger.error('FATAL: JWT_REFRESH_SECRET must be set in production');
         process.exit(1);
       }
       return s || 'dev_only_refresh_' + require('crypto').randomBytes(16).toString('hex');

@@ -942,11 +942,16 @@ async function startApp() {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  server.listen(appConfig.port, () => {
-    logger.info(`🚀 ${appConfig.name} API running on port ${appConfig.port} [${appConfig.env}]`);
-    logger.info(`   Health: http://localhost:${appConfig.port}/health`);
-    logger.info(`   API:    http://localhost:${appConfig.port}/api`);
-  });
+  // Don't bind a port under test — supertest drives the exported `app` directly.
+  // Binding on import caused EADDRINUSE and broke test isolation when multiple
+  // suites required this module.
+  if (process.env.NODE_ENV !== 'test') {
+    server.listen(appConfig.port, () => {
+      logger.info(`🚀 ${appConfig.name} API running on port ${appConfig.port} [${appConfig.env}]`);
+      logger.info(`   Health: http://localhost:${appConfig.port}/health`);
+      logger.info(`   API:    http://localhost:${appConfig.port}/api`);
+    });
+  }
 }
 
 startApp();

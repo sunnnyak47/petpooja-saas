@@ -302,10 +302,12 @@ describe('Inventory Module', () => {
     });
   });
 
-  describe('GET /api/inventory/suppliers — supplier list', () => {
+  describe('GET /api/suppliers — supplier list', () => {
     test('returns 401 without token', async () => {
       if (!app) return;
-      const res = await request(app).get('/api/inventory/suppliers');
+      // Suppliers are owned by the procurement module at /api/suppliers
+      // (the old /api/inventory/suppliers duplicate was removed).
+      const res = await request(app).get('/api/suppliers');
       expect(res.status).toBe(401);
     });
 

@@ -6,6 +6,8 @@
 const { getDbClient } = require('../../../config/database');
 const logger = require('../../../config/logger');
 
+const prisma = getDbClient();
+
 /**
  * Generates Tally XML Header and Envelope.
  * @param {string} body - The TallyMessage body.
