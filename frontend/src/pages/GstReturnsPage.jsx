@@ -181,7 +181,11 @@ export default function GstReturnsPage() {
           />
         </div>
         {data?.period && (
-          <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{data.period}</span>
+          <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+            {typeof data.period === 'string'
+              ? data.period
+              : `${data.period.from ?? ''} – ${data.period.to ?? ''}`}
+          </span>
         )}
       </div>
 
