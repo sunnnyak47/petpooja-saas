@@ -17,23 +17,21 @@ const { parsePagination } = require('../../utils/helpers');
  */
 async function listInventoryItems(outletId, query = {}) {
   const prisma = getDbClient();
-  try {
-    const { page, limit, offset } = parsePagination(query);
-    const where = { outlet_id: outletId, is_deleted: false };
-    if (query.category) where.category = query.category;
-    if (query.search) where.name = { contains: query.search, mode: 'insensitive' };
-    if (query.is_active !== undefined) where.is_active = query.is_active === 'true';
+  const { page, limit, offset } = parsePagination(query);
+  const where = { outlet_id: outletId, is_deleted: false };
+  if (query.category) where.category = query.category;
+  if (query.search) where.name = { contains: query.search, mode: 'insensitive' };
+  if (query.is_active !== undefined) where.is_active = query.is_active === 'true';
 
-    const [items, total] = await Promise.all([
-      prisma.inventoryItem.findMany({
-        where, skip: offset, take: limit,
-        orderBy: { name: 'asc' },
-      }),
-      prisma.inventoryItem.count({ where }),
-    ]);
+  const [items, total] = await Promise.all([
+    prisma.inventoryItem.findMany({
+      where, skip: offset, take: limit,
+      orderBy: { name: 'asc' },
+    }),
+    prisma.inventoryItem.count({ where }),
+  ]);
 
-    return { items, total, page, limit };
-  } catch (error) { throw error; }
+  return { items, total, page, limit };
 }
 
 /**
@@ -44,24 +42,22 @@ async function listInventoryItems(outletId, query = {}) {
  */
 async function createInventoryItem(outletId, data) {
   const prisma = getDbClient();
-  try {
-    return await prisma.inventoryItem.create({
-      data: {
-        outlet_id: outletId,
-        name: data.name,
-        sku: data.sku || null,
-        category: data.category,
-        unit: data.unit,
-        cost_per_unit: Number(data.cost_per_unit) || 0,
-        min_threshold: Number(data.min_threshold) || 0,
-        max_threshold: Number(data.max_threshold) || 0,
-        auto_order_enabled: data.auto_order_enabled ?? false,
-        reorder_qty: data.reorder_qty ? Number(data.reorder_qty) : null,
-        preferred_supplier_id: data.preferred_supplier_id || null,
-        is_active: data.is_active ?? true,
-      },
-    });
-  } catch (error) { throw error; }
+  return await prisma.inventoryItem.create({
+    data: {
+      outlet_id: outletId,
+      name: data.name,
+      sku: data.sku || null,
+      category: data.category,
+      unit: data.unit,
+      cost_per_unit: Number(data.cost_per_unit) || 0,
+      min_threshold: Number(data.min_threshold) || 0,
+      max_threshold: Number(data.max_threshold) || 0,
+      auto_order_enabled: data.auto_order_enabled ?? false,
+      reorder_qty: data.reorder_qty ? Number(data.reorder_qty) : null,
+      preferred_supplier_id: data.preferred_supplier_id || null,
+      is_active: data.is_active ?? true,
+    },
+  });
 }
 
 /**
@@ -73,29 +69,27 @@ async function createInventoryItem(outletId, data) {
  */
 async function updateInventoryItem(id, data, outletId) {
   const prisma = getDbClient();
-  try {
-    // Verify item belongs to the requesting outlet before updating
-    const existing = await prisma.inventoryItem.findFirst({
-      where: { id, outlet_id: outletId, is_deleted: false },
-    });
-    if (!existing) throw new NotFoundError('Inventory item not found');
+  // Verify item belongs to the requesting outlet before updating
+  const existing = await prisma.inventoryItem.findFirst({
+    where: { id, outlet_id: outletId, is_deleted: false },
+  });
+  if (!existing) throw new NotFoundError('Inventory item not found');
 
-    const updateData = {
-      name: data.name,
-      category: data.category,
-      unit: data.unit,
-      cost_per_unit: data.cost_per_unit !== undefined ? Number(data.cost_per_unit) : undefined,
-      min_threshold: data.min_threshold !== undefined ? Number(data.min_threshold) : undefined,
-      max_threshold: data.max_threshold !== undefined ? Number(data.max_threshold) : undefined,
-      is_active: data.is_active,
-      auto_order_enabled: data.auto_order_enabled,
-      reorder_qty: data.reorder_qty !== undefined ? Number(data.reorder_qty) : undefined,
-      preferred_supplier_id: data.preferred_supplier_id || null,
-    };
-    // Remove undefined keys
-    Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
-    return await prisma.inventoryItem.update({ where: { id }, data: updateData });
-  } catch (error) { throw error; }
+  const updateData = {
+    name: data.name,
+    category: data.category,
+    unit: data.unit,
+    cost_per_unit: data.cost_per_unit !== undefined ? Number(data.cost_per_unit) : undefined,
+    min_threshold: data.min_threshold !== undefined ? Number(data.min_threshold) : undefined,
+    max_threshold: data.max_threshold !== undefined ? Number(data.max_threshold) : undefined,
+    is_active: data.is_active,
+    auto_order_enabled: data.auto_order_enabled,
+    reorder_qty: data.reorder_qty !== undefined ? Number(data.reorder_qty) : undefined,
+    preferred_supplier_id: data.preferred_supplier_id || null,
+  };
+  // Remove undefined keys
+  Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+  return await prisma.inventoryItem.update({ where: { id }, data: updateData });
 }
 
 /**
@@ -106,18 +100,16 @@ async function updateInventoryItem(id, data, outletId) {
  */
 async function deleteInventoryItem(id, outletId) {
   const prisma = getDbClient();
-  try {
-    // Verify item belongs to the requesting outlet before deleting
-    const existing = await prisma.inventoryItem.findFirst({
-      where: { id, outlet_id: outletId, is_deleted: false },
-    });
-    if (!existing) throw new NotFoundError('Inventory item not found');
+  // Verify item belongs to the requesting outlet before deleting
+  const existing = await prisma.inventoryItem.findFirst({
+    where: { id, outlet_id: outletId, is_deleted: false },
+  });
+  if (!existing) throw new NotFoundError('Inventory item not found');
 
-    return await prisma.inventoryItem.update({
-      where: { id },
-      data: { is_deleted: true },
-    });
-  } catch (error) { throw error; }
+  return await prisma.inventoryItem.update({
+    where: { id },
+    data: { is_deleted: true },
+  });
 }
 
 /**
@@ -422,15 +414,13 @@ async function getLowStock(outletId) {
  */
 async function getWastageLogs(outletId, query = {}) {
   const prisma = getDbClient();
-  try {
-    const { offset, limit } = parsePagination(query);
-    return await prisma.wastageLog.findMany({
-      where: { outlet_id: outletId, is_deleted: false },
-      include: { inventory_item: true },
-      orderBy: { created_at: 'desc' },
-      skip: offset, take: limit
-    });
-  } catch (e) { throw e; }
+  const { offset, limit } = parsePagination(query);
+  return await prisma.wastageLog.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    include: { inventory_item: true },
+    orderBy: { created_at: 'desc' },
+    skip: offset, take: limit
+  });
 }
 
 /**
@@ -438,31 +428,29 @@ async function getWastageLogs(outletId, query = {}) {
  */
 async function getConsumptionReport(outletId, from, to) {
   const prisma = getDbClient();
-  try {
-    const fromDate = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const toDate = to ? new Date(to) : new Date();
+  const fromDate = from ? new Date(from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const toDate = to ? new Date(to) : new Date();
 
-    const txns = await prisma.stockTransaction.groupBy({
-      by: ['inventory_item_id'],
-      where: { 
-        outlet_id: outletId, 
-        transaction_type: 'consumption',
-        created_at: { gte: fromDate, lte: toDate }
-      },
-      _sum: { quantity: true }
-    });
+  const txns = await prisma.stockTransaction.groupBy({
+    by: ['inventory_item_id'],
+    where: { 
+      outlet_id: outletId, 
+      transaction_type: 'consumption',
+      created_at: { gte: fromDate, lte: toDate }
+    },
+    _sum: { quantity: true }
+  });
 
-    const items = await prisma.inventoryItem.findMany({
-      where: { id: { in: txns.map(t => t.inventory_item_id) } },
-      select: { id: true, name: true, unit: true }
-    });
+  const items = await prisma.inventoryItem.findMany({
+    where: { id: { in: txns.map(t => t.inventory_item_id) } },
+    select: { id: true, name: true, unit: true }
+  });
 
-    return txns.map(t => ({
-      name: items.find(i => i.id === t.inventory_item_id)?.name || 'Unknown',
-      quantity: Math.abs(Number(t._sum.quantity || 0)),
-      unit: items.find(i => i.id === t.inventory_item_id)?.unit
-    })).sort((a,b)=>b.quantity - a.quantity).slice(0, 5);
-  } catch (e) { throw e; }
+  return txns.map(t => ({
+    name: items.find(i => i.id === t.inventory_item_id)?.name || 'Unknown',
+    quantity: Math.abs(Number(t._sum.quantity || 0)),
+    unit: items.find(i => i.id === t.inventory_item_id)?.unit
+  })).sort((a,b)=>b.quantity - a.quantity).slice(0, 5);
 }
 
 /**

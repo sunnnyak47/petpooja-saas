@@ -75,11 +75,10 @@ jobs:
       - name: Seed reference data (roles, etc.)
         run: npm run prisma:seed
 
-      # Report-only for now — flip `continue-on-error` to false once the
-      # remaining pre-existing lint errors are cleaned up.
+      # Blocking: the source is lint-clean (0 errors). Warnings are allowed;
+      # any new error fails the build.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run test suite
         run: npm test

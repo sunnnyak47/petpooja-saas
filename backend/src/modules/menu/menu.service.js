@@ -391,11 +391,7 @@ async function updateVariant(variantId, data) {
  */
 async function deleteVariant(variantId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.itemVariant.update({ where: { id: variantId }, data: { is_deleted: true } });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.itemVariant.update({ where: { id: variantId }, data: { is_deleted: true } });
 }
 
 /* ============================
@@ -424,14 +420,10 @@ async function createAddonGroup(data) {
  */
 async function listAddonGroups(outletId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.addonGroup.findMany({
-      where: { outlet_id: outletId, is_deleted: false },
-      include: { addons: { where: { is_deleted: false } } },
-    });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.addonGroup.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    include: { addons: { where: { is_deleted: false } } },
+  });
 }
 
 /**
@@ -457,11 +449,7 @@ async function createAddon(data) {
  */
 async function updateAddon(addonId, data) {
   const prisma = getDbClient();
-  try {
-    return await prisma.itemAddon.update({ where: { id: addonId }, data });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.itemAddon.update({ where: { id: addonId }, data });
 }
 
 /**
@@ -471,11 +459,7 @@ async function updateAddon(addonId, data) {
  */
 async function deleteAddon(addonId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.itemAddon.update({ where: { id: addonId }, data: { is_deleted: true } });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.itemAddon.update({ where: { id: addonId }, data: { is_deleted: true } });
 }
 
 /* ============================
@@ -581,14 +565,10 @@ async function createSchedule(menuItemId, data) {
  */
 async function deleteSchedule(scheduleId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.menuSchedule.update({
-      where: { id: scheduleId },
-      data: { is_deleted: true },
-    });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.menuSchedule.update({
+    where: { id: scheduleId },
+    data: { is_deleted: true },
+  });
 }
 
 /* ============================
@@ -629,14 +609,10 @@ async function createCombo(data) {
  */
 async function listCombos(outletId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.itemCombo.findMany({
-      where: { outlet_id: outletId, is_deleted: false },
-      include: { combo_items: { include: { menu_item: true } } },
-    });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.itemCombo.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    include: { combo_items: { include: { menu_item: true } } },
+  });
 }
 
 /**

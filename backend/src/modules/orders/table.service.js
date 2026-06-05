@@ -288,15 +288,11 @@ async function saveFloorPlan(outletId, tables, areas) {
  */
 async function listTableAreas(outletId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.tableArea.findMany({
-      where: { outlet_id: outletId, is_deleted: false },
-      orderBy: { display_order: 'asc' },
-      include: { _count: { select: { tables: { where: { is_deleted: false } } } } },
-    });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.tableArea.findMany({
+    where: { outlet_id: outletId, is_deleted: false },
+    orderBy: { display_order: 'asc' },
+    include: { _count: { select: { tables: { where: { is_deleted: false } } } } },
+  });
 }
 
 /**

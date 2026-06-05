@@ -283,7 +283,7 @@ function parseAndSanitiseGeminiResponse(rawText, ctx = {}) {
       // Skip bare dietary / size markers — these are columns, not items.
       if (ITEM_NAME_BLOCKLIST.has(normalisedKey)) { droppedItems++; continue; }
       // Skip names that are only numbers / punctuation.
-      if (!/[a-zA-Zऀ-ॿ一-鿿]/.test(name)) { droppedItems++; continue; }
+      if (!/[ऀ-ॿa-zA-Z一-鿿]/.test(name)) { droppedItems++; continue; }
       // Dedupe within the same category.
       if (seenNames.has(normalisedKey)) { droppedItems++; continue; }
       seenNames.add(normalisedKey);
@@ -795,7 +795,7 @@ async function parseMenuFromUrl(url, opts = {}) {
         visitedPages.push({ url: r.value.url, chars: t.length, ok: false });
         continue;
       }
-      const title = (r.value.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [, ''])[1];
+      const title = (r.value.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || ['', ''])[1];
       combinedText += `\n\n────────\n[Source: ${r.value.url}]\n[Page title: ${stripHtml(title)}]\n\n${t}`;
       visitedPages.push({ url: r.value.url, chars: t.length, ok: true });
     }

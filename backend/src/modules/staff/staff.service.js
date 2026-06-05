@@ -167,75 +167,65 @@ async function upsertStaffProfile(userId, outletId, data) {
 
 async function listCertifications(userId, outletId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffCertification.findMany({
-      where: { staff_id: userId, outlet_id: outletId, is_active: true },
-      orderBy: { expiry_date: 'asc' },
-    });
-  } catch (error) { throw error; }
+  return await prisma.staffCertification.findMany({
+    where: { staff_id: userId, outlet_id: outletId, is_active: true },
+    orderBy: { expiry_date: 'asc' },
+  });
 }
 
 async function addCertification(userId, outletId, data) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffCertification.create({
-      data: {
-        staff_id: userId,
-        outlet_id: outletId,
-        cert_type: data.cert_type,
-        provider: data.provider,
-        issue_date: new Date(data.issue_date),
-        expiry_date: new Date(data.expiry_date),
-        cert_number: data.cert_number,
-      },
-    });
-  } catch (error) { throw error; }
+  return await prisma.staffCertification.create({
+    data: {
+      staff_id: userId,
+      outlet_id: outletId,
+      cert_type: data.cert_type,
+      provider: data.provider,
+      issue_date: new Date(data.issue_date),
+      expiry_date: new Date(data.expiry_date),
+      cert_number: data.cert_number,
+    },
+  });
 }
 
 async function deleteCertification(certId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffCertification.update({
-      where: { id: certId },
-      data: { is_active: false },
-    });
-  } catch (error) { throw error; }
+  return await prisma.staffCertification.update({
+    where: { id: certId },
+    data: { is_active: false },
+  });
 }
 
 async function getAvailability(userId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffAvailability.findMany({
-      where: { staff_id: userId },
-      orderBy: { day_of_week: 'asc' },
-    });
-  } catch (error) { throw error; }
+  return await prisma.staffAvailability.findMany({
+    where: { staff_id: userId },
+    orderBy: { day_of_week: 'asc' },
+  });
 }
 
 async function setAvailability(userId, slots) {
   const prisma = getDbClient();
-  try {
-    const results = await Promise.all(slots.map(slot =>
-      prisma.staffAvailability.upsert({
-        where: { staff_id_day_of_week: { staff_id: userId, day_of_week: slot.day_of_week } },
-        create: {
-          staff_id: userId,
-          day_of_week: slot.day_of_week,
-          available: slot.available,
-          start_time: slot.start_time || null,
-          end_time: slot.end_time || null,
-          notes: slot.notes || null,
-        },
-        update: {
-          available: slot.available,
-          start_time: slot.start_time || null,
-          end_time: slot.end_time || null,
-          notes: slot.notes || null,
-        },
-      })
-    ));
-    return results;
-  } catch (error) { throw error; }
+  const results = await Promise.all(slots.map(slot =>
+    prisma.staffAvailability.upsert({
+      where: { staff_id_day_of_week: { staff_id: userId, day_of_week: slot.day_of_week } },
+      create: {
+        staff_id: userId,
+        day_of_week: slot.day_of_week,
+        available: slot.available,
+        start_time: slot.start_time || null,
+        end_time: slot.end_time || null,
+        notes: slot.notes || null,
+      },
+      update: {
+        available: slot.available,
+        start_time: slot.start_time || null,
+        end_time: slot.end_time || null,
+        notes: slot.notes || null,
+      },
+    })
+  ));
+  return results;
 }
 
 /**
@@ -246,13 +236,11 @@ async function setAvailability(userId, slots) {
  */
 async function verifyManagerPIN(outletId, pin) {
   const prisma = getDbClient();
-  try {
-    const staff = await prisma.staffProfile.findFirst({
-      where: notDeleted({ outlet_id: outletId, manager_pin: pin }),
-      include: { user: { select: { id: true, full_name: true } } }
-    });
-    return staff;
-  } catch (error) { throw error; }
+  const staff = await prisma.staffProfile.findFirst({
+    where: notDeleted({ outlet_id: outletId, manager_pin: pin }),
+    include: { user: { select: { id: true, full_name: true } } }
+  });
+  return staff;
 }
 
 /**
@@ -260,43 +248,41 @@ async function verifyManagerPIN(outletId, pin) {
  */
 async function createStaffWithUser(outletId, data) {
   const prisma = getDbClient();
-  try {
-    const bcrypt = require('bcryptjs');
-    const passwordHash = await bcrypt.hash(data.password || 'Staff@123', 12);
+  const bcrypt = require('bcryptjs');
+  const passwordHash = await bcrypt.hash(data.password || 'Staff@123', 12);
 
-    return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          full_name: data.full_name,
-          email: data.email,
-          phone: data.phone,
-          password_hash: passwordHash,
-        }
-      });
-
-      const profile = await tx.staffProfile.create({
-        data: {
-          user_id: user.id,
-          outlet_id: outletId,
-          employee_code: data.employee_code,
-          department: data.department,
-          designation: data.designation,
-          manager_pin: data.manager_pin,
-          join_date: data.join_date ? new Date(data.join_date) : new Date(),
-        }
-      });
-
-      // Assign Role
-      const role = await tx.role.findFirst({ where: { name: data.role || 'staff' } });
-      if (role) {
-        await tx.userRole.create({
-          data: { user_id: user.id, role_id: role.id, outlet_id: outletId, is_primary: true }
-        });
+  return await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        full_name: data.full_name,
+        email: data.email,
+        phone: data.phone,
+        password_hash: passwordHash,
       }
-
-      return { ...profile, user };
     });
-  } catch (error) { throw error; }
+
+    const profile = await tx.staffProfile.create({
+      data: {
+        user_id: user.id,
+        outlet_id: outletId,
+        employee_code: data.employee_code,
+        department: data.department,
+        designation: data.designation,
+        manager_pin: data.manager_pin,
+        join_date: data.join_date ? new Date(data.join_date) : new Date(),
+      }
+    });
+
+    // Assign Role
+    const role = await tx.role.findFirst({ where: { name: data.role || 'staff' } });
+    if (role) {
+      await tx.userRole.create({
+        data: { user_id: user.id, role_id: role.id, outlet_id: outletId, is_primary: true }
+      });
+    }
+
+    return { ...profile, user };
+  });
 }
 
 /**
@@ -304,38 +290,36 @@ async function createStaffWithUser(outletId, data) {
  */
 async function getStaffPerformance(outletId, from, to) {
   const prisma = getDbClient();
-  try {
-    const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const toDate = to ? new Date(to) : new Date();
+  const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const toDate = to ? new Date(to) : new Date();
 
-    const result = await prisma.order.groupBy({
-      by: ['staff_id'],
-      where: notDeleted({
-        outlet_id: outletId,
-        created_at: { gte: fromDate, lte: toDate },
-        status: 'paid'
-      }),
-      _count: { id: true },
-      _sum: { grand_total: true, discount_amount: true }
-    });
+  const result = await prisma.order.groupBy({
+    by: ['staff_id'],
+    where: notDeleted({
+      outlet_id: outletId,
+      created_at: { gte: fromDate, lte: toDate },
+      status: 'paid'
+    }),
+    _count: { id: true },
+    _sum: { grand_total: true, discount_amount: true }
+  });
 
-    const staffIds = result.map(n => n.staff_id).filter(Boolean);
-    const staffMembers = await prisma.user.findMany({
-      where: { id: { in: staffIds } },
-      select: { id: true, full_name: true }
-    });
+  const staffIds = result.map(n => n.staff_id).filter(Boolean);
+  const staffMembers = await prisma.user.findMany({
+    where: { id: { in: staffIds } },
+    select: { id: true, full_name: true }
+  });
 
-    return result.map(r => {
-      const user = staffMembers.find(u => u.id === r.staff_id);
-      return {
-        name: user?.full_name || 'POS / Self Service',
-        orders: r._count.id,
-        revenue: Number(r._sum.grand_total || 0),
-        discounts: Number(r._sum.discount_amount || 0),
-        avg_order: r._count.id > 0 ? Number(r._sum.grand_total || 0) / r._count.id : 0
-      };
-    }).sort((a,b)=>b.revenue - a.revenue);
-  } catch (error) { throw error; }
+  return result.map(r => {
+    const user = staffMembers.find(u => u.id === r.staff_id);
+    return {
+      name: user?.full_name || 'POS / Self Service',
+      orders: r._count.id,
+      revenue: Number(r._sum.grand_total || 0),
+      discounts: Number(r._sum.discount_amount || 0),
+      avg_order: r._count.id > 0 ? Number(r._sum.grand_total || 0) / r._count.id : 0
+    };
+  }).sort((a,b)=>b.revenue - a.revenue);
 }
 
 module.exports = {

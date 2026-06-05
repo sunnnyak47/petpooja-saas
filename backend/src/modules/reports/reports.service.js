@@ -341,161 +341,151 @@ async function getDashboard(outletId) {
  */
 async function getHourlyBreakdown(outletId, date, tz) {
   const prisma = getDbClient();
-  try {
-    const outletTz = await resolveOutletTz(prisma, outletId, tz);
-    const { start, end } = getDateRange(date, date, outletTz);
+  const outletTz = await resolveOutletTz(prisma, outletId, tz);
+  const { start, end } = getDateRange(date, date, outletTz);
 
-    return await cached(`hourly:${outletId}:${date}:${outletTz}`, TTL.SHORT, async () => {
-      // Hour buckets are computed in the outlet timezone (`outletTz`) so an order at
-      // 00:15 IST lands in hour 0 of the correct local day, not shifted by the
-      // server/UTC clock. We select only created_at + grand_total (no nested
-      // includes) and bucket in JS via hourInTz, which is DST-aware.
-      const orders = await prisma.order.findMany({
-        where: {
-          outlet_id: outletId, is_deleted: false,
-          created_at: { gte: start, lt: end },
-          status: { notIn: ['cancelled', 'voided'] },
-        },
-        select: { created_at: true, grand_total: true },
-      });
-
-      const hourly = Array.from({ length: 24 }, (_, i) => ({
-        hour: i, orders: 0, revenue: 0,
-      }));
-
-      for (const order of orders) {
-        const hour = hourInTz(order.created_at, outletTz);
-        if (hour === null) continue; // skip rows with invalid timestamps
-        hourly[hour].orders++;
-        hourly[hour].revenue += Number(order.grand_total);
-      }
-
-      return hourly.map((h) => ({ ...h, revenue: round2(h.revenue) }));
+  return await cached(`hourly:${outletId}:${date}:${outletTz}`, TTL.SHORT, async () => {
+    // Hour buckets are computed in the outlet timezone (`outletTz`) so an order at
+    // 00:15 IST lands in hour 0 of the correct local day, not shifted by the
+    // server/UTC clock. We select only created_at + grand_total (no nested
+    // includes) and bucket in JS via hourInTz, which is DST-aware.
+    const orders = await prisma.order.findMany({
+      where: {
+        outlet_id: outletId, is_deleted: false,
+        created_at: { gte: start, lt: end },
+        status: { notIn: ['cancelled', 'voided'] },
+      },
+      select: { created_at: true, grand_total: true },
     });
-  } catch (error) {
-    throw error;
-  }
+
+    const hourly = Array.from({ length: 24 }, (_, i) => ({
+      hour: i, orders: 0, revenue: 0,
+    }));
+
+    for (const order of orders) {
+      const hour = hourInTz(order.created_at, outletTz);
+      if (hour === null) continue; // skip rows with invalid timestamps
+      hourly[hour].orders++;
+      hourly[hour].revenue += Number(order.grand_total);
+    }
+
+    return hourly.map((h) => ({ ...h, revenue: round2(h.revenue) }));
+  });
 }
 
 async function getCategoryWiseSales(outletId, from, to) {
   const prisma = getDbClient();
-  try {
-    // Preserve original quirky boundary defaults exactly.
-    const fromDate = from ? new Date(from) : new Date();
-    if(!from) fromDate.setHours(0,0,0,0);
-    const toDate = to ? new Date(to) : new Date();
-    if(!to) toDate.setDate(toDate.getDate() + 1);
+  // Preserve original quirky boundary defaults exactly.
+  const fromDate = from ? new Date(from) : new Date();
+  if(!from) fromDate.setHours(0,0,0,0);
+  const toDate = to ? new Date(to) : new Date();
+  if(!to) toDate.setDate(toDate.getDate() + 1);
 
-    return await cached(`category-wise:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
-      // Push the per-item revenue sum to the DB, then roll up to category in JS
-      // using a single id→category lookup (original status filter omits 'voided').
-      const grouped = await prisma.orderItem.groupBy({
-        by: ['menu_item_id'],
-        where: { order: { outlet_id: outletId, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } } },
-        _sum: { item_total: true },
-      });
-
-      const ids = grouped.map((g) => g.menu_item_id);
-      const menuItems = ids.length
-        ? await prisma.menuItem.findMany({
-            where: { id: { in: ids } },
-            select: { id: true, category: { select: { name: true } } },
-          })
-        : [];
-      const catById = {};
-      for (const m of menuItems) catById[m.id] = m.category?.name || 'Uncategorised';
-
-      const categories = {};
-      for (const g of grouped) {
-        const cat = catById[g.menu_item_id] || 'Uncategorised';
-        if (!categories[cat]) categories[cat] = 0;
-        categories[cat] += Number(g._sum.item_total || 0);
-      }
-      return Object.keys(categories).map(k => ({ category: k, revenue: categories[k] }));
+  return await cached(`category-wise:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
+    // Push the per-item revenue sum to the DB, then roll up to category in JS
+    // using a single id→category lookup (original status filter omits 'voided').
+    const grouped = await prisma.orderItem.groupBy({
+      by: ['menu_item_id'],
+      where: { order: { outlet_id: outletId, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } } },
+      _sum: { item_total: true },
     });
-  } catch(e) { throw e; }
+
+    const ids = grouped.map((g) => g.menu_item_id);
+    const menuItems = ids.length
+      ? await prisma.menuItem.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, category: { select: { name: true } } },
+        })
+      : [];
+    const catById = {};
+    for (const m of menuItems) catById[m.id] = m.category?.name || 'Uncategorised';
+
+    const categories = {};
+    for (const g of grouped) {
+      const cat = catById[g.menu_item_id] || 'Uncategorised';
+      if (!categories[cat]) categories[cat] = 0;
+      categories[cat] += Number(g._sum.item_total || 0);
+    }
+    return Object.keys(categories).map(k => ({ category: k, revenue: categories[k] }));
+  });
 }
 
 async function getGstReport(outletId, from, to, tz) {
   const prisma = getDbClient();
-  try {
-    const outletTz = await resolveOutletTz(prisma, outletId, tz);
-    const fromDate = from ? new Date(from) : new Date();
-    if(!from) fromDate.setHours(0,0,0,0);
-    const toDate = to ? new Date(to) : new Date();
-    if(!to) toDate.setDate(toDate.getDate() + 1);
+  const outletTz = await resolveOutletTz(prisma, outletId, tz);
+  const fromDate = from ? new Date(from) : new Date();
+  if(!from) fromDate.setHours(0,0,0,0);
+  const toDate = to ? new Date(to) : new Date();
+  if(!to) toDate.setDate(toDate.getDate() + 1);
 
-    return await cached(`gst-report:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.MEDIUM, async () => {
-      // Aggregate subtotal/total_tax per LOCAL calendar day directly in Postgres.
-      // created_at is timestamptz; `AT TIME ZONE 'UTC' AT TIME ZONE $tz` yields the
-      // outlet's local wall-clock time, so day keys match the outlet's day cut-offs
-      // (e.g. IST midnight) rather than UTC. tz is bound as a parameter (no string
-      // interpolation) and resolveOutletTz/safeTz validate it.
-      const rows = await prisma.$queryRaw`
-        SELECT to_char((created_at AT TIME ZONE 'UTC' AT TIME ZONE ${outletTz})::date, 'YYYY-MM-DD') AS date,
-               COALESCE(SUM(subtotal), 0)  AS taxable,
-               COALESCE(SUM(total_tax), 0) AS total_tax
-        FROM orders
-        WHERE outlet_id = ${outletId}::uuid
-          AND is_deleted = false
-          AND status NOT IN ('cancelled')
-          AND created_at >= ${fromDate}
-          AND created_at <= ${toDate}
-        GROUP BY 1
-        ORDER BY 1
-      `;
+  return await cached(`gst-report:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.MEDIUM, async () => {
+    // Aggregate subtotal/total_tax per LOCAL calendar day directly in Postgres.
+    // created_at is timestamptz; `AT TIME ZONE 'UTC' AT TIME ZONE $tz` yields the
+    // outlet's local wall-clock time, so day keys match the outlet's day cut-offs
+    // (e.g. IST midnight) rather than UTC. tz is bound as a parameter (no string
+    // interpolation) and resolveOutletTz/safeTz validate it.
+    const rows = await prisma.$queryRaw`
+      SELECT to_char((created_at AT TIME ZONE 'UTC' AT TIME ZONE ${outletTz})::date, 'YYYY-MM-DD') AS date,
+             COALESCE(SUM(subtotal), 0)  AS taxable,
+             COALESCE(SUM(total_tax), 0) AS total_tax
+      FROM orders
+      WHERE outlet_id = ${outletId}::uuid
+        AND is_deleted = false
+        AND status NOT IN ('cancelled')
+        AND created_at >= ${fromDate}
+        AND created_at <= ${toDate}
+      GROUP BY 1
+      ORDER BY 1
+    `;
 
-      return rows.map((r) => {
-        const taxable = Number(r.taxable);
-        const totalTax = Number(r.total_tax);
-        return { date: r.date, taxable, cgst: totalTax / 2, sgst: totalTax / 2, total_tax: totalTax };
-      });
+    return rows.map((r) => {
+      const taxable = Number(r.taxable);
+      const totalTax = Number(r.total_tax);
+      return { date: r.date, taxable, cgst: totalTax / 2, sgst: totalTax / 2, total_tax: totalTax };
     });
-  } catch(e) { throw e; }
+  });
 }
 
 async function getStaffPerformance(outletId, from, to) {
   const prisma = getDbClient();
-  try {
-    const fromDate = from ? new Date(from) : new Date();
-    if(!from) fromDate.setHours(0,0,0,0);
-    const toDate = to ? new Date(to) : new Date();
-    if(!to) toDate.setDate(toDate.getDate() + 1);
+  const fromDate = from ? new Date(from) : new Date();
+  if(!from) fromDate.setHours(0,0,0,0);
+  const toDate = to ? new Date(to) : new Date();
+  if(!to) toDate.setDate(toDate.getDate() + 1);
 
-    return await cached(`staff-perf:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
-      const where = { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } };
+  return await cached(`staff-perf:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
+    const where = { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } };
 
-      // Aggregate orders/revenue/discounts per staff_id in the DB.
-      // (status excludes 'voided', so the legacy void branch was dead → voids = 0,
-      // preserved below.)
-      const grouped = await prisma.order.groupBy({
-        by: ['staff_id'],
-        where,
-        _count: { id: true },
-        _sum: { grand_total: true, discount_amount: true },
-      });
-
-      // Resolve staff names for the grouped ids.
-      const ids = grouped.map((g) => g.staff_id).filter(Boolean);
-      const users = ids.length
-        ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, full_name: true } })
-        : [];
-      const nameById = {};
-      for (const u of users) nameById[u.id] = u.full_name;
-
-      // Merge by resolved staff name (null staff_id → 'Self Order / POS'); names can
-      // collapse multiple ids, matching the original Map keyed on full_name.
-      const staffMap = {};
-      for (const g of grouped) {
-        const staffName = (g.staff_id && nameById[g.staff_id]) || 'Self Order / POS';
-        if (!staffMap[staffName]) staffMap[staffName] = { name: staffName, orders: 0, revenue: 0, discounts: 0, voids: 0 };
-        staffMap[staffName].orders += g._count.id;
-        staffMap[staffName].revenue += Number(g._sum.grand_total || 0);
-        staffMap[staffName].discounts += Number(g._sum.discount_amount || 0);
-      }
-      return Object.values(staffMap).sort((a,b)=>b.revenue - a.revenue);
+    // Aggregate orders/revenue/discounts per staff_id in the DB.
+    // (status excludes 'voided', so the legacy void branch was dead → voids = 0,
+    // preserved below.)
+    const grouped = await prisma.order.groupBy({
+      by: ['staff_id'],
+      where,
+      _count: { id: true },
+      _sum: { grand_total: true, discount_amount: true },
     });
-  } catch(e) { throw e; }
+
+    // Resolve staff names for the grouped ids.
+    const ids = grouped.map((g) => g.staff_id).filter(Boolean);
+    const users = ids.length
+      ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, full_name: true } })
+      : [];
+    const nameById = {};
+    for (const u of users) nameById[u.id] = u.full_name;
+
+    // Merge by resolved staff name (null staff_id → 'Self Order / POS'); names can
+    // collapse multiple ids, matching the original Map keyed on full_name.
+    const staffMap = {};
+    for (const g of grouped) {
+      const staffName = (g.staff_id && nameById[g.staff_id]) || 'Self Order / POS';
+      if (!staffMap[staffName]) staffMap[staffName] = { name: staffName, orders: 0, revenue: 0, discounts: 0, voids: 0 };
+      staffMap[staffName].orders += g._count.id;
+      staffMap[staffName].revenue += Number(g._sum.grand_total || 0);
+      staffMap[staffName].discounts += Number(g._sum.discount_amount || 0);
+    }
+    return Object.values(staffMap).sort((a,b)=>b.revenue - a.revenue);
+  });
 }
 
 async function getTopSellingItems(outletId, limit = 5) {

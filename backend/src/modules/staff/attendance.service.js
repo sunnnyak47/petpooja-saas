@@ -98,40 +98,36 @@ async function clockOut(userId, outletId, data = {}) {
  */
 async function getAttendance(outletId, query = {}) {
   const prisma = getDbClient();
-  try {
-    const { page, limit, offset } = parsePagination(query);
-    const where = notDeleted({ outlet_id: outletId });
-    if (query.user_id) where.user_id = query.user_id;
-    if (query.from && query.to) {
-      where.clock_in = { gte: new Date(query.from), lte: new Date(query.to) };
-    }
-
-    const [records, total] = await Promise.all([
-      prisma.attendanceLog.findMany({
-        where, skip: offset, take: limit,
-        orderBy: { clock_in: 'desc' },
-        include: {
-          user: { select: { full_name: true, phone: true } },
-          shift: { select: { name: true } },
-        },
-      }),
-      prisma.attendanceLog.count({ where }),
-    ]);
-
-    const totalHours = records.reduce((sum, r) => sum + (Number(r.hours_worked) || 0), 0);
-    const totalOT = records.reduce((sum, r) => sum + (Number(r.overtime_hours) || 0), 0);
-
-    return {
-      records, total, page, limit,
-      summary: {
-        total_days: records.filter((r) => r.clock_out).length,
-        total_hours: Math.round(totalHours * 100) / 100,
-        overtime_hours: Math.round(totalOT * 100) / 100,
-      },
-    };
-  } catch (error) {
-    throw error;
+  const { page, limit, offset } = parsePagination(query);
+  const where = notDeleted({ outlet_id: outletId });
+  if (query.user_id) where.user_id = query.user_id;
+  if (query.from && query.to) {
+    where.clock_in = { gte: new Date(query.from), lte: new Date(query.to) };
   }
+
+  const [records, total] = await Promise.all([
+    prisma.attendanceLog.findMany({
+      where, skip: offset, take: limit,
+      orderBy: { clock_in: 'desc' },
+      include: {
+        user: { select: { full_name: true, phone: true } },
+        shift: { select: { name: true } },
+      },
+    }),
+    prisma.attendanceLog.count({ where }),
+  ]);
+
+  const totalHours = records.reduce((sum, r) => sum + (Number(r.hours_worked) || 0), 0);
+  const totalOT = records.reduce((sum, r) => sum + (Number(r.overtime_hours) || 0), 0);
+
+  return {
+    records, total, page, limit,
+    summary: {
+      total_days: records.filter((r) => r.clock_out).length,
+      total_hours: Math.round(totalHours * 100) / 100,
+      overtime_hours: Math.round(totalOT * 100) / 100,
+    },
+  };
 }
 
 /**
@@ -141,14 +137,10 @@ async function getAttendance(outletId, query = {}) {
  */
 async function listShifts(outletId) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffShift.findMany({
-      where: notDeleted({ outlet_id: outletId }),
-      orderBy: { start_time: 'asc' },
-    });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.staffShift.findMany({
+    where: notDeleted({ outlet_id: outletId }),
+    orderBy: { start_time: 'asc' },
+  });
 }
 
 /**
@@ -158,11 +150,7 @@ async function listShifts(outletId) {
  */
 async function createShift(data) {
   const prisma = getDbClient();
-  try {
-    return await prisma.staffShift.create({ data });
-  } catch (error) {
-    throw error;
-  }
+  return await prisma.staffShift.create({ data });
 }
 
 /**
