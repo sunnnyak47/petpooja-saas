@@ -1,0 +1,74 @@
+name: Nightly DB backup
+
+# Dumps the production Postgres (custom format) and ships it offsite to S3 /
+# R2. Render's managed backups exist on paid tiers; this is an independent,
+# portable copy you fully control and can restore anywhere with pg_restore.
+#
+# Opt-in: the job no-ops (stays green) until BOTH repo secrets are set —
+#   BACKUP_DATABASE_URL   the production connection string (read access is enough)
+#   BACKUP_S3_BUCKET      destination bucket (AWS S3 or any S3-compatible store)
+# plus AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (and optionally AWS_REGION,
+# AWS_ENDPOINT_URL for Cloudflare R2, BACKUP_S3_PREFIX).
+#
+# Restore: node backend/scripts/restore-db.js --from-s3 --confirm
+
+on:
+  schedule:
+    - cron: '0 21 * * *'   # 02:30 IST (21:00 UTC) daily, a low-traffic window
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: pg_dump → S3
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Guard — skip unless fully configured
+        id: guard
+        run: |
+          if [ -n "${{ secrets.BACKUP_DATABASE_URL }}" ] && [ -n "${{ secrets.BACKUP_S3_BUCKET }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Backup secrets not set (BACKUP_DATABASE_URL / BACKUP_S3_BUCKET) — skipping."
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (S3 SDK)
+        if: steps.guard.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Install PostgreSQL 16 client
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Run backup
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_PREFIX: ${{ secrets.BACKUP_S3_PREFIX }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
+        run: node scripts/backup-db.js

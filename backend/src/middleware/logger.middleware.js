@@ -18,6 +18,12 @@ morgan.token('colored-status', (req, res) => {
 });
 
 /**
+ * Correlation id token — mirrors the X-Request-Id assigned by the requestId
+ * middleware so access logs and error responses can be joined on one id.
+ */
+morgan.token('request-id', (req) => req.id || '-');
+
+/**
  * Morgan stream that writes to Winston logger.
  */
 const stream = {
@@ -38,7 +44,7 @@ const devLogger = morgan(':method :url :colored-status :response-time ms - :res[
  * Production HTTP logger — structured JSON-compatible format.
  */
 const prodLogger = morgan(
-  ':remote-addr :method :url :status :response-time ms - :res[content-length]',
+  ':remote-addr :method :url :status :response-time ms - :res[content-length] id=:request-id',
   {
     stream,
     skip: (req) => req.url === '/health',

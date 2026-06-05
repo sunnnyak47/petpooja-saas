@@ -16,6 +16,8 @@ const path = require('path');
 const appConfig = require('./config/app');
 const logger = require('./config/logger');
 const { httpLogger } = require('./middleware/logger.middleware');
+const { requestId } = require('./middleware/requestId.middleware');
+const { metricsMiddleware, snapshot: metricsSnapshot, prometheus: metricsPrometheus } = require('./middleware/metrics.middleware');
 const { generalLimiter } = require('./middleware/rateLimit.middleware');
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
 const { initializeSocket } = require('./socket/index');
@@ -24,6 +26,15 @@ const { disconnectRedis, getRedisClient } = require('./config/redis');
 
 const app = express();
 const server = http.createServer(app);
+
+// Reliability: align Node's socket timeouts with the upstream proxy/load
+// balancer. keepAliveTimeout MUST exceed the proxy idle timeout (Render/most
+// ALBs ~60s) — otherwise Node can close a keep-alive socket the proxy is about
+// to reuse, surfacing as intermittent 502s. headersTimeout must be slightly
+// larger than keepAliveTimeout. requestTimeout is intentionally left at Node's
+// default (no artificial cap) so long-but-legitimate ops (PDF/report/AI) run.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 // Enable trust proxy for correct IP detection behind Render/Vercel load balancers
 app.set('trust proxy', 1);
@@ -75,8 +86,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 
 /* ------------------------------------------------------------------
-   LOGGING & RATE LIMITING
+   OBSERVABILITY, LOGGING & RATE LIMITING
    ------------------------------------------------------------------ */
+// Correlation id first so it flows into access logs and error responses.
+app.use(requestId);
+app.use(metricsMiddleware);
 app.use(httpLogger());
 app.use('/api/', generalLimiter);
 
@@ -141,6 +155,73 @@ app.get('/health', async (req, res) => {
     },
     message: dbStatus === 'healthy' ? 'MS-RM API running' : 'Database connection issues',
   });
+});
+
+/* ------------------------------------------------------------------
+   LIVENESS / READINESS / METRICS
+   ------------------------------------------------------------------ */
+
+// Liveness: is the process up and answering? No I/O — a DB blip must NOT fail
+// liveness, or an orchestrator would kill a recoverable process.
+app.get('/health/live', (req, res) => {
+  res.status(200).json({ status: 'alive', uptime: Math.floor(process.uptime()) });
+});
+
+// Readiness: can we serve traffic right now? Checks the database (a hard
+// dependency). Redis is reported but never gates readiness — the app degrades
+// to a no-op cache. 503 when the DB is unreachable so a load balancer routes
+// away until it recovers.
+app.get('/health/ready', async (req, res) => {
+  const checks = { database: 'unknown', redis: 'unknown' };
+  let ready = true;
+
+  try {
+    await getDbClient().$queryRaw`SELECT 1`;
+    checks.database = 'up';
+  } catch (err) {
+    checks.database = 'down';
+    ready = false;
+  }
+
+  try {
+    const r = getRedisClient();
+    checks.redis = r && r.status && r.status !== 'mock' ? 'up' : 'mock';
+  } catch (_) {
+    checks.redis = 'mock';
+  }
+
+  res.status(ready ? 200 : 503).json({
+    success: ready,
+    status: ready ? 'ready' : 'not_ready',
+    checks,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Metrics: in-process counters for quick triage and Prometheus scraping.
+// Guarded — a configured METRICS_TOKEN must match (header or query). With no
+// token configured we allow it outside production and hide it in production
+// (404) so metrics are never exposed unauthenticated by default.
+app.get('/metrics', (req, res) => {
+  const configured = process.env.METRICS_TOKEN;
+  const provided = req.headers['x-metrics-token'] || req.query.token;
+
+  if (configured) {
+    if (provided !== configured) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+  } else if (appConfig.env === 'production') {
+    return res.status(404).json({ success: false, message: 'Not found' });
+  }
+
+  const wantsProm = req.query.format === 'prometheus' ||
+    (req.headers.accept || '').includes('text/plain');
+
+  if (wantsProm) {
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    return res.status(200).send(metricsPrometheus());
+  }
+  return res.status(200).json({ success: true, data: metricsSnapshot() });
 });
 
 /* ------------------------------------------------------------------

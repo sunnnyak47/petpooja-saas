@@ -90,6 +90,7 @@ function errorHandler(err, req, res, _next) {
       method: req.method,
       path: req.originalUrl,
       ip: req.ip,
+      requestId: req.id,
     });
   }
 
@@ -100,6 +101,10 @@ function errorHandler(err, req, res, _next) {
       ? 'Internal server error'
       : message,
   };
+
+  // Correlation id (set by requestId middleware) so a user can quote it and we
+  // can grep the logs straight to this request. Dropped from JSON when absent.
+  if (req.id) response.requestId = req.id;
 
   if (validationErrors) {
     response.errors = validationErrors;

@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# Artillery load test — MS-RM API
+#
+# Smoke-grade load profile for the API. Exercises the cheap, unauthenticated
+# health/liveness/readiness probes at high weight plus a realistic
+# login → authenticated-read flow at lower weight (login runs bcrypt, so it is
+# deliberately not hammered).
+#
+# Run it (never in CI — this is a manual / pre-release tool):
+#   npm run test:load                                  # against localhost:5001
+#   npx artillery run tests/artillery.yml \
+#       --target https://petpooja-saas.onrender.com    # against a deployed env
+#
+# Credentials for the authenticated flow come from the environment so no secret
+# is committed. Defaults to the seeded demo login; override for other envs:
+#   LOAD_EMAIL=admin@petpooja.com LOAD_PASSWORD='Petpooja@2026' npm run test:load
+#
+# The run fails (non-zero exit) if the latency thresholds or error rate in the
+# `ensure` block are breached — safe to wire into a manual release checklist.
+#
+# Tuning: arrival rates below are conservative so the test is safe against a
+# local dev database. Scale with --overrides or by editing the phases, e.g.
+#   npx artillery run tests/artillery.yml \
+#     --overrides '{"config":{"phases":[{"duration":120,"arrivalRate":50}]}}'
+# ---------------------------------------------------------------------------
+
+config:
+  target: "http://localhost:5001"
+  phases:
+    - duration: 20
+      arrivalRate: 2
+      name: Warm-up
+    - duration: 40
+      arrivalRate: 2
+      rampTo: 10
+      name: Ramp-up
+    - duration: 60
+      arrivalRate: 10
+      name: Sustained load
+  # Keep the run honest but not flaky on a local box.
+  http:
+    timeout: 10
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+  # Release gate: breach any of these → artillery exits non-zero.
+  ensure:
+    thresholds:
+      - http.response_time.p95: 500
+      - http.response_time.p99: 1000
+    # Connection-level errors (refused/timeouts), not HTTP 4xx/5xx. Inspect the
+    # printed `http.codes.*` block for 5xx counts during manual review.
+    maxErrorRate: 1
+
+scenarios:
+  # Cheap, unauthenticated, the bulk of real traffic from uptime monitors and
+  # load balancers. High weight so latency stats reflect the hot path.
+  - name: "Health probes"
+    weight: 7
+    flow:
+      - get:
+          url: "/health/live"
+      - get:
+          url: "/health"
+      - get:
+          url: "/health/ready"
+
+  # Realistic write+read: authenticate, then hit an authenticated read endpoint
+  # with the captured token. Login tolerates 200 (seed creds present) or 401
+  # (creds absent in this env); the read step only runs when a token was issued.
+  - name: "Login then authenticated read"
+    weight: 3
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            login: "{{ $processEnvironment.LOAD_EMAIL }}"
+            password: "{{ $processEnvironment.LOAD_PASSWORD }}"
+          capture:
+            - json: "$.data.accessToken"
+              as: "token"
+              strict: false
+      - get:
+          url: "/api/reports/dashboard"
+          ifTrue: "token"
+          headers:
+            Authorization: "Bearer {{ token }}"

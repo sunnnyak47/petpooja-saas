@@ -14,3 +14,8 @@ scratch/
 wa-auth/
 backend/wa-auth/
 .vercel
+
+# Database backups — pg_dump output is full data, never commit
+backups/
+backend/backups/
+*.dump
