@@ -885,6 +885,16 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
             .catch((e) => logger.warn('Ledger postOrderPaid failed', { error: e.message }));
         } catch (e) { logger.warn('Ledger hook error', { error: e.message }); }
       });
+
+      // Meter the transaction for usage-based SaaS billing. Idempotent and
+      // fire-and-forget — must never affect the payment outcome.
+      setImmediate(() => {
+        try {
+          require('../headoffice/billing.metering.service')
+            .recordOrderUsage(fullOrder)
+            .catch((e) => logger.warn('Usage metering failed', { error: e.message }));
+        } catch (e) { logger.warn('Metering hook error', { error: e.message }); }
+      });
     }
 
     return { payment: result.payment, order: fullOrder };

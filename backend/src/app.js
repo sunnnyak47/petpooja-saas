@@ -320,6 +320,7 @@ app.use('/api/payment-reconciliation', require('./modules/integrations/payment.r
 const aggregatorRoutes = require('./modules/integrations/aggregator.routes');
 app.use('/api/aggregators', aggregatorRoutes);
 app.use('/api/ho', headofficeRoutes);
+app.use('/api/billing', require('./modules/headoffice/billing.routes'));
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/discounts', discountRoutes);
 app.use('/api/ck', ckRoutes);
@@ -350,9 +351,10 @@ if (appConfig.env !== 'production') {
   logger.info('Mock/test routes disabled in production.');
 }
 
-// Initialize Billing & Subscriptions
+// Initialize Billing & Subscriptions (usage-based: monthly rollup + dunning)
 try {
   require('./modules/headoffice/billing.service');
+  require('./modules/headoffice/billing.dunning.service');
   logger.info('Billing service initialized.');
 } catch (err) {
   logger.error('Billing service failed to initialize:', { error: err.message });

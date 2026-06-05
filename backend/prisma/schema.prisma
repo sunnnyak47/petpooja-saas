@@ -51,66 +51,220 @@ model RolePermission {
 }
 
 model HeadOffice {
-  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String         @db.VarChar(200)
-  legal_name          String?        @db.VarChar(200)
-  gstin               String?        @db.VarChar(15)
-  pan                 String?        @db.VarChar(10)
-  contact_email       String         @unique @db.VarChar(150)
-  contact_phone       String         @db.VarChar(15)
-  logo_url            String?        @db.VarChar(500)
-  primary_color       String?        @default("#4F46E5") @db.VarChar(10)
-  is_active           Boolean        @default(true)
-  created_at          DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  is_deleted          Boolean        @default(false)
-  setup_completed     Boolean        @default(false)
-  plan                String         @default("TRIAL") @db.VarChar(50)
-  default_gst_slab    String?        @default("5") @db.VarChar(10)
-  fssai               String?        @db.VarChar(20)
-  fssai_expiry        DateTime?      @db.Date
-  gst_inclusive       Boolean        @default(false)
-  gst_type            String?        @default("REGULAR") @db.VarChar(20)
-  is_ac               Boolean        @default(false)
-  language            String?        @default("en") @db.VarChar(20)
-  metadata            Json?          @default("{}")
-  razorpay_key        String?        @db.VarChar(100)
-  serves_alcohol      Boolean        @default(false)
-  service_charge_pct  Decimal?       @default(0) @db.Decimal(5, 2)
-  swiggy_id           String?        @db.VarChar(100)
-  tally_enabled       Boolean        @default(false)
-  whatsapp_number     String?        @db.VarChar(15)
-  zomato_id           String?        @db.VarChar(100)
-  abn                 String?        @db.VarChar(20)
-  acn                 String?        @db.VarChar(15)
-  country_code        String         @default("IN") @db.VarChar(2)
-  currency            String         @default("INR") @db.VarChar(5)
-  region              String         @default("IN") @db.VarChar(5)
-  regulations_profile String         @default("INDIA") @db.VarChar(20)
-  timezone            String         @default("Asia/Kolkata") @db.VarChar(50)
-  outlets             Outlet[]
-  subscriptions       Subscription[]
-  users               User[]         @relation("head_office_users")
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                @db.VarChar(200)
+  legal_name            String?               @db.VarChar(200)
+  gstin                 String?               @db.VarChar(15)
+  pan                   String?               @db.VarChar(10)
+  contact_email         String                @unique @db.VarChar(150)
+  contact_phone         String                @db.VarChar(15)
+  logo_url              String?               @db.VarChar(500)
+  primary_color         String?               @default("#4F46E5") @db.VarChar(10)
+  is_active             Boolean               @default(true)
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  is_deleted            Boolean               @default(false)
+  setup_completed       Boolean               @default(false)
+  plan                  String                @default("TRIAL") @db.VarChar(50)
+  default_gst_slab      String?               @default("5") @db.VarChar(10)
+  fssai                 String?               @db.VarChar(20)
+  fssai_expiry          DateTime?             @db.Date
+  gst_inclusive         Boolean               @default(false)
+  gst_type              String?               @default("REGULAR") @db.VarChar(20)
+  is_ac                 Boolean               @default(false)
+  language              String?               @default("en") @db.VarChar(20)
+  metadata              Json?                 @default("{}")
+  razorpay_key          String?               @db.VarChar(100)
+  serves_alcohol        Boolean               @default(false)
+  service_charge_pct    Decimal?              @default(0) @db.Decimal(5, 2)
+  swiggy_id             String?               @db.VarChar(100)
+  tally_enabled         Boolean               @default(false)
+  whatsapp_number       String?               @db.VarChar(15)
+  zomato_id             String?               @db.VarChar(100)
+  abn                   String?               @db.VarChar(20)
+  acn                   String?               @db.VarChar(15)
+  country_code          String                @default("IN") @db.VarChar(2)
+  currency              String                @default("INR") @db.VarChar(5)
+  region                String                @default("IN") @db.VarChar(5)
+  regulations_profile   String                @default("INDIA") @db.VarChar(20)
+  timezone              String                @default("Asia/Kolkata") @db.VarChar(50)
+  outlets               Outlet[]
+  subscriptions         Subscription[]
+  usage_events          BillingUsageEvent[]
+  subscription_invoices SubscriptionInvoice[]
+  users                 User[]                @relation("head_office_users")
 
   @@map("head_offices")
 }
 
 model Subscription {
-  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  head_office_id  String     @db.Uuid
-  plan_name       String     @db.VarChar(50)
-  status          String     @default("active") @db.VarChar(20)
-  billing_cycle   String     @default("monthly") @db.VarChar(20)
-  amount          Decimal    @db.Decimal(10, 2)
-  starts_at       DateTime   @default(now()) @db.Timestamptz(6)
-  expires_at      DateTime   @db.Timestamptz(6)
-  last_payment_at DateTime?  @db.Timestamptz(6)
-  next_billing_at DateTime?  @db.Timestamptz(6)
-  created_at      DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
-  head_office     HeadOffice @relation(fields: [head_office_id], references: [id])
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  head_office_id       String                @db.Uuid
+  plan_name            String                @db.VarChar(50)
+  status               String                @default("active") @db.VarChar(20)
+  billing_cycle        String                @default("monthly") @db.VarChar(20)
+  amount               Decimal               @db.Decimal(10, 2)
+  starts_at            DateTime              @default(now()) @db.Timestamptz(6)
+  expires_at           DateTime              @db.Timestamptz(6)
+  last_payment_at      DateTime?             @db.Timestamptz(6)
+  next_billing_at      DateTime?             @db.Timestamptz(6)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  // ---- Phase 4: usage-based billing (all additive / backward-compatible) ----
+  is_deleted           Boolean               @default(false)
+  plan_id              String?               @db.Uuid
+  region               String                @default("IN") @db.VarChar(5)
+  currency             String                @default("INR") @db.VarChar(5)
+  trial_ends_at        DateTime?             @db.Timestamptz(6)
+  grace_until          DateTime?             @db.Timestamptz(6)
+  suspended_at         DateTime?             @db.Timestamptz(6)
+  cancelled_at         DateTime?             @db.Timestamptz(6)
+  razorpay_customer_id String?               @db.VarChar(64)
+  razorpay_mandate_id  String?               @db.VarChar(64)
+  head_office          HeadOffice            @relation(fields: [head_office_id], references: [id])
+  plan                 BillingPlan?          @relation(fields: [plan_id], references: [id])
+  usage_events         BillingUsageEvent[]
+  invoices             SubscriptionInvoice[]
 
+  @@index([head_office_id])
+  @@index([status])
   @@map("subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Usage-based (metered) SaaS billing
+//
+// BillingPlan is fully config-driven so the per-transaction software fee can be
+// tuned per region without code changes. The recommended launch defaults
+// (India: 1.75% on online orders + ₹2/order dine-in; AU: 0.9% all channels)
+// live as seed data, NOT hardcoded in the application.
+// ---------------------------------------------------------------------------
+model BillingPlan {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String         @unique @db.VarChar(50)
+  name              String         @db.VarChar(100)
+  description       String?
+  region            String         @default("IN") @db.VarChar(5)
+  currency          String         @default("INR") @db.VarChar(5)
+  // Metered pricing knobs
+  txn_fee_percent   Decimal        @default(0) @db.Decimal(6, 4)
+  flat_fee_per_txn  Decimal        @default(0) @db.Decimal(10, 2)
+  channels          String[]       @default([])
+  free_txns_monthly Int            @default(0)
+  base_monthly_fee  Decimal        @default(0) @db.Decimal(10, 2)
+  monthly_min_fee   Decimal        @default(0) @db.Decimal(10, 2)
+  monthly_cap_fee   Decimal?       @db.Decimal(10, 2)
+  // Per-channel / threshold overrides as structured JSON (e.g. {"online":1.75,"dinein":0})
+  rate_rules        Json?          @default("{}")
+  // Tax
+  tax_percent       Decimal        @default(0) @db.Decimal(5, 2)
+  tax_label         String?        @default("GST") @db.VarChar(20)
+  // Plan limits / gating
+  max_outlets       Int?
+  max_users         Int?
+  features          Json?          @default("{}")
+  // Lifecycle
+  is_active         Boolean        @default(true)
+  is_deleted        Boolean        @default(false)
+  sort_order        Int            @default(0)
+  created_at        DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  subscriptions     Subscription[]
+
+  @@index([region])
+  @@map("billing_plans")
+}
+
+// Idempotent transaction meter. One row per billable event (order/payment).
+// The [source_type, source_id, event_type] unique key makes metering safe to
+// retry — a re-fired order-completed hook will not double-charge.
+model BillingUsageEvent {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  head_office_id  String               @db.Uuid
+  outlet_id       String?              @db.Uuid
+  subscription_id String?              @db.Uuid
+  event_type      String               @default("order_completed") @db.VarChar(40)
+  channel         String?              @db.VarChar(30)
+  source_type     String               @db.VarChar(30)
+  source_id       String               @db.VarChar(64)
+  gross_amount    Decimal              @default(0) @db.Decimal(12, 2)
+  // Snapshot of the rate applied (so historical events stay correct if the plan changes)
+  fee_percent     Decimal              @default(0) @db.Decimal(6, 4)
+  flat_fee        Decimal              @default(0) @db.Decimal(10, 2)
+  fee_amount      Decimal              @default(0) @db.Decimal(10, 2)
+  currency        String               @default("INR") @db.VarChar(5)
+  billing_period  String               @db.VarChar(7)
+  is_free         Boolean              @default(false)
+  invoiced        Boolean              @default(false)
+  invoice_id      String?              @db.Uuid
+  metadata        Json?                @default("{}")
+  occurred_at     DateTime             @default(now()) @db.Timestamptz(6)
+  created_at      DateTime             @default(now()) @db.Timestamptz(6)
+  head_office     HeadOffice           @relation(fields: [head_office_id], references: [id])
+  subscription    Subscription?        @relation(fields: [subscription_id], references: [id])
+  invoice         SubscriptionInvoice? @relation(fields: [invoice_id], references: [id])
+
+  @@unique([source_type, source_id, event_type])
+  @@index([head_office_id, billing_period])
+  @@index([subscription_id, billing_period])
+  @@index([invoiced])
+  @@map("billing_usage_events")
+}
+
+// Real invoice ledger (replaces the JSON-blob-in-SystemConfig approach).
+model SubscriptionInvoice {
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_number      String                    @unique @db.VarChar(40)
+  head_office_id      String                    @db.Uuid
+  subscription_id     String?                   @db.Uuid
+  billing_period      String                    @db.VarChar(7)
+  period_start        DateTime                  @db.Timestamptz(6)
+  period_end          DateTime                  @db.Timestamptz(6)
+  currency            String                    @default("INR") @db.VarChar(5)
+  txn_count           Int                       @default(0)
+  gross_volume        Decimal                   @default(0) @db.Decimal(14, 2)
+  subtotal            Decimal                   @default(0) @db.Decimal(12, 2)
+  tax_percent         Decimal                   @default(0) @db.Decimal(5, 2)
+  tax_amount          Decimal                   @default(0) @db.Decimal(12, 2)
+  total               Decimal                   @default(0) @db.Decimal(12, 2)
+  status              String                    @default("draft") @db.VarChar(20)
+  issued_at           DateTime?                 @db.Timestamptz(6)
+  due_at              DateTime?                 @db.Timestamptz(6)
+  paid_at             DateTime?                 @db.Timestamptz(6)
+  razorpay_order_id   String?                   @db.VarChar(64)
+  razorpay_payment_id String?                   @db.VarChar(64)
+  payment_link_url    String?                   @db.VarChar(500)
+  pdf_url             String?                   @db.VarChar(500)
+  notes               String?
+  is_deleted          Boolean                   @default(false)
+  created_at          DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                  @default(now()) @updatedAt @db.Timestamptz(6)
+  head_office         HeadOffice                @relation(fields: [head_office_id], references: [id])
+  subscription        Subscription?             @relation(fields: [subscription_id], references: [id])
+  lines               SubscriptionInvoiceLine[]
+  usage_events        BillingUsageEvent[]
+
+  @@unique([head_office_id, billing_period])
+  @@index([status])
+  @@index([head_office_id])
+  @@map("subscription_invoices")
+}
+
+model SubscriptionInvoiceLine {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id   String              @db.Uuid
+  description  String              @db.VarChar(255)
+  channel      String?             @db.VarChar(30)
+  quantity     Int                 @default(0)
+  unit_label   String?             @db.VarChar(30)
+  gross_volume Decimal             @default(0) @db.Decimal(14, 2)
+  amount       Decimal             @default(0) @db.Decimal(12, 2)
+  sort_order   Int                 @default(0)
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  invoice      SubscriptionInvoice @relation(fields: [invoice_id], references: [id])
+
+  @@index([invoice_id])
+  @@map("subscription_invoice_lines")
 }
 
 model Outlet {
@@ -336,19 +490,19 @@ model BankStatementLine {
 
 // ── Phase 6: payroll, fixed assets, BAS lodgement (standalone, raw outlet_id) ─
 model PayRun {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id    String   @db.Uuid
-  period_start DateTime @db.Date
-  period_end   DateTime @db.Date
-  pay_date     DateTime @db.Date
-  status       String   @default("draft") @db.VarChar(20) // draft | finalised
-  gross_total  Decimal  @default(0) @db.Decimal(14, 2)
-  paye_total   Decimal  @default(0) @db.Decimal(14, 2)
-  super_total  Decimal  @default(0) @db.Decimal(14, 2)
-  net_total    Decimal  @default(0) @db.Decimal(14, 2)
-  created_by   String?  @db.Uuid
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  is_deleted   Boolean  @default(false)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String    @db.Uuid
+  period_start DateTime  @db.Date
+  period_end   DateTime  @db.Date
+  pay_date     DateTime  @db.Date
+  status       String    @default("draft") @db.VarChar(20) // draft | finalised
+  gross_total  Decimal   @default(0) @db.Decimal(14, 2)
+  paye_total   Decimal   @default(0) @db.Decimal(14, 2)
+  super_total  Decimal   @default(0) @db.Decimal(14, 2)
+  net_total    Decimal   @default(0) @db.Decimal(14, 2)
+  created_by   String?   @db.Uuid
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  is_deleted   Boolean   @default(false)
   payslips     Payslip[]
 
   @@index([outlet_id, period_start])
@@ -356,18 +510,18 @@ model PayRun {
 }
 
 model Payslip {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pay_run_id  String   @db.Uuid
-  outlet_id   String   @db.Uuid
-  staff_id    String?  @db.Uuid
-  staff_name  String?  @db.VarChar(150)
-  gross       Decimal  @default(0) @db.Decimal(12, 2)
-  paye        Decimal  @default(0) @db.Decimal(12, 2)
-  super_amt   Decimal  @default(0) @db.Decimal(12, 2)
-  net         Decimal  @default(0) @db.Decimal(12, 2)
-  hours       Decimal  @default(0) @db.Decimal(8, 2)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  pay_run     PayRun   @relation(fields: [pay_run_id], references: [id])
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pay_run_id String   @db.Uuid
+  outlet_id  String   @db.Uuid
+  staff_id   String?  @db.Uuid
+  staff_name String?  @db.VarChar(150)
+  gross      Decimal  @default(0) @db.Decimal(12, 2)
+  paye       Decimal  @default(0) @db.Decimal(12, 2)
+  super_amt  Decimal  @default(0) @db.Decimal(12, 2)
+  net        Decimal  @default(0) @db.Decimal(12, 2)
+  hours      Decimal  @default(0) @db.Decimal(8, 2)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  pay_run    PayRun   @relation(fields: [pay_run_id], references: [id])
 
   @@index([pay_run_id])
   @@map("payslips")
@@ -406,20 +560,20 @@ model DepreciationEntry {
 }
 
 model BASLodgement {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id    String   @db.Uuid
-  period_start DateTime @db.Date
-  period_end   DateTime @db.Date
-  g1           Decimal  @default(0) @db.Decimal(14, 2)
-  a1           Decimal  @default(0) @db.Decimal(14, 2)
-  g11          Decimal  @default(0) @db.Decimal(14, 2)
-  b1           Decimal  @default(0) @db.Decimal(14, 2)
-  net_gst      Decimal  @default(0) @db.Decimal(14, 2)
-  status       String   @default("draft") @db.VarChar(20) // draft | lodged
-  reference    String?  @db.VarChar(60)
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id    String    @db.Uuid
+  period_start DateTime  @db.Date
+  period_end   DateTime  @db.Date
+  g1           Decimal   @default(0) @db.Decimal(14, 2)
+  a1           Decimal   @default(0) @db.Decimal(14, 2)
+  g11          Decimal   @default(0) @db.Decimal(14, 2)
+  b1           Decimal   @default(0) @db.Decimal(14, 2)
+  net_gst      Decimal   @default(0) @db.Decimal(14, 2)
+  status       String    @default("draft") @db.VarChar(20) // draft | lodged
+  reference    String?   @db.VarChar(60)
   lodged_at    DateTime? @db.Timestamptz(6)
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  is_deleted   Boolean  @default(false)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  is_deleted   Boolean   @default(false)
 
   @@index([outlet_id, period_start])
   @@map("bas_lodgements")
@@ -430,7 +584,7 @@ model Budget {
   id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   outlet_id  String       @db.Uuid
   name       String       @db.VarChar(120)
-  fy_year    Int          // financial year start year, e.g. 2026
+  fy_year    Int // financial year start year, e.g. 2026
   created_at DateTime     @default(now()) @db.Timestamptz(6)
   is_deleted Boolean      @default(false)
   lines      BudgetLine[]
@@ -451,31 +605,31 @@ model BudgetLine {
 }
 
 model CustomerInvoice {
-  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  outlet_id      String                @db.Uuid
-  invoice_number String                @db.VarChar(40)
-  customer_id    String?               @db.Uuid
-  customer_name  String?               @db.VarChar(150)
-  issue_date     DateTime              @db.Date
-  due_date       DateTime?             @db.Date
-  status         String                @default("draft") @db.VarChar(20) // draft | sent | paid | void
-  subtotal       Decimal               @default(0) @db.Decimal(14, 2)
-  gst            Decimal               @default(0) @db.Decimal(14, 2)
-  total          Decimal               @default(0) @db.Decimal(14, 2)
-  notes          String?
-  journal_entry_id String?             @db.Uuid
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id         String                @db.Uuid
+  invoice_number    String                @db.VarChar(40)
+  customer_id       String?               @db.Uuid
+  customer_name     String?               @db.VarChar(150)
+  issue_date        DateTime              @db.Date
+  due_date          DateTime?             @db.Date
+  status            String                @default("draft") @db.VarChar(20) // draft | sent | paid | void
+  subtotal          Decimal               @default(0) @db.Decimal(14, 2)
+  gst               Decimal               @default(0) @db.Decimal(14, 2)
+  total             Decimal               @default(0) @db.Decimal(14, 2)
+  notes             String?
+  journal_entry_id  String?               @db.Uuid
   // ── B2B buyer details + GSTN e-invoicing (IRN) ──
-  buyer_gstin    String?               @db.VarChar(20)
-  buyer_state    String?               @db.VarChar(100)
-  place_of_supply String?              @db.VarChar(50)
-  einvoice_irn   String?               @db.VarChar(80)
-  einvoice_ack_no String?              @db.VarChar(40)
-  einvoice_ack_date DateTime?          @db.Timestamptz(6)
-  einvoice_qr    String?
-  einvoice_status String?              @db.VarChar(20) // pending | generated | cancelled | failed
-  created_at     DateTime              @default(now()) @db.Timestamptz(6)
-  is_deleted     Boolean               @default(false)
-  lines          CustomerInvoiceLine[]
+  buyer_gstin       String?               @db.VarChar(20)
+  buyer_state       String?               @db.VarChar(100)
+  place_of_supply   String?               @db.VarChar(50)
+  einvoice_irn      String?               @db.VarChar(80)
+  einvoice_ack_no   String?               @db.VarChar(40)
+  einvoice_ack_date DateTime?             @db.Timestamptz(6)
+  einvoice_qr       String?
+  einvoice_status   String?               @db.VarChar(20) // pending | generated | cancelled | failed
+  created_at        DateTime              @default(now()) @db.Timestamptz(6)
+  is_deleted        Boolean               @default(false)
+  lines             CustomerInvoiceLine[]
 
   @@index([outlet_id, status])
   @@map("customer_invoices")

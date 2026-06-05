@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
-import { DollarSign, TrendingUp, Users, CreditCard, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, CreditCard, CheckCircle, Clock, XCircle, Gauge, AlertTriangle, PlayCircle } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
 
 const PLAN_COLORS = {
@@ -36,6 +37,25 @@ export default function BillingPage() {
     queryFn: () => api.get('/superadmin/revenue'),
   });
 
+  // Usage-based billing (Phase 4): metered overview + manual rollup trigger.
+  const { data: usageOverview, refetch: refetchOverview } = useQuery({
+    queryKey: ['billing-admin-overview'],
+    queryFn: () => api.get('/billing/admin/overview').then(r => r.data?.data),
+    staleTime: 60_000,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => api.post('/billing/admin/generate').then(r => r.data),
+    onSuccess: (res) => {
+      toast.success(res?.message || 'Invoices generated');
+      refetchOverview();
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Rollup failed'),
+  });
+
+  const ov = usageOverview;
+  const ovCur = (n) => `${symbol}${Number(n || 0).toLocaleString()}`;
+
   const rawData = data?.data;
   const chains = Array.isArray(rawData) ? rawData
     : Array.isArray(rawData?.chains) ? rawData.chains
@@ -69,6 +89,46 @@ export default function BillingPage() {
           Subscription plans, billing status & monthly recurring revenue
         </p>
       </div>
+
+      {/* Usage-based billing — metered overview (Phase 4) */}
+      {ov && (
+        <div className="rounded-xl p-5"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Gauge className="w-4 h-4 text-indigo-400" /> Usage-Based Billing
+              <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>({ov.period})</span>
+            </h2>
+            <button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              style={{ background: 'var(--accent)', color: '#fff' }}>
+              <PlayCircle className="w-3.5 h-3.5" />
+              {generateMutation.isPending ? 'Generating…' : 'Run Monthly Billing'}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {[
+              { label: 'Metered Fees', value: ovCur(ov.metered_fee_total), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/10' },
+              { label: 'Gross Volume', value: ovCur(ov.gross_volume), icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+              { label: 'Transactions', value: Number(ov.txn_count).toLocaleString(), icon: Gauge, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+              { label: 'Invoiced', value: `${ovCur(ov.invoiced_total)} (${ov.invoice_count})`, icon: CreditCard, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+              { label: 'Overdue', value: `${ovCur(ov.overdue_total)} (${ov.overdue_count})`, icon: AlertTriangle, color: ov.overdue_count > 0 ? 'text-red-400' : 'text-gray-400', bg: ov.overdue_count > 0 ? 'bg-red-500/10' : 'bg-gray-500/10' },
+            ].map(m => (
+              <div key={m.label} className="rounded-lg p-3.5" style={{ background: 'var(--bg-primary)' }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${m.bg}`}>
+                    <m.icon className={`w-3.5 h-3.5 ${m.color}`} />
+                  </div>
+                </div>
+                <p className="text-lg font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

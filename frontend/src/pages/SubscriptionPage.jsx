@@ -3,7 +3,7 @@
  * Route: /subscription
  */
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -11,8 +11,16 @@ import { useCurrency } from '../hooks/useCurrency';
 import {
   CreditCard, CheckCircle2, ArrowUp, Download, Calendar,
   Store, Users, Zap, Star, Crown, Building2, Clock,
-  TrendingUp, Package, FileText
+  TrendingUp, Package, FileText, Activity, ExternalLink, Gauge
 } from 'lucide-react';
+
+const INVOICE_STATUS_STYLE = {
+  paid:    { bg: 'rgba(34,197,94,0.12)',  color: '#4ade80', label: 'Paid' },
+  issued:  { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', label: 'Due' },
+  overdue: { bg: 'rgba(239,68,68,0.14)',  color: '#f87171', label: 'Overdue' },
+  draft:   { bg: 'rgba(148,163,184,0.14)',color: '#94a3b8', label: 'Draft' },
+  void:    { bg: 'rgba(148,163,184,0.14)',color: '#94a3b8', label: 'Void' },
+};
 
 const PLAN_ICONS = { TRIAL: Zap, STARTER: Star, PRO: Crown, ENTERPRISE: Building2 };
 const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
@@ -42,6 +50,33 @@ export default function SubscriptionPage() {
     queryFn: () => api.get('/ho/my-subscription').then(r => r.data),
     enabled: true,
     staleTime: 60_000,
+  });
+
+  // Usage-based billing (Phase 4): current-period meter + real invoices.
+  const { data: usage } = useQuery({
+    queryKey: ['billing-usage', headOfficeId],
+    queryFn: () => api.get('/billing/me/usage').then(r => r.data?.data),
+    staleTime: 60_000,
+  });
+
+  const { data: billingInvoices, refetch: refetchInvoices } = useQuery({
+    queryKey: ['billing-invoices', headOfficeId],
+    queryFn: () => api.get('/billing/me/invoices').then(r => r.data?.data || []),
+    staleTime: 60_000,
+  });
+
+  const payMutation = useMutation({
+    mutationFn: (invoiceId) => api.post(`/billing/me/invoices/${invoiceId}/pay`).then(r => r.data?.data),
+    onSuccess: (res) => {
+      if (res?.payment_link_url) {
+        window.open(res.payment_link_url, '_blank', 'noopener');
+        toast.success('Payment link opened in a new tab');
+      } else {
+        toast.success('Payment link created');
+      }
+      refetchInvoices();
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Could not start payment'),
   });
 
   const PlanIcon = PLAN_ICONS[sub?.plan] || Zap;
@@ -191,7 +226,111 @@ export default function SubscriptionPage() {
             </div>
           </div>
 
-          {/* Invoice History */}
+          {/* Metered Usage — current billing period (Phase 4 usage-based billing) */}
+          {usage && (
+            <div className="rounded-xl p-5 space-y-4"
+              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Gauge className="w-4 h-4 text-indigo-400" /> Usage This Month
+                  <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>({usage.period})</span>
+                </h3>
+                {usage.plan && (
+                  <span className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }}>
+                    {usage.plan.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Transactions', value: usage.txn_count, icon: Activity, color: '#6366f1' },
+                  { label: 'Free Left', value: usage.free_remaining, icon: CheckCircle2, color: '#22c55e' },
+                  { label: 'Gross Volume', value: `${usage.currency === 'AUD' ? 'A$' : '₹'}${Number(usage.gross_volume).toLocaleString()}`, icon: TrendingUp, color: '#a78bfa' },
+                  { label: 'Est. Bill (incl. tax)', value: `${usage.currency === 'AUD' ? 'A$' : '₹'}${Number(usage.estimated_total).toLocaleString()}`, icon: CreditCard, color: '#f59e0b' },
+                ].map(m => (
+                  <div key={m.label} className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <m.icon className="w-3.5 h-3.5" style={{ color: m.color }} />
+                      <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
+                    </div>
+                    <p className="text-xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{m.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {usage.by_channel?.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>By channel</p>
+                  {usage.by_channel.map(c => (
+                    <div key={c.channel} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg"
+                      style={{ background: 'var(--bg-primary)' }}>
+                      <span className="capitalize" style={{ color: 'var(--text-primary)' }}>{c.channel.replace(/_/g, ' ')}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {c.count} txns · {usage.currency === 'AUD' ? 'A$' : '₹'}{Number(c.fee).toLocaleString()} fee
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Estimate only — the final invoice is issued at month end and may include the monthly minimum.
+              </p>
+            </div>
+          )}
+
+          {/* Invoice History — real usage-based invoices when available */}
+          {billingInvoices && billingInvoices.length > 0 ? (
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <FileText className="w-4 h-4 text-indigo-400" /> Invoices
+                </h3>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {billingInvoices.map(inv => {
+                  const st = INVOICE_STATUS_STYLE[inv.status] || INVOICE_STATUS_STYLE.draft;
+                  const cur = inv.currency === 'AUD' ? 'A$' : '₹';
+                  const payable = ['issued', 'overdue', 'draft'].includes(inv.status);
+                  return (
+                    <div key={inv.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(99,102,241,0.1)' }}>
+                          <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                            {inv.invoice_number}
+                          </p>
+                          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            {inv.billing_period} · {inv.txn_count} txns
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                        <p className="font-semibold text-sm tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                          {cur}{Number(inv.total).toLocaleString()}
+                        </p>
+                        {payable && (
+                          <button
+                            onClick={() => payMutation.mutate(inv.id)}
+                            disabled={payMutation.isPending}
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                            style={{ background: 'var(--accent)', color: '#fff' }}>
+                            <ExternalLink className="w-3 h-3" /> Pay
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
@@ -238,6 +377,7 @@ export default function SubscriptionPage() {
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </div>
