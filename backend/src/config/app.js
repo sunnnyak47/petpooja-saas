@@ -21,8 +21,20 @@ const appConfig = {
     url: process.env.REDIS_URL || null,
   },
 
-  /** Frontend URL for CORS and redirects */
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3001',
+  /**
+   * Frontend URL for CORS and OAuth bounce-back redirects (e.g. Square connect).
+   * MUST be set in production — otherwise OAuth callbacks would redirect the
+   * user's browser to localhost (a blank screen on any machine but the dev's).
+   * Normalized to strip trailing slashes so `${frontendUrl}/...` never doubles up.
+   */
+  frontendUrl: (() => {
+    const raw = process.env.FRONTEND_URL;
+    if (!raw && process.env.NODE_ENV === 'production') {
+      logger.error('FATAL: FRONTEND_URL must be set in production (OAuth redirects break without it)');
+      process.exit(1);
+    }
+    return (raw || 'http://localhost:3001').trim().replace(/\/+$/, '');
+  })(),
 
   /** Kitchen display URL */
   kitchenUrl: process.env.KITCHEN_URL || 'http://localhost:3002',
