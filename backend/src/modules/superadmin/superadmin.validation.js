@@ -47,14 +47,6 @@ const updateSubscriptionSchema = Joi.object({
 });
 
 /**
- * Schema for updating platform config.
- */
-const updateConfigSchema = Joi.object({
-  key: Joi.string().required().max(100),
-  value: Joi.any().required(),
-});
-
-/**
  * Schema for switching a chain's region.
  */
 const switchRegionSchema = Joi.object({
@@ -234,7 +226,6 @@ module.exports = {
   onboardSchema,
   impersonateSchema,
   updateSubscriptionSchema,
-  updateConfigSchema,
   switchRegionSchema,
   updateFeaturesSchema,
   toggleStatusSchema,

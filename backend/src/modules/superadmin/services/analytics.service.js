@@ -182,13 +182,6 @@ Object.assign(superadminService, {
   /**
    * Configuration Management
    */
-  async getSystemConfig() {
-    const configs = await prisma.systemConfig.findMany();
-    const result = {};
-    configs.forEach(c => { result[c.key] = c.value; });
-    return result;
-  },
-
   async getPublicSystemConfig() {
     const publicKeys = ['platform_name', 'support_whatsapp', 'support_email', 'restaurant_app_url'];
     const configs = await prisma.systemConfig.findMany({
@@ -205,17 +198,6 @@ Object.assign(superadminService, {
 
     configs.forEach(c => { result[c.key] = c.value; });
     return result;
-  },
-
-  async updateSystemConfig(settings) {
-    const updates = Object.entries(settings).map(([key, value]) =>
-      prisma.systemConfig.upsert({
-        where: { key },
-        update: { value: String(value) },
-        create: { key, value: String(value) }
-      })
-    );
-    return await Promise.all(updates);
   },
 
   /**

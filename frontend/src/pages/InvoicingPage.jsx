@@ -132,8 +132,8 @@ export default function InvoicingPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Invoice Management</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Monthly SaaS billing for all restaurant chains</p>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Subscription Invoices</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Fixed monthly plan invoices. For usage-based metered billing, see SaaS Revenue → Usage-Based Invoices.</p>
         </div>
 
         {/* Generate invoices */}

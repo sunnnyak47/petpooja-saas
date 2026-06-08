@@ -42,27 +42,10 @@ const superadminController = {
     } catch (err) { next(err); }
   },
 
-  /**
-   * System Configuration
-   */
-  async getConfig(req, res, next) {
-    try {
-      const config = await superadminService.getSystemConfig();
-      sendSuccess(res, config, 'System configuration retrieved');
-    } catch (err) { next(err); }
-  },
-
   async getPublicConfig(req, res, next) {
     try {
       const config = await superadminService.getPublicSystemConfig();
       sendSuccess(res, config, 'Public platform branding retrieved');
-    } catch (err) { next(err); }
-  },
-
-  async updateConfig(req, res, next) {
-    try {
-      const result = await superadminService.updateSystemConfig(req.body);
-      sendSuccess(res, result, 'System configuration updated');
     } catch (err) { next(err); }
   },
 

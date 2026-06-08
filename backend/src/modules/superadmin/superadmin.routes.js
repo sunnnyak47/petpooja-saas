@@ -8,7 +8,6 @@ const {
   onboardSchema,
   impersonateSchema,
   updateSubscriptionSchema,
-  updateConfigSchema,
   switchRegionSchema,
   updateFeaturesSchema,
   toggleStatusSchema,
@@ -60,10 +59,6 @@ router.patch('/subscription/:id', validate(updateSubscriptionSchema), superadmin
 
 /** GET /api/superadmin/revenue */
 router.get('/revenue', superadminController.getRevenue);
-
-/** GET/PUT /api/superadmin/config */
-router.get('/config', superadminController.getConfig);
-router.put('/config', validate(updateConfigSchema), superadminController.updateConfig);
 
 /** GET /api/superadmin/region-templates — AU vs IN defaults */
 router.get('/region-templates', superadminController.getRegionTemplates);
