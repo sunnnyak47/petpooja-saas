@@ -12,6 +12,8 @@
     "test:load": "LOAD_EMAIL=${LOAD_EMAIL:-admin@petpooja.com} LOAD_PASSWORD=${LOAD_PASSWORD:-Petpooja@2026} artillery run tests/artillery.yml",
     "backup:db": "node scripts/backup-db.js",
     "restore:db": "node scripts/restore-db.js",
+    "fix:region-currency": "node scripts/fix-region-currency.js",
+    "backfill:subscriptions": "node scripts/backfill-subscriptions.js",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:validate": "npx prisma validate",
