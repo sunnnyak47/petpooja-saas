@@ -8,7 +8,7 @@ import {
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
-  TrendingUp, BarChart3, Loader2,
+  TrendingUp, BarChart3, Loader2, Rocket, Check,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -122,7 +122,7 @@ export default function SuperAdminPage() {
       } catch {
         localStorage.setItem('accessToken', token);
       }
-      toast.success(`👁 Viewing as ${chainName}`);
+      toast.success(`Viewing as ${chainName}`);
       window.location.href = window.location.origin + window.location.pathname + '#/';
       window.location.reload();
     },
@@ -329,28 +329,35 @@ export default function SuperAdminPage() {
       </div>
 
       {/* ── Tab Navigation ── */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl mb-6 w-fit">
+      <div className="flex gap-1 p-1 rounded-2xl mb-6 w-fit"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
         {[
-          { id: 'chains', label: '🏪 Chains', count: chains.length },
-          { id: 'onboarding', label: '🚀 Onboarding', count: null },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab.label}
-            {tab.count !== null && (
-              <span className="ml-2 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-xs">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+          { id: 'chains', label: 'Chains', icon: Building2, count: chains.length },
+          { id: 'onboarding', label: 'Onboarding', icon: Rocket, count: null },
+        ].map(tab => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                background: active ? 'var(--bg-primary)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+              {tab.count !== null && (
+                <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'var(--accent)', color: '#fff' }}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Chain grid ── */}
@@ -584,12 +591,13 @@ export default function SuperAdminPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Onboarding Progress</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Track each restaurant's setup wizard completion</p>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Onboarding Progress</h2>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Track each restaurant's setup wizard completion</p>
             </div>
             <button
               onClick={() => refetchOnboarding()}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-100 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              style={{ background: 'var(--accent)', color: '#fff' }}
             >
               <RefreshCw size={14} /> Refresh
             </button>
@@ -599,13 +607,14 @@ export default function SuperAdminPage() {
           {!onboardingLoading && onboardingData.length > 0 && (
             <div className="grid grid-cols-3 gap-4 mb-6">
               {[
-                { label: 'Total Chains', value: onboardingData.length, color: 'blue' },
-                { label: 'Setup Complete', value: onboardingData.filter(c => c.setup_completed).length, color: 'green' },
-                { label: 'In Progress / Not Started', value: onboardingData.filter(c => !c.setup_completed).length, color: 'amber' },
+                { label: 'Total Chains', value: onboardingData.length, accent: '#3B82F6' },
+                { label: 'Setup Complete', value: onboardingData.filter(c => c.setup_completed).length, accent: '#10B981' },
+                { label: 'In Progress / Not Started', value: onboardingData.filter(c => !c.setup_completed).length, accent: '#F59E0B' },
               ].map(stat => (
-                <div key={stat.label} className={`bg-${stat.color}-50 border border-${stat.color}-100 rounded-2xl p-4`}>
-                  <div className={`text-2xl font-bold text-${stat.color}-700`}>{stat.value}</div>
-                  <div className={`text-sm text-${stat.color}-600 mt-1`}>{stat.label}</div>
+                <div key={stat.label} className="rounded-2xl p-4 border"
+                  style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+                  <div className="text-2xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -613,61 +622,65 @@ export default function SuperAdminPage() {
 
           {/* Table */}
           {onboardingLoading ? (
-            <div className="flex items-center justify-center py-16 text-gray-400">
+            <div className="flex items-center justify-center py-16" style={{ color: 'var(--text-secondary)' }}>
               <Loader2 className="animate-spin mr-2" size={20} /> Loading onboarding data...
             </div>
           ) : (
-            <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+            <div className="rounded-2xl overflow-hidden border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
                   <tr>
                     {['Restaurant', 'Plan', 'Status', 'Wizard Step', 'Days Since Signup', 'Actions'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {onboardingData.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No chains found</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-12 text-center" style={{ color: 'var(--text-secondary)' }}>No chains found</td></tr>
                   ) : onboardingData.map((chain) => (
-                    <tr key={chain.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={chain.id} className="transition-colors hover:bg-white/[0.03]" style={{ borderTop: '1px solid var(--border)' }}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{chain.name}</div>
-                        <div className="text-xs text-gray-400">{chain.contact_email}</div>
+                        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>{chain.name}</div>
+                        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{chain.contact_email}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
                           {chain.plan || 'TRIAL'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         {chain.setup_completed ? (
-                          <span className="flex items-center gap-1 text-green-700 text-xs font-medium">
-                            <CheckCircle size={13} className="text-green-500" /> Complete
+                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#10B981' }}>
+                            <CheckCircle size={13} /> Complete
                           </span>
                         ) : chain.wizard_step > 1 ? (
-                          <span className="flex items-center gap-1 text-amber-600 text-xs font-medium">
+                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#F59E0B' }}>
                             <Clock size={13} /> In Progress
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs">Not Started</span>
+                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Not Started</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {chain.setup_completed ? (
-                          <span className="text-green-600 text-xs font-medium">7/7 ✓</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: '#10B981' }}>
+                            <Check size={13} /> 7/7
+                          </span>
                         ) : (
                           <div className="flex items-center gap-2">
                             <div className="flex gap-0.5">
                               {[1,2,3,4,5,6,7].map(s => (
-                                <div key={s} className={`w-3 h-3 rounded-full ${s < (chain.wizard_step||1) ? 'bg-indigo-500' : s === (chain.wizard_step||1) ? 'bg-amber-400' : 'bg-gray-200'}`} />
+                                <div key={s} className="w-3 h-3 rounded-full"
+                                  style={{ background: s < (chain.wizard_step||1) ? 'var(--accent)' : s === (chain.wizard_step||1) ? '#F59E0B' : 'var(--border)' }} />
                               ))}
                             </div>
-                            <span className="text-xs text-gray-500">{chain.wizard_step || 1}/7</span>
+                            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{chain.wizard_step || 1}/7</span>
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
                         {chain.days_since_signup === 0 ? 'Today' : `${chain.days_since_signup}d ago`}
                       </td>
                       <td className="px-4 py-3">
@@ -677,7 +690,8 @@ export default function SuperAdminPage() {
                               resetWizardMutation.mutate(chain.id);
                             }
                           }}
-                          className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                          className="text-xs hover:underline"
+                          style={{ color: '#EF4444' }}
                         >
                           Reset Wizard
                         </button>

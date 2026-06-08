@@ -102,7 +102,7 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
         {/* Rank */}
         <div className="w-7 text-center">
           {rank <= 3 ? (
-            <span style={{ fontSize: 18 }}>{['🥇','🥈','🥉'][rank-1]}</span>
+            <Trophy className="w-[18px] h-[18px] mx-auto" style={{ color: ['#FBBF24', '#9CA3AF', '#B45309'][rank-1] }} />
           ) : (
             <span className="text-sm font-bold" style={{ color: 'var(--text-secondary)' }}>#{rank}</span>
           )}
@@ -199,8 +199,8 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
 
               {/* Recommendations */}
               <div className="mt-2 p-3 rounded-lg" style={{ background: cfg.bg }}>
-                <p className="text-xs font-semibold mb-1.5" style={{ color: cfg.color }}>
-                  💡 Quick Wins
+                <p className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: cfg.color }}>
+                  <Zap className="w-3.5 h-3.5" /> Quick Wins
                 </p>
                 {(chain.dimensions || [])
                   .filter(d => d.score / d.max < 0.6)
@@ -211,7 +211,7 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
                     </p>
                   ))}
                 {(chain.dimensions || []).filter(d => d.score / d.max < 0.6).length === 0 && (
-                  <p className="text-xs" style={{ color: 'var(--text-primary)' }}>✅ All dimensions looking good!</p>
+                  <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-primary)' }}><CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#10B981' }} /> All dimensions looking good</p>
                 )}
               </div>
             </div>

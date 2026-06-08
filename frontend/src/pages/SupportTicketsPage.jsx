@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
   MessageSquare, AlertCircle, CheckCircle2, Clock, AlertTriangle,
-  ChevronRight, X, Send, Search, Plus, Filter, ArrowLeft
+  ChevronRight, X, Send, Search, Plus, Filter, ArrowLeft, Shield
 } from 'lucide-react';
 
 const STATUS_CFG = {
@@ -197,8 +197,8 @@ function TicketDetail({ ticket, onClose, onUpdate }) {
                 border: `1px solid ${r.from === 'admin' ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
               }}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold" style={{ color: r.from === 'admin' ? '#818cf8' : '#60a5fa' }}>
-                  {r.from === 'admin' ? '🛡 Support Team' : ticket.chain_name}
+                <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: r.from === 'admin' ? '#818cf8' : '#60a5fa' }}>
+                  {r.from === 'admin' ? <><Shield size={12} /> Support Team</> : ticket.chain_name}
                 </span>
                 <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{timeAgo(r.created_at)}</span>
               </div>

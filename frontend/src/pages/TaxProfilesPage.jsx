@@ -82,7 +82,7 @@ function ProfileCard({ profile, onSave, onDelete }) {
       {/* Card header */}
       <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
-          <div className="text-2xl">{region?.flag || '🌍'}</div>
+          <div className="text-2xl flex items-center">{region?.flag || <Globe className="w-6 h-6" style={{ color: 'var(--text-secondary)' }} />}</div>
           <div>
             <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{draft.name}</p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{region?.name || draft.region} · {region?.currency || ''}</p>
