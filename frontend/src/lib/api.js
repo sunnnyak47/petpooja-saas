@@ -39,13 +39,24 @@ export function warmupBackend() {
   return api.get('/health', { timeout: 60000 }).catch(() => {});
 }
 
-/** True when an axios error looks like a cold-start (timeout / network), not an auth failure. */
+/** True when an axios error looks like a cold-start (timeout / network / gateway 5xx), not an auth failure. */
 export function isColdStartError(error) {
-  return (
+  // Timeout or network blip with no HTTP response — the classic cold-start abort.
+  if (
     error?.code === 'ECONNABORTED' ||
     /timeout/i.test(error?.message || '') ||
     (!error?.response && /network/i.test(error?.message || ''))
-  );
+  ) {
+    return true;
+  }
+  // Render's edge returns a gateway 5xx while the free-tier dyno spins up.
+  // 502/503/504 mean the app server isn't reachable yet → always a cold-start.
+  // A 500 is only treated as a cold-start when the body is NOT our API's
+  // structured JSON error ({ success:false }) — so genuine app 500s still surface.
+  const status = error?.response?.status;
+  if (status === 502 || status === 503 || status === 504) return true;
+  if (status === 500 && error?.response?.data?.success !== false) return true;
+  return false;
 }
 
 api.interceptors.request.use((config) => {
