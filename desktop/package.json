@@ -1,7 +1,7 @@
 {
   "name": "petpooja-erp-desktop",
   "version": "2.0.93",
-  "description": "Petpooja ERP — Restaurant Management Desktop App (Auto-Update Enabled)",
+  "description": "MS-RM Restaurant Management System — Desktop App (Auto-Update Enabled)",
   "main": "src/main.js",
   "homepage": "./",
   "scripts": {
@@ -59,14 +59,14 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": "Petpooja ERP"
+      "publisherName": "MS-RM System"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Petpooja ERP",
+      "shortcutName": "MS-RM System",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "language": "1033"

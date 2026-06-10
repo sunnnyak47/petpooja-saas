@@ -236,7 +236,7 @@ function isInShift(order, shiftFilter) {
 function exportShiftReport(orders, format) {
   const now = new Date();
   const lines = [
-    `PetPooja — Shift Report`,
+    `MS-RM — Shift Report`,
     `Generated: ${now.toLocaleString()}`,
     `Total Orders: ${orders.length}`,
     `Total Revenue: ${orders.reduce((s, o) => s + Number(o.grand_total || 0), 0).toFixed(2)}`,

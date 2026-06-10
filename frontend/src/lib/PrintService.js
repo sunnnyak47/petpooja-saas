@@ -1,5 +1,5 @@
 /**
- * PrintService — production-ready print abstraction for PetPooja receipts and KOTs.
+ * PrintService — production-ready print abstraction for MS-RM receipts and KOTs.
  *
  * Supports three output paths:
  *   1. Browser print dialog  — window.open() + window.print() (universal fallback)

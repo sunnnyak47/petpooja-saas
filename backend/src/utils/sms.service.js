@@ -48,7 +48,7 @@ const TEMPLATES = {
   OTP: {
     env: 'MSG91_TEMPLATE_OTP',
     build: ({ otp }) =>
-      `${otp} is your PetPooja verification code. Do not share it with anyone.`,
+      `${otp} is your MS-RM verification code. Do not share it with anyone.`,
   },
   PAYMENT_RECEIVED: {
     env: 'MSG91_TEMPLATE_PAYMENT',

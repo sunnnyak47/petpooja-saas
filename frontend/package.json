@@ -2,7 +2,7 @@
   "name": "petpooja-frontend",
   "private": true,
   "version": "1.0.0",
-  "description": "Petpooja ERP — POS + Owner Dashboard Frontend",
+  "description": "MS-RM Restaurant Management System — POS + Owner Dashboard Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3001",

@@ -1,7 +1,7 @@
 {
   "name": "petpooja-erp-backend",
   "version": "1.0.0",
-  "description": "Petpooja Restaurant ERP — Production Backend API",
+  "description": "MS-RM Restaurant Management System — Production Backend API",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
