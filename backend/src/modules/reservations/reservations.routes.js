@@ -16,6 +16,8 @@ router.get('/', async (req, res, next) => {
     const where = { is_deleted: false };
     if (outlet_id) where.outlet_id = outlet_id;
     if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime()))
+        return sendError(res, 400, 'Invalid date format, expected YYYY-MM-DD');
       const d = new Date(date);
       const next = new Date(d); next.setDate(d.getDate() + 1);
       where.reservation_date = { gte: d, lt: next };

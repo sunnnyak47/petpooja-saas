@@ -13,6 +13,20 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
 
   const formatDate = (date) => new Date(date).toLocaleString();
 
+  // Derive the actual tax-component rate: prefer an explicit rate field on the
+  // order, otherwise back it out from the component amount vs. the taxable base.
+  const taxBase = Number(order.taxable_amount ?? order.subtotal ?? 0);
+  const rateFor = (explicitRate, amount) => {
+    const r = Number(explicitRate);
+    if (Number.isFinite(r) && r > 0) return r;
+    const amt = Number(amount || 0);
+    if (taxBase > 0 && amt > 0) return (amt / taxBase) * 100;
+    return null;
+  };
+  const fmtRate = (r) => (r == null ? '' : ` (${Number(r.toFixed(2))}%)`);
+  const cgstRate = rateFor(order.cgst_rate ?? order.cgst_percent, order.cgst);
+  const sgstRate = rateFor(order.sgst_rate ?? order.sgst_percent, order.sgst);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Bill Preview" size="md">
       <div className="flex flex-col h-[70vh]">
@@ -21,7 +35,9 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold uppercase tracking-widest">{order.outlet?.name || `${branding.platform_name} Restaurant`}</h2>
             <p className="text-[10px] mt-1">{order.outlet?.address || '123 Food Street, Main City'}</p>
-            <p className="text-[10px]">{isAU ? `ABN: ${order.outlet?.abn || ''}` : `GSTIN: ${order.outlet?.gstin || '24AAAAA0000A1Z5'}`}</p>
+            {isAU
+              ? order.outlet?.abn && <p className="text-[10px]">ABN: {order.outlet.abn}</p>
+              : order.outlet?.gstin && <p className="text-[10px]">GSTIN: {order.outlet.gstin}</p>}
             <div className="border-t border-dashed border-gray-300 my-4"></div>
             <h3 className="font-bold underline decoration-double">PROFORMA INVOICE</h3>
           </div>
@@ -75,13 +91,13 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
               <>
                 {Number(order.cgst) > 0 && (
                   <div className="flex justify-between text-[10px] opacity-70">
-                    <span>CGST (2.5%)</span>
+                    <span>CGST{fmtRate(cgstRate)}</span>
                     <span>{symbol}{Number(order.cgst).toFixed(2)}</span>
                   </div>
                 )}
                 {Number(order.sgst) > 0 && (
                   <div className="flex justify-between text-[10px] opacity-70">
-                    <span>SGST (2.5%)</span>
+                    <span>SGST{fmtRate(sgstRate)}</span>
                     <span>{symbol}{Number(order.sgst).toFixed(2)}</span>
                   </div>
                 )}

@@ -9,6 +9,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '../../lib/api';
 import Modal from '../Modal';
 import toast from 'react-hot-toast';
+import { useCurrency } from '../../hooks/useCurrency';
+import { useRegion } from '../../hooks/useRegion';
 import {
   ArrowLeftRight, GitMerge, Mail, Phone, UserPlus, User,
   Search, ChefHat, Users, Loader2, AlertTriangle, CheckCircle2,
@@ -236,6 +238,7 @@ export function TransferTableModal({ isOpen, onClose, order, outletId, onSuccess
 // ---------------------------------------------------------------------------
 
 export function MergeOrdersModal({ isOpen, onClose, order, outletId, onSuccess }) {
+  const { format } = useCurrency();
   const [selectedId, setSelectedId] = useState(null);
   const [inlineError, setInlineError] = useState('');
 
@@ -370,7 +373,7 @@ export function MergeOrdersModal({ isOpen, onClose, order, outletId, onSuccess }
                       {o._count?.order_items ?? '—'} items
                     </p>
                     <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                      ₹{parseFloat(o.total_amount || 0).toFixed(2)}
+                      {format(o.total_amount || 0)}
                     </p>
                   </div>
                   <span
@@ -406,13 +409,16 @@ export function MergeOrdersModal({ isOpen, onClose, order, outletId, onSuccess }
 // ---------------------------------------------------------------------------
 
 export function EBillModal({ isOpen, onClose, order, onSuccess }) {
+  const { format } = useCurrency();
+  const region = useRegion();
+  const defaultCountryCode = region === 'AU' ? '+61' : '+91';
   const defaultPhone = order?.customer?.phone || order?.customer_phone || '';
   const defaultEmail = order?.customer?.email || '';
 
   const [activeTab, setActiveTab] = useState(defaultPhone ? 'sms' : 'email');
   const [phone, setPhone] = useState(defaultPhone);
   const [email, setEmail] = useState(defaultEmail);
-  const [countryCode, setCountryCode] = useState('+91');
+  const [countryCode, setCountryCode] = useState(defaultCountryCode);
   const [inlineError, setInlineError] = useState('');
 
   useEffect(() => {
@@ -558,7 +564,7 @@ export function EBillModal({ isOpen, onClose, order, onSuccess }) {
         <div className="flex justify-between text-sm font-semibold">
           <span style={{ color: 'var(--text-secondary)' }}>Total</span>
           <span style={{ color: 'var(--text-primary)' }}>
-            ₹{parseFloat(order?.total_amount || 0).toFixed(2)}
+            {format(order?.total_amount || 0)}
           </span>
         </div>
       </div>

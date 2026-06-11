@@ -17,7 +17,7 @@ export function useCurrency() {
     if (isAU) {
       return `A$${num.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-    return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatShort = (amount) => {
@@ -42,5 +42,5 @@ export function formatCurrencyStatic(amount, currency = 'INR') {
   if (currency === 'AUD') {
     return `A$${num.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

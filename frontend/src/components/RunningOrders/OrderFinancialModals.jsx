@@ -710,6 +710,7 @@ function TimelineEntry({ entry, isLast }) {
 }
 
 export function AuditLogModal({ isOpen, onClose, order }) {
+  const { format } = useCurrency();
   const { data: fullOrder, isLoading, error } = useQuery({
     queryKey: ['order-audit', order?.id],
     queryFn: () => api.get(`/orders/${order.id}`).then((r) => r.data),
@@ -847,7 +848,7 @@ export function AuditLogModal({ isOpen, onClose, order }) {
                       {p.status}
                     </span>
                     <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {typeof p.amount === 'number' ? `₹${p.amount}` : p.amount}
+                      {typeof p.amount === 'number' ? format(p.amount) : p.amount}
                     </span>
                   </div>
                 </div>

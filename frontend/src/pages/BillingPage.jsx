@@ -299,12 +299,21 @@ export default function BillingPage() {
   const [planModal, setPlanModal] = useState(null);
   const [invoiceStatus, setInvoiceStatus] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError: chainsError,
+    refetch: refetchChains,
+  } = useQuery({
     queryKey: ['saas-chains'],
     queryFn: () => api.get('/superadmin/chains'),
   });
 
-  const { data: revenueData } = useQuery({
+  const {
+    data: revenueData,
+    isError: revenueError,
+    refetch: refetchRevenue,
+  } = useQuery({
     queryKey: ['saas-revenue'],
     queryFn: () => api.get('/superadmin/revenue'),
   });
@@ -417,6 +426,23 @@ export default function BillingPage() {
           Subscription plans, billing status & monthly recurring revenue
         </p>
       </div>
+
+      {/* Stats load failure — surface an error instead of showing blank/zero stats */}
+      {(chainsError || revenueError) && (
+        <div className="rounded-xl p-4 flex items-center justify-between gap-4"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <div className="flex items-center gap-2 text-sm" style={{ color: '#f87171' }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>Couldn’t load revenue stats. Figures below may be incomplete.</span>
+          </div>
+          <button
+            onClick={() => { if (chainsError) refetchChains(); if (revenueError) refetchRevenue(); }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+            style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Usage-based billing — metered overview (Phase 4) */}
       {ov && (

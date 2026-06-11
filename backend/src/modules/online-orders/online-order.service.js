@@ -85,7 +85,7 @@ async function acceptCustomerOrder(orderId, outletId, staffId) {
 
   // 2. Generate KOT (Kitchen Station gets the order now)
   try {
-    await orderService.generateKOT(orderId, staffId);
+    await orderService.generateKOT(orderId, outletId);
     logger.info('KOT generated upon online order acceptance', { orderId });
   } catch (err) {
     logger.error('KOT generation failed during acceptance', { error: err.message });
