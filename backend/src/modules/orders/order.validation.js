@@ -70,7 +70,22 @@ const processPaymentSchema = Joi.object({
     method: Joi.string().required(),
     amount: Joi.number().precision(2).min(0).required(),
     transaction_id: Joi.string().allow('', null),
-  })).when('method', { is: 'split', then: Joi.required() }),
+  })).when('method', { is: 'split', then: Joi.required() })
+    // For split payments, the split amounts must sum to the payment amount.
+    // Tolerance of 0.01 absorbs decimal rounding; the service re-asserts this
+    // and also reconciles against the order grand_total.
+    .custom((splits, helpers) => {
+      const amount = Number(helpers.state.ancestors[0]?.amount);
+      if (Array.isArray(splits) && Number.isFinite(amount)) {
+        const sum = splits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+        if (Math.abs(sum - amount) > 0.01) {
+          return helpers.error('any.invalid', {
+            message: `Split amounts (${sum}) must sum to payment amount (${amount})`,
+          });
+        }
+      }
+      return splits;
+    }, 'split-sum-equals-amount'),
 });
 
 const voidOrderSchema = Joi.object({

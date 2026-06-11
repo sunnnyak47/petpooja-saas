@@ -319,9 +319,10 @@ async function recordWastage(outletId, items, userId) {
             quantity: item.quantity, reason: item.reason, logged_by: userId,
           },
         });
-        await tx.inventoryStock.update({
+        await tx.inventoryStock.upsert({
           where: { outlet_id_inventory_item_id: { outlet_id: outletId, inventory_item_id: item.item_id } },
-          data: { current_stock: { decrement: item.quantity } },
+          create: { outlet_id: outletId, inventory_item_id: item.item_id, current_stock: -item.quantity, last_updated_by: userId },
+          update: { current_stock: { decrement: item.quantity } },
         });
         await tx.stockTransaction.create({
           data: {
@@ -454,6 +455,36 @@ async function getConsumptionReport(outletId, from, to) {
 }
 
 /**
+ * Allocate the next auto-PO sequence number for an outlet atomically.
+ *
+ * Reuses the OutletDailyCounter table — the same atomic increment pattern used
+ * by order/invoice numbering (see nextDailySequence in order.service.js). A
+ * per-outlet row keyed on a stable 'po-auto' day-slot is upserted with an
+ * atomic `seq` increment, so concurrent auto-order runs each get a distinct
+ * number instead of colliding on count()+1. Falls back to count()+1 if the
+ * counter table is unavailable (pre-migration safety); the P2002 retry in the
+ * caller still guards against the rare collision there.
+ *
+ * @param {object} prisma - Prisma client
+ * @param {string} outletId - Outlet UUID
+ * @returns {Promise<number>} Next PO sequence (>= 1)
+ */
+async function nextAutoPoSequence(prisma, outletId) {
+  try {
+    const counter = await prisma.outletDailyCounter.upsert({
+      where: { outlet_id_day: { outlet_id: outletId, day: 'po-auto' } },
+      create: { outlet_id: outletId, day: 'po-auto', seq: 1 },
+      update: { seq: { increment: 1 } },
+    });
+    return counter.seq;
+  } catch (err) {
+    logger.warn('OutletDailyCounter unavailable for auto-PO — falling back to count()+1', { error: err.message });
+    const count = await prisma.purchaseOrder.count({ where: { outlet_id: outletId } });
+    return count + 1;
+  }
+}
+
+/**
  * Check all items with auto_order_enabled=true, create POs for those below threshold.
  * Called: after order completion, and on manual trigger from UI.
  * @param {string} outletId
@@ -491,29 +522,46 @@ async function checkAndAutoOrder(outletId) {
       });
       if (existing) continue; // already ordered today
 
-      // Generate PO number
-      const count = await prisma.purchaseOrder.count({ where: { outlet_id: outletId } });
-      const poNumber = `PO-AUTO-${String(count + 1).padStart(5, '0')}`;
-
-      const po = await prisma.purchaseOrder.create({
-        data: {
-          outlet_id: outletId,
-          supplier_id: item.preferred_supplier_id,
-          po_number: poNumber,
-          status: 'draft',
-          total_amount: reorderQty * Number(item.cost_per_unit),
-          notes: `Auto-generated: ${item.name} stock (${currentStock} ${item.unit}) fell below threshold (${threshold} ${item.unit})`,
-          po_items: {
-            create: [{
-              inventory_item_id: item.id,
-              quantity: reorderQty,
-              unit_cost: Number(item.cost_per_unit),
-              total_cost: reorderQty * Number(item.cost_per_unit),
-            }],
-          },
-        },
-        include: { supplier: true, po_items: true },
-      });
+      // Allocate the PO number via an atomic per-outlet daily sequence
+      // (same OutletDailyCounter pattern as invoice/order numbering) so
+      // concurrent auto-order runs never collide on the unique po_number.
+      // Retry on P2002 in case two runs race the same allocated number.
+      let po = null;
+      const lineCost = reorderQty * Number(item.cost_per_unit);
+      for (let attempt = 0; attempt < 5 && !po; attempt++) {
+        const seq = await nextAutoPoSequence(prisma, outletId);
+        const poNumber = `PO-AUTO-${String(seq).padStart(5, '0')}`;
+        try {
+          po = await prisma.purchaseOrder.create({
+            data: {
+              outlet_id: outletId,
+              supplier_id: item.preferred_supplier_id,
+              po_number: poNumber,
+              status: 'draft',
+              total_amount: lineCost,
+              grand_total: lineCost,
+              notes: `Auto-generated: ${item.name} stock (${currentStock} ${item.unit}) fell below threshold (${threshold} ${item.unit})`,
+              po_items: {
+                create: [{
+                  inventory_item_id: item.id,
+                  item_name: item.name,
+                  unit: item.unit,
+                  ordered_quantity: reorderQty,
+                  unit_cost: Number(item.cost_per_unit),
+                  total_cost: lineCost,
+                }],
+              },
+            },
+            include: { supplier: true, po_items: true },
+          });
+        } catch (err) {
+          // Unique constraint collision on po_number — re-allocate and retry.
+          if (err?.code === 'P2002' && attempt < 4) continue;
+          throw err;
+        }
+      }
+      if (!po) continue;
+      const poNumber = po.po_number;
 
       posCreated.push(po);
       logger.info(`Auto-order PO created: ${poNumber} for ${item.name}`);
@@ -550,36 +598,40 @@ async function restockFromCancelledOrder(orderId) {
 
   if (!transactions.length) return { restocked: 0 };
 
-  for (const tx of transactions) {
-    const outletId = tx.outlet_id;
-    const qty      = Math.abs(Number(tx.quantity)); // restore this much
+  // All-or-nothing: stock restores, reversal rows, and is_deleted flips must
+  // commit together so a mid-loop failure can't leave a partial restock.
+  await prisma.$transaction(async (txc) => {
+    for (const tx of transactions) {
+      const outletId = tx.outlet_id;
+      const qty      = Math.abs(Number(tx.quantity)); // restore this much
 
-    // Add back stock
-    await prisma.inventoryStock.upsert({
-      where: { outlet_id_inventory_item_id: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id } },
-      create: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id, current_stock: qty },
-      update: { current_stock: { increment: qty } },
-    });
+      // Add back stock
+      await txc.inventoryStock.upsert({
+        where: { outlet_id_inventory_item_id: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id } },
+        create: { outlet_id: outletId, inventory_item_id: tx.inventory_item_id, current_stock: qty },
+        update: { current_stock: { increment: qty } },
+      });
 
-    // Log reversal transaction
-    await prisma.stockTransaction.create({
-      data: {
-        outlet_id: outletId,
-        inventory_item_id: tx.inventory_item_id,
-        transaction_type: 'restock',
-        quantity: qty,
-        reference_type: 'order_cancel',
-        reference_id: orderId,
-        reason: `Order cancelled — restocked ${qty} ${tx.inventory_item?.unit}`,
-      },
-    });
+      // Log reversal transaction
+      await txc.stockTransaction.create({
+        data: {
+          outlet_id: outletId,
+          inventory_item_id: tx.inventory_item_id,
+          transaction_type: 'restock',
+          quantity: qty,
+          reference_type: 'order_cancel',
+          reference_id: orderId,
+          reason: `Order cancelled — restocked ${qty} ${tx.inventory_item?.unit}`,
+        },
+      });
 
-    // Mark original transaction as reversed
-    await prisma.stockTransaction.update({
-      where: { id: tx.id },
-      data: { is_deleted: true },
-    });
-  }
+      // Mark original transaction as reversed
+      await txc.stockTransaction.update({
+        where: { id: tx.id },
+        data: { is_deleted: true },
+      });
+    }
+  });
 
   logger.info(`Restocked ${transactions.length} items from cancelled order ${orderId}`);
   return { restocked: transactions.length };

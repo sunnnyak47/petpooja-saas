@@ -7,7 +7,7 @@
 const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
-const { NotFoundError, BadRequestError, ForbiddenError } = require('../../utils/errors');
+const { NotFoundError, BadRequestError, ForbiddenError, ConflictError } = require('../../utils/errors');
 const { generateOrderNumber, parsePagination, getFinancialYear, generateInvoiceNumber: formatInvoiceNumber } = require('../../utils/helpers');
 const { calculateItemTax } = require('./tax.service');
 const { round2 } = require('../../utils/money');
@@ -322,11 +322,18 @@ async function createOrder(data, staffId) {
         data: { order_id: newOrder.id, from_status: null, to_status: data.status || 'created', changed_by: staffId },
       });
 
+      // Dine-in table seize INSIDE the transaction so two concurrent orders
+      // cannot grab the same table (M7). The conditional updateMany only matches
+      // while the table is still free; count === 0 means a concurrent order won
+      // the race, so the losing order throws and the whole transaction rolls back.
       if (data.table_id) {
-        await tx.table.update({
-          where: { id: data.table_id },
+        const seized = await tx.table.updateMany({
+          where: { id: data.table_id, current_order_id: null, status: { not: 'occupied' } },
           data: { status: 'occupied', current_order_id: newOrder.id },
         });
+        if (seized.count === 0) {
+          throw new ConflictError('Table is already occupied. Use add items to existing order.');
+        }
       }
 
       return newOrder;
@@ -365,7 +372,7 @@ async function createOrder(data, staffId) {
       table_id: data.table_id || null,
     };
   } catch (error) {
-    if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
+    if (error instanceof NotFoundError || error instanceof BadRequestError || error instanceof ConflictError) throw error;
     logger.error('Create order failed', { error: error.message });
     throw error;
   }
@@ -782,10 +789,58 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       throw new BadRequestError(`Cannot pay for ${order.status} order`);
     }
 
-    if (Math.abs(paymentData.amount - Number(order.grand_total)) > 1) {
+    const grandTotal = Number(order.grand_total);
+
+    // --- Loyalty redemption (H5) ---------------------------------------------
+    // loyalty_points_redeem reduces the amount owed, but ONLY if we can actually
+    // decrement the customer's balance inside the payment transaction below.
+    // Here we just validate eligibility and compute the discount so the payment
+    // amount can be reconciled against (grand_total - loyalty_discount) before the
+    // tolerance check. Points are never allowed to drive the charge below zero.
+    const pointsToRedeem = Number(paymentData.loyalty_points_redeem) || 0;
+    let loyaltyDiscount = 0;
+    let loyaltyCfg = null;
+    if (pointsToRedeem > 0) {
+      if (!order.customer_id) {
+        throw new BadRequestError('Cannot redeem loyalty points without a customer on the order');
+      }
+      loyaltyCfg = await customerService.getLoyaltyConfig(order.outlet_id);
+      if (!loyaltyCfg.enabled) {
+        throw new BadRequestError('Loyalty programme is not enabled for this outlet');
+      }
+      if (pointsToRedeem < loyaltyCfg.min_redemption) {
+        throw new BadRequestError(`Minimum ${loyaltyCfg.min_redemption} points required to redeem`);
+      }
+      const loyalty = await prisma.loyaltyPoints.findFirst({ where: { customer_id: order.customer_id } });
+      const available = loyalty?.current_balance || 0;
+      if (available < pointsToRedeem) {
+        throw new BadRequestError(`Insufficient loyalty points. Available: ${available}`);
+      }
+      // Cap the redemption discount at the order grand total so points can never
+      // produce a negative charge or a refund.
+      loyaltyDiscount = round2(Math.min(pointsToRedeem * Number(loyaltyCfg.redeem_value), grandTotal));
+    }
+
+    const amountOwed = round2(grandTotal - loyaltyDiscount);
+
+    if (Math.abs(Number(paymentData.amount) - amountOwed) > 1) {
       throw new BadRequestError(
-        `Payment amount ${paymentData.amount} does not match order total ${order.grand_total}`
+        loyaltyDiscount > 0
+          ? `Payment amount ${paymentData.amount} does not match amount owed ${amountOwed} (order total ${grandTotal} less loyalty discount ${loyaltyDiscount})`
+          : `Payment amount ${paymentData.amount} does not match order total ${order.grand_total}`
       );
+    }
+
+    // --- Split payment reconciliation (M4) -----------------------------------
+    // The split amounts must sum to the tendered payment amount, and the payment
+    // amount must match the amount owed (grand_total less any loyalty discount).
+    if (paymentData.method === 'split' && Array.isArray(paymentData.splits)) {
+      const splitSum = paymentData.splits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+      if (Math.abs(splitSum - Number(paymentData.amount)) > 0.01) {
+        throw new BadRequestError(
+          `Split amounts (${round2(splitSum)}) must sum to payment amount (${paymentData.amount})`
+        );
+      }
     }
 
     // When auto-free is enabled, a dine-in table is NOT freed on payment — it is
@@ -814,12 +869,41 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
         }
       }
 
+      // Redeem loyalty points atomically with the payment (H5). Re-check the
+      // balance inside the transaction with a conditional decrement so concurrent
+      // redemptions can't overspend; persist loyalty_discount/loyalty_points_used
+      // and the redeem ledger entry so the reduced charge is fully reconciled.
+      if (pointsToRedeem > 0 && loyaltyDiscount > 0) {
+        const decremented = await tx.loyaltyPoints.updateMany({
+          where: { customer_id: order.customer_id, current_balance: { gte: pointsToRedeem } },
+          data: { total_redeemed: { increment: pointsToRedeem }, current_balance: { decrement: pointsToRedeem } },
+        });
+        if (decremented.count === 0) {
+          throw new BadRequestError('Insufficient loyalty points');
+        }
+        const updatedLoyalty = await tx.loyaltyPoints.findFirst({ where: { customer_id: order.customer_id } });
+        await tx.loyaltyTransaction.create({
+          data: {
+            customer_id: order.customer_id,
+            outlet_id: order.outlet_id,
+            order_id: orderId,
+            type: 'redeem',
+            points: -pointsToRedeem,
+            balance_after: updatedLoyalty?.current_balance ?? 0,
+            description: `Redeemed ${pointsToRedeem} pts for ₹${loyaltyDiscount.toFixed(2)} discount`,
+          },
+        });
+      }
+
       await tx.order.update({
         where: { id: orderId },
-        data: { 
-          is_paid: true, 
-          paid_at: new Date(), 
-          status: 'paid'
+        data: {
+          is_paid: true,
+          paid_at: new Date(),
+          status: 'paid',
+          ...(pointsToRedeem > 0 && loyaltyDiscount > 0
+            ? { loyalty_points_used: pointsToRedeem, loyalty_discount: loyaltyDiscount }
+            : {}),
         },
       });
 
@@ -1258,6 +1342,22 @@ async function refundOrder(orderId, data, userId) {
   });
   await prisma.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
   logger.info('Order refunded', { orderId, refundAmount: data.refund_amount, userId });
+
+  // Reverse the inventory consumed by this order (M12) so a refund doesn't leave
+  // phantom consumption on the books. Mirrors cancelOrder's restock. Only restock
+  // on a FULL refund; restockFromCancelledOrder is idempotent (it soft-deletes the
+  // consumption rows it reverses) so it won't double-restock if already cancelled.
+  const refundAmount = Number(data.refund_amount ?? order.grand_total);
+  const isFullRefund = Math.abs(refundAmount - Number(order.grand_total)) <= 0.01;
+  if (isFullRefund) {
+    try {
+      const inventoryService = require('../inventory/inventory.service');
+      await inventoryService.restockFromCancelledOrder(orderId);
+      logger.info('Inventory restocked after order refund', { orderId });
+    } catch (invErr) {
+      logger.warn('Restock after refund failed (non-fatal)', { orderId, error: invErr.message });
+    }
+  }
 
   // Post a reversing journal to the ledger. Fire-and-forget — never break refund.
   setImmediate(() => {
