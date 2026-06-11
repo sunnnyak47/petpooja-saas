@@ -53,11 +53,22 @@ async function getDailySales(outletId, date, tz) {
   try {
     const outletTz = await resolveOutletTz(prisma, outletId, tz);
     const { start, end } = getDateRange(date, date, outletTz);
+    // "Created in range" valid orders — drives counts, type/source splits, tax and
+    // discount totals, and the "gross ordered" figure (unchanged report shape).
     const baseWhere = {
       outlet_id: outletId,
       is_deleted: false,
       created_at: { gte: start, lt: end },
       status: { notIn: ['cancelled', 'voided'] },
+    };
+    // M15: headline revenue must reconcile with EOD. EOD counts only PAID orders
+    // by paid_at within the day, then subtracts refunds. Mirror that exactly here so
+    // the owner sees ONE "today's revenue". (EOD: eod.service.js generateSnapshot.)
+    const paidWhere = {
+      outlet_id: outletId,
+      is_deleted: false,
+      is_paid: true,
+      paid_at: { gte: start, lt: end },
     };
 
     return await cached(`daily-sales:${outletId}:${date}`, TTL.SHORT, async () => {
@@ -65,6 +76,7 @@ async function getDailySales(outletId, date, tz) {
         date,
         total_orders: 0,
         total_revenue: 0,
+        gross_ordered_revenue: 0,
         total_tax: 0,
         total_discount: 0,
         by_type: { dine_in: 0, takeaway: 0, delivery: 0, online: 0, qr_order: 0 },
@@ -76,11 +88,27 @@ async function getDailySales(outletId, date, tz) {
       };
 
       // Aggregate order totals, type/source counts, and paid/unpaid splits in DB.
-      const [totals, byType, bySource, paidGroups, paymentRows] = await Promise.all([
+      const [totals, paidTotals, refundAgg, byType, bySource, paidGroups, paymentRows] = await Promise.all([
         prisma.order.aggregate({
           where: baseWhere,
           _count: { id: true },
           _sum: { grand_total: true, total_tax: true, discount_amount: true },
+        }),
+        // Collected revenue: paid orders by paid_at (EOD definition).
+        prisma.order.aggregate({
+          where: paidWhere,
+          _sum: { grand_total: true },
+        }),
+        // Refunds in range (EOD nets these out of total_revenue): payments with a
+        // positive refund updated within the day window.
+        prisma.payment.aggregate({
+          where: {
+            outlet_id: outletId,
+            is_deleted: false,
+            refund_amount: { gt: 0 },
+            updated_at: { gte: start, lt: end },
+          },
+          _sum: { refund_amount: true },
         }),
         prisma.order.groupBy({ by: ['order_type'], where: baseWhere, _count: { id: true } }),
         prisma.order.groupBy({ by: ['source'], where: baseWhere, _count: { id: true } }),
@@ -99,7 +127,13 @@ async function getDailySales(outletId, date, tz) {
       ]);
 
       summary.total_orders = totals._count.id;
-      summary.total_revenue = Number(totals._sum.grand_total || 0);
+      // M15: headline revenue = collected (paid) − refunds, matching EOD exactly.
+      const collected = Number(paidTotals._sum.grand_total || 0);
+      const refunds = Number(refundAgg._sum.refund_amount || 0);
+      summary.total_revenue = collected - refunds;
+      // Gross ordered (formerly the headline) kept as a clearly separate field so
+      // "ordered" vs "collected" stay distinguishable for the frontend.
+      summary.gross_ordered_revenue = Number(totals._sum.grand_total || 0);
       summary.total_tax = Number(totals._sum.total_tax || 0);
       summary.total_discount = Number(totals._sum.discount_amount || 0);
 
@@ -117,8 +151,11 @@ async function getDailySales(outletId, date, tz) {
         summary.by_payment[classifyPaymentMethod(p.method)] += Number(p._sum.amount || 0);
       }
 
-      summary.avg_order_value = summary.total_orders > 0 ? round2(summary.total_revenue / summary.total_orders) : 0;
+      // AOV is per paid order now that revenue is the collected figure (avoids a
+      // misleading "revenue / all orders" when unpaid tabs are open).
+      summary.avg_order_value = summary.paid_orders > 0 ? round2(summary.total_revenue / summary.paid_orders) : 0;
       summary.total_revenue = round2(summary.total_revenue);
+      summary.gross_ordered_revenue = round2(summary.gross_ordered_revenue);
       summary.total_tax = round2(summary.total_tax);
 
       return summary;
@@ -140,12 +177,16 @@ async function getDailySales(outletId, date, tz) {
 async function getItemWiseSales(outletId, from, to, topN = 20) {
   const prisma = getDbClient();
   try {
-    // Preserve original boundary semantics exactly: gte from, lte to (no setHours).
+    // H8: use centralized half-open [start, end) day boundaries (outlet tz) so a
+    // single-day query (from == to) actually covers the whole local day instead of
+    // matching only orders at exactly 00:00:00Z. Mirrors getDailySales.
+    const outletTz = await resolveOutletTz(prisma, outletId);
+    const { start, end } = getDateRange(from, to, outletTz);
     const orderWhere = {
       outlet_id: outletId,
       is_deleted: false,
       status: { notIn: ['cancelled', 'voided'] },
-      created_at: { gte: new Date(from), lte: new Date(to) },
+      created_at: { gte: start, lt: end },
     };
 
     return await cached(`item-wise:${outletId}:${from}:${to}:${topN}`, TTL.MEDIUM, async () => {
@@ -375,18 +416,26 @@ async function getHourlyBreakdown(outletId, date, tz) {
 
 async function getCategoryWiseSales(outletId, from, to) {
   const prisma = getDbClient();
-  // Preserve original quirky boundary defaults exactly.
-  const fromDate = from ? new Date(from) : new Date();
-  if(!from) fromDate.setHours(0,0,0,0);
-  const toDate = to ? new Date(to) : new Date();
-  if(!to) toDate.setDate(toDate.getDate() + 1);
+  // M14: centralized half-open [start, end) day boundaries (outlet tz) fix the
+  // single-day off-by-one; defaults to today when bounds are omitted.
+  const outletTz = await resolveOutletTz(prisma, outletId);
+  const { start, end } = getDateRange(from, to, outletTz);
 
   return await cached(`category-wise:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
     // Push the per-item revenue sum to the DB, then roll up to category in JS
-    // using a single id→category lookup (original status filter omits 'voided').
+    // using a single id→category lookup. M14: exclude voided/cancelled and
+    // soft-deleted orders/items so the totals match getDailySales' valid-order set.
     const grouped = await prisma.orderItem.groupBy({
       by: ['menu_item_id'],
-      where: { order: { outlet_id: outletId, status: { notIn: ['cancelled'] }, created_at: { gte: fromDate, lte: toDate } } },
+      where: {
+        is_deleted: false,
+        order: {
+          outlet_id: outletId,
+          is_deleted: false,
+          status: { notIn: ['cancelled', 'voided'] },
+          created_at: { gte: start, lt: end },
+        },
+      },
       _sum: { item_total: true },
     });
 

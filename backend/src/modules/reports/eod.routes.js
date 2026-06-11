@@ -11,11 +11,21 @@ const { hasPermission }    = require('../../middleware/rbac.middleware');
 const { validate }         = require('../../middleware/validate.middleware');
 const { saveDraftSchema, lockEODSchema } = require('./eod.validation');
 const { sendSuccess }      = require('../../utils/response');
+const { BadRequestError }  = require('../../utils/errors');
+
+/** M9: reject malformed date params before they reach new Date()/Prisma. */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function assertValidDate(date) {
+  if (date != null && !DATE_RE.test(String(date))) {
+    throw new BadRequestError('Invalid date format; expected YYYY-MM-DD');
+  }
+}
 
 /* ── GET /api/reports/eod/preview — live snapshot of today (no save) ── */
 router.get('/preview', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
+    assertValidDate(req.query.date);
     const date     = req.query.date || new Date().toISOString().slice(0, 10);
     const data     = await eod.generateSnapshot(outletId, date);
     sendSuccess(res, data, 'EOD preview generated');
@@ -36,6 +46,7 @@ router.get('/history', authenticate, async (req, res, next) => {
 router.get('/:date', authenticate, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
+    assertValidDate(req.params.date);
     const data     = await eod.getReportByDate(outletId, req.params.date);
     sendSuccess(res, data, 'EOD report retrieved');
   } catch (e) { next(e); }

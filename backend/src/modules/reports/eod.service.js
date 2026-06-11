@@ -6,6 +6,8 @@
 
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
+const { getDateRange, safeTz, DEFAULT_TZ } = require('./report-helpers');
+const { BadRequestError } = require('../../utils/errors');
 
 /* ─── helpers ───────────────────────────────────────────────────── */
 
@@ -15,12 +17,36 @@ function toNum(d) { return Number(d ?? 0); }
 function toCents(d) { return Math.round(toNum(d) * 100); }
 function toMajor(cents) { return Math.round(cents) / 100; }
 
-/** Build a date range for a single calendar day (outlet local midnight) */
-function dayRange(date) {
-  const d  = new Date(date);
-  const lo = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0));
-  const hi = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999));
-  return { gte: lo, lte: hi };
+/**
+ * Resolve the bucketing timezone for an outlet's EOD report.
+ * Prefers the Outlet.timezone column (schema default "Asia/Kolkata"); falls back
+ * to DEFAULT_TZ on any lookup failure so EOD never breaks on a missing outlet.
+ * Mirrors reports.service.js resolveOutletTz.
+ */
+async function resolveOutletTz(prisma, outletId, tz) {
+  if (tz) return safeTz(tz);
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId }, select: { timezone: true },
+    });
+    return safeTz(outlet?.timezone);
+  } catch (_) {
+    return DEFAULT_TZ;
+  }
+}
+
+/**
+ * Build a half-open [start, end) UTC range for a single calendar day, with day
+ * boundaries computed in the outlet's timezone (H7). The returned bounds are real
+ * UTC instants for local-midnight cut-offs, so non-UTC outlets (IST, AEST) get the
+ * correct calendar day. Guards malformed dates (M9).
+ */
+function dayRange(date, outletTz) {
+  if (isNaN(new Date(date).getTime())) {
+    throw new BadRequestError(`Invalid date: ${date}`);
+  }
+  const { start, end } = getDateRange(date, date, outletTz);
+  return { gte: start, lt: end };
 }
 
 /* ─── 1. Generate snapshot from live orders ─────────────────────── */
@@ -29,10 +55,11 @@ function dayRange(date) {
  * Pulls all paid orders for a given date and computes EOD totals.
  * Does NOT persist — caller decides to save as draft.
  */
-async function generateSnapshot(outletId, date = new Date()) {
+async function generateSnapshot(outletId, date = new Date(), tz) {
   const prisma = getDbClient();
   try {
-    const range = dayRange(date);
+    const outletTz = await resolveOutletTz(prisma, outletId, tz);
+    const range = dayRange(date, outletTz);
 
     // All paid / completed orders for the day
     const orders = await prisma.order.findMany({
@@ -48,30 +75,44 @@ async function generateSnapshot(outletId, date = new Date()) {
       },
     });
 
-    // Voided / cancelled orders
+    // Voided / cancelled orders.
+    // M13: voidOrder() sets status='voided' but never writes cancelled_at, so a
+    // cancelled_at-only filter dropped all voids. Match cancelled rows on
+    // cancelled_at and voided rows on their own updated_at timestamp, so every
+    // voided/cancelled order in the day window is surfaced.
     const voidedOrders = await prisma.order.findMany({
       where: {
-        outlet_id:    outletId,
-        is_deleted:   false,
-        status:       { in: ['cancelled', 'voided'] },
-        cancelled_at: range,
+        outlet_id:  outletId,
+        is_deleted: false,
+        OR: [
+          { status: 'cancelled', cancelled_at: range },
+          { status: 'voided',    updated_at:   range },
+        ],
       },
       select: { grand_total: true },
     });
 
-    // Refunds
+    // Refunds.
+    // M16: bucket refunds on the same timestamp basis as the payment they reverse.
+    // Reversing rows are written by refundOrder() with a negative `amount` and
+    // status 'refunded'; legacy/partial refunds carry a positive `refund_amount`.
+    // Both are anchored on the payment's own created_at so a refund is counted in
+    // the same per-payment net figure used for the payment breakdown.
     const refunds = await prisma.payment.findMany({
       where: {
         outlet_id:  outletId,
         is_deleted: false,
-        refund_amount: { gt: 0 },
-        updated_at: range,
+        created_at: range,
+        OR: [
+          { refund_amount: { gt: 0 } },
+          { status: 'refunded' },
+        ],
       },
-      select: { refund_amount: true },
+      select: { amount: true, refund_amount: true, status: true },
     });
 
     /* ── Aggregate totals using integer cents/paise to prevent float drift ── */
-    let totalRevenueCents = 0, totalTaxCents = 0, totalDiscountCents = 0;
+    let totalTaxCents = 0, totalDiscountCents = 0;
     let cashSystemCents = 0, cardSystemCents = 0, upiSystemCents = 0, otherSystemCents = 0;
     let dineInOrders = 0, dineInRevenueCents = 0;
     let takeawayOrders = 0, takeawayRevenueCents = 0;
@@ -83,7 +124,6 @@ async function generateSnapshot(outletId, date = new Date()) {
 
     for (const order of orders) {
       const gtCents = toCents(order.grand_total);
-      totalRevenueCents  += gtCents;
       totalTaxCents      += toCents(order.total_tax);
       totalDiscountCents += toCents(order.discount_amount) + toCents(order.loyalty_discount);
 
@@ -153,10 +193,21 @@ async function generateSnapshot(outletId, date = new Date()) {
       .map(i => ({ name: i.name, qty: i.qty, revenue: toMajor(i.revenueCents) }));
 
     const voidAmountCents = voidedOrders.reduce((s, o) => s + toCents(o.grand_total), 0);
-    const refundTotalCents = refunds.reduce((s, r) => s + toCents(r.refund_amount), 0);
 
-    // Bug 1 fix: subtract refunds so total_revenue matches the payment breakdown sum
-    totalRevenueCents -= refundTotalCents;
+    // M16: derive each refund's magnitude from the same field the payment breakdown
+    // nets out, so refund_amount reconciles with net_revenue. A reversing row carries
+    // its refund in the negative `amount`; a partial refund carries it in
+    // `refund_amount`. Take whichever is present so we never double count.
+    const refundTotalCents = refunds.reduce((s, r) => {
+      const fromRefundField = toCents(r.refund_amount);
+      const fromNegAmount   = toNum(r.amount) < 0 ? -toCents(r.amount) : 0;
+      return s + (fromRefundField > 0 ? fromRefundField : fromNegAmount);
+    }, 0);
+
+    // M16: total_revenue is derived from the same per-payment net figures as
+    // net_revenue (cash+card+upi+other) so the internal cross-check holds.
+    const netRevenueCents = cashSystemCents + cardSystemCents + upiSystemCents + otherSystemCents;
+    const totalRevenueCents = netRevenueCents;
 
     return {
       report_date:      new Date(date).toISOString().slice(0, 10),
@@ -176,8 +227,8 @@ async function generateSnapshot(outletId, date = new Date()) {
       card_system:      toMajor(cardSystemCents),
       upi_system:       toMajor(upiSystemCents),
       other_system:     toMajor(otherSystemCents),
-      // Cross-check field: equals cash + card + upi + other; should match total_revenue
-      net_revenue:      toMajor(cashSystemCents + cardSystemCents + upiSystemCents + otherSystemCents),
+      // Cross-check field: equals cash + card + upi + other; matches total_revenue
+      net_revenue:      toMajor(netRevenueCents),
       top_items:        topItems,
     };
   } catch (err) {
