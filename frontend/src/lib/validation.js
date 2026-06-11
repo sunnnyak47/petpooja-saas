@@ -11,9 +11,17 @@ export const PHONE_REGEX = /^(\+?61[0-9]{9}|0[2-9][0-9]{8}|[6-9][0-9]{9})$/;
 // Max characters allowed in a phone input. "+61 412 345 678" => 15 with spaces.
 export const PHONE_MAXLEN = 15;
 
-/** Strip spaces, dashes, brackets so the regex sees only +digits. */
+/**
+ * Canonicalise a phone to the form the backend stores: strip spaces/dashes/
+ * brackets, then reduce common Indian-mobile presentations (+91…, 91…, or a
+ * leading 0) to the bare 10-digit form. Australian numbers (+61 / 0X) are left
+ * as-is. Mirrors backend canonicalizePhone so client and server agree.
+ */
 export function normalisePhone(v) {
-  return String(v || '').replace(/[\s()\-.]/g, '');
+  const stripped = String(v || '').replace(/[\s()\-.]/g, '');
+  if (/^\+?91[6-9]\d{9}$/.test(stripped)) return stripped.replace(/^\+?91/, '');
+  if (/^0[6-9]\d{9}$/.test(stripped)) return stripped.slice(1);
+  return stripped;
 }
 
 /** True when the value is a valid AU (or IN) phone number. */

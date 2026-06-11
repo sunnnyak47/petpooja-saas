@@ -12,6 +12,7 @@ const { getRedisClient } = require('../../config/redis');
 const mailService = require('../../utils/mail.service');
 const appConfig = require('../../config/app');
 const logger = require('../../config/logger');
+const { canonicalizePhone } = require('../../utils/validators');
 const {
   BadRequestError,
   UnauthorizedError,
@@ -134,7 +135,9 @@ async function login(login, password, auditInfo = {}) {
     }
 
     const isEmail = login.includes('@');
-    const loginIdentifier = isEmail ? login.toLowerCase() : login;
+    // Canonicalise phone logins (+91…/0…/spaces) to the bare form stored at
+    // registration so login-by-phone matches regardless of how it was typed.
+    const loginIdentifier = isEmail ? login.toLowerCase() : canonicalizePhone(login);
     
     const startDb = Date.now();
     const user = await prisma.user.findFirst({
