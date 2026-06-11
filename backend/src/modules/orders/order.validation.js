@@ -40,7 +40,14 @@ const addItemsSchema = Joi.object({
 
 const applyDiscountSchema = Joi.object({
   discount_type: Joi.string().valid('percentage', 'flat').required(),
-  discount_value: Joi.number().min(0).required(),
+  // Percentage discounts are capped at 100% so a value like 150 cannot drive
+  // the grand_total negative (free-money bug). Flat discounts are clamped to the
+  // bill subtotal in the controller.
+  discount_value: Joi.when('discount_type', {
+    is: 'percentage',
+    then: Joi.number().min(0).max(100).required(),
+    otherwise: Joi.number().min(0).required(),
+  }),
   discount_reason: Joi.string().max(200).allow('', null),
   coupon_code: Joi.string().max(50).allow('', null),
 });

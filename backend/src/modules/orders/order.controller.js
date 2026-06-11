@@ -6,6 +6,89 @@
 const orderService = require('./order.service');
 const { sendSuccess, sendCreated, sendPaginated, sendError } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
+const { calculateItemTax } = require('./tax.service');
+const { computeGrandTotal } = require('./pricing.service');
+const { resolveOutletTaxConfig } = require('../../utils/outlet');
+const { round2 } = require('../../utils/money');
+
+/**
+ * Recompute an order's tax + grand total from its surviving items, applying a
+ * discount to the *taxable* base so GST is charged on the post-discount amount
+ * (matches the order-creation path). Reuses the shared tax engine
+ * (calculateItemTax), the region-aware rounding (computeGrandTotal) and the
+ * outlet tax-config resolver (resolveOutletTaxConfig) — no divergent formulas.
+ *
+ * The discount is spread proportionally across items via a single factor so the
+ * inclusive (AU) vs exclusive (IN) semantics of calculateItemTax are preserved.
+ *
+ * @param {object} tx - Prisma client / transaction
+ * @param {string} orderId - Order UUID
+ * @param {object} outlet - Outlet row including `head_office`, `currency`, `country`, `state`
+ * @param {number} requestedDiscount - Discount amount before clamping
+ * @param {number} loyaltyDiscount - Existing loyalty discount (left as-is)
+ * @returns {Promise<{subtotal:number, discount_amount:number, cgst:number, sgst:number, igst:number, total_tax:number, total_amount:number, grand_total:number, round_off:number}>}
+ */
+async function recomputeOrderWithDiscount(tx, orderId, outlet, requestedDiscount, loyaltyDiscount) {
+  const taxConfig = resolveOutletTaxConfig(outlet);
+
+  const items = await tx.orderItem.findMany({
+    where: { order_id: orderId, is_deleted: false },
+  });
+
+  let subtotalPaise = 0;
+  for (const oi of items) subtotalPaise += Math.round(Number(oi.item_total) * 100);
+  const subtotal = subtotalPaise / 100;
+
+  // Clamp discount to the subtotal so the total can never go negative, and clamp
+  // loyalty against whatever is left.
+  const discount = Math.min(Math.max(Number(requestedDiscount) || 0, 0), subtotal);
+  const loyalty = Math.min(Math.max(Number(loyaltyDiscount) || 0, 0), Math.max(subtotal - discount, 0));
+
+  // Proportional factor applied to each item's taxable base so tax is computed
+  // on the discounted amount (combined discount + loyalty reduce the base).
+  const reduction = discount + loyalty;
+  const factor = subtotal > 0 ? Math.max(subtotal - reduction, 0) / subtotal : 0;
+
+  let cgstPaise = 0;
+  let sgstPaise = 0;
+  let igstPaise = 0;
+  let totalTaxPaise = 0;
+
+  for (const oi of items) {
+    const qty = Number(oi.quantity) || 1;
+    const gstRate = Number(oi.gst_rate) || taxConfig.default_gst_rate || 0;
+    const discountedUnitBase = (Number(oi.item_total) * factor) / qty;
+    const tax = calculateItemTax(
+      { base_price: discountedUnitBase, quantity: qty, gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
+      { country_code: taxConfig.country_code, state: taxConfig.state }
+    );
+    cgstPaise += Math.round(tax.cgst * 100);
+    sgstPaise += Math.round(tax.sgst * 100);
+    igstPaise += Math.round(tax.igst * 100);
+    totalTaxPaise += Math.round(tax.total_tax * 100);
+  }
+
+  const totalTax = totalTaxPaise / 100;
+  const discountedSubtotal = round2(Math.max(subtotal - reduction, 0));
+
+  // Inclusive (AU): price already contains tax, so total = discounted subtotal.
+  // Exclusive (IN): add tax on top of the discounted base.
+  const totalAmount = taxConfig.gst_inclusive ? discountedSubtotal : round2(discountedSubtotal + totalTax);
+
+  const { grandTotal, roundOff } = computeGrandTotal(totalAmount, taxConfig.country_code);
+
+  return {
+    subtotal,
+    discount_amount: round2(discount),
+    cgst: cgstPaise / 100,
+    sgst: sgstPaise / 100,
+    igst: igstPaise / 100,
+    total_tax: totalTax,
+    total_amount: totalAmount,
+    grand_total: grandTotal,
+    round_off: roundOff,
+  };
+}
 
 /** POST /api/orders */
 async function createOrder(req, res, next) {
@@ -149,6 +232,7 @@ async function applyDiscount(req, res, next) {
 
     const order = await prisma.order.findFirst({
       where: { id, is_deleted: false },
+      include: { outlet: { include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } } } },
     });
     if (!order) return sendError(res, 404, 'Order not found');
 
@@ -160,25 +244,36 @@ async function applyDiscount(req, res, next) {
     const subtotal = Number(order.subtotal) || 0;
     let discount_amount = 0;
     if (discount_type === 'percentage') {
-      discount_amount = subtotal * (discount_value / 100);
+      // Cap percentage at 100% (defence-in-depth; Joi also enforces .max(100)).
+      discount_amount = subtotal * (Math.min(Number(discount_value) || 0, 100) / 100);
     } else {
-      discount_amount = discount_value;
+      discount_amount = Number(discount_value) || 0;
     }
+    // Never let the discount exceed the bill — prevents a negative grand_total.
+    discount_amount = Math.min(discount_amount, subtotal);
 
     const loyalty_discount = Number(order.loyalty_discount) || 0;
-    const round_off = Number(order.round_off) || 0;
-    const total_amount = Number(order.total_amount) || 0;
-    const grand_total = total_amount - discount_amount - loyalty_discount + round_off;
+
+    // Recompute tax on the DISCOUNTED base and refresh round_off / grand_total via
+    // the shared tax engine so GST is no longer over-collected and the total stays
+    // a whole rupee in IN (whole cent in AU).
+    const totals = await recomputeOrderWithDiscount(prisma, id, order.outlet, discount_amount, loyalty_discount);
 
     const updated = await prisma.order.update({
       where: { id },
       data: {
         discount_type,
         discount_value,
-        discount_amount,
+        discount_amount: totals.discount_amount,
         discount_reason: discount_reason || null,
         coupon_code: coupon_code || null,
-        grand_total,
+        cgst: totals.cgst,
+        sgst: totals.sgst,
+        igst: totals.igst,
+        total_tax: totals.total_tax,
+        total_amount: totals.total_amount,
+        round_off: totals.round_off,
+        grand_total: totals.grand_total,
       },
     });
 
@@ -219,7 +314,8 @@ async function voidItem(req, res, next) {
     const order = await prisma.order.findFirst({
       where: { id, is_deleted: false },
       include: {
-        items: { where: { is_deleted: false } },
+        order_items: { where: { is_deleted: false } },
+        outlet: { include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } } },
       },
     });
     if (!order) return sendError(res, 404, 'Order not found');
@@ -242,7 +338,7 @@ async function voidItem(req, res, next) {
     if (!hasManagerRole) return sendError(res, 403, 'PIN does not belong to an authorized manager');
 
     // 3. Find the OrderItem — must belong to this order and not already deleted
-    const orderItem = order.items.find((i) => i.id === item_id);
+    const orderItem = order.order_items.find((i) => i.id === item_id);
     if (!orderItem) return sendError(res, 404, 'Order item not found or already removed');
 
     // 4 & 5. Apply void or comp in a transaction, then recalculate totals
@@ -264,21 +360,29 @@ async function voidItem(req, res, next) {
         });
       }
 
-      // 6. Recalculate order totals from surviving items
-      const remainingItems = await tx.orderItem.findMany({
-        where: { order_id: id, is_deleted: false },
-      });
-
-      const subtotal = remainingItems.reduce((sum, i) => sum + Number(i.item_total), 0);
-      const discount_amount = Number(order.discount_amount) || 0;
+      // 6. Recalculate order totals from surviving items via the shared tax engine.
+      // The previous discount may now exceed the smaller subtotal, so re-clamp it;
+      // recompute tax (dropped before for IN exclusive orders) and round_off so the
+      // grand_total stays consistent with the order-creation formula.
       const loyalty_discount = Number(order.loyalty_discount) || 0;
-      const round_off = Number(order.round_off) || 0;
-      const grand_total = subtotal - discount_amount - loyalty_discount + round_off;
+      const totals = await recomputeOrderWithDiscount(
+        tx, id, order.outlet, Number(order.discount_amount) || 0, loyalty_discount
+      );
 
       const updated = await tx.order.update({
         where: { id },
-        data: { subtotal, grand_total },
-        include: { items: { where: { is_deleted: false } } },
+        data: {
+          subtotal: totals.subtotal,
+          discount_amount: totals.discount_amount,
+          cgst: totals.cgst,
+          sgst: totals.sgst,
+          igst: totals.igst,
+          total_tax: totals.total_tax,
+          total_amount: totals.total_amount,
+          round_off: totals.round_off,
+          grand_total: totals.grand_total,
+        },
+        include: { order_items: { where: { is_deleted: false } } },
       });
 
       // Audit trail

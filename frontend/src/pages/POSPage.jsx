@@ -124,6 +124,19 @@ export default function POSPage() {
   const [assignedStaff, setAssignedStaff]       = useState(null);
   // currentOrder state for void/refund modals
   const [currentOrderForModal, setCurrentOrderForModal] = useState(null);
+  // ── M20: double-tap guard for draft-order actions (Split / eBill / Transfer / Merge).
+  // Rapid double-clicks could fire these handlers twice before tempOrderId was set,
+  // creating duplicate draft orders. actionBusy disables the buttons in-flight and the
+  // ref makes the handlers idempotent per click even before React re-renders.
+  const [actionBusy, setActionBusy] = useState(false);
+  const actionBusyRef = useRef(false);
+  const runDraftAction = async (fn) => {
+    if (actionBusyRef.current) return;        // ignore re-entrant double-tap
+    actionBusyRef.current = true;
+    setActionBusy(true);
+    try { await fn(); }
+    finally { actionBusyRef.current = false; setActionBusy(false); }
+  };
 
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
@@ -398,6 +411,14 @@ export default function POSPage() {
       grandTotal: totalWithGratuity,
     };
   }, [cart, isCompMode, isAU, discount, gratuity, appliedLoyaltyDiscount]);
+
+  // Single source of truth for the amount we DISPLAY and CHARGE.
+  // Priority: a generated bill's authoritative total > server-recorded order total > local cart total.
+  // cartTotals.grandTotal (NOT cartTotals.total) is used as the fallback so that gratuity (tip)
+  // and applied loyalty redemption — which are computed client-side and are NOT yet persisted on a
+  // fresh, not-yet-billed order — are included. The PAY button and the PaymentModal both read this
+  // exact value, guaranteeing the customer is always charged precisely what the button shows.
+  const payableAmount = billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal;
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
@@ -1376,20 +1397,20 @@ export default function POSPage() {
              <div className="flex items-center gap-1">
                {selectedTable && (
                  <>
-                   <button onClick={async () => {
+                   <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
                      if (!tempOrderId) {
                        const o = await handleCreateOrderCore('created');
                        if (o?.id) setTempOrderId(o.id);
                      }
                      setTableSelectMode('transfer');
-                   }} className="p-1.5 hover:text-white text-surface-400" title="Transfer"><ArrowRightLeft className="w-4 h-4"/></button>
-                   <button onClick={async () => {
+                   })} className="p-1.5 hover:text-white text-surface-400 disabled:opacity-50 disabled:cursor-not-allowed" title="Transfer"><ArrowRightLeft className="w-4 h-4"/></button>
+                   <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
                      if (!tempOrderId) {
                        const o = await handleCreateOrderCore('created');
                        if (o?.id) setTempOrderId(o.id);
                      }
                      setTableSelectMode('merge');
-                   }} className="p-1.5 hover:text-white text-surface-400" title="Merge"><Combine className="w-4 h-4"/></button>
+                   })} className="p-1.5 hover:text-white text-surface-400 disabled:opacity-50 disabled:cursor-not-allowed" title="Merge"><Combine className="w-4 h-4"/></button>
                  </>
                )}
                <button onClick={() => setShowCovers(!showCovers)} className={`p-1.5 rounded-lg ${showCovers ? 'tab-btn-active' : 'text-surface-400 hover:text-white'}`}><Users className="w-4 h-4" /></button>
@@ -1538,7 +1559,7 @@ export default function POSPage() {
                    <Trash2 className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Void</span>
                  </button>
                )}
-               <button onClick={async () => {
+               <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
                  if (!tempOrderId) {
                    const o = await handleCreateOrderCore('created');
                    if (o?.id) setTempOrderId(o.id);
@@ -1552,11 +1573,12 @@ export default function POSPage() {
                    } catch { /* fall back to cartTotals */ }
                  }
                  setShowSplitBill(true);
-               }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors">
+               })} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   <SplitSquareHorizontal className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Split</span>
                </button>
                <button
-                 onClick={async () => {
+                 disabled={actionBusy}
+                 onClick={() => runDraftAction(async () => {
                    try {
                      let orderId = tempOrderId;
                      if (!orderId) {
@@ -1567,8 +1589,8 @@ export default function POSPage() {
                      }
                      setShowEbill(true);
                    } catch (e) { toast.error(e.message || 'Failed to prepare eBill'); }
-                 }}
-                 className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-brand-500 hover:text-white text-surface-300 transition-colors"
+                 })}
+                 className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-brand-500 hover:text-white text-surface-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                >
                  <FileText className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">eBill</span>
                </button>
@@ -1683,7 +1705,7 @@ export default function POSPage() {
             </div>
 
             <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
-              {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? (billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal).toFixed(2) : Math.round(billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal)}`}
+              {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? payableAmount.toFixed(2) : Math.round(payableAmount)}`}
             </button>
             {/* Refund button — visible only for paid orders */}
             {billedOrder?.is_paid && (
@@ -1916,7 +1938,7 @@ export default function POSPage() {
       <PaymentModal
         isOpen={showPayment}
         onClose={() => setShowPayment(false)}
-        amount={billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.total}
+        amount={payableAmount}
         orderId={tempOrderId}
         orderNumber={billedOrder?.order_number}
         customer={selectedCustomer}
