@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('./auth.controller');
 const { validate } = require('../../middleware/validate.middleware');
-const { authenticate } = require('../../middleware/auth.middleware');
+const { authenticate, optionalAuth } = require('../../middleware/auth.middleware');
 const { authLimiter } = require('../../middleware/rateLimit.middleware');
 const {
   registerSchema,
@@ -30,7 +30,7 @@ router.get('/branding', authController.getBranding);
  * POST /api/auth/register
  * Public (first run) or requires super_admin/owner role
  */
-router.post('/register', authLimiter, validate(registerSchema), authController.register);
+router.post('/register', authLimiter, optionalAuth, validate(registerSchema), authController.register);
 
 /**
  * POST /api/auth/login

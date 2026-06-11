@@ -28,10 +28,24 @@ const saveSettingsSchema = Joi.object({
   settings: Joi.object().pattern(Joi.string(), Joi.any()).required(),
 });
 
+/**
+ * Builds the tenant-scoping context from the authenticated user.
+ * super_admin (no head office) gets a global view; everyone else is pinned
+ * to their own head_office_id.
+ * @param {object} req - Express request
+ * @returns {{ headOfficeId: string|null, isSuperAdmin: boolean }}
+ */
+function tenantContext(req) {
+  return {
+    headOfficeId: req.user?.head_office_id ?? null,
+    isSuperAdmin: req.user?.role === 'super_admin',
+  };
+}
+
 /** GET /api/ho/outlets — List all outlets with today's KPIs */
 router.get('/outlets', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
   try {
-    const outlets = await hoService.listOutlets(req.user.id);
+    const outlets = await hoService.listOutlets(req.user.id, tenantContext(req));
     sendSuccess(res, outlets, 'Outlets retrieved');
   } catch (error) { next(error); }
 });
@@ -39,7 +53,7 @@ router.get('/outlets', authenticate, hasRole('super_admin', 'owner'), async (req
 /** GET /api/ho/outlets/:id — Single outlet details */
 router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
   try {
-    const outlet = await hoService.getOutletById(req.params.id);
+    const outlet = await hoService.getOutletById(req.params.id, tenantContext(req));
     sendSuccess(res, outlet, 'Outlet details retrieved');
   } catch (error) { next(error); }
 });
@@ -47,7 +61,7 @@ router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner'), async 
 /** GET /api/ho/dashboard — Enterprise consolidated dashboard */
 router.get('/dashboard', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
   try {
-    const data = await hoService.getEnterpriseDashboard();
+    const data = await hoService.getEnterpriseDashboard(tenantContext(req));
     sendSuccess(res, data, 'Enterprise dashboard');
   } catch (error) { next(error); }
 });
@@ -55,7 +69,7 @@ router.get('/dashboard', authenticate, hasRole('super_admin', 'owner'), async (r
 /** GET /api/ho/outlet-comparison?from=&to= — Outlet revenue comparison */
 router.get('/outlet-comparison', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
   try {
-    const data = await hoService.getOutletComparison(req.query.from, req.query.to);
+    const data = await hoService.getOutletComparison(req.query.from, req.query.to, tenantContext(req));
     sendSuccess(res, data, 'Outlet comparison');
   } catch (error) { next(error); }
 });
@@ -143,13 +157,37 @@ router.patch('/setup-complete', authenticate, hasRole('owner'), validate(setupCo
 });
 
 /**
+ * Verifies the given outlet belongs to the caller's tenant.
+ * super_admin bypasses the check (global access). For everyone else the outlet
+ * must share the caller's head_office_id, otherwise a ForbiddenError is thrown.
+ * @param {object} req - Express request
+ * @param {string} outletId - Outlet to authorize
+ * @returns {Promise<void>}
+ */
+async function assertOutletOwnership(req, outletId) {
+  const { ForbiddenError } = require('../../utils/errors');
+  if (req.user?.role === 'super_admin') return; // global access
+  const headOfficeId = req.user?.head_office_id;
+  if (!headOfficeId) throw new ForbiddenError('No head office linked to this account');
+  const prisma = require('../../config/database').getDbClient();
+  const owned = await prisma.outlet.findFirst({
+    where: { id: outletId, head_office_id: headOfficeId },
+    select: { id: true },
+  });
+  if (!owned) throw new ForbiddenError('You do not have access to this outlet');
+}
+
+/**
  * GET /api/ho/settings — Get all settings for an outlet.
  */
-router.get('/settings', authenticate, async (req, res, next) => {
+router.get('/settings', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
     const prisma = require('../../config/database').getDbClient();
     const outlet_id = req.query.outlet_id || req.user?.outlet_id || req.user?.outlets?.[0]?.id;
     if (!outlet_id) return res.status(400).json({ success: false, message: 'outlet_id required' });
+
+    // Tenant isolation: caller may only read settings for an outlet they own.
+    await assertOutletOwnership(req, outlet_id);
 
     const section = req.query.section;
 
@@ -186,11 +224,14 @@ router.get('/settings', authenticate, async (req, res, next) => {
 /**
  * PUT /api/ho/settings — Upsert outlet settings (key-value pairs).
  */
-router.put('/settings', authenticate, validate(saveSettingsSchema), async (req, res, next) => {
+router.put('/settings', authenticate, hasRole('super_admin', 'owner', 'manager'), validate(saveSettingsSchema), async (req, res, next) => {
   try {
     const prisma = require('../../config/database').getDbClient();
     const outlet_id = req.body.outlet_id || req.user?.outlet_id || req.user?.outlets?.[0]?.id;
     if (!outlet_id) return res.status(400).json({ success: false, message: 'outlet_id required' });
+
+    // Tenant isolation: caller may only upsert settings for an outlet they own.
+    await assertOutletOwnership(req, outlet_id);
 
     const { settings } = req.body;
     const upsertOps = Object.entries(settings).map(([key, value]) => {

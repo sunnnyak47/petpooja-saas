@@ -10,9 +10,12 @@ const { NotFoundError, ForbiddenError } = require('../../utils/errors');
 /**
  * Lists all outlets for an owner with summary KPIs.
  * @param {string} userId - Owner user ID
+ * @param {object} [ctx] - Tenant scoping context
+ * @param {string|null} [ctx.headOfficeId] - Caller's head office (tenant) ID
+ * @param {boolean} [ctx.isSuperAdmin] - Whether caller is a super_admin (global view)
  * @returns {Promise<object[]>} Outlets with today's revenue
  */
-async function listOutlets(userId) {
+async function listOutlets(userId, { headOfficeId = null, isSuperAdmin = false } = {}) {
   const prisma = getDbClient();
   try {
     const userRoles = await prisma.userRole.findMany({
@@ -20,14 +23,22 @@ async function listOutlets(userId) {
       include: { role: true },
     });
 
-    const isOwnerOrAdmin = userRoles.some((ur) =>
+    const isOwnerOrAdmin = isSuperAdmin || userRoles.some((ur) =>
       ['super_admin', 'owner'].includes(ur.role.name)
     );
 
     let outlets;
-    if (isOwnerOrAdmin) {
+    if (isSuperAdmin) {
+      // Super admin: global view across all tenants
       outlets = await prisma.outlet.findMany({
         where: { is_deleted: false },
+        orderBy: { name: 'asc' },
+      });
+    } else if (isOwnerOrAdmin) {
+      // Owner/admin: scoped to their own head office (tenant)
+      if (!headOfficeId) throw new ForbiddenError('No head office linked to this account');
+      outlets = await prisma.outlet.findMany({
+        where: { head_office_id: headOfficeId, is_deleted: false },
         orderBy: { name: 'asc' },
       });
     } else {
@@ -74,10 +85,13 @@ async function listOutlets(userId) {
 }
 
 /**
- * Gets consolidated dashboard across ALL outlets.
+ * Gets consolidated dashboard across outlets.
+ * @param {object} [ctx] - Tenant scoping context
+ * @param {string|null} [ctx.headOfficeId] - Caller's head office (tenant) ID
+ * @param {boolean} [ctx.isSuperAdmin] - Whether caller is a super_admin (global view)
  * @returns {Promise<object>} Enterprise-level KPIs
  */
-async function getEnterpriseDashboard() {
+async function getEnterpriseDashboard({ headOfficeId = null, isSuperAdmin = false } = {}) {
   const prisma = getDbClient();
   try {
     const today = new Date();
@@ -87,22 +101,46 @@ async function getEnterpriseDashboard() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
+    // Tenant scoping: super_admin sees global; everyone else is restricted to
+    // their own head office's outlets/customers.
+    if (!isSuperAdmin && !headOfficeId) {
+      throw new ForbiddenError('No head office linked to this account');
+    }
+    const outletWhere = isSuperAdmin ? { is_deleted: false } : { head_office_id: headOfficeId, is_deleted: false };
+    // Order/customer tables are scoped via the tenant's outlet IDs.
+    let orderTenantFilter = {};
+    // Customer has no tenant column; it relates to a tenant only via its orders.
+    let customerWhere = { is_deleted: false };
+    if (!isSuperAdmin) {
+      const tenantOutlets = await prisma.outlet.findMany({
+        where: { head_office_id: headOfficeId, is_deleted: false },
+        select: { id: true },
+      });
+      const tenantOutletIds = tenantOutlets.map((o) => o.id);
+      orderTenantFilter = { outlet_id: { in: tenantOutletIds } };
+      // Count only customers who have placed an order at one of this tenant's outlets.
+      customerWhere = {
+        is_deleted: false,
+        orders: { some: { outlet_id: { in: tenantOutletIds }, is_deleted: false } },
+      };
+    }
+
     const [
       totalOutlets, activeOutlets,
       todayOrders, todayRevenue,
       yesterdayRevenue, totalCustomers,
     ] = await Promise.all([
-      prisma.outlet.count({ where: { is_deleted: false } }),
-      prisma.outlet.count({ where: { is_deleted: false, is_active: true } }),
-      prisma.order.count({ where: { created_at: { gte: today, lt: tomorrow }, status: { notIn: ['cancelled', 'voided'] }, is_deleted: false } }),
-      prisma.order.aggregate({ where: { created_at: { gte: today, lt: tomorrow }, is_paid: true, is_deleted: false }, _sum: { grand_total: true } }),
-      prisma.order.aggregate({ where: { created_at: { gte: yesterday, lt: today }, is_paid: true, is_deleted: false }, _sum: { grand_total: true } }),
-      prisma.customer.count({ where: { is_deleted: false } }),
+      prisma.outlet.count({ where: outletWhere }),
+      prisma.outlet.count({ where: { ...outletWhere, is_active: true } }),
+      prisma.order.count({ where: { ...orderTenantFilter, created_at: { gte: today, lt: tomorrow }, status: { notIn: ['cancelled', 'voided'] }, is_deleted: false } }),
+      prisma.order.aggregate({ where: { ...orderTenantFilter, created_at: { gte: today, lt: tomorrow }, is_paid: true, is_deleted: false }, _sum: { grand_total: true } }),
+      prisma.order.aggregate({ where: { ...orderTenantFilter, created_at: { gte: yesterday, lt: today }, is_paid: true, is_deleted: false }, _sum: { grand_total: true } }),
+      prisma.customer.count({ where: customerWhere }),
     ]);
 
     const topOutletRaw = await prisma.order.groupBy({
       by: ['outlet_id'],
-      where: { created_at: { gte: today, lt: tomorrow }, is_paid: true, is_deleted: false },
+      where: { ...orderTenantFilter, created_at: { gte: today, lt: tomorrow }, is_paid: true, is_deleted: false },
       _sum: { grand_total: true },
       orderBy: { _sum: { grand_total: 'desc' } },
       take: 1
@@ -139,12 +177,21 @@ async function getEnterpriseDashboard() {
  * Gets outlet-wise revenue comparison for a date range.
  * @param {string} from - Start date
  * @param {string} to - End date
+ * @param {object} [ctx] - Tenant scoping context
+ * @param {string|null} [ctx.headOfficeId] - Caller's head office (tenant) ID
+ * @param {boolean} [ctx.isSuperAdmin] - Whether caller is a super_admin (global view)
  * @returns {Promise<object[]>} Per-outlet revenue breakdown
  */
-async function getOutletComparison(from, to) {
+async function getOutletComparison(from, to, { headOfficeId = null, isSuperAdmin = false } = {}) {
   const prisma = getDbClient();
   try {
-    const outlets = await prisma.outlet.findMany({ where: { is_deleted: false } });
+    if (!isSuperAdmin && !headOfficeId) {
+      throw new ForbiddenError('No head office linked to this account');
+    }
+    const outletWhere = isSuperAdmin
+      ? { is_deleted: false }
+      : { head_office_id: headOfficeId, is_deleted: false };
+    const outlets = await prisma.outlet.findMany({ where: outletWhere });
 
     const comparison = await Promise.all(
       outlets.map(async (outlet) => {
@@ -428,9 +475,12 @@ async function listAllChains() {
 /**
  * Gets a single outlet by ID with tax configs and settings.
  * @param {string} outletId - UUID of the outlet
+ * @param {object} [ctx] - Tenant scoping context
+ * @param {string|null} [ctx.headOfficeId] - Caller's head office (tenant) ID
+ * @param {boolean} [ctx.isSuperAdmin] - Whether caller is a super_admin (global view)
  * @returns {Promise<object>} Outlet details with tax config and settings
  */
-async function getOutletById(outletId) {
+async function getOutletById(outletId, { headOfficeId = null, isSuperAdmin = false } = {}) {
   const prisma = getDbClient();
   try {
     const outlet = await prisma.outlet.findUnique({
@@ -442,6 +492,13 @@ async function getOutletById(outletId) {
     });
 
     if (!outlet) throw new NotFoundError('Outlet not found');
+
+    // Tenant isolation: a non-super_admin caller may only view outlets that
+    // belong to their own head office. Treat cross-tenant access as not-found
+    // so existence of other tenants' outlets is not leaked.
+    if (!isSuperAdmin && outlet.head_office_id !== headOfficeId) {
+      throw new NotFoundError('Outlet not found');
+    }
 
     // Extract tax rates from tax_configs
     const cgstConfig = outlet.tax_configs.find(t => t.name?.toLowerCase() === 'cgst');

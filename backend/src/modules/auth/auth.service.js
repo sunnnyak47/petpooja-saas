@@ -37,6 +37,26 @@ async function register(userData, auditInfo = {}) {
   const prisma = getDbClient();
 
   try {
+    // Privilege-escalation guard (C3): never trust the client-supplied role for
+    // elevation. Elevated roles may only be granted by an already-authenticated
+    // elevated user. 'owner' specifically requires a super_admin; 'manager'
+    // requires super_admin or owner. Anonymous/low-privilege callers requesting
+    // any elevated role are rejected (not silently downgraded, so attempts are
+    // visible rather than masked).
+    const requestedRole = userData.role || 'cashier';
+    const ELEVATED_ROLES = ['owner', 'manager'];
+    if (ELEVATED_ROLES.includes(requestedRole)) {
+      const callerRole = auditInfo.performed_by_role || null;
+      const isSuperAdmin = callerRole === 'super_admin';
+      const isOwner = callerRole === 'owner';
+      const allowed =
+        (requestedRole === 'owner' && isSuperAdmin) ||
+        (requestedRole === 'manager' && (isSuperAdmin || isOwner));
+      if (!allowed) {
+        throw new ForbiddenError(`You are not authorized to create a user with role '${requestedRole}'`);
+      }
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -103,7 +123,7 @@ async function register(userData, auditInfo = {}) {
     const { password_hash: _, ...userWithoutPassword } = result;
     return userWithoutPassword;
   } catch (error) {
-    if (error instanceof ConflictError || error instanceof BadRequestError) {
+    if (error instanceof ConflictError || error instanceof BadRequestError || error instanceof ForbiddenError) {
       throw error;
     }
     logger.error('Registration failed', { error: error.message });
@@ -418,7 +438,71 @@ async function forgotPassword(phone) {
 }
 
 /**
+ * Returns the Redis key tracking OTP verification attempts for a phone.
+ * @param {string} phone - User's phone number
+ * @returns {string}
+ */
+function otpAttemptsKey(phone) {
+  return `${appConfig.redisKeys.loginAttempts}otp:${phone}`;
+}
+
+/**
+ * Throws if the phone is currently locked out from OTP verification.
+ * Mirrors the login lockout (appConfig.lockout). Fails safe (no-op) if Redis
+ * is unavailable so the reset flow is never blocked by an infra outage.
+ * @param {import('ioredis').Redis} redis - Redis client
+ * @param {string} phone - User's phone number
+ * @returns {Promise<void>}
+ */
+async function assertOtpNotLocked(redis, phone) {
+  try {
+    const val = await redis.get(otpAttemptsKey(phone));
+    const attempts = val ? parseInt(val, 10) : 0;
+    if (attempts >= appConfig.lockout.maxAttempts) {
+      throw new ForbiddenError(
+        `Too many invalid OTP attempts. Try again in ${appConfig.lockout.durationMinutes} minutes.`
+      );
+    }
+  } catch (error) {
+    if (error instanceof ForbiddenError) throw error;
+    logger.warn('Redis unavailable for OTP lockout check; failing open', { error: error.message });
+  }
+}
+
+/**
+ * Records a failed OTP attempt; sets TTL on first failure. Fails safe on Redis error.
+ * @param {import('ioredis').Redis} redis - Redis client
+ * @param {string} phone - User's phone number
+ * @returns {Promise<void>}
+ */
+async function recordFailedOtpAttempt(redis, phone) {
+  try {
+    const current = await redis.incr(otpAttemptsKey(phone));
+    if (current === 1) {
+      await redis.expire(otpAttemptsKey(phone), appConfig.lockout.durationMinutes * 60);
+    }
+  } catch (error) {
+    logger.warn('Redis unavailable recording OTP attempt; failing open', { error: error.message });
+  }
+}
+
+/**
+ * Clears the OTP attempt counter after a successful verification. Fails safe.
+ * @param {import('ioredis').Redis} redis - Redis client
+ * @param {string} phone - User's phone number
+ * @returns {Promise<void>}
+ */
+async function clearOtpAttempts(redis, phone) {
+  try {
+    await redis.del(otpAttemptsKey(phone));
+  } catch (error) {
+    logger.warn('Redis unavailable clearing OTP attempts', { error: error.message });
+  }
+}
+
+/**
  * Verifies a 6-digit OTP against Redis store.
+ * Enforces a per-phone attempt limit + lockout (mirrors login lockout, M1).
  * @param {string} phone - User's phone number
  * @param {string} otp - 6-digit OTP
  * @returns {Promise<{verified: boolean}>}
@@ -427,19 +511,24 @@ async function verifyOTP(phone, otp) {
   const redis = getRedisClient();
 
   try {
+    await assertOtpNotLocked(redis, phone);
+
     const storedOtp = await redis.get(`${appConfig.redisKeys.otpPrefix}${phone}`);
 
     if (!storedOtp) {
+      await recordFailedOtpAttempt(redis, phone);
       throw new BadRequestError('OTP expired or not found. Please request a new one.');
     }
 
     if (storedOtp !== otp) {
+      await recordFailedOtpAttempt(redis, phone);
       throw new BadRequestError('Invalid OTP');
     }
 
+    await clearOtpAttempts(redis, phone);
     return { verified: true };
   } catch (error) {
-    if (error instanceof BadRequestError) throw error;
+    if (error instanceof BadRequestError || error instanceof ForbiddenError) throw error;
     logger.error('OTP verification failed', { error: error.message, phone });
     throw error;
   }
@@ -457,9 +546,12 @@ async function resetPassword(phone, otp, newPassword) {
   const redis = getRedisClient();
 
   try {
+    await assertOtpNotLocked(redis, phone);
+
     const storedOtp = await redis.get(`${appConfig.redisKeys.otpPrefix}${phone}`);
 
     if (!storedOtp || storedOtp !== otp) {
+      await recordFailedOtpAttempt(redis, phone);
       throw new BadRequestError('Invalid or expired OTP');
     }
 
@@ -479,6 +571,7 @@ async function resetPassword(phone, otp, newPassword) {
     });
 
     await redis.del(`${appConfig.redisKeys.otpPrefix}${phone}`);
+    await clearOtpAttempts(redis, phone);
 
     await prisma.auditLog.create({
       data: {
@@ -491,7 +584,7 @@ async function resetPassword(phone, otp, newPassword) {
 
     return { message: 'Password reset successfully' };
   } catch (error) {
-    if (error instanceof BadRequestError || error instanceof NotFoundError) throw error;
+    if (error instanceof BadRequestError || error instanceof NotFoundError || error instanceof ForbiddenError) throw error;
     logger.error('Password reset failed', { error: error.message, phone });
     throw error;
   }

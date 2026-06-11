@@ -16,7 +16,7 @@ const logger = require('../../config/logger');
  */
 async function register(req, res, next) {
   try {
-    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent'), performed_by: req.user?.id };
+    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent'), performed_by: req.user?.id, performed_by_role: req.user?.role };
     const user = await authService.register(req.body, auditInfo);
     sendCreated(res, user, 'User registered successfully');
   } catch (error) {

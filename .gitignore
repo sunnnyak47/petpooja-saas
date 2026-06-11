@@ -1,5 +1,9 @@
 node_modules/
 .env
+# Ignore every .env anywhere (backend/.env, frontend/.env, etc.) but keep examples
+**/.env
+**/.env.*
+!**/.env.example
 # Image assets in uploads only (not app icons/splash)
 uploads/*.png
 uploads/*.webp
