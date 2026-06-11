@@ -6,10 +6,40 @@
 const express = require('express');
 const router = express.Router();
 const c = require('./customer.controller');
+const customerService = require('./customer.service');
+const { sendSuccess, sendPaginated } = require('../../utils/response');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const { createCustomerSchema, updateCustomerSchema, addAddressSchema, redeemPointsSchema, adjustPointsSchema, createCampaignSchema, birthdayCampaignSchema } = require('./customer.validation');
+
+/**
+ * Tenant-scoped read handlers. These thread the caller's identity
+ * (role + head_office_id) from req.user into the service so customer reads
+ * are restricted to the caller's tenant (super_admin bypasses). Defined here
+ * rather than in the controller because the controller's bare handlers do not
+ * pass req.user, which is the root cause of IDOR/PII leakage (H1).
+ */
+async function getCustomerScoped(req, res, next) {
+  try {
+    sendSuccess(res, await customerService.getCustomer(req.params.id, req.user), 'Customer retrieved');
+  } catch (e) { next(e); }
+}
+
+async function findByPhoneScoped(req, res, next) {
+  try {
+    const found = await customerService.findByPhone(req.params.phone, req.user);
+    sendSuccess(res, found, found ? 'Customer found' : 'Customer not found');
+  } catch (e) { next(e); }
+}
+
+async function listCustomersScoped(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user?.outlet_id;
+    const { customers, total, page, limit } = await customerService.listCustomers(outletId, req.query, req.user);
+    sendPaginated(res, customers, total, page, limit, 'Customers retrieved');
+  } catch (e) { next(e); }
+}
 
 /** CRM Dashboard */
 router.get('/crm/dashboard', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getCRMDashboard);
@@ -26,7 +56,7 @@ router.post('/campaigns', authenticate, hasPermission('MANAGE_CAMPAIGNS'), valid
 router.get('/campaigns/:id', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getCampaignDetail);
 
 /** Search by phone (POS lookup) */
-router.get('/phone/:phone', authenticate, c.findByPhone);
+router.get('/phone/:phone', authenticate, findByPhoneScoped);
 
 /** Loyalty programme config (must be declared BEFORE the `/:id` routes below
     so a literal 'loyalty' isn't mistaken for a customer UUID). */
@@ -35,8 +65,8 @@ router.put('/loyalty/config', authenticate, hasPermission('MANAGE_CUSTOMERS'),  
 
 /** Customer CRUD */
 router.post('/', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(createCustomerSchema), c.createCustomer);
-router.get('/', authenticate, hasPermission('VIEW_CUSTOMERS'), c.listCustomers);
-router.get('/:id', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getCustomer);
+router.get('/', authenticate, hasPermission('VIEW_CUSTOMERS'), listCustomersScoped);
+router.get('/:id', authenticate, hasPermission('VIEW_CUSTOMERS'), getCustomerScoped);
 router.patch('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(updateCustomerSchema), c.updateCustomer);
 router.delete('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), c.deleteCustomer);
 

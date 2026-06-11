@@ -81,18 +81,37 @@ async function createRazorpayOrder(amount, orderId, customerName, customerPhone)
  * @returns {boolean} Whether payment is verified
  */
 function verifyRazorpayPayment(razorpayOrderId, razorpayPaymentId, razorpaySignature) {
+  // Never fail open: a missing secret means we CANNOT verify, so the payment is
+  // unverified (false). In production a blank secret is a fatal misconfiguration.
   if (!RAZORPAY_KEY_SECRET) {
-    logger.warn('Razorpay secret not set, skipping verification');
-    return true;
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('RAZORPAY_KEY_SECRET is not configured — refusing to verify payments');
+      throw new BadRequestError('Payment verification is not configured');
+    }
+    logger.warn('Razorpay secret not set — payment cannot be verified (treated as unverified)');
+    return false;
   }
 
-  const body = `${razorpayOrderId}|${razorpayPaymentId}`;
-  const expected = crypto
-    .createHmac('sha256', RAZORPAY_KEY_SECRET)
-    .update(body)
-    .digest('hex');
+  if (!razorpaySignature) return false;
 
-  return expected === razorpaySignature;
+  let expected;
+  try {
+    const body = `${razorpayOrderId}|${razorpayPaymentId}`;
+    expected = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest('hex');
+  } catch (error) {
+    // If the HMAC can't even be computed, we have not verified anything.
+    logger.error('Razorpay signature computation failed', { error: error.message });
+    return false;
+  }
+
+  // Timing-safe compare to avoid leaking the expected signature byte-by-byte.
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from(String(razorpaySignature), 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
 }
 
 /**

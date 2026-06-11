@@ -34,6 +34,7 @@ router.post('/', authenticate, hasPermission('MANAGE_STAFF'), validate(createSta
 router.get('/:userId/profile', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const profile = await staffService.getStaffProfile(req.params.userId, outletId);
     sendSuccess(res, profile, 'Staff profile retrieved');
   } catch (error) { next(error); }
@@ -43,6 +44,7 @@ router.get('/:userId/profile', authenticate, hasPermission('VIEW_STAFF'), async 
 router.patch('/:userId/profile', authenticate, hasPermission('MANAGE_STAFF'), validate(updateStaffSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const profile = await staffService.upsertStaffProfile(req.params.userId, outletId, req.body);
     sendSuccess(res, profile, 'Staff profile updated');
   } catch (error) { next(error); }
@@ -62,6 +64,7 @@ router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), validate(updat
 router.get('/:userId/certifications', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const certs = await staffService.listCertifications(req.params.userId, outletId);
     sendSuccess(res, certs, 'Certifications retrieved');
   } catch (error) { next(error); }
@@ -71,6 +74,7 @@ router.get('/:userId/certifications', authenticate, hasPermission('VIEW_STAFF'),
 router.post('/:userId/certifications', authenticate, hasPermission('MANAGE_STAFF'), validate(addCertificationSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const cert = await staffService.addCertification(req.params.userId, outletId, req.body);
     sendCreated(res, cert, 'Certification added');
   } catch (error) { next(error); }
@@ -87,7 +91,7 @@ router.delete('/certifications/:certId', authenticate, hasPermission('MANAGE_STA
 /** GET /api/staff/:userId/availability — Get weekly availability */
 router.get('/:userId/availability', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
   try {
-    const slots = await staffService.getAvailability(req.params.userId);
+    const slots = await staffService.getAvailability(req.params.userId, req.user);
     sendSuccess(res, slots, 'Availability retrieved');
   } catch (error) { next(error); }
 });
@@ -95,7 +99,7 @@ router.get('/:userId/availability', authenticate, hasPermission('VIEW_STAFF'), a
 /** PUT /api/staff/:userId/availability — Set weekly availability */
 router.put('/:userId/availability', authenticate, hasPermission('MANAGE_STAFF'), validate(setAvailabilitySchema), async (req, res, next) => {
   try {
-    const slots = await staffService.setAvailability(req.params.userId, req.body.slots);
+    const slots = await staffService.setAvailability(req.params.userId, req.body.slots, req.user);
     sendSuccess(res, slots, 'Availability updated');
   } catch (error) { next(error); }
 });
@@ -224,7 +228,7 @@ router.post('/salary/bulk-calculate', authenticate, hasPermission('MANAGE_STAFF'
 /** PATCH /api/staff/salary/:id/pay — Mark salary as paid */
 router.patch('/salary/:id/pay', authenticate, hasPermission('MANAGE_STAFF'), validate(markSalaryPaidSchema), async (req, res, next) => {
   try {
-    const record = await staffService.markSalaryPaid(req.params.id, req.body.bonus || 0);
+    const record = await staffService.markSalaryPaid(req.params.id, req.user, req.body.bonus || 0);
     sendSuccess(res, record, 'Salary marked as paid');
   } catch (error) { next(error); }
 });

@@ -7,6 +7,14 @@
 const logger = require('../../../config/logger');
 const { getDbClient } = require('../../../config/database');
 const { AppError } = require('../../../utils/errors');
+const { encryptSecret, decryptSecret } = require('../../../utils/crypto');
+
+/**
+ * Token fields within the persisted Xero config that hold sensitive OAuth
+ * secrets and must be encrypted at rest.
+ * @type {string[]}
+ */
+const SECRET_FIELDS = ['access_token', 'refresh_token'];
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -113,7 +121,13 @@ class XeroService {
     });
     if (!row) return null;
     try {
-      return JSON.parse(row.setting_value);
+      const config = JSON.parse(row.setting_value);
+      // Decrypt token fields on read. decryptSecret() returns legacy plaintext
+      // and null/empty values unchanged, so pre-encryption rows keep working.
+      for (const field of SECRET_FIELDS) {
+        if (config[field]) config[field] = decryptSecret(config[field]);
+      }
+      return config;
     } catch {
       return null;
     }
@@ -128,6 +142,14 @@ class XeroService {
   async _saveConfig(outletId, config) {
     const prisma = getDbClient();
     const key = settingKey(outletId);
+    // Encrypt token fields at rest before persisting. encryptSecret() leaves
+    // null/empty unchanged and is idempotent on already-encrypted values, so
+    // configs round-tripped through _getConfig (decrypted) re-encrypt cleanly.
+    const persisted = { ...config };
+    for (const field of SECRET_FIELDS) {
+      if (persisted[field]) persisted[field] = encryptSecret(persisted[field]);
+    }
+    config = persisted;
     await prisma.outletSetting.upsert({
       where: {
         outlet_id_setting_key: {

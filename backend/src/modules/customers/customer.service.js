@@ -10,6 +10,28 @@ const { parsePagination } = require('../../utils/helpers');
 const appConfig = require('../../config/app');
 
 /* ============================
+   TENANT SCOPING HELPERS
+   ============================ */
+
+/**
+ * Build the Prisma filter that restricts a Customer query to the caller's
+ * tenant. Customers have no head_office_id/outlet_id column — they belong to a
+ * tenant only via their orders (Order.outlet_id -> Outlet.head_office_id).
+ *
+ * @param {{ role?: string, head_office_id?: string }} [caller]
+ * @returns {Promise<object>} A `where`-fragment to spread into the query.
+ *   - super_admin (or no caller context): {} (sees all tenants).
+ *   - tenant user: requires >=1 order in an outlet of the caller's head office.
+ */
+async function tenantScopeFilter(caller) {
+  // super_admin (and internal/unauthenticated callers) bypass tenant scoping.
+  if (!caller || caller.role === 'super_admin' || !caller.head_office_id) return {};
+  return {
+    orders: { some: { outlet: { head_office_id: caller.head_office_id } } },
+  };
+}
+
+/* ============================
    CUSTOMER CRUD
    ============================ */
 
@@ -37,13 +59,17 @@ async function createCustomer(data) {
   return customer;
 }
 
-async function listCustomers(outletId, query = {}) {
+async function listCustomers(outletId, query = {}, caller) {
   const prisma = getDbClient();
   const { page, limit, offset } = parsePagination(query);
   const where = { is_deleted: false };
-  if (outletId) {
-    where.orders = { some: { outlet_id: outletId, is_deleted: false } };
-  }
+  // Tenant scope (orders in caller's head office) AND optional single-outlet
+  // filter are combined so a forged ?outlet_id cannot escape the tenant.
+  const scopeAnd = [];
+  const tenantFilter = await tenantScopeFilter(caller);
+  if (Object.keys(tenantFilter).length) scopeAnd.push(tenantFilter);
+  if (outletId) scopeAnd.push({ orders: { some: { outlet_id: outletId, is_deleted: false } } });
+  if (scopeAnd.length) where.AND = scopeAnd;
   if (query.segment) where.segment = query.segment;
   if (query.dietary_preference) where.dietary_preference = query.dietary_preference;
   if (query.search) {
@@ -71,10 +97,10 @@ async function listCustomers(outletId, query = {}) {
   return { customers, total, page, limit };
 }
 
-async function getCustomer(customerId) {
+async function getCustomer(customerId, caller) {
   const prisma = getDbClient();
   const customer = await prisma.customer.findFirst({
-    where: { id: customerId, is_deleted: false },
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
     include: {
       addresses: { where: { is_deleted: false } },
       loyalty_points: true,
@@ -102,10 +128,10 @@ async function getCustomer(customerId) {
   return customer;
 }
 
-async function findByPhone(phone) {
+async function findByPhone(phone, caller) {
   const prisma = getDbClient();
   return await prisma.customer.findFirst({
-    where: { phone, is_deleted: false },
+    where: { phone, is_deleted: false, ...(await tenantScopeFilter(caller)) },
     include: {
       loyalty_points: { select: { current_balance: true } },
       addresses: { where: { is_deleted: false, is_default: true }, take: 1 },

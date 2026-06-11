@@ -15,6 +15,64 @@ const attendanceService = require('./attendance.service');
 const payrollService = require('./payroll.service');
 
 /**
+ * Asserts that an outlet belongs to the caller's tenant (head office).
+ * super_admin bypasses. Throws NotFoundError when the outlet is missing or
+ * owned by another head office, so cross-tenant access is indistinguishable
+ * from a non-existent record (prevents IDOR enumeration).
+ * @param {string} outletId - Target outlet UUID
+ * @param {object} user - req.user ({ role, head_office_id })
+ */
+async function assertOutletInTenant(outletId, user) {
+  if (user && user.role === 'super_admin') return;
+  const prisma = getDbClient();
+  const outlet = await prisma.outlet.findFirst({
+    where: { id: outletId },
+    select: { head_office_id: true },
+  });
+  if (!outlet || !outlet.head_office_id || outlet.head_office_id !== user?.head_office_id) {
+    throw new NotFoundError('Staff record not found');
+  }
+}
+
+/**
+ * Asserts that a user has a (non-deleted) staff profile in an outlet within the
+ * caller's tenant. Used where the only identifier is a userId with no outlet
+ * column on the target table (e.g. availability). super_admin bypasses.
+ * @param {string} userId - Target staff user UUID
+ * @param {object} user - req.user
+ */
+async function assertUserInTenant(userId, user) {
+  if (user && user.role === 'super_admin') return;
+  const prisma = getDbClient();
+  const profile = await prisma.staffProfile.findFirst({
+    where: notDeleted({ user_id: userId }),
+    select: { outlet: { select: { head_office_id: true } } },
+  });
+  if (!profile || !profile.outlet || profile.outlet.head_office_id !== user?.head_office_id) {
+    throw new NotFoundError('Staff record not found');
+  }
+}
+
+/**
+ * Marks a salary record paid after asserting it belongs to the caller's tenant.
+ * Wraps payrollService.markSalaryPaid to add an ownership check (the record is
+ * resolved by id, so its outlet must be validated against the caller).
+ * @param {string} id - SalaryRecord UUID
+ * @param {object} user - req.user
+ * @param {number} bonus
+ */
+async function markSalaryPaidScoped(id, user, bonus = 0) {
+  const prisma = getDbClient();
+  const record = await prisma.salaryRecord.findUnique({
+    where: { id },
+    select: { outlet_id: true },
+  });
+  if (!record) throw new NotFoundError('Salary record not found');
+  await assertOutletInTenant(record.outlet_id, user);
+  return payrollService.markSalaryPaid(id, bonus);
+}
+
+/**
  * Lists staff members for an outlet with profiles and roles.
  * @param {string} outletId - Outlet UUID
  * @param {object} [query] - Filters (department, search, page, limit)
@@ -196,7 +254,8 @@ async function deleteCertification(certId) {
   });
 }
 
-async function getAvailability(userId) {
+async function getAvailability(userId, user) {
+  await assertUserInTenant(userId, user);
   const prisma = getDbClient();
   return await prisma.staffAvailability.findMany({
     where: { staff_id: userId },
@@ -204,7 +263,8 @@ async function getAvailability(userId) {
   });
 }
 
-async function setAvailability(userId, slots) {
+async function setAvailability(userId, slots, user) {
+  await assertUserInTenant(userId, user);
   const prisma = getDbClient();
   const results = await Promise.all(slots.map(slot =>
     prisma.staffAvailability.upsert({
@@ -323,6 +383,7 @@ async function getStaffPerformance(outletId, from, to) {
 }
 
 module.exports = {
+  assertOutletInTenant,
   listStaff, getStaffProfile, upsertStaffProfile, verifyManagerPIN, createStaffWithUser,
   listCertifications, addCertification, deleteCertification,
   getAvailability, setAvailability,
@@ -331,4 +392,6 @@ module.exports = {
   ...attendanceService,
   // Payroll sub-service (salary calc, records, payouts)
   ...payrollService,
+  // Tenant-scoped override — must come after spreads so it wins.
+  markSalaryPaid: markSalaryPaidScoped,
 };

@@ -132,30 +132,52 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
     return res.status(400).json({ success: false, message: 'Unknown platform' });
   }
 
+  // express.raw({ type: '*/*' }) gives req.body as the exact bytes the partner
+  // signed. HMAC over those raw bytes — not a re-serialised JSON string.
+  const signature = req.headers['x-webhook-signature']
+    || req.headers['x-swiggy-signature']
+    || req.headers['x-zomato-hmac']
+    || req.headers['x-doordash-signature']
+    || req.headers['x-menulog-signature']
+    || '';
+
+  const rawBody = Buffer.isBuffer(req.body)
+    ? req.body
+    : (req.rawBody || Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}), 'utf8'));
+
+  // Invalid signature → 401 (NOT 200). A forged/unsigned request must be rejected
+  // and must not be silently acknowledged.
+  const isValid = agg.verifyWebhookSignature(platform, signature, rawBody);
+  if (!isValid) {
+    logger.warn(`Invalid ${platform} webhook signature`);
+    return res.status(401).json({ success: false, message: 'Invalid signature' });
+  }
+
+  // Parse only after the signature passes. A malformed payload is a client error.
+  let webhookData;
   try {
-    const signature = req.headers['x-webhook-signature']
-      || req.headers['x-swiggy-signature']
-      || req.headers['x-zomato-hmac']
-      || req.headers['x-doordash-signature']
-      || req.headers['x-menulog-signature']
-      || '';
+    webhookData = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8'))
+      : typeof req.body === 'string' ? JSON.parse(req.body)
+        : req.body;
+  } catch (parseErr) {
+    logger.warn(`Malformed ${platform} webhook payload`, { error: parseErr.message });
+    return res.status(400).json({ success: false, message: 'Malformed payload' });
+  }
 
-    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body);
-    const isValid = agg.verifyWebhookSignature(platform, signature, rawBody);
-
-    if (!isValid) {
-      logger.warn(`Invalid ${platform} webhook signature`);
-      // Still acknowledge to prevent retries spamming
-      return res.status(200).json({ success: true, message: 'Acknowledged' });
-    }
-
-    const webhookData = typeof req.body === 'object' ? req.body : JSON.parse(rawBody);
+  try {
+    // processIncomingOrder is idempotent: a duplicate delivery returns the
+    // existing order rather than creating a second one.
     const order = await agg.processIncomingOrder(platform, webhookData);
-
-    res.status(200).json({ success: true, data: { order_id: order.id }, message: 'Order received' });
+    return res.status(200).json({ success: true, data: { order_id: order.id }, message: 'Order received' });
   } catch (error) {
-    logger.error(`${platform} webhook failed`, { error: error.message });
-    res.status(200).json({ success: true, message: 'Acknowledged' });
+    // Transient/internal failure → 5xx so the platform RETRIES (don't silently
+    // drop the order with a 200). TODO: wire to alerting (PagerDuty/Sentry).
+    logger.error(`${platform} webhook ingestion failed — returning 502 for retry`, {
+      error: error.message,
+      stack: error.stack,
+      platform,
+    });
+    return res.status(502).json({ success: false, message: 'Webhook processing failed, please retry' });
   }
 });
 

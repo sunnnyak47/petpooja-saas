@@ -40,11 +40,17 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
   try {
     const { platform } = req.params;
     const signature = req.headers['x-webhook-signature'] || req.headers['x-razorpay-signature'] || '';
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
 
     if (!['swiggy', 'zomato', 'ubereats'].includes(platform)) {
       return res.status(400).json({ success: false, message: 'Unsupported platform' });
     }
+
+    // express.raw({ type: '*/*' }) on this route gives us req.body as the exact
+    // raw bytes the partner signed. HMAC over those bytes — never a re-serialised
+    // JSON string (key ordering / whitespace would break verification).
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : (req.rawBody || Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}), 'utf8'));
 
     const isValid = aggregatorService.verifyWebhookSignature(platform, signature, rawBody);
     if (!isValid) {
@@ -52,13 +58,30 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
       return res.status(401).json({ success: false, message: 'Invalid signature' });
     }
 
-    const webhookData = typeof req.body === 'object' ? req.body : JSON.parse(rawBody);
+    // Only parse AFTER the signature passes.
+    let webhookData;
+    try {
+      webhookData = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8'))
+        : typeof req.body === 'string' ? JSON.parse(req.body)
+          : req.body;
+    } catch (parseErr) {
+      logger.warn(`Malformed webhook payload from ${platform}`, { error: parseErr.message });
+      return res.status(400).json({ success: false, message: 'Malformed payload' });
+    }
+    // processIncomingOrder is idempotent: duplicate deliveries return the
+    // existing order rather than double-creating.
     const order = await aggregatorService.processIncomingOrder(platform, webhookData);
 
     res.status(200).json({ success: true, data: { order_id: order.id }, message: 'Order received' });
   } catch (error) {
-    logger.error('Webhook processing failed', { error: error.message, platform: req.params.platform });
-    res.status(200).json({ success: true, message: 'Acknowledged' });
+    // Transient/internal failure → 5xx so the partner RETRIES (never swallow with
+    // a 200, which silently loses the order). TODO: wire to alerting.
+    logger.error('Webhook processing failed — returning 502 for retry', {
+      error: error.message,
+      stack: error.stack,
+      platform: req.params.platform,
+    });
+    res.status(502).json({ success: false, message: 'Webhook processing failed, please retry' });
   }
 });
 
