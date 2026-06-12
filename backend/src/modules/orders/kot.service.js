@@ -100,9 +100,12 @@ async function markItemReady(kotId, kotItemId, outletId = null) {
 
     const io = getIO();
     if (io && kot) {
-      io.of('/orders').to(`outlet:${kot.outlet_id}`).emit('kot_item_ready', {
-        kot_id: kotId, item_id: kotItemId, outlet_id: kot.outlet_id,
-      });
+      const payload = { kot_id: kotId, item_id: kotItemId, outlet_id: kot.outlet_id };
+      // KDS screens subscribe on the /kitchen namespace (KitchenDisplayPage),
+      // so the live per-item sync event must be emitted there. Keep emitting on
+      // /orders too for any listeners that track order-item progress.
+      io.of('/kitchen').to(`outlet:${kot.outlet_id}`).emit('kot_item_ready', payload);
+      io.of('/orders').to(`outlet:${kot.outlet_id}`).emit('kot_item_ready', payload);
     }
 
     return updated;

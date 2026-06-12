@@ -4,7 +4,7 @@
  */
 
 const Joi = require('joi');
-const { phoneRequired } = require('../../utils/validators');
+const { phoneRequired, phoneOptional } = require('../../utils/validators');
 
 const createCustomerSchema = Joi.object({
   phone: phoneRequired,
@@ -19,6 +19,7 @@ const createCustomerSchema = Joi.object({
 });
 
 const updateCustomerSchema = Joi.object({
+  phone: phoneOptional,
   full_name: Joi.string().trim().min(2).max(150),
   email: Joi.string().trim().lowercase().email().max(150).allow('', null),
   date_of_birth: Joi.date().iso().allow(null),

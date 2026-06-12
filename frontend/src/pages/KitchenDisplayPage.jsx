@@ -476,15 +476,32 @@ export default function KitchenDisplayPage() {
     onError:    e  => toast.error(e.message),
   });
   const clearMut = useMutation({
-    mutationFn: ({ type, kots }) => {
-      const toMark = kots.filter(k => type === 'all'
-        ? ['preparing','ready','served'].includes(k.status)
-        : (k.status === 'served' || k.status === 'completed'));
-      return Promise.all(toMark.map(k => api.put(`/kitchen/kots/${k.id}/status`, { status: 'completed', outlet_id: outletId })));
+    mutationFn: async ({ type, kots }) => {
+      if (type === 'all') {
+        const toMark = kots.filter(k => ['preparing','ready','served'].includes(k.status));
+        await Promise.all(toMark.map(k => api.put(`/kitchen/kots/${k.id}/status`, { status: 'completed', outlet_id: outletId })));
+        return toMark.length;
+      }
+      // Served/completed tickets aren't in the default board query (it only
+      // returns pending/preparing/ready), so fetch today's completed KOTs
+      // directly to mark them — otherwise the clear silently no-ops while
+      // still reporting success.
+      const r = await api.get(`/kitchen/kots?outlet_id=${outletId}&show_completed=true`);
+      const raw = r.data?.data ?? r.data ?? r;
+      const loaded = Array.isArray(raw) ? raw : [];
+      const toMark = loaded.filter(k => k.status === 'served' || k.status === 'completed');
+      await Promise.all(toMark.map(k => api.put(`/kitchen/kots/${k.id}/status`, { status: 'completed', outlet_id: outletId })));
+      return toMark.length;
     },
-    onSuccess: (_, { type }) => {
+    onSuccess: (count, { type }) => {
       queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
-      toast.success(type === 'all' ? 'All orders cleared' : 'Served orders cleared');
+      if (type === 'all') {
+        toast.success(count > 0 ? 'All orders cleared' : 'No active orders to clear');
+      } else {
+        toast.success(count > 0
+          ? `${count} served order${count !== 1 ? 's' : ''} cleared`
+          : 'No served orders to clear');
+      }
       setConfirmClear(null);
     },
     onError: () => { toast.error('Clear failed'); setConfirmClear(null); },
@@ -828,7 +845,9 @@ export default function KitchenDisplayPage() {
             <p style={{ fontSize: 13.5, color: P.muted, margin: '0 0 24px', lineHeight: 1.65 }}>
               {confirmClear === 'all'
                 ? 'All active orders will be marked complete and cleared from the display.'
-                : `${stats.served} served order${stats.served !== 1 ? 's' : ''} will be dismissed.`}
+                : showCompleted
+                  ? `${stats.served} served order${stats.served !== 1 ? 's' : ''} will be dismissed.`
+                  : "Today's served orders will be cleared from the display."}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
