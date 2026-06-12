@@ -16,7 +16,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
-  HeartPulse, Palmtree, IdCard, Landmark, UserCog,
+  HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale,
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -51,6 +51,7 @@ const superAdminNav = [
   { path: '/chain-health',        label: 'Chain Health Scores',icon: HeartPulse,     perm: 'sa.dashboard.view' },
   { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck,      perm: 'sa.audit.view' },
   { path: '/platform-audit-log',  label: 'Audit Trail',        icon: ScrollText,     perm: 'sa.audit.view' },
+  { path: '/error-dashboard',     label: 'Error Monitor',      icon: Bug,            perm: 'sa.audit.view' },
   { path: '/platform-staff',      label: 'Platform Staff',     icon: UserCog,        perm: 'sa.staff.manage' },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
@@ -101,6 +102,8 @@ const ownerNav = [
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
   { path: '/eod-report',       label: 'EOD Report',       icon: ClipboardList, feature: 'eod_report' },
   { path: '/payments',          label: 'Payments',         icon: CreditCard, feature: 'payments' },
+  { path: '/credit-notes',      label: 'Credit Notes',     icon: FileMinus, feature: 'payments' },
+  { path: '/settlements',       label: 'Settlements',      icon: Scale, feature: 'payments' },
   { path: '/chain-health',     label: 'Health Score',     icon: HeartPulse },
 
   // ── Settings: configuration & tools ──
@@ -149,6 +152,8 @@ const ownerNavAU = [
   { path: '/menu-analytics',   label: 'Menu Analytics',    icon: FlameKindling, feature: 'menu' },
   { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },
   { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
+  { path: '/credit-notes',     label: 'Credit Notes',      icon: FileMinus,     feature: 'payments' },
+  { path: '/settlements',      label: 'Settlements',       icon: Scale,         feature: 'payments' },
   { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'reports', region: 'AU' },

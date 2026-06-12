@@ -20,6 +20,7 @@ const PLATFORM_PERMISSIONS = [
   { key: 'sa.dashboard.view', display_name: 'View dashboards & analytics', description: 'Platform dashboard, live stats, menu analytics' },
   { key: 'sa.chains.view',    display_name: 'View restaurant chains',       description: 'Browse chains, outlets, onboarding status, user directory' },
   { key: 'sa.chains.manage',  display_name: 'Manage restaurant chains',     description: 'Onboard, suspend/activate, edit profile, region, features, plan, reset owner login' },
+  { key: 'sa.chains.delete',  display_name: 'Delete / restore chains',      description: 'Soft-delete and restore restaurant chains' },
   { key: 'sa.impersonate',    display_name: 'Impersonate owners',           description: 'Log in as a chain owner for support' },
   { key: 'sa.billing.view',   display_name: 'View billing & revenue',       description: 'Invoices, revenue, tax profiles (read-only)' },
   { key: 'sa.billing.manage', display_name: 'Manage billing',              description: 'Generate/edit invoices, edit tax profiles, plans' },
@@ -49,7 +50,7 @@ const PLATFORM_ROLE_DEFS = [
     display_name: 'Platform Admin',
     description: 'Day-to-day operations: chains, support, promos, impersonation. No billing edits, settings, or staff management.',
     permissions: [
-      'sa.dashboard.view', 'sa.chains.view', 'sa.chains.manage', 'sa.impersonate',
+      'sa.dashboard.view', 'sa.chains.view', 'sa.chains.manage', 'sa.chains.delete', 'sa.impersonate',
       'sa.billing.view', 'sa.support.manage', 'sa.promos.manage', 'sa.audit.view',
     ],
   },

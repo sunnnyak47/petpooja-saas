@@ -94,6 +94,30 @@ function errorHandler(err, req, res, _next) {
     });
   }
 
+  // Fire-and-forget persistence for server-side faults only (5xx or
+  // non-operational). Operational 4xx noise (validation, not-found, auth) is
+  // intentionally skipped. Lazy-required to avoid a require cycle, and any
+  // failure here must never affect the response we send the client.
+  if (!err.isOperational || statusCode >= 500) {
+    require('../modules/monitoring/monitoring.service')
+      .recordError({
+        source: 'backend',
+        level: statusCode >= 500 ? 'error' : 'warn',
+        message: err.message,
+        name: err.name,
+        stack: err.stack,
+        status_code: statusCode,
+        method: req.method,
+        path: req.originalUrl || req.path,
+        request_id: req.id,
+        user_id: req.user?.id,
+        head_office_id: req.user?.head_office_id,
+        outlet_id: req.user?.outlet_id,
+        user_agent: req.headers?.['user-agent'],
+      })
+      .catch(() => {});
+  }
+
   const response = {
     success: false,
     data: null,

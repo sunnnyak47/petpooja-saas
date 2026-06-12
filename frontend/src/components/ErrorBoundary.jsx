@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import api from '../lib/api';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,6 +14,15 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('[ErrorBoundary] Caught:', error, errorInfo);
+    // Fire-and-forget crash report to the backend monitoring sink.
+    api.post('/monitoring/report', {
+      message: error?.message || 'Render error',
+      name: error?.name,
+      stack: error?.stack,
+      url: window.location?.href,
+      componentStack: errorInfo?.componentStack,
+      level: 'error',
+    }).catch(() => {});
   }
 
   handleReset = () => {

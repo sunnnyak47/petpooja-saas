@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { hasSAPermission } from '../lib/platformRoles';
 import {
   Building2, Plus, Users, Utensils, DollarSign, Globe,
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
   TrendingUp, BarChart3, Loader2, Rocket, Check, KeyRound, Copy,
+  Trash2, RotateCcw,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -169,6 +172,53 @@ export default function SuperAdminPage() {
       setNotesModal(null);
     },
     onError: (e) => toast.error(e.response?.data?.message || 'Save failed'),
+  });
+
+  // ── Chain lifecycle: transfer ownership + soft-delete / restore ──
+  const { user } = useSelector((s) => s.auth);
+  const canDelete = hasSAPermission(user, 'sa.chains.delete');
+  const [transferModal, setTransferModal] = useState(null);   // { chain, mode, full_name, email, phone }
+  const [transferResult, setTransferResult] = useState(null); // { previous_owner, new_owner, temp_password, chainName }
+  const [deleteConfirm, setDeleteConfirm] = useState(null);   // { chain, reason }
+  const [showDeleted, setShowDeleted] = useState(false);
+
+  const transferMutation = useMutation({
+    mutationFn: ({ id, body }) => api.post(`/superadmin/chains/${id}/transfer-ownership`, body).then(r => r.data),
+    onSuccess: (d, vars) => {
+      const chainName = chains.find(c => c.id === vars.id)?.name || 'this chain';
+      setTransferModal(null);
+      setTransferResult({ ...(d || {}), chainName });
+      queryClient.invalidateQueries(['admin-chains']);
+    },
+    onError: (e) => toast.error(e?.message || 'Transfer failed'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, reason }) => api.delete(`/superadmin/chains/${id}`, { data: { reason: reason || '' } }),
+    onSuccess: () => {
+      setDeleteConfirm(null);
+      queryClient.invalidateQueries(['admin-chains']);
+      queryClient.invalidateQueries(['deleted-chains']);
+      toast.success('Chain archived');
+    },
+    onError: (e) => { toast.error(e?.message || 'Delete failed'); setDeleteConfirm(null); },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id) => api.post(`/superadmin/chains/${id}/restore`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-chains']);
+      queryClient.invalidateQueries(['deleted-chains']);
+      toast.success('Chain restored');
+    },
+    onError: (e) => toast.error(e?.message || 'Restore failed'),
+  });
+
+  const { data: deletedChains = [] } = useQuery({
+    queryKey: ['deleted-chains'],
+    queryFn: () => api.get('/superadmin/chains-deleted').then(r => r.data || []),
+    enabled: canDelete,
+    staleTime: 30_000,
   });
 
   const { data: onboardingData = [], isLoading: onboardingLoading, refetch: refetchOnboarding } = useQuery({
@@ -526,6 +576,16 @@ export default function SuperAdminPage() {
                       Reset Login
                     </button>
 
+                    {/* Transfer ownership */}
+                    <button
+                      onClick={() => setTransferModal({ chain, mode: 'existing', user_id: '', full_name: '', email: '', phone: '' })}
+                      title="Transfer chain ownership to another user"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: '#0EA5E930', background: '#0EA5E908', color: '#0EA5E9' }}>
+                      <ArrowLeftRight className="w-3 h-3" />
+                      Transfer
+                    </button>
+
                     {/* Suspend / Activate */}
                     {suspended ? (
                       <button
@@ -544,6 +604,18 @@ export default function SuperAdminPage() {
                         style={{ borderColor: '#EF444430', background: '#EF444408', color: '#EF4444' }}>
                         <PauseCircle className="w-3 h-3" />
                         Suspend
+                      </button>
+                    )}
+
+                    {/* Soft-delete (archive) — requires sa.chains.delete */}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteConfirm({ chain, reason: '' })}
+                        title="Archive (soft-delete) this chain — reversible"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                        style={{ borderColor: '#DC262630', background: '#DC262608', color: '#DC2626' }}>
+                        <Trash2 className="w-3 h-3" />
+                        Archive
                       </button>
                     )}
 
@@ -779,6 +851,144 @@ export default function SuperAdminPage() {
             <button onClick={() => setResetResult(null)}
               className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>Done</button>
           </div>
+        </div>
+      )}
+
+      {/* ── Transfer Ownership Modal ── */}
+      {transferModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-md p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Transfer ownership</h3>
+              <button onClick={() => setTransferModal(null)} style={{ color: 'var(--text-secondary)' }}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+              Reassign the owner of <b>{transferModal.chain.name}</b>. The current owner becomes a manager.
+            </p>
+            <div className="flex gap-2 mb-3">
+              {[['existing', 'Existing user ID'], ['new', 'New owner']].map(([m, label]) => (
+                <button key={m} onClick={() => setTransferModal(p => ({ ...p, mode: m }))}
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                  style={transferModal.mode === m
+                    ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }
+                    : { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border)' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {transferModal.mode === 'existing' ? (
+              <input value={transferModal.user_id} onChange={e => setTransferModal(p => ({ ...p, user_id: e.target.value }))}
+                placeholder="New owner's user ID (UUID)"
+                className="w-full px-3 py-2 rounded-lg text-sm border outline-none mb-3"
+                style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+            ) : (
+              <div className="space-y-2 mb-3">
+                {[['full_name', 'Full name'], ['email', 'Email'], ['phone', 'Phone']].map(([k, ph]) => (
+                  <input key={k} value={transferModal[k]} onChange={e => setTransferModal(p => ({ ...p, [k]: e.target.value }))}
+                    placeholder={ph}
+                    className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setTransferModal(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+              <button
+                disabled={transferMutation.isPending || (transferModal.mode === 'existing' ? !transferModal.user_id.trim() : !(transferModal.full_name.trim() && transferModal.email.trim() && transferModal.phone.trim()))}
+                onClick={() => {
+                  const body = transferModal.mode === 'existing'
+                    ? { new_owner_user_id: transferModal.user_id.trim() }
+                    : { new_owner: { full_name: transferModal.full_name.trim(), email: transferModal.email.trim(), phone: transferModal.phone.trim() } };
+                  transferMutation.mutate({ id: transferModal.chain.id, body });
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#0EA5E9' }}>
+                {transferMutation.isPending ? 'Transferring…' : 'Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transfer result (one-time temp password for a new owner) ── */}
+      {transferResult && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <h3 className="font-semibold text-base mb-1" style={{ color: 'var(--text-primary)' }}>Ownership transferred</h3>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+              <b>{transferResult.chainName}</b> — owner is now <b>{transferResult.new_owner}</b> (was {transferResult.previous_owner}).
+            </p>
+            {transferResult.temp_password && (
+              <>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>One-time password for the new owner — copy it now:</p>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                  <code className="flex-1 text-sm font-mono break-all" style={{ color: 'var(--text-primary)' }}>{transferResult.temp_password}</code>
+                  <button onClick={() => { try { navigator.clipboard.writeText(transferResult.temp_password); toast.success('Copied'); } catch { /* noop */ } }}
+                    className="p-1.5 rounded-md hover:opacity-70" style={{ color: 'var(--accent)' }} title="Copy"><Copy className="w-4 h-4" /></button>
+                </div>
+              </>
+            )}
+            <button onClick={() => setTransferResult(null)}
+              className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Archive (soft-delete) confirm ── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <Trash2 className="w-5 h-5" style={{ color: '#DC2626' }} />
+              <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Archive {deleteConfirm.chain.name}?</h3>
+            </div>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+              The chain is hidden and its users can't log in. This is reversible — you can restore it from “Deleted chains”.
+            </p>
+            <input value={deleteConfirm.reason} onChange={e => setDeleteConfirm(p => ({ ...p, reason: e.target.value }))}
+              placeholder="Reason (optional)"
+              className="w-full px-3 py-2 rounded-lg text-sm border outline-none mb-4"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate({ id: deleteConfirm.chain.id, reason: deleteConfirm.reason })}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#DC2626' }}>
+                {deleteMutation.isPending ? 'Archiving…' : 'Archive chain'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deleted chains (restore) ── */}
+      {canDelete && deletedChains.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-[1500]">
+          <button onClick={() => setShowDeleted(s => !s)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border shadow-lg"
+            style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+            <Trash2 className="w-3.5 h-3.5" /> Deleted chains ({deletedChains.length})
+          </button>
+          {showDeleted && (
+            <div className="mt-2 w-80 max-h-80 overflow-auto rounded-xl border shadow-2xl p-2" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+              {deletedChains.map(dc => (
+                <div key={dc.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{dc.name}</p>
+                    <p className="text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>
+                      {dc.deleted_at ? new Date(dc.deleted_at).toLocaleDateString() : ''}{dc.reason ? ` · ${dc.reason}` : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => restoreMutation.mutate(dc.id)} disabled={restoreMutation.isPending}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border shrink-0 disabled:opacity-50"
+                    style={{ borderColor: '#10B98130', background: '#10B98108', color: '#10B981' }}>
+                    <RotateCcw className="w-3 h-3" /> Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

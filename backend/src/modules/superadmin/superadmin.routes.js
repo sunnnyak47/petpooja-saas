@@ -30,6 +30,8 @@ const {
   savePlatformSettingsSchema,
   createStaffSchema,
   updateStaffSchema,
+  transferOwnershipSchema,
+  softDeleteChainSchema,
 } = require('./superadmin.validation');
 
 /** Short alias — gate a route to platform staff holding a given permission. */
@@ -165,6 +167,12 @@ router.post('/chains/:id/reset-owner-password', P('sa.chains.manage'), superadmi
 
 /** GET /api/superadmin/audit-log — platform-owner audit trail */
 router.get('/audit-log', P('sa.audit.view'), superadminController.getPlatformAuditLog);
+
+/** Chain lifecycle: ownership transfer + soft-delete / restore */
+router.post('/chains/:id/transfer-ownership', P('sa.chains.manage'), validate(transferOwnershipSchema), superadminController.transferOwnership);
+router.get('/chains-deleted', P('sa.chains.delete'), superadminController.listDeletedChains);
+router.delete('/chains/:id', P('sa.chains.delete'), validate(softDeleteChainSchema), superadminController.softDeleteChain);
+router.post('/chains/:id/restore', P('sa.chains.delete'), superadminController.restoreChain);
 
 /** Platform staff management (super_admin / sa.staff.manage) */
 router.get('/staff/roles', P('sa.staff.manage'), superadminController.listPlatformRoles);

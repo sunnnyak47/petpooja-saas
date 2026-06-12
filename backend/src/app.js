@@ -343,6 +343,9 @@ const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 app.use('/api/dashboard', dashboardRoutes);
 const auditRoutes = require('./modules/audit/audit.routes');
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/monitoring', require('./modules/monitoring/monitoring.routes'));
+app.use('/api/credit-notes', require('./modules/financial-docs/creditnote.routes'));
+app.use('/api/settlements', require('./modules/settlements/settlement.routes'));
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);

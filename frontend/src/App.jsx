@@ -45,6 +45,8 @@ import FeatureGate from './components/FeatureGate';
 import TallySync from './pages/integrations/TallySync';
 import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import PaymentsPage from './pages/PaymentsPage';
+import CreditNotesPage from './pages/CreditNotesPage';
+import SettlementsPage from './pages/SettlementsPage';
 import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
@@ -63,6 +65,7 @@ import PlatformHealthPage from './pages/PlatformHealthPage';
 import ImpersonationLogPage from './pages/ImpersonationLogPage';
 import PlatformAuditLogPage from './pages/PlatformAuditLogPage';
 import PlatformStaffPage from './pages/PlatformStaffPage';
+import ErrorDashboardPage from './pages/ErrorDashboardPage';
 import { hasSAPermission } from './lib/platformRoles';
 import SubscriptionPage from './pages/SubscriptionPage';
 import MenuAnalyticsPage from './pages/MenuAnalyticsPage';
@@ -262,6 +265,8 @@ export default function App() {
         <Route path="online-orders"   element={<FeatureGate feature="online_orders"><OnlineOrdersPage /></FeatureGate>} />
         <Route path="kitchen"         element={<FeatureGate feature="kitchen"><KitchenDisplayPage /></FeatureGate>} />
         <Route path="payments"        element={<FeatureGate feature="payments"><PaymentsPage /></FeatureGate>} />
+        <Route path="credit-notes"    element={<FeatureGate feature="payments"><CreditNotesPage /></FeatureGate>} />
+        <Route path="settlements"     element={<FeatureGate feature="payments"><SettlementsPage /></FeatureGate>} />
         <Route path="discounts"       element={<FeatureGate feature="discounts"><DiscountsPage /></FeatureGate>} />
         <Route path="settings"        element={<SettingsPage />} />
         <Route path="integrations"    element={<FeatureGate feature="integrations"><IntegrationsPage /></FeatureGate>} />
@@ -292,6 +297,7 @@ export default function App() {
         <Route path="platform-health"    element={<RoleGuard allowed={['super_admin']}><PlatformHealthPage /></RoleGuard>} />
         <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
         <Route path="platform-audit-log" element={<RoleGuard allowed={['super_admin']}><PlatformAuditLogPage /></RoleGuard>} />
+        <Route path="error-dashboard" element={<RoleGuard allowed={['super_admin']}><PermissionGuard permission="sa.audit.view"><ErrorDashboardPage /></PermissionGuard></RoleGuard>} />
         <Route path="platform-staff" element={<RoleGuard allowed={['super_admin']}><PermissionGuard permission="sa.staff.manage"><PlatformStaffPage /></PermissionGuard></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="xero-analytics"    element={<XeroAnalyticsPage />} />

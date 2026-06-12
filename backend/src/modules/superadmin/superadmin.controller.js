@@ -587,6 +587,40 @@ const superadminController = {
       sendSuccess(res, result, 'Platform staff deactivated');
     } catch (err) { next(err); }
   },
+
+  // ─── Chain lifecycle: ownership transfer + soft-delete / restore ─────────────
+
+  /** POST /api/superadmin/chains/:id/transfer-ownership */
+  async transferOwnership(req, res, next) {
+    try {
+      const result = await superadminService.transferOwnership(req.params.id, req.body, req.user?.id, req.user?.email);
+      sendSuccess(res, result, 'Chain ownership transferred');
+    } catch (err) { next(err); }
+  },
+
+  /** DELETE /api/superadmin/chains/:id — soft-delete (reversibly archive) a chain */
+  async softDeleteChain(req, res, next) {
+    try {
+      const result = await superadminService.softDeleteChain(req.params.id, req.user?.id, req.user?.email, req.body?.reason);
+      sendSuccess(res, result, 'Chain deleted');
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/superadmin/chains/:id/restore */
+  async restoreChain(req, res, next) {
+    try {
+      const result = await superadminService.restoreChain(req.params.id, req.user?.id, req.user?.email);
+      sendSuccess(res, result, 'Chain restored');
+    } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/chains-deleted — list soft-deleted chains */
+  async listDeletedChains(req, res, next) {
+    try {
+      const result = await superadminService.listDeletedChains();
+      sendSuccess(res, result, 'Deleted chains retrieved');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

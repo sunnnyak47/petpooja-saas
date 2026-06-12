@@ -271,6 +271,21 @@ const savePlatformSettingsSchema = Joi.object({
   updated_at: Joi.date().optional(),
 });
 
+/** Transfer chain ownership — to an existing user OR a brand-new owner (exactly one). */
+const transferOwnershipSchema = Joi.object({
+  new_owner_user_id: Joi.string().uuid(),
+  new_owner: Joi.object({
+    full_name: Joi.string().min(2).max(150).required(),
+    email: Joi.string().email().required(),
+    phone: Joi.string().min(6).max(15).required(),
+  }),
+}).xor('new_owner_user_id', 'new_owner');
+
+/** Soft-delete a chain (reversible). */
+const softDeleteChainSchema = Joi.object({
+  reason: Joi.string().max(500).allow(''),
+});
+
 /** Create a platform staff member. */
 const createStaffSchema = Joi.object({
   full_name: Joi.string().trim().min(2).max(150).required(),
@@ -289,6 +304,8 @@ module.exports = {
   superadminLoginSchema,
   createStaffSchema,
   updateStaffSchema,
+  transferOwnershipSchema,
+  softDeleteChainSchema,
   onboardSchema,
   impersonateSchema,
   updateSubscriptionSchema,
