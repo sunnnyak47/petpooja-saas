@@ -260,8 +260,7 @@ export default function ReportsPage() {
                   { label: 'Waste %', value: k.waste_pct ? `${k.waste_pct}%` : '—', sub: <span className="text-xs text-surface-400">{fmtCurrency(k.waste_value, symbol)}</span>, color: 'bg-brand-500' },
                   { label: 'Gross Margin', value: k.gross_margin_pct ? `${k.gross_margin_pct}%` : '—', sub: <span className="text-xs text-surface-400">net of COGS</span>, color: 'bg-brand-500' },
                 ].map((card, i) => (
-                  <div key={i} className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden group">
-                    <div className={`absolute -right-4 -top-4 w-14 h-14 rounded-full ${card.color} opacity-20 group-hover:scale-150 transition-transform`}></div>
+                  <div key={i} className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col justify-between">
                     <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-2">{card.label}</p>
                     <h3 className="text-xl font-black text-white">{card.value}</h3>
                     <div className="mt-1">{card.sub}</div>
