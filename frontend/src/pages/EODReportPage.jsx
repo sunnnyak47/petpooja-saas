@@ -164,6 +164,10 @@ function PrintPreview({ report, snap, outletName, user, fmt, upiLabel = 'UPI' })
   };
 
   const d = report || snap || {};
+  // Cash-count fields (opening_cash / cash_actual / cash_difference) live only on a
+  // saved EOD record. When previewing from the live snapshot there is no count yet,
+  // so don't print a fabricated 0.00 "counted" drawer.
+  const hasCashCount = !!report;
   return (
     <div>
       <div ref={printRef} className="text-sm">
@@ -177,7 +181,7 @@ function PrintPreview({ report, snap, outletName, user, fmt, upiLabel = 'UPI' })
 
         <div className="space-y-1">
           <div className="flex justify-between"><span>Total Orders</span><strong>{d.total_orders}</strong></div>
-          <div className="flex justify-between"><span>Gross Revenue</span><strong>{fmt(d.total_revenue)}</strong></div>
+          <div className="flex justify-between"><span>Net Revenue</span><strong>{fmt(d.total_revenue)}</strong></div>
           <div className="flex justify-between"><span>Total Tax</span><strong>{fmt(d.total_tax)}</strong></div>
           <div className="flex justify-between"><span>Discounts</span><strong>-{fmt(d.total_discount)}</strong></div>
           <div className="flex justify-between"><span>Voids ({d.void_count})</span><strong>-{fmt(d.void_amount)}</strong></div>
@@ -197,23 +201,27 @@ function PrintPreview({ report, snap, outletName, user, fmt, upiLabel = 'UPI' })
         <div className="border-t border-dashed border-border my-3"/>
 
         <p className="font-bold text-sm mb-1">Cash Reconciliation</p>
-        <div className="space-y-1">
-          <div className="flex justify-between"><span>Opening Float</span><strong>{fmt(d.opening_cash)}</strong></div>
-          <div className="flex justify-between"><span>Cash Sales</span><strong>{fmt(d.cash_system)}</strong></div>
-          <div className="flex justify-between"><span>Expected</span><strong>{fmt((Number(d.opening_cash)||0)+(Number(d.cash_system)||0))}</strong></div>
-          <div className="flex justify-between"><span>Counted</span><strong>{fmt(d.cash_actual)}</strong></div>
-          <div className="flex justify-between font-bold"><span>Difference</span>
-            <strong className={Number(d.cash_difference) === 0 ? 'text-green-600' : 'text-red-500'}>
-              {Number(d.cash_difference) >= 0 ? '+' : ''}{fmt(d.cash_difference)}
-            </strong>
+        {hasCashCount ? (
+          <div className="space-y-1">
+            <div className="flex justify-between"><span>Opening Float</span><strong>{fmt(d.opening_cash)}</strong></div>
+            <div className="flex justify-between"><span>Cash Sales</span><strong>{fmt(d.cash_system)}</strong></div>
+            <div className="flex justify-between"><span>Expected</span><strong>{fmt((Number(d.opening_cash)||0)+(Number(d.cash_system)||0))}</strong></div>
+            <div className="flex justify-between"><span>Counted</span><strong>{fmt(d.cash_actual)}</strong></div>
+            <div className="flex justify-between font-bold"><span>Difference</span>
+              <strong className={Number(d.cash_difference) === 0 ? 'text-green-600' : 'text-red-500'}>
+                {Number(d.cash_difference) >= 0 ? '+' : ''}{fmt(d.cash_difference)}
+              </strong>
+            </div>
           </div>
-        </div>
+        ) : (
+          <p className="text-secondary text-xs italic">Drawer not yet counted — save the EOD report to record cash reconciliation.</p>
+        )}
 
         <div className="border-t border-dashed border-border my-3"/>
 
         <div className="text-xs text-secondary">
           <p>Status: {d.status === 'locked' ? '✓ LOCKED' : 'DRAFT'}</p>
-          {d.closer?.full_name && <p>Closed by: {d.closer.name}</p>}
+          {d.closer?.full_name && <p>Closed by: {d.closer.full_name}</p>}
           {d.closed_at && <p>Closed at: {new Date(d.closed_at).toLocaleString()}</p>}
           {d.notes && <p>Notes: {d.notes}</p>}
           {Number(d.cash_difference) !== 0 && d.discrepancy_reason && <p>Reason: {d.discrepancy_reason}</p>}
@@ -268,7 +276,7 @@ export default function EODReportPage() {
     enabled:  !!outletId,
   });
 
-  /* Prefill wizard when saved report loads */
+  /* Prefill wizard when saved report loads; reset when switching to an unsaved date */
   useEffect(() => {
     if (savedReport?.id && savedReport.status !== 'not_started') {
       setOpeningCash(String(savedReport.opening_cash ?? ''));
@@ -278,6 +286,13 @@ export default function EODReportPage() {
       setDenomCounts(c);
       setNotes(savedReport.notes || '');
       setDiscReason(savedReport.discrepancy_reason || '');
+    } else if (savedReport) {
+      // No saved EOD for this date — clear any cash count / float carried over
+      // from a previously-selected date so stale counts aren't saved as this day's.
+      setOpeningCash('');
+      setDenomCounts({});
+      setNotes('');
+      setDiscReason('');
     }
   }, [savedReport]);
 
@@ -451,7 +466,7 @@ export default function EODReportPage() {
                 ) : (
                   <>
                     <StatRow label="Total Orders"   value={snap?.total_orders ?? 0}    highlight/>
-                    <StatRow label="Gross Revenue"  value={fmt(snap?.total_revenue)}   highlight/>
+                    <StatRow label="Net Revenue"    value={fmt(snap?.total_revenue)}   highlight/>
                     <StatRow label="Total Tax"      value={fmt(snap?.total_tax)}/>
                     <StatRow label="Total Discounts"value={`-${fmt(snap?.total_discount)}`}/>
                     <StatRow label="Voids"          value={`${snap?.void_count ?? 0} orders · -${fmt(snap?.void_amount)}`}/>

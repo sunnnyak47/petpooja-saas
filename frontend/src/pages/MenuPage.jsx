@@ -141,27 +141,20 @@ export default function MenuPage() {
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async () => {
-      // Stubing endpoint if it doesn't exist, will loop patches if endpoint drops 404
-      try {
-         await api.post(`/menu/items/bulk-price-update`, {
-           item_ids: Array.from(selectedItems),
-           type: bulkForm.type,
-           value: Number(bulkForm.value),
-           outlet_id: outletId
-         });
-      } catch(e) {
-         // Fallback manual loop
-         const itemsArray = Array.from(selectedItems);
-         for(const id of itemsArray) {
-            const item = dbItems.find(i=>i.id===id);
-            if(item) {
-               const newPrice = bulkForm.type === 'percentage' 
-                 ? Number(item.base_price) * (1 + Number(bulkForm.value)/100) 
-                 : Number(item.base_price) + Number(bulkForm.value);
-               await api.patch(`/menu/items/${id}`, { base_price: Math.round(newPrice) });
-            }
-         }
-      }
+      // Compute each new price client-side (2dp, never rounded to whole units) and
+      // send the backend's transactional bulk-price-update contract:
+      //   { outlet_id, items: [{ item_id, new_price }] }
+      const items = Array.from(selectedItems)
+        .map((id) => {
+          const item = dbItems.find((i) => i.id === id);
+          if (!item) return null;
+          const newPrice = bulkForm.type === 'percentage'
+            ? Number(item.base_price) * (1 + Number(bulkForm.value) / 100)
+            : Number(item.base_price) + Number(bulkForm.value);
+          return { item_id: id, new_price: Number(Math.max(0, newPrice).toFixed(2)) };
+        })
+        .filter(Boolean);
+      await api.post(`/menu/items/bulk-price-update`, { outlet_id: outletId, items });
     },
     onSuccess: () => {
       toast.success('Bulk price updated successfully!');
@@ -494,7 +487,7 @@ export default function MenuPage() {
                           
                           <p className="font-bold text-white text-base leading-tight mb-0.5 pr-2 truncate">{item.name}</p>
                           <div className="flex items-end justify-between mt-2">
-                             <p className="text-lg font-black text-brand-400">{symbol}{Number(item.base_price).toFixed(0)}</p>
+                             <p className="text-lg font-black text-brand-400">{format(item.base_price)}</p>
                              {item.short_code && <span className="font-mono text-xs text-surface-500 font-bold bg-surface-900 px-1.5 py-0.5 rounded border border-surface-700">{item.short_code}</span>}
                           </div>
                        </div>

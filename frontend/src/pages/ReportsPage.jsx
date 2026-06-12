@@ -57,8 +57,10 @@ export default function ReportsPage() {
   const [topItemsBy, setTopItemsBy] = useState('revenue');
   const [activeTab, setActiveTab] = useState('overview'); // overview | inventory | staff | tax
 
-  const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-  const toStr = format(dateRange.to, 'yyyy-MM-dd');
+  // H13: guard against Invalid Date (e.g. a cleared custom date input). date-fns
+  // format() throws RangeError on an invalid date, which would crash the whole page.
+  const fromStr = dateRange.from && !isNaN(dateRange.from) ? format(dateRange.from, 'yyyy-MM-dd') : '';
+  const toStr = dateRange.to && !isNaN(dateRange.to) ? format(dateRange.to, 'yyyy-MM-dd') : '';
 
   const { data: outlets } = useQuery({
     queryKey: ['outlets'],
@@ -80,16 +82,46 @@ export default function ReportsPage() {
     enabled: !!selectedOutlet,
   });
 
+  // H14: Payment Methods must cover the whole selected range. daily-sales' by_payment
+  // is single-day only; the range-aware payment-breakdown endpoint sums across from..to.
+  const { data: paymentBreakdown } = useQuery({
+    queryKey: ['reports', 'paymentBreakdown', selectedOutlet, fromStr, toStr],
+    queryFn: () => api.get('/reports/payment-breakdown', { params: { outlet_id: selectedOutlet, from: fromStr, to: toStr } }).then(r => r.data),
+    enabled: !!selectedOutlet && !!fromStr && !!toStr,
+  });
+
   const { data: revenueTrend, isLoading: loadingTrend } = useQuery({
     queryKey: ['reports', 'revenueTrendRange', selectedOutlet, fromStr, toStr],
     queryFn: () => api.get('/reports/revenue-trend-range', { params: qp }).then(r => r.data),
     enabled: !!selectedOutlet,
   });
 
+  // M27: Peak Hours must aggregate across the whole range, not just the first day.
+  // The /reports/hourly endpoint is single-day only, so fetch each day in the range
+  // and sum the hourly buckets client-side.
   const { data: hourlyData } = useQuery({
-    queryKey: ['reports', 'hourly', selectedOutlet, fromStr],
-    queryFn: () => api.get('/reports/hourly', { params: { outlet_id: selectedOutlet, date: fromStr } }).then(r => r.data),
-    enabled: !!selectedOutlet,
+    queryKey: ['reports', 'hourly', selectedOutlet, fromStr, toStr],
+    queryFn: async () => {
+      const days = [];
+      const start = new Date(fromStr + 'T00:00:00');
+      const end = new Date(toStr + 'T00:00:00');
+      for (let d = new Date(start); d <= end && days.length < 92; d.setDate(d.getDate() + 1)) {
+        days.push(format(d, 'yyyy-MM-dd'));
+      }
+      const results = await Promise.all(
+        days.map((date) => api.get('/reports/hourly', { params: { outlet_id: selectedOutlet, date } }).then(r => r.data).catch(() => []))
+      );
+      const byHour = {};
+      for (const dayRows of results) {
+        for (const row of dayRows || []) {
+          if (!byHour[row.hour]) byHour[row.hour] = { hour: row.hour, revenue: 0, orders: 0 };
+          byHour[row.hour].revenue += row.revenue || 0;
+          byHour[row.hour].orders += row.orders || 0;
+        }
+      }
+      return Object.values(byHour).sort((a, b) => a.hour - b.hour);
+    },
+    enabled: !!selectedOutlet && !!fromStr && !!toStr,
   });
 
   const { data: itemWiseData } = useQuery({
@@ -144,11 +176,12 @@ export default function ReportsPage() {
   }, [hourlyData]);
 
   const paymentData = useMemo(() => {
-    if (!salesSummary?.by_payment) return [];
-    return Object.entries(salesSummary.by_payment)
-      .filter(([, val]) => val > 0)
-      .map(([name, value]) => ({ name: name.toUpperCase(), value }));
-  }, [salesSummary]);
+    // H14: source from the range-aware payment-breakdown endpoint ({ breakdown:[{method,amount}] }).
+    if (!paymentBreakdown?.breakdown) return [];
+    return paymentBreakdown.breakdown
+      .filter((b) => b.amount > 0)
+      .map((b) => ({ name: b.method.toUpperCase(), value: b.amount }));
+  }, [paymentBreakdown]);
 
   const topItems = (itemWiseData?.items || []).map(i => ({
     name: i.name, revenue: i.total_revenue, quantity: i.total_quantity,
@@ -167,13 +200,82 @@ export default function ReportsPage() {
     ].filter(d => d.value > 0);
   }, [kpis]);
 
+  // H15: wire each export button to its actual dataset instead of the generic
+  // one-row daily CSV the backend /export fallback emits. GST routes to the real
+  // server-side exporter (type=gstr1); the rest are built client-side from the
+  // datasets already loaded for the selected range.
+  const csvEscape = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const toCsv = (header, rows) =>
+    [header, ...rows].map((r) => r.map(csvEscape).join(',')).join('\n') + '\n';
+
+  const downloadCsv = (csv, filename) => {
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleExport = async (type) => {
     try {
-      const response = await api.get(`/reports/export?type=${type}&outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&format=csv`, { responseType: 'blob' });
-      const blob = new Blob([response.data || response], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `${type}-report.csv`; a.click();
-      window.URL.revokeObjectURL(url);
+      const rangeLabel = `${fromStr}_to_${toStr}`;
+
+      if (type === 'gst') {
+        // Real GST daily register from the backend exporter (BOM-prefixed CSV).
+        const response = await api.get(
+          `/reports/export?type=gstr1&outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}&format=csv`,
+          { responseType: 'blob' }
+        );
+        const blob = new Blob([response.data || response], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `gst-register-${rangeLabel}.csv`; a.click();
+        window.URL.revokeObjectURL(url);
+        return;
+      }
+
+      if (type === 'revenue') {
+        const rows = (revenueTrend || []).map((d) => [d.date, d.revenue ?? 0]);
+        downloadCsv(toCsv(['Date', 'Revenue'], rows), `revenue-${rangeLabel}.csv`);
+        return;
+      }
+      if (type === 'hourly') {
+        const rows = (hourlyData || []).map((h) => [h.hour, h.revenue ?? 0, h.orders ?? 0]);
+        downloadCsv(toCsv(['Hour', 'Revenue', 'Orders'], rows), `peak-hours-${rangeLabel}.csv`);
+        return;
+      }
+      if (type === 'items') {
+        const rows = (itemWiseData?.items || []).map((i) => [i.name, i.total_quantity ?? 0, i.total_revenue ?? 0]);
+        downloadCsv(toCsv(['Item', 'Quantity', 'Revenue'], rows), `top-items-${rangeLabel}.csv`);
+        return;
+      }
+      if (type === 'category') {
+        const rows = (categoryData || []).map((c) => [c.category, c.revenue ?? 0]);
+        downloadCsv(toCsv(['Category', 'Revenue'], rows), `category-${rangeLabel}.csv`);
+        return;
+      }
+      if (type === 'staff') {
+        const rows = (staffData || []).map((s) => [
+          s.name, s.orders ?? 0, s.revenue ?? 0, s.orders > 0 ? Math.round((s.revenue / s.orders) * 100) / 100 : 0, s.voids ?? 0,
+        ]);
+        downloadCsv(toCsv(['Staff', 'Orders', 'Revenue', 'Avg Order', 'Voids'], rows), `staff-${rangeLabel}.csv`);
+        return;
+      }
+
+      // full_report (header Export button) — combined summary across the range.
+      const k2 = kpis || {};
+      const rows = [
+        ['Revenue', k2.revenue ?? 0],
+        ['Orders', k2.total_orders ?? 0],
+        ['Avg Check', k2.avg_check ?? 0],
+        ['Food Cost', k2.food_cost ?? 0],
+        ['Food Cost %', k2.food_cost_pct ?? 0],
+        ['Waste Value', k2.waste_value ?? 0],
+        ['Waste %', k2.waste_pct ?? 0],
+        ['Gross Margin %', k2.gross_margin_pct ?? 0],
+      ];
+      downloadCsv(toCsv(['Metric', 'Value'], rows), `full-report-${rangeLabel}.csv`);
     } catch { toast.error('Export failed'); }
   };
 
@@ -204,9 +306,9 @@ export default function ReportsPage() {
           </div>
           {showCustomRange && (
             <div className="flex items-center gap-2 animate-slide-right">
-              <input type="date" className="input text-sm py-1" value={fromStr} onChange={e => setDateRange(p => ({ ...p, from: new Date(e.target.value + 'T00:00:00') }))} />
+              <input type="date" className="input text-sm py-1" value={fromStr} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (e.target.value && !isNaN(d)) setDateRange(p => ({ ...p, from: d })); }} />
               <span className="text-surface-500">→</span>
-              <input type="date" className="input text-sm py-1" value={toStr} onChange={e => setDateRange(p => ({ ...p, to: new Date(e.target.value + 'T00:00:00') }))} />
+              <input type="date" className="input text-sm py-1" value={toStr} onChange={e => { const d = new Date(e.target.value + 'T00:00:00'); if (e.target.value && !isNaN(d)) setDateRange(p => ({ ...p, to: d })); }} />
             </div>
           )}
         </div>

@@ -656,22 +656,32 @@ async function getGstDetailedReport(outletId, from, to, tz) {
       totalIgst += igst;
       totalTax += tax;
 
+      // M43: interstate orders carry the whole GST as IGST (cgst=sgst=0 on the
+      // order). Attribute this order's item_tax to the igst bucket per rate/HSN
+      // instead of splitting it 50/50 into cgst/sgst, so the rate-wise/HSN tables
+      // reflect interstate tax correctly.
+      const isInterstate = igst > 0;
+
       // Rate-wise from items
       for (const item of order.order_items) {
         const rate = Number(item.gst_rate || 0);
         const itemTax = Number(item.item_tax || 0);
         const itemTotal = Number(item.item_total || 0);
         const itemTaxable = itemTotal;
-        const itemCgst = itemTax / 2;
-        const itemSgst = itemTax / 2;
+        const itemCgst = isInterstate ? 0 : itemTax / 2;
+        const itemSgst = isInterstate ? 0 : itemTax / 2;
+        const itemIgst = isInterstate ? itemTax : 0;
 
         if (!rateMap[rate]) {
-          rateMap[rate] = { rate, order_count: 0, taxable: 0, cgst: 0, sgst: 0, total_tax: 0 };
+          // M42: order_count was incremented per line item (inflated). Track a Set
+          // of order ids and emit its size as order_count below.
+          rateMap[rate] = { rate, order_count: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total_tax: 0, _orderIds: new Set() };
         }
-        rateMap[rate].order_count++;
+        rateMap[rate]._orderIds.add(order.id);
         rateMap[rate].taxable += itemTaxable;
         rateMap[rate].cgst += itemCgst;
         rateMap[rate].sgst += itemSgst;
+        rateMap[rate].igst += itemIgst;
         rateMap[rate].total_tax += itemTax;
 
         // HSN
@@ -686,6 +696,7 @@ async function getGstDetailedReport(outletId, from, to, tz) {
             taxable: 0,
             cgst: 0,
             sgst: 0,
+            igst: 0,
             total_tax: 0,
           };
         }
@@ -693,6 +704,7 @@ async function getGstDetailedReport(outletId, from, to, tz) {
         hsnMap[hsnKey].taxable += itemTaxable;
         hsnMap[hsnKey].cgst += itemCgst;
         hsnMap[hsnKey].sgst += itemSgst;
+        hsnMap[hsnKey].igst += itemIgst;
         hsnMap[hsnKey].total_tax += itemTax;
       }
     }
@@ -715,11 +727,13 @@ async function getGstDetailedReport(outletId, from, to, tz) {
 
     const by_rate = Object.values(rateMap)
       .sort((a, b) => a.rate - b.rate)
-      .map((r) => ({
+      .map(({ _orderIds, ...r }) => ({
         ...r,
+        order_count: _orderIds.size, // M42: distinct orders, not line items
         taxable: round2(r.taxable),
         cgst: round2(r.cgst),
         sgst: round2(r.sgst),
+        igst: round2(r.igst),
         total_tax: round2(r.total_tax),
       }));
 
@@ -730,6 +744,7 @@ async function getGstDetailedReport(outletId, from, to, tz) {
         taxable: round2(h.taxable),
         cgst: round2(h.cgst),
         sgst: round2(h.sgst),
+        igst: round2(h.igst),
         total_tax: round2(h.total_tax),
       }));
 
@@ -776,22 +791,22 @@ async function exportGstCsv(outletId, from, to, type = 'gstr1', tz) {
     csv += `Period: ${from} to ${to}\n\n`;
     csv += 'GST Rate (%),Total Orders,Taxable Amount,CGST,SGST,IGST,Total Tax\n';
     for (const row of data.by_rate) {
-      csv += `${row.rate},${row.order_count},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},0.00,${fmt(row.total_tax)}\n`;
+      csv += `${row.rate},${row.order_count},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},${fmt(row.igst)},${fmt(row.total_tax)}\n`;
     }
     csv += `\nGrand Total,${data.totals.order_count},${fmt(data.totals.taxable)},${fmt(data.totals.cgst)},${fmt(data.totals.sgst)},${fmt(data.totals.igst)},${fmt(data.totals.total_tax)}\n`;
   } else if (type === 'hsn') {
     csv += 'HSN-wise Summary (GSTR-1 Table 12)\n';
     csv += `Period: ${from} to ${to}\n\n`;
-    csv += 'HSN Code,Description,UOM,Total Qty,GST Rate (%),Taxable Value,CGST,SGST,Total Tax\n';
+    csv += 'HSN Code,Description,UOM,Total Qty,GST Rate (%),Taxable Value,CGST,SGST,IGST,Total Tax\n';
     for (const row of data.hsn) {
-      csv += `"${row.hsn_code || 'N/A'}","${(row.description || '').replace(/"/g, '""')}",NOS,${row.total_qty},${row.gst_rate},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},${fmt(row.total_tax)}\n`;
+      csv += `"${row.hsn_code || 'N/A'}","${(row.description || '').replace(/"/g, '""')}",NOS,${row.total_qty},${row.gst_rate},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},${fmt(row.igst)},${fmt(row.total_tax)}\n`;
     }
   } else if (type === 'rate_wise') {
     csv += 'Rate-wise GST Summary\n';
     csv += `Period: ${from} to ${to}\n\n`;
-    csv += 'GST Rate (%),Orders,Taxable Amount,CGST,SGST,Total Tax\n';
+    csv += 'GST Rate (%),Orders,Taxable Amount,CGST,SGST,IGST,Total Tax\n';
     for (const row of data.by_rate) {
-      csv += `${row.rate},${row.order_count},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},${fmt(row.total_tax)}\n`;
+      csv += `${row.rate},${row.order_count},${fmt(row.taxable)},${fmt(row.cgst)},${fmt(row.sgst)},${fmt(row.igst)},${fmt(row.total_tax)}\n`;
     }
   }
 

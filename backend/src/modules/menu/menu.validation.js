@@ -56,6 +56,8 @@ const createMenuItemSchema = Joi.object({
   })).default([]),
   addons: Joi.array().items(Joi.object({
     addon_group_id: Joi.string().uuid().required(),
+    name: Joi.string().trim().min(1).max(100).required(),
+    price: Joi.number().precision(2).min(0).default(0),
   })).default([]),
   menu_schedules: Joi.array().items(Joi.object({
     day_of_week: Joi.number().min(1).max(7),
@@ -96,6 +98,8 @@ const updateMenuItemSchema = Joi.object({
   })),
   addons: Joi.array().items(Joi.object({
     addon_group_id: Joi.string().uuid().required(),
+    name: Joi.string().trim().min(1).max(100).required(),
+    price: Joi.number().precision(2).min(0).default(0),
   })),
   menu_schedules: Joi.array().items(Joi.object({
     day_of_week: Joi.number().min(1).max(7).allow(null),
