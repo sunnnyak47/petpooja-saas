@@ -8,10 +8,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useRegion } from '../hooks/useRegion';
-import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder as phonePlaceholderFor } from '../lib/validation';
+import { isValidPhone, PHONE_MAXLEN } from '../lib/validation';
 import {
-  Calendar, Clock, Users, Plus, Phone, Mail,
-  CheckCircle2, XCircle, AlertCircle, ChevronDown,
+  Calendar, Users, Plus, Phone,
+  CheckCircle2, XCircle, AlertCircle,
   Utensils, Search, Edit2, Trash2, Loader2
 } from 'lucide-react';
 
@@ -34,9 +34,9 @@ function dateStr(dt) {
 }
 
 const EMPTY_FORM = {
-  customer_name: '', customer_phone: '', customer_email: '',
+  customer_name: '', customer_phone: '',
   party_size: 2, reservation_date: '', reservation_time: '',
-  table_preference: '', special_requests: '', status: 'CONFIRMED'
+  special_requests: '', status: 'confirmed'
 };
 
 export default function ReservationsPage() {
@@ -57,10 +57,6 @@ export default function ReservationsPage() {
   const handleSave = () => {
     if (form.customer_phone && !isValidPhone(form.customer_phone)) {
       toast.error('Please enter a valid phone number');
-      return;
-    }
-    if (form.customer_email && !isValidEmail(form.customer_email)) {
-      toast.error('Please enter a valid email address');
       return;
     }
     const payload = { ...form, party_size: Number(form.party_size) };
@@ -133,10 +129,9 @@ export default function ReservationsPage() {
     setEditId(r.id);
     setForm({
       customer_name: r.customer_name, customer_phone: r.customer_phone,
-      customer_email: r.customer_email || '', party_size: r.party_size,
+      party_size: r.party_size,
       reservation_date: r.reservation_date?.split('T')[0] || '',
       reservation_time: r.reservation_time || '',
-      table_preference: r.table_preference || '',
       special_requests: r.special_requests || '',
       status: r.status,
     });
@@ -227,11 +222,9 @@ export default function ReservationsPage() {
               {[
                 { key: 'customer_name', label: 'Customer Name *', type: 'text', placeholder: 'John Doe' },
                 { key: 'customer_phone', label: 'Phone *', type: 'tel', placeholder: phonePlaceholder },
-                { key: 'customer_email', label: 'Email', type: 'email', placeholder: 'john@example.com' },
                 { key: 'party_size', label: 'Party Size *', type: 'number', placeholder: '2' },
                 { key: 'reservation_date', label: 'Date *', type: 'date', placeholder: '' },
                 { key: 'reservation_time', label: 'Time *', type: 'time', placeholder: '' },
-                { key: 'table_preference', label: 'Table Preference', type: 'text', placeholder: 'Window, Corner, etc.' },
               ].map(f => (
                 <div key={f.key} className={f.key === 'customer_name' ? 'col-span-2' : ''}>
                   <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>{f.label}</label>
@@ -340,14 +333,14 @@ export default function ReservationsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           {r.status?.toUpperCase() === 'PENDING' && (
-                            <button onClick={() => statusMutation.mutate({ id: r.id, status: 'CONFIRMED' })}
+                            <button onClick={() => statusMutation.mutate({ id: r.id, status: 'confirmed' })}
                               className="text-xs px-2 py-1 rounded-lg"
                               style={{ background: 'rgba(96,165,250,0.12)', color: '#60a5fa' }}>
                               Confirm
                             </button>
                           )}
                           {r.status?.toUpperCase() === 'CONFIRMED' && (
-                            <button onClick={() => statusMutation.mutate({ id: r.id, status: 'SEATED' })}
+                            <button onClick={() => statusMutation.mutate({ id: r.id, status: 'seated' })}
                               className="text-xs px-2 py-1 rounded-lg"
                               style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
                               Seat

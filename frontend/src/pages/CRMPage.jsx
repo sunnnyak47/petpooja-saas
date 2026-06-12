@@ -134,7 +134,11 @@ function CustomerModal({ customer, outletId, onClose }) {
   const handleSave = () => {
     if (!form.phone || !isValidPhone(form.phone)) return toast.error('Please enter a valid phone number');
     if (form.email && !isValidEmail(form.email)) return toast.error('Please enter a valid email address');
-    mut.mutate(form);
+    // Backend Joi allows null but not '' for optional fields — strip empty strings to null.
+    const payload = Object.fromEntries(
+      Object.entries(form).map(([k, v]) => [k, v === '' ? null : v])
+    );
+    mut.mutate(payload);
   };
 
   return (
@@ -165,7 +169,7 @@ function CustomerModal({ customer, outletId, onClose }) {
           <label className="label">Dietary Preference</label>
           <select className="input w-full" value={form.dietary_preference} onChange={set('dietary_preference')}>
             <option value="">None</option>
-            <option>veg</option><option>non-veg</option><option>vegan</option><option>jain</option>
+            <option value="veg">veg</option><option value="non_veg">non-veg</option><option value="vegan">vegan</option><option value="jain">jain</option>
           </select>
         </div>
         <div>
@@ -313,7 +317,7 @@ function CampaignModal({ outletId, onClose }) {
   const mut = useMutation({
     mutationFn: (d) => api.post('/customers/campaigns', d),
     onSuccess: (res) => {
-      toast.success(`Campaign sent to ${res.data?.data?.total_recipients || 0} customers`);
+      toast.success(`Campaign sent to ${res.data?.total_recipients || 0} customers`);
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       onClose();
     },
@@ -419,7 +423,7 @@ function DashboardTab({ outletId, onEditConfig }) {
   const birthdayMut = useMutation({
     mutationFn: (d) => api.post('/customers/crm/birthday-campaign', d),
     onSuccess: (res) => {
-      toast.success(`Birthday messages sent to ${res.data?.data?.sent || 0} customers`);
+      toast.success(`Birthday messages sent to ${res.data?.sent || 0} customers`);
       qc.invalidateQueries({ queryKey: ['campaigns'] });
     },
     onError: (e) => toast.error(e.response?.data?.message || e.message),
