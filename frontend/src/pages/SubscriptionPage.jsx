@@ -140,8 +140,8 @@ export default function SubscriptionPage() {
                 <TrendingUp className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Usage
               </h3>
               {[
-                { label: 'Outlets',     used: sub.outlets_used, max: sub.plan_limits?.outlets, pct: outletPct, icon: Store,  color: '#6366f1' },
-                { label: 'Staff Users', used: sub.staff_used,   max: sub.plan_limits?.staff,   pct: staffPct,  icon: Users, color: '#22c55e' },
+                { label: 'Outlets',     used: sub.outlets_used, max: sub.plan_limits?.outlets, pct: outletPct, icon: Store, color: 'var(--accent)' },
+                { label: 'Staff Users', used: sub.staff_used,   max: sub.plan_limits?.staff,   pct: staffPct,  icon: Users, color: 'var(--accent)' },
               ].map(u => (
                 <div key={u.label}>
                   <div className="flex items-center justify-between mb-1.5">
@@ -181,15 +181,15 @@ export default function SubscriptionPage() {
               <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Upgrade Plan</h3>
               {(sub.next_plans || []).map(np => {
                 const NPIcon = PLAN_ICONS[np.plan] || Star;
-                const npColor = PLAN_COLORS[np.plan] || '#94a3b8';
                 return (
-                  <div key={np.plan} className="rounded-xl p-4 cursor-pointer transition-all hover:scale-[1.01]"
+                  <div key={np.plan} className="rounded-xl p-4 cursor-pointer transition-colors hover:bg-white/[0.03]"
                     onClick={() => toast('Contact support@madsundigital.com to upgrade your plan')}
-                    style={{ background: 'var(--bg-secondary)', border: `1px solid ${npColor}40` }}>
+                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${npColor}20` }}>
-                          <NPIcon className="w-4 h-4" style={{ color: npColor }} />
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center"
+                          style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
+                          <NPIcon className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                         </div>
                         <div>
                           <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{np.plan}</p>
@@ -199,10 +199,10 @@ export default function SubscriptionPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-sm" style={{ color: npColor }}>{format(np.price)}/mo</p>
+                        <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{format(np.price)}/mo</p>
                         <div className="flex items-center gap-1 mt-1">
-                          <ArrowUp className="w-3 h-3" style={{ color: npColor }} />
-                          <span className="text-xs" style={{ color: npColor }}>Upgrade</span>
+                          <ArrowUp className="w-3 h-3" style={{ color: 'var(--accent)' }} />
+                          <span className="text-xs" style={{ color: 'var(--accent)' }}>Upgrade</span>
                         </div>
                       </div>
                     </div>
@@ -211,7 +211,7 @@ export default function SubscriptionPage() {
               })}
               {(!sub.next_plans || sub.next_plans.length === 0) && (
                 <div className="rounded-xl p-4 text-center" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                  <Crown className="w-8 h-8 mx-auto mb-2" style={{ color: '#4ade80' }} />
+                  <Crown className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--accent)' }} />
                   <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>You're on the highest plan!</p>
                   <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Enterprise — all features unlocked</p>
                 </div>
