@@ -181,7 +181,7 @@ export default function AggregatorPage() {
           ...Object.entries(REGION_PLATFORMS).map(([id, m]) => ({
             label: m.name,
             value: `${stats?.by_platform?.[id]?.count || 0} orders`,
-            sub: `${symbol}${Number(stats?.by_platform?.[id]?.revenue || 0).toLocaleString()} rev`,
+            sub: `${symbol}${Number(stats?.by_platform?.[id]?.revenue || 0).toLocaleString(userRegion === 'AU' ? 'en-AU' : 'en-IN')} rev`,
             color: m.color,
           })),
         ].slice(0, 4).map((s, i) => (

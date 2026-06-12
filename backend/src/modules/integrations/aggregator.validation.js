@@ -9,8 +9,8 @@ const Joi = require('joi');
 const updateAggregatorConfigSchema = Joi.object({
   outlet_id: Joi.string().uuid(),
   store_id: Joi.string().max(100),
-  api_key: Joi.string().max(255),
-  webhook_secret: Joi.string().max(255),
+  api_key: Joi.string().max(255).allow('', null),
+  webhook_secret: Joi.string().max(255).allow('', null),
   enabled: Joi.boolean(),
 });
 

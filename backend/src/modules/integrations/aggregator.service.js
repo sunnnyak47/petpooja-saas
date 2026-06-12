@@ -568,9 +568,11 @@ async function simulateIncomingOrder(outletId, platform, overrides = {}) {
 }
 
 function buildMockWebhookPayload(platform, data) {
+  const region = PLATFORMS[platform]?.region || 'IN';
+  const mockPhone = region === 'AU' ? '+61400000000' : '+919999999999';
   const base = {
     order_id: data.order_id,
-    customer: { name: 'Test Customer', phone: '+919999999999' },
+    customer: { name: 'Test Customer', phone: mockPhone },
     items: [{
       id: data.item_id, name: data.item_name,
       quantity: 1, price: data.item_price,
