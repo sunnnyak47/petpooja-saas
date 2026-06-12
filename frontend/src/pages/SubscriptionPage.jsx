@@ -9,9 +9,9 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../hooks/useCurrency';
 import {
-  CreditCard, CheckCircle2, ArrowUp, Download, Calendar,
-  Store, Users, Zap, Star, Crown, Building2, Clock,
-  TrendingUp, Package, FileText, Activity, ExternalLink, Gauge
+  CreditCard, CheckCircle2, ArrowUp,
+  Store, Users, Zap, Star, Crown, Building2,
+  TrendingUp, Package, FileText, Activity, ExternalLink, Gauge, AlertTriangle
 } from 'lucide-react';
 
 const INVOICE_STATUS_STYLE = {
@@ -23,13 +23,7 @@ const INVOICE_STATUS_STYLE = {
 };
 
 const PLAN_ICONS = { TRIAL: Zap, STARTER: Star, PRO: Crown, ENTERPRISE: Building2 };
-const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
-const PLAN_GRADIENTS = {
-  TRIAL:      'linear-gradient(135deg, #475569, #334155)',
-  STARTER:    'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-  PRO:        'linear-gradient(135deg, #8b5cf6, #6d28d9)',
-  ENTERPRISE: 'linear-gradient(135deg, #22c55e, #15803d)',
-};
+const PLAN_COLORS = { TRIAL: '#64748b', STARTER: '#3b82f6', PRO: '#8b5cf6', ENTERPRISE: '#16a34a' };
 
 function timeAgo(dt) {
   if (!dt) return '—';
@@ -80,8 +74,7 @@ export default function SubscriptionPage() {
   });
 
   const PlanIcon = PLAN_ICONS[sub?.plan] || Zap;
-  const planColor = PLAN_COLORS[sub?.plan] || '#94a3b8';
-  const planGradient = PLAN_GRADIENTS[sub?.plan] || PLAN_GRADIENTS.TRIAL;
+  const planColor = PLAN_COLORS[sub?.plan] || '#64748b';
 
   const outletPct = sub ? Math.min(100, (sub.outlets_used / (sub.plan_limits?.outlets || 1)) * 100) : 0;
   const staffPct  = sub ? Math.min(100, (sub.staff_used  / (sub.plan_limits?.staff  || 1)) * 100) : 0;
@@ -97,7 +90,7 @@ export default function SubscriptionPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-24">
-          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         </div>
       ) : !sub ? (
         <div className="flex flex-col items-center py-16 gap-3">
@@ -107,32 +100,35 @@ export default function SubscriptionPage() {
       ) : (
         <>
           {/* Current Plan Card */}
-          <div className="rounded-2xl p-6 text-white relative overflow-hidden"
-            style={{ background: planGradient }}>
-            <div className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-10"
-              style={{ background: 'white', transform: 'translate(30%, -30%)' }} />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <PlanIcon className="w-5 h-5 opacity-90" />
-                    <span className="text-sm font-medium opacity-80">Current Plan</span>
-                  </div>
-                  <h2 className="text-3xl font-bold">{sub.plan}</h2>
-                  <p className="text-lg opacity-80 mt-1">
-                    {sub.plan_price === 0 ? 'Free' : `${format(sub.plan_price)}/month`}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${sub.is_active ? 'bg-white/20' : 'bg-red-500/30'}`}>
-                    {sub.is_active ? <CheckCircle2 className="w-3 h-3" /> : null}
-                    {sub.is_active ? 'Active' : 'Inactive'}
-                  </div>
-                  <p className="text-xs opacity-60 mt-2">
-                    Member since {new Date(sub.member_since).toLocaleDateString(locale, { month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
+          <div className="rounded-2xl p-6 flex items-start justify-between gap-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <div className="flex items-start gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: `${planColor}1A` }}>
+                <PlanIcon className="w-6 h-6" style={{ color: planColor }} />
               </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                  Current Plan
+                </span>
+                <h2 className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{sub.plan}</h2>
+                <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                  {sub.plan_price === 0 ? 'Free' : `${format(sub.plan_price)}/month`}
+                </p>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  background: sub.is_active ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                  color: sub.is_active ? '#16a34a' : '#ef4444',
+                }}>
+                {sub.is_active ? <CheckCircle2 className="w-3 h-3" /> : null}
+                {sub.is_active ? 'Active' : 'Inactive'}
+              </span>
+              <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
+                Member since {new Date(sub.member_since).toLocaleDateString(locale, { month: 'short', year: 'numeric' })}
+              </p>
             </div>
           </div>
 
@@ -141,7 +137,7 @@ export default function SubscriptionPage() {
             <div className="rounded-xl p-5 space-y-4"
               style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <TrendingUp className="w-4 h-4 text-indigo-400" /> Usage
+                <TrendingUp className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Usage
               </h3>
               {[
                 { label: 'Outlets',     used: sub.outlets_used, max: sub.plan_limits?.outlets, pct: outletPct, icon: Store,  color: '#6366f1' },
@@ -160,8 +156,8 @@ export default function SubscriptionPage() {
                       style={{ width: `${u.pct}%`, background: u.pct > 90 ? '#ef4444' : u.color }} />
                   </div>
                   {u.pct > 80 && (
-                    <p className="text-xs mt-1" style={{ color: '#f59e0b' }}>
-                      ⚠ Approaching limit — consider upgrading
+                    <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#f59e0b' }}>
+                      <AlertTriangle className="w-3 h-3" /> Approaching limit — consider upgrading
                     </p>
                   )}
                 </div>
@@ -173,7 +169,7 @@ export default function SubscriptionPage() {
                   {(sub.plan_limits?.features || []).map(f => (
                     <span key={f} className="text-xs px-2 py-0.5 rounded-full"
                       style={{ background: `${planColor}15`, color: planColor }}>
-                      {f === 'all' ? '✓ All Features' : f.replace(/_/g, ' ')}
+                      {f === 'all' ? 'All Features' : f.replace(/_/g, ' ')}
                     </span>
                   ))}
                 </div>
@@ -232,7 +228,7 @@ export default function SubscriptionPage() {
               style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                  <Gauge className="w-4 h-4 text-indigo-400" /> Usage This Month
+                  <Gauge className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Usage This Month
                   <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>({usage.period})</span>
                 </h3>
                 {usage.plan && (
@@ -285,7 +281,7 @@ export default function SubscriptionPage() {
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
               <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
                 <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                  <FileText className="w-4 h-4 text-indigo-400" /> Invoices
+                  <FileText className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Invoices
                 </h3>
               </div>
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
@@ -298,7 +294,7 @@ export default function SubscriptionPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                           style={{ background: 'rgba(99,102,241,0.1)' }}>
-                          <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                          <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
@@ -334,7 +330,7 @@ export default function SubscriptionPage() {
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <FileText className="w-4 h-4 text-indigo-400" /> Invoice History
+                <FileText className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Invoice History
               </h3>
             </div>
             {!sub.invoices || sub.invoices.length === 0 ? (
@@ -349,7 +345,7 @@ export default function SubscriptionPage() {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                         style={{ background: 'rgba(99,102,241,0.1)' }}>
-                        <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                        <FileText className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
                       </div>
                       <div>
                         <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
