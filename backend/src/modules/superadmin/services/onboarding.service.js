@@ -175,6 +175,53 @@ Object.assign(superadminService, {
   },
 
   /**
+   * Reset a chain OWNER's login: set a fresh temporary password AND unlock the
+   * account (clear failed attempts + lock). Returns the temp password ONCE so the
+   * operator can relay it to the owner. Lets support recover a locked-out client
+   * without DB access. Prefers the user holding the 'owner' role for the chain.
+   * @param {string} head_office_id
+   * @param {string} adminId
+   * @param {string} adminEmail
+   * @returns {Promise<{owner_email:string, temp_password:string}>}
+   */
+  async resetOwnerPassword(head_office_id, adminId, adminEmail) {
+    const crypto = require('crypto');
+    const user =
+      (await prisma.user.findFirst({
+        where: {
+          head_office_id, is_deleted: false,
+          user_roles: { some: { is_deleted: false, role: { name: 'owner' } } },
+        },
+        include: { head_office: true },
+      })) ||
+      (await prisma.user.findFirst({ where: { head_office_id, is_deleted: false }, include: { head_office: true } }));
+
+    if (!user) throw new NotFoundError('No owner/user found for this chain');
+
+    // Readable temp password — strong enough as a one-time value the owner resets.
+    const tempPassword = `Tmp-${crypto.randomBytes(4).toString('hex')}-${crypto.randomBytes(3).toString('hex')}`;
+    const password_hash = await bcrypt.hash(tempPassword, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash, failed_login_attempts: 0, locked_until: null, is_active: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
+        action: 'SUPERADMIN_RESET_OWNER_PASSWORD',
+        entity_type: 'restaurant',
+        entity_id: head_office_id,
+        new_values: { reset_for: user.email, by: adminEmail || 'super_admin' },
+      },
+    }).catch(() => null);
+
+    logger.info('SuperAdmin reset owner password', { head_office_id, owner: user.email, by: adminEmail });
+    return { owner_email: user.email, temp_password: tempPassword };
+  },
+
+  /**
    * Onboard New Restaurant — Full Transactional Setup
    * Creates HeadOffice, Owner User, Outlet, Role, and Subscription
    */

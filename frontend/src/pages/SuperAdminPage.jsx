@@ -8,7 +8,7 @@ import {
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
-  TrendingUp, BarChart3, Loader2, Rocket, Check,
+  TrendingUp, BarChart3, Loader2, Rocket, Check, KeyRound, Copy,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -46,6 +46,8 @@ export default function SuperAdminPage() {
   const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN', owner_name: '', city: '', abn: '', acn: '' });
   const [notesModal, setNotesModal]     = useState(null); // { chain, text }
   const [planDropdown, setPlanDropdown] = useState(null); // chain.id
+  const [resetResult, setResetResult] = useState(null); // { owner_email, temp_password, chainName }
+  const [resetConfirm, setResetConfirm] = useState(null); // chain pending reset confirmation
   const [activeTab, setActiveTab]       = useState('chains');
 
   const { data: chains = [], isLoading } = useQuery({
@@ -92,6 +94,16 @@ export default function SuperAdminPage() {
     mutationFn: () => api.post('/menu/templates/seed'),
     onSuccess: () => toast.success('Australian menu templates seeded!'),
     onError: (e) => toast.error(e.message),
+  });
+
+  const resetLoginMutation = useMutation({
+    mutationFn: (chainId) => api.post(`/superadmin/chains/${chainId}/reset-owner-password`),
+    onSuccess: (res, chainId) => {
+      const d = res?.data || res || {};
+      const chainName = chains.find(c => c.id === chainId)?.name || 'this chain';
+      setResetResult({ ...d, chainName });
+    },
+    onError: (e) => toast.error(e?.message || e?.response?.data?.message || 'Reset failed'),
   });
 
   const impersonateMutation = useMutation({
@@ -503,6 +515,17 @@ export default function SuperAdminPage() {
                       Login As
                     </button>
 
+                    {/* Reset owner login (support recovery) */}
+                    <button
+                      onClick={() => setResetConfirm(chain)}
+                      disabled={resetLoginMutation.isPending}
+                      title="Reset & unlock the chain owner's login"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: '#F59E0B30', background: '#F59E0B08', color: '#F59E0B' }}>
+                      <KeyRound className="w-3 h-3" />
+                      Reset Login
+                    </button>
+
                     {/* Suspend / Activate */}
                     {suspended ? (
                       <button
@@ -709,6 +732,53 @@ export default function SuperAdminPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Reset Owner Login: confirm ── */}
+      {resetConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <KeyRound className="w-5 h-5" style={{ color: '#F59E0B' }} />
+              <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Reset owner login?</h3>
+            </div>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+              This sets a new temporary password for <b>{resetConfirm.name}</b>'s owner and unlocks the account.
+              You'll get a one-time password to give them — they should change it after logging in.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setResetConfirm(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+              <button
+                onClick={() => { const c = resetConfirm; setResetConfirm(null); resetLoginMutation.mutate(c.id); }}
+                disabled={resetLoginMutation.isPending}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#F59E0B' }}>
+                {resetLoginMutation.isPending ? 'Resetting…' : 'Reset login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reset Owner Login: one-time result ── */}
+      {resetResult && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <h3 className="font-semibold text-base mb-1" style={{ color: 'var(--text-primary)' }}>Login reset for {resetResult.chainName}</h3>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+              Give this to <b>{resetResult.owner_email}</b>. It's shown once — copy it now.
+            </p>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+              <code className="flex-1 text-sm font-mono break-all" style={{ color: 'var(--text-primary)' }}>{resetResult.temp_password}</code>
+              <button onClick={() => { try { navigator.clipboard.writeText(resetResult.temp_password); toast.success('Copied'); } catch { /* noop */ } }}
+                className="p-1.5 rounded-md hover:opacity-70" style={{ color: 'var(--accent)' }} title="Copy">
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+            <button onClick={() => setResetResult(null)}
+              className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--accent)' }}>Done</button>
+          </div>
         </div>
       )}
 

@@ -155,4 +155,7 @@ router.get('/onboarding-overview', superadminController.getOnboardingOverview);
 /** POST /api/superadmin/chains/:id/reset-wizard — Reset wizard for a chain */
 router.post('/chains/:id/reset-wizard', superadminController.resetChainWizard);
 
+/** POST /api/superadmin/chains/:id/reset-owner-password — reset + unlock the chain owner's login */
+router.post('/chains/:id/reset-owner-password', superadminController.resetOwnerPassword);
+
 module.exports = router;

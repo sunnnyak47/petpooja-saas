@@ -82,6 +82,16 @@ const superadminController = {
   },
 
   /**
+   * Reset a chain owner's password + unlock the account (support recovery).
+   */
+  async resetOwnerPassword(req, res, next) {
+    try {
+      const result = await superadminService.resetOwnerPassword(req.params.id, req.user?.id, req.user?.email);
+      sendSuccess(res, result, 'Owner login reset');
+    } catch (err) { next(err); }
+  },
+
+  /**
    * Update Client License
    */
   async updateSubscription(req, res, next) {
