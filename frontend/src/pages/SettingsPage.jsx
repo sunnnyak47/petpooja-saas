@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import ThemeSelector from '../themes/ThemeSelector';
 import { useRegion } from '../hooks/useRegion';
+import { updateUser } from '../store/slices/authSlice';
+import LogoUploader from '../components/branding/LogoUploader';
 import {
   VOICE_LANGUAGES, DEFAULT_VOICE_SETTINGS,
   loadVoiceSettings, saveVoiceSettings,
@@ -37,7 +39,34 @@ export default function SettingsPage() {
   const region = useRegion();
   const isAU = region === 'AU';
   const queryClient = useQueryClient();
+  const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState('general');
+
+  // Brand identity (chain colour + logo) — owner only, saved via /ho/my-branding.
+  const HEX = /^#[0-9A-Fa-f]{6}$/;
+  const [brand, setBrand] = useState({
+    primary_color: user?.head_office?.primary_color || user?.primary_color || '#4F46E5',
+    logo_url: user?.head_office?.logo_url || user?.logo_url || '',
+  });
+  const applyAccentLive = (hex) => {
+    if (HEX.test(hex)) {
+      document.documentElement.style.setProperty('--accent', hex);
+      document.documentElement.style.setProperty('--accent-hover', hex + 'dd');
+    }
+  };
+  const brandingMutation = useMutation({
+    mutationFn: (payload) => api.patch('/ho/my-branding', payload),
+    onSuccess: (_res, payload) => {
+      dispatch(updateUser({
+        primary_color: payload.primary_color,
+        logo_url: payload.logo_url,
+        head_office: { ...(user?.head_office || {}), primary_color: payload.primary_color, logo_url: payload.logo_url },
+      }));
+      applyAccentLive(payload.primary_color);
+      toast.success('Branding saved');
+    },
+    onError: (e) => toast.error(e.message || 'Could not save branding'),
+  });
   // ThemeSelector component handles theme switching via its own useTheme hook.
   // No theme state needed directly in this page.
 
@@ -455,6 +484,46 @@ export default function SettingsPage() {
         return (
           <div className="space-y-5">
             <SectionTitle title="Appearance" subtitle="Customize the look and feel of the interface" />
+
+            {user?.role === 'owner' && (
+              <div className="rounded-2xl border p-5 space-y-4" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Brand identity</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>Your colour and logo appear across the POS, receipts and QR menu.</p>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Brand colour</label>
+                    <div className="flex items-center gap-3 p-2.5 rounded-xl border" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+                      <input type="color" value={HEX.test(brand.primary_color) ? brand.primary_color : '#4F46E5'}
+                        onChange={(e) => { setBrand((b) => ({ ...b, primary_color: e.target.value })); applyAccentLive(e.target.value); }}
+                        className="w-10 h-10 rounded-lg border cursor-pointer bg-transparent" style={{ borderColor: 'var(--border)' }} />
+                      <input type="text" value={brand.primary_color}
+                        onChange={(e) => { setBrand((b) => ({ ...b, primary_color: e.target.value })); applyAccentLive(e.target.value); }}
+                        className="flex-1 min-w-0 font-mono text-sm px-2 py-1 rounded-lg outline-none border"
+                        style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Logo</label>
+                    <LogoUploader value={brand.logo_url} onUploaded={(url) => setBrand((b) => ({ ...b, logo_url: url }))} />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      if (brand.primary_color && !HEX.test(brand.primary_color)) return toast.error('Enter a valid hex colour (e.g. #4F46E5)');
+                      brandingMutation.mutate({ primary_color: brand.primary_color, logo_url: brand.logo_url || '' });
+                    }}
+                    disabled={brandingMutation.isPending}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                    style={{ background: 'var(--accent)' }}>
+                    <Save className="w-4 h-4" /> {brandingMutation.isPending ? 'Saving…' : 'Save branding'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <ThemeSelector />
             <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
               <ToggleSwitch label="Compact Layout" description="Reduce spacing to show more content on screen" checked={settings.compact_layout} onChange={(v) => updateSetting('compact_layout', v)} />

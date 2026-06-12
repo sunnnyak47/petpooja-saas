@@ -63,11 +63,21 @@ const updateBrandingSchema = Joi.object({
  * Schema for owner setup completion wizard.
  */
 const setupCompleteSchema = Joi.object({
-  primary_color: Joi.string().max(7),
-  logo_url: Joi.string().allow('', null),
+  primary_color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).allow('', null),
+  logo_url: Joi.string().max(500).allow('', null),
   gstin: Joi.string().max(15).allow('', null),
-  legal_name: Joi.string().max(200),
+  abn: Joi.string().max(20).allow('', null),
+  legal_name: Joi.string().max(200).allow('', null),
 });
+
+/**
+ * Schema for an owner updating their own chain branding (color + logo)
+ * from the wizard or Settings — no head_office_id (scoped to the caller).
+ */
+const myBrandingSchema = Joi.object({
+  primary_color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).allow('', null),
+  logo_url: Joi.string().max(500).allow('', null),
+}).min(1);
 
 module.exports = {
   menuSyncSchema,
@@ -75,4 +85,5 @@ module.exports = {
   registerRestaurantSchema,
   updateBrandingSchema,
   setupCompleteSchema,
+  myBrandingSchema,
 };

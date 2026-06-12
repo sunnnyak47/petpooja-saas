@@ -11,6 +11,7 @@ import {
   Package, ClipboardList, Receipt, ChefHat,
 } from 'lucide-react';
 import { useRegion } from '../hooks/useRegion';
+import GetStartedChecklist from '../components/onboarding/GetStartedChecklist';
 import PaymentBreakdown from '../components/Dashboard/PaymentBreakdown';
 import PeakHoursChart from '../components/Dashboard/PeakHoursChart';
 import AgingOrdersAlert from '../components/Dashboard/AgingOrdersAlert';
@@ -223,6 +224,9 @@ export default function DashboardPage() {
           New Order
         </button>
       </div>
+
+      {/* ── First-run get-started checklist (owners/managers; self-hides when done) ── */}
+      {(user?.role === 'owner' || user?.role === 'manager') && <GetStartedChecklist />}
 
       {/* ══ Command Bar — editorial hero + secondary actions with live data ══ */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

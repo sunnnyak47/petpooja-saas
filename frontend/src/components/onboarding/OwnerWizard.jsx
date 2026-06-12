@@ -1,199 +1,232 @@
+/**
+ * OwnerWizard — first-login setup for a restaurant owner.
+ * Shown once (until head_office.setup_completed). Themed with CSS variables,
+ * skippable, and it applies branding to the live session on finish so the
+ * accent colour + logo take effect without a reload.
+ */
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
+import { useDispatch, useSelector } from 'react-redux';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
-import { 
-  Rocket, Palette, ShieldCheck, CheckCircle2, 
-  ArrowRight, ArrowLeft, Upload, Scissors
+import {
+  Rocket, Palette, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, X,
 } from 'lucide-react';
-
+import { updateUser } from '../../store/slices/authSlice';
 import useBranding from '../../hooks/useBranding';
 import { useRegion } from '../../hooks/useRegion';
-import { isValidPhone, isValidEmail } from '../../lib/validation';
+import LogoUploader from '../branding/LogoUploader';
+
+const HEX = /^#[0-9A-Fa-f]{6}$/;
 
 export default function OwnerWizard({ headOffice }) {
   const { branding } = useBranding();
   const region = useRegion();
   const isAU = region === 'AU';
+  const dispatch = useDispatch();
+  const { user } = useSelector((s) => s.auth);
+
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     logo_url: headOffice?.logo_url || '',
     primary_color: headOffice?.primary_color || '#4F46E5',
     gstin: headOffice?.gstin || '',
     abn: headOffice?.abn || '',
-    legal_name: headOffice?.legal_name || headOffice?.name,
+    legal_name: headOffice?.legal_name || headOffice?.name || '',
   });
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const queryClient = useQueryClient();
+  // Live-preview the accent while they pick.
+  const applyColorLive = (hex) => {
+    set('primary_color', hex);
+    if (HEX.test(hex)) {
+      document.documentElement.style.setProperty('--accent', hex);
+      document.documentElement.style.setProperty('--accent-hover', hex + 'dd');
+    }
+  };
+
+  const finalize = (payload) => {
+    // Reflect into the live session so the wizard closes and branding sticks.
+    const ho = { ...(user?.head_office || {}), setup_completed: true };
+    if (payload.primary_color) ho.primary_color = payload.primary_color;
+    if (payload.logo_url !== undefined) ho.logo_url = payload.logo_url;
+    dispatch(updateUser({
+      head_office: ho,
+      ...(payload.primary_color ? { primary_color: payload.primary_color } : {}),
+      ...(payload.logo_url !== undefined ? { logo_url: payload.logo_url } : {}),
+    }));
+  };
 
   const completeMutation = useMutation({
     mutationFn: (data) => api.patch('/ho/setup-complete', data),
-    onSuccess: () => {
-      // Patch localStorage so reload doesn't re-show the wizard
-      try {
-        const stored = JSON.parse(localStorage.getItem('user') || '{}');
-        if (stored.head_office) stored.head_office.setup_completed = true;
-        localStorage.setItem('user', JSON.stringify(stored));
-      } catch {}
-      queryClient.invalidateQueries(['auth-user']);
-      toast.success(`Your ${branding.platform_name} is ready! Go Live!`);
-      window.location.reload();
-    }
+    onSuccess: (_res, data) => {
+      finalize(data || {});
+      toast.success('Your workspace is ready 🚀');
+    },
+    onError: (e) => toast.error(e.message || 'Could not save setup'),
   });
 
-  const next = () => setStep(s => s + 1);
-  const prev = () => setStep(s => s - 1);
-
-  const finishSetup = () => {
-    if (formData.phone && !isValidPhone(formData.phone)) {
-      toast.error('Please enter a valid phone number');
-      return;
+  const finish = () => {
+    if (form.primary_color && !HEX.test(form.primary_color)) {
+      return toast.error('Pick a valid colour (e.g. #4F46E5)');
     }
-    if (formData.email && !isValidEmail(formData.email)) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-    completeMutation.mutate(formData);
+    completeMutation.mutate({
+      primary_color: form.primary_color || undefined,
+      logo_url: form.logo_url ?? '',
+      legal_name: form.legal_name || undefined,
+      ...(isAU ? { abn: form.abn || '' } : { gstin: form.gstin || '' }),
+    });
   };
 
+  // Skip = flip setup_completed with no data, so it never re-appears.
+  const skip = () => completeMutation.mutate({});
+
+  const STEPS = 3;
+  const ACCENT = HEX.test(form.primary_color) ? form.primary_color : 'var(--accent)';
+
   return (
-    <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
-      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
-        
-        {/* Progress Header */}
-        <div className="bg-slate-50 p-8 border-b flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-               <Rocket size={24} />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+      style={{ background: 'rgba(2,6,23,0.6)', backdropFilter: 'blur(8px)' }}>
+      <div className="w-full max-w-2xl rounded-3xl overflow-hidden border shadow-2xl"
+        style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+
+        {/* Header */}
+        <div className="px-8 py-6 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: ACCENT }}>
+              <Rocket size={22} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">Welcome to {branding.platform_name}!</h1>
-              <p className="text-sm text-slate-500 font-medium">Let's set up your {headOffice?.name || 'restaurant'} workspace</p>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                Welcome to {branding?.platform_name || 'MS-RM'}
+              </h1>
+              <p className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
+                Let’s set up {headOffice?.name || 'your restaurant'} — takes a minute
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={`w-10 h-1.5 rounded-full transition-all duration-500 ${step >= i ? 'bg-indigo-600' : 'bg-slate-200'}`} />
-            ))}
-          </div>
+          <button onClick={skip} title="Skip setup" disabled={completeMutation.isPending}
+            className="p-2 rounded-lg hover:opacity-70 disabled:opacity-50" style={{ color: 'var(--text-secondary)' }}>
+            <X size={18} />
+          </button>
         </div>
 
-        <div className="p-10">
+        {/* Progress */}
+        <div className="px-8 pt-5 flex gap-2">
+          {Array.from({ length: STEPS }, (_, i) => i + 1).map((i) => (
+            <div key={i} className="h-1.5 flex-1 rounded-full transition-all"
+              style={{ background: step >= i ? ACCENT : 'var(--border)' }} />
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="px-8 py-7 min-h-[300px]">
           {step === 1 && (
-            <div className="space-y-6 animate-slide-in">
-              <div className="flex items-center gap-3 text-indigo-600 mb-2">
-                 <Palette size={20} /> <span className="font-bold uppercase tracking-wider text-sm">Visual Identity</span>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900">Brand Your POS</h2>
-              <p className="text-slate-500">How do you want your storefront and reports to look?</p>
-              
-              <div className="grid grid-cols-2 gap-8 mt-4">
-                <div className="space-y-3">
-                  <label className="text-xs font-black text-slate-400 uppercase">Primary Brand Color</label>
-                  <div className="flex items-center gap-4 p-4 border rounded-2xl bg-slate-50">
-                    <input 
-                      type="color" 
-                      value={formData.primary_color} 
-                      onChange={(e) => setFormData({...formData, primary_color: e.target.value})}
-                      className="w-12 h-12 rounded-xl border-2 border-white shadow-sm cursor-pointer"
-                    />
-                    <span className="font-mono text-sm font-bold text-slate-600">{formData.primary_color}</span>
+            <div className="space-y-5">
+              <Label icon={<Palette size={16} />} accent={ACCENT}>Visual identity</Label>
+              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Brand your workspace</h2>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Your colour and logo appear across the POS, receipts and QR menu.</p>
+
+              <div className="grid sm:grid-cols-2 gap-6 pt-2">
+                <div className="space-y-2">
+                  <FieldLabel>Brand colour</FieldLabel>
+                  <div className="flex items-center gap-3 p-3 rounded-2xl border" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                    <input type="color" value={HEX.test(form.primary_color) ? form.primary_color : '#4F46E5'}
+                      onChange={(e) => applyColorLive(e.target.value)}
+                      className="w-11 h-11 rounded-xl border cursor-pointer bg-transparent" style={{ borderColor: 'var(--border)' }} />
+                    <input type="text" value={form.primary_color} onChange={(e) => applyColorLive(e.target.value)}
+                      className="flex-1 min-w-0 font-mono text-sm px-2 py-1 rounded-lg outline-none border"
+                      style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <label className="text-xs font-black text-slate-400 uppercase">Brand Logo</label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-slate-400 gap-2 hover:border-indigo-300 hover:text-indigo-400 transition cursor-pointer">
-                    <Upload size={24} />
-                    <span className="text-[10px] font-bold">1:1 Square Recommended</span>
-                  </div>
+                <div className="space-y-2">
+                  <FieldLabel>Logo</FieldLabel>
+                  <LogoUploader value={form.logo_url} onUploaded={(url) => set('logo_url', url)} />
                 </div>
               </div>
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-6 animate-slide-in">
-              <div className="flex items-center gap-3 text-emerald-600 mb-2">
-                 <ShieldCheck size={20} /> <span className="font-bold uppercase tracking-wider text-sm">Compliance & Tax</span>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900">Legal Details</h2>
-              
-              <div className="space-y-5">
+            <div className="space-y-5">
+              <Label icon={<ShieldCheck size={16} />} accent={ACCENT}>Compliance & tax</Label>
+              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Legal details</h2>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Used on tax invoices. You can change these later in Settings.</p>
+
+              <div className="space-y-4 pt-2">
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">Registered Company Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full px-5 py-4 bg-slate-50 border rounded-2xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                    value={formData.legal_name}
-                    onChange={(e) => setFormData({...formData, legal_name: e.target.value})}
-                  />
+                  <FieldLabel>Registered business name</FieldLabel>
+                  <Input value={form.legal_name} onChange={(v) => set('legal_name', v)} placeholder="e.g. Garden State Eatery Pty Ltd" />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2">
-                    {isAU ? 'ABN (Optional)' : 'GSTIN Number (Optional)'}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={isAU ? '51 824 753 556' : '27AAAAAAAAAAAAA'}
-                    className="w-full px-5 py-4 bg-slate-50 border rounded-2xl text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                    value={isAU ? formData.abn : formData.gstin}
-                    onChange={(e) => setFormData({...formData, [isAU ? 'abn' : 'gstin']: e.target.value})}
-                  />
+                  <FieldLabel>{isAU ? 'ABN (optional)' : 'GSTIN (optional)'}</FieldLabel>
+                  <Input value={isAU ? form.abn : form.gstin}
+                    onChange={(v) => set(isAU ? 'abn' : 'gstin', v)}
+                    placeholder={isAU ? '51 824 753 556' : '27AAAAA0000A1Z5'} />
                 </div>
               </div>
             </div>
           )}
 
           {step === 3 && (
-            <div className="space-y-8 text-center animate-slide-in">
-              <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                 <CheckCircle2 size={48} />
+            <div className="text-center space-y-5 py-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'color-mix(in srgb, var(--success, #16a34a) 14%, transparent)', color: 'var(--success, #16a34a)' }}>
+                <CheckCircle2 size={40} />
               </div>
-              <div>
-                <h2 className="text-3xl font-black text-slate-900 mb-3">Almost There!</h2>
-                <p className="text-slate-500 mx-auto max-w-sm">We've applied your settings. Your first outlet (Flagship) is ready for sales.</p>
-              </div>
-
-              <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-3xl text-left flex gap-4">
-                 <div className="text-indigo-600"><Rocket size={24} /></div>
-                 <div>
-                   <h4 className="font-bold text-indigo-900">Launch Tip:</h4>
-                   <p className="text-sm text-indigo-700">Open the POS on your tablet or mobile and use code "CASH" to try a dummy sale.</p>
-                 </div>
-              </div>
+              <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>You’re ready to go live</h2>
+              <p className="text-sm mx-auto max-w-md" style={{ color: 'var(--text-secondary)' }}>
+                Your settings are saved and your first outlet is ready. Next: add a few menu items and ring up a test order — we’ll guide you with a checklist on your dashboard.
+              </p>
             </div>
           )}
         </div>
 
-        {/* Action Footer */}
-        <div className="p-8 bg-slate-50 border-t flex justify-between">
-          <button 
-            onClick={prev}
-            disabled={step === 1}
-            className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition ${step === 1 ? 'opacity-0' : 'text-slate-500 hover:text-slate-900'}`}
-          >
-            <ArrowLeft size={18} /> Previous
-          </button>
-          
-          {step < 3 ? (
-            <button 
-              onClick={next}
-              className="bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 flex items-center gap-2 transition active:scale-95"
-            >
-              Continue <ArrowRight size={18} />
+        {/* Footer */}
+        <div className="px-8 py-5 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+          {step > 1 ? (
+            <button onClick={() => setStep((s) => s - 1)} className="inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              <ArrowLeft size={16} /> Back
             </button>
           ) : (
-            <button 
-              onClick={finishSetup}
-              disabled={completeMutation.isPending}
-              className="bg-emerald-600 text-white px-12 py-3 rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 flex items-center gap-2 transition active:scale-95 disabled:opacity-50"
-            >
-              {completeMutation.isPending ? 'Launching...' : 'Finish Setup'} <Rocket size={18} />
+            <button onClick={skip} disabled={completeMutation.isPending} className="text-sm font-medium disabled:opacity-50" style={{ color: 'var(--text-secondary)' }}>
+              Skip for now
+            </button>
+          )}
+
+          {step < STEPS ? (
+            <button onClick={() => setStep((s) => s + 1)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+              style={{ background: ACCENT }}>
+              Continue <ArrowRight size={16} />
+            </button>
+          ) : (
+            <button onClick={finish} disabled={completeMutation.isPending}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+              style={{ background: ACCENT }}>
+              {completeMutation.isPending ? 'Finishing…' : 'Finish setup'} <Rocket size={16} />
             </button>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function Label({ icon, accent, children }) {
+  return (
+    <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider" style={{ color: accent }}>
+      {icon} {children}
+    </div>
+  );
+}
+function FieldLabel({ children }) {
+  return <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-secondary)' }}>{children}</label>;
+}
+function Input({ value, onChange, placeholder }) {
+  return (
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full px-4 py-3 rounded-xl text-sm outline-none border"
+      style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' }} />
   );
 }

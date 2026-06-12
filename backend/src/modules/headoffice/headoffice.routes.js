@@ -12,12 +12,16 @@ const { sendSuccess, sendCreated, sendError } = require('../../utils/response');
 const Joi = require('joi');
 const { validate } = require('../../middleware/validate.middleware');
 const logger = require('../../config/logger');
+const multer = require('multer');
+const { uploadToS3 } = require('../../config/aws');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 const {
   menuSyncSchema,
   createIndentSchema,
   registerRestaurantSchema,
   updateBrandingSchema,
   setupCompleteSchema,
+  myBrandingSchema,
 } = require('./headoffice.validation');
 
 /**
@@ -150,29 +154,119 @@ router.patch('/branding', authenticate, hasRole('super_admin'), validate(updateB
   } catch (error) { next(error); }
 });
 
-/** PATCH /api/ho/setup-complete — Owner completes wizard */
+/** PATCH /api/ho/setup-complete — Owner completes (or skips) the wizard */
 router.patch('/setup-complete', authenticate, hasRole('owner'), validate(setupCompleteSchema), async (req, res, next) => {
-  const { primary_color, logo_url, gstin, legal_name } = req.body;
+  const { primary_color, logo_url, gstin, abn, legal_name } = req.body;
   const prisma = require('../../config/database').getDbClient();
   try {
-    const ho = await prisma.headOffice.update({
-        where: { id: req.user.head_office_id },
-        data: { 
-            primary_color, 
-            logo_url, 
-            gstin, 
-            legal_name,
-            setup_completed: true 
-        }
-    });
-    
-    // Auto-update the flagship outlet with these branding colors too
-    await prisma.outlet.updateMany({
-        where: { head_office_id: ho.id },
-        data: { primary_color, logo_url }
-    });
+    // Only write fields that were actually provided (a "skip" sends nothing but
+    // still flips setup_completed so the wizard doesn't reappear).
+    const data = { setup_completed: true };
+    if (primary_color) data.primary_color = primary_color;
+    if (logo_url !== undefined) data.logo_url = logo_url || null;
+    if (gstin !== undefined) data.gstin = gstin || null;
+    if (abn !== undefined) data.abn = abn || null;
+    if (legal_name) data.legal_name = legal_name;
 
-    sendSuccess(res, ho, 'Setup completed! Welcome to MS-RM System.');
+    const ho = await prisma.headOffice.update({ where: { id: req.user.head_office_id }, data });
+
+    // Cascade branding to all outlets so receipts/QR match.
+    const brand = {};
+    if (data.primary_color) brand.primary_color = data.primary_color;
+    if (data.logo_url !== undefined) brand.logo_url = data.logo_url;
+    if (Object.keys(brand).length) {
+      await prisma.outlet.updateMany({ where: { head_office_id: ho.id, is_deleted: false }, data: brand });
+    }
+
+    sendSuccess(res, ho, 'Setup completed! Welcome aboard.');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/ho/upload-logo — Owner uploads a brand logo (S3 with local fallback) */
+router.post('/upload-logo', authenticate, hasRole('owner', 'manager'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return sendError(res, 400, 'No file uploaded');
+    if (!String(req.file.mimetype || '').startsWith('image/')) {
+      return sendError(res, 400, 'Logo must be an image (PNG, JPG, SVG, WebP)');
+    }
+    try {
+      const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'branding', req.file.mimetype);
+      return sendSuccess(res, { url }, 'Logo uploaded');
+    } catch (s3Error) {
+      // S3 not configured / failed → save to local disk (served at /uploads).
+      const fs = require('fs');
+      const path = require('path');
+      const { v4: uuidv4 } = require('uuid');
+      const uploadDir = path.join(__dirname, '../../../uploads/branding');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const ext = path.extname(req.file.originalname).toLowerCase() || '.png';
+      const filename = `${uuidv4()}${ext}`;
+      fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+      const url = `${req.protocol}://${req.get('host')}/uploads/branding/${filename}`;
+      logger.warn('S3 logo upload failed, saved locally', { filename, error: s3Error.message });
+      return sendSuccess(res, { url }, 'Logo uploaded (local)');
+    }
+  } catch (error) { next(error); }
+});
+
+/** PATCH /api/ho/my-branding — Owner updates their own chain's color + logo */
+router.patch('/my-branding', authenticate, hasRole('owner'), validate(myBrandingSchema), async (req, res, next) => {
+  const { primary_color, logo_url } = req.body;
+  const prisma = require('../../config/database').getDbClient();
+  try {
+    const data = {};
+    if (primary_color) data.primary_color = primary_color;
+    if (logo_url !== undefined) data.logo_url = logo_url || null;
+    const ho = await prisma.headOffice.update({ where: { id: req.user.head_office_id }, data });
+    await prisma.outlet.updateMany({ where: { head_office_id: ho.id, is_deleted: false }, data });
+    sendSuccess(res, { primary_color: ho.primary_color, logo_url: ho.logo_url }, 'Branding updated');
+  } catch (error) { next(error); }
+});
+
+/** GET /api/ho/onboarding-status — get-started checklist state (computed from real data) */
+router.get('/onboarding-status', authenticate, hasRole('owner', 'manager'), async (req, res, next) => {
+  const prisma = require('../../config/database').getDbClient();
+  try {
+    const hoId = req.user.head_office_id;
+    if (!hoId) return sendSuccess(res, { applicable: false });
+    const ho = await prisma.headOffice.findUnique({
+      where: { id: hoId },
+      select: { setup_completed: true, primary_color: true, logo_url: true, gstin: true, abn: true, legal_name: true, metadata: true },
+    });
+    const outlets = await prisma.outlet.findMany({ where: { head_office_id: hoId, is_deleted: false }, select: { id: true } });
+    const outletIds = outlets.map((o) => o.id);
+    const [menuCount, tableCount, orderCount] = await Promise.all([
+      prisma.menuItem.count({ where: { outlet_id: { in: outletIds }, is_deleted: false } }).catch(() => 0),
+      prisma.table.count({ where: { outlet_id: { in: outletIds }, is_deleted: false } }).catch(() => 0),
+      prisma.order.count({ where: { outlet_id: { in: outletIds }, is_deleted: false } }).catch(() => 0),
+    ]);
+    const steps = {
+      brand: !!(ho?.logo_url || ho?.primary_color),
+      tax: !!(ho?.gstin || ho?.abn || ho?.legal_name),
+      menu: menuCount > 0,
+      table: tableCount > 0,
+      order: orderCount > 0,
+    };
+    const completed = Object.values(steps).filter(Boolean).length;
+    sendSuccess(res, {
+      applicable: true,
+      setup_completed: !!ho?.setup_completed,
+      dismissed: !!(ho?.metadata && ho.metadata.onboarding_dismissed),
+      steps,
+      completed_count: completed,
+      total: 5,
+    }, 'Onboarding status');
+  } catch (error) { next(error); }
+});
+
+/** POST /api/ho/onboarding-dismiss — owner hides the get-started checklist */
+router.post('/onboarding-dismiss', authenticate, hasRole('owner', 'manager'), async (req, res, next) => {
+  const prisma = require('../../config/database').getDbClient();
+  try {
+    const ho = await prisma.headOffice.findUnique({ where: { id: req.user.head_office_id }, select: { metadata: true } });
+    const metadata = { ...(ho?.metadata || {}), onboarding_dismissed: true };
+    await prisma.headOffice.update({ where: { id: req.user.head_office_id }, data: { metadata } });
+    sendSuccess(res, { dismissed: true }, 'Checklist dismissed');
   } catch (error) { next(error); }
 });
 

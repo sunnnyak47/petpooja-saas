@@ -276,6 +276,9 @@ export default function DashboardLayout() {
   })();
   const showWizard = user?.role === 'owner' && user?.head_office && !(user?.head_office?.setup_completed);
   const outletName = user?.outlet?.name || 'MS-RM System';
+  // Sidebar branding: a chain's own name/logo for tenant users; platform default for super_admin.
+  const brandName = user?.role === 'super_admin' ? 'MS-RM System' : (user?.head_office?.name || 'MS-RM System');
+  const brandLogo = user?.role === 'super_admin' ? '' : (user?.head_office?.logo_url || user?.logo_url || '');
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -338,19 +341,26 @@ export default function DashboardLayout() {
           >
             {!collapsed ? (
               <div className="flex items-center gap-3 min-w-0" style={{ WebkitAppRegion: 'no-drag' }}>
-                {/* 3D Logo */}
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0"
-                  style={{
-                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
-                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.25)',
-                    transform: 'perspective(400px) rotateY(-3deg)',
-                  }}
-                >
-                  M
-                </div>
+                {/* Brand logo — chain's uploaded logo if present, else the default mark */}
+                {brandLogo ? (
+                  <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 border"
+                    style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                    <img src={brandLogo} alt={brandName} className="w-full h-full object-contain" />
+                  </div>
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0"
+                    style={{
+                      background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                      boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.25)',
+                      transform: 'perspective(400px) rotateY(-3deg)',
+                    }}
+                  >
+                    {(brandName || 'M').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="min-w-0">
-                  <p className="text-[13px] font-extrabold truncate leading-tight tracking-tight" style={{ color: 'var(--text-primary)' }}>MS-RM System</p>
+                  <p className="text-[13px] font-extrabold truncate leading-tight tracking-tight" style={{ color: 'var(--text-primary)' }}>{brandName}</p>
                   <p className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Restaurant Management</p>
                 </div>
               </div>
