@@ -368,7 +368,7 @@ export default function MenuPage() {
                   <span className={`text-xs px-2 py-0.5 rounded-full ${!categoryFilter && viewMode === 'items' ? 'bg-white/20' : 'bg-surface-800'}`}>{stats.total}</span>
                 </button>
                 <button onClick={() => { setViewMode('combos'); setCategoryFilter(''); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${viewMode === 'combos' ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
-                  <span className="flex items-center gap-2 underline underline-offset-4 decoration-white/20">Combos 🔥</span>
+                  <span>Combos</span>
                 </button>
                 <div className="h-4 border-b border-surface-800 mb-2"></div>
                 {(categories || []).map(cat => {
@@ -599,9 +599,9 @@ export default function MenuPage() {
                          <div>
                            <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Dietary Type *</label>
                            <select className="input w-full" value={itemForm.food_type} onChange={e=>setItemForm({...itemForm, food_type: e.target.value})}>
-                             <option value="veg">🟢 Vegetarian</option>
-                             <option value="non_veg">🔴 Non-Vegetarian</option>
-                             <option value="egg">🟡 Contains Egg</option>
+                             <option value="veg">Vegetarian</option>
+                             <option value="non_veg">Non-Vegetarian</option>
+                             <option value="egg">Contains Egg</option>
                            </select>
                          </div>
                          <div>
@@ -800,7 +800,7 @@ export default function MenuPage() {
             <div className="mt-8 border-t border-surface-800 pt-6 flex gap-3 justify-end">
                <button type="button" onClick={()=>setIsItemModalOpen(false)} className="btn-surface px-6">Cancel</button>
                <button type="submit" disabled={saveItemMutation.isPending} className="btn-success px-8 text-lg font-bold">
-                  {saveItemMutation.isPending ? 'Saving...' : 'Save Item ✓'}
+                  {saveItemMutation.isPending ? 'Saving…' : 'Save Item'}
                </button>
             </div>
          </form>
