@@ -353,12 +353,52 @@ Object.assign(superadminService, {
       prisma.headOffice.count({ where: { is_deleted: false, plan: 'TRIAL' } }),
     ]);
 
+    // Per-region 24h revenue. order.total_amount is stored in the outlet's own
+    // currency, so IN (INR) and AU (AUD) totals must NOT be summed into one
+    // scalar. Compute each region separately and label it with its currency so
+    // the UI can render the right symbol per region.
+    const revenueByOutlet = await prisma.order
+      .groupBy({
+        by: ['outlet_id'],
+        where: { created_at: { gte: last24h }, status: { not: 'cancelled' } },
+        _sum: { total_amount: true },
+      })
+      .catch(() => []);
+
+    let revenueByRegion = {};
+    if (revenueByOutlet.length) {
+      const outletIds = revenueByOutlet.map((r) => r.outlet_id);
+      const outlets = await prisma.outlet
+        .findMany({
+          where: { id: { in: outletIds } },
+          select: { id: true, head_office: { select: { region: true, currency: true } } },
+        })
+        .catch(() => []);
+      const outletMeta = {};
+      outlets.forEach((o) => {
+        outletMeta[o.id] = {
+          region: o.head_office?.region || 'IN',
+          currency: o.head_office?.currency || 'INR',
+        };
+      });
+
+      for (const row of revenueByOutlet) {
+        const meta = outletMeta[row.outlet_id] || { region: 'IN', currency: 'INR' };
+        if (!revenueByRegion[meta.region]) {
+          revenueByRegion[meta.region] = { region: meta.region, currency: meta.currency, last_24h: 0 };
+        }
+        revenueByRegion[meta.region].last_24h += parseFloat(row._sum.total_amount || 0);
+      }
+    }
+
     return {
       chains:      { total: totalChains, active: activeChains, inactive: totalChains - activeChains, trial: activeTrials },
       outlets:     { total: totalOutlets },
       users:       { total: totalUsers },
       orders:      { last_24h: ordersToday, last_7d: ordersWeek },
-      revenue:     { last_24h: parseFloat(revenueToday._sum.total_amount || 0) },
+      // last_24h retained for backwards compat (raw mixed-currency sum); prefer
+      // by_region for any currency-labelled display.
+      revenue:     { last_24h: parseFloat(revenueToday._sum.total_amount || 0), by_region: Object.values(revenueByRegion) },
       activity:    { audit_logs_24h: auditLogsToday },
       uptime:      { api: 'Operational', database: 'Operational', storage: 'Operational' },
       checked_at:  now.toISOString(),

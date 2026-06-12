@@ -136,7 +136,7 @@ Object.assign(superadminService, {
   /**
    * Impersonation token with Audit Logging
    */
-  async impersonate(head_office_id, adminId) {
+  async impersonate(head_office_id, adminId, adminEmail) {
     const user = await prisma.user.findFirst({
       where: { head_office_id, is_deleted: false },
       include: { head_office: true }
@@ -153,6 +153,17 @@ Object.assign(superadminService, {
         entity_id: head_office_id,
         new_values: { impersonated_user: user.email }
       }
+    }).catch(() => null);
+
+    // Also record to the impersonation audit log consumed by /impersonation-log.
+    // Without this, that console's data source stays permanently empty.
+    await superadminService.logImpersonation({
+      admin_id: (adminId && adminId !== 'sa_root') ? adminId : null,
+      admin_email: adminEmail || null,
+      target_chain_id: head_office_id,
+      target_chain_name: user.head_office?.name || null,
+      target_user_id: user.id,
+      target_user_email: user.email,
     }).catch(() => null);
 
     const token = jwt.sign(
@@ -408,17 +419,22 @@ Object.assign(superadminService, {
     const templates = await superadminService.getRegionTemplates();
     const tpl = templates[region];
 
+    // Persist ABN/ACN compliance fields. Only write when a value is provided so
+    // we never silently wipe an existing ABN/ACN when switching regions. An
+    // explicit empty string clears the field; undefined leaves it untouched.
+    const data = {
+      region: tpl.region,
+      currency: tpl.currency,
+      timezone: tpl.timezone,
+      country_code: tpl.country_code,
+      regulations_profile: tpl.regulations_profile,
+    };
+    if (body.abn !== undefined) data.abn = body.abn === '' ? null : body.abn;
+    if (body.acn !== undefined) data.acn = body.acn === '' ? null : body.acn;
+
     const headOffice = await prisma.headOffice.update({
       where: { id: headOfficeId },
-      data: {
-        region: tpl.region,
-        currency: tpl.currency,
-        timezone: tpl.timezone,
-        country_code: tpl.country_code,
-        regulations_profile: tpl.regulations_profile,
-        abn: body.abn || null,
-        acn: body.acn || null,
-      },
+      data,
       include: { outlets: true }
     });
 

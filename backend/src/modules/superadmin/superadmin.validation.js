@@ -51,6 +51,8 @@ const updateSubscriptionSchema = Joi.object({
  */
 const switchRegionSchema = Joi.object({
   region: Joi.string().valid('IN', 'AU', 'US', 'UK', 'SG', 'AE').required(),
+  abn: Joi.string().max(20).allow('', null).optional(),
+  acn: Joi.string().max(15).allow('', null).optional(),
 });
 
 /**
@@ -64,7 +66,8 @@ const updateFeaturesSchema = Joi.object({
  * Schema for toggling chain active status.
  */
 const toggleStatusSchema = Joi.object({
-  is_active: Joi.boolean().required(),
+  action: Joi.string().valid('suspend', 'activate', 'trial').required(),
+  reason: Joi.string().allow('', null).optional(),
 });
 
 /**
@@ -78,7 +81,7 @@ const updateNotesSchema = Joi.object({
  * Schema for assigning a plan to a chain.
  */
 const assignPlanSchema = Joi.object({
-  plan: Joi.string().valid('starter', 'growth', 'pro', 'enterprise').required(),
+  plan: Joi.string().uppercase().valid('TRIAL', 'STARTER', 'PRO', 'ENTERPRISE').required(),
 });
 
 /**
@@ -93,8 +96,9 @@ const generateInvoicesSchema = Joi.object({
  * Schema for updating an invoice.
  */
 const updateInvoiceSchema = Joi.object({
-  status: Joi.string().valid('draft', 'sent', 'paid', 'overdue', 'cancelled'),
-  payment_date: Joi.date().allow(null),
+  status: Joi.string().uppercase().valid('PENDING', 'PAID', 'OVERDUE', 'WAIVED'),
+  paid_at: Joi.date().allow(null),
+  notes: Joi.string().max(500).allow('', null),
 });
 
 /**
@@ -103,10 +107,18 @@ const updateInvoiceSchema = Joi.object({
 const saveTaxProfilesSchema = Joi.object({
   profiles: Joi.array().items(
     Joi.object({
+      id: Joi.string().required(),
+      region: Joi.string().required(),
       name: Joi.string().required(),
-      rate: Joi.number().min(0).max(100).required(),
-      type: Joi.string().valid('cgst', 'sgst', 'igst', 'gst', 'vat', 'service_tax'),
-      is_inclusive: Joi.boolean(),
+      slabs: Joi.array().items(
+        Joi.object({
+          rate: Joi.number().min(0).max(100).required(),
+          label: Joi.string().allow('').optional(),
+        })
+      ).default([]),
+      default_slab: Joi.number().min(0).max(100).optional(),
+      gst_type: Joi.string().optional(),
+      inclusive: Joi.boolean().optional(),
     })
   ).required(),
 });
@@ -117,7 +129,9 @@ const saveTaxProfilesSchema = Joi.object({
 const createAnnouncementSchema = Joi.object({
   title: Joi.string().required().max(200),
   message: Joi.string().required().max(2000),
-  type: Joi.string().valid('info', 'warning', 'maintenance', 'update'),
+  type: Joi.string().valid('info', 'warning', 'maintenance', 'feature', 'update'),
+  target: Joi.string().valid('all', 'specific').optional(),
+  chain_ids: Joi.array().items(Joi.string().uuid()),
   target_chain_ids: Joi.array().items(Joi.string().uuid()),
   expires_at: Joi.date().allow(null),
 });
@@ -128,7 +142,11 @@ const createAnnouncementSchema = Joi.object({
 const updateAnnouncementSchema = Joi.object({
   title: Joi.string().max(200),
   message: Joi.string().max(2000),
-  type: Joi.string().valid('info', 'warning', 'maintenance', 'update'),
+  type: Joi.string().valid('info', 'warning', 'maintenance', 'feature', 'update'),
+  target: Joi.string().valid('all', 'specific').optional(),
+  chain_ids: Joi.array().items(Joi.string().uuid()),
+  target_chain_ids: Joi.array().items(Joi.string().uuid()),
+  expires_at: Joi.date().allow(null),
   is_active: Joi.boolean(),
 });
 
@@ -137,24 +155,28 @@ const updateAnnouncementSchema = Joi.object({
  */
 const createTicketSchema = Joi.object({
   subject: Joi.string().required().max(200),
-  message: Joi.string().required().max(2000),
-  priority: Joi.string().valid('low', 'medium', 'high', 'critical'),
+  body: Joi.string().required().max(2000),
+  priority: Joi.string().uppercase().valid('LOW', 'MEDIUM', 'HIGH', 'URGENT'),
   chain_id: Joi.string().uuid(),
+  chain_name: Joi.string().max(150).allow('', null),
+  email: Joi.string().email().allow('', null),
 });
 
 /**
  * Schema for updating a support ticket.
  */
 const updateTicketSchema = Joi.object({
-  status: Joi.string().valid('open', 'in_progress', 'resolved', 'closed'),
-  assigned_to: Joi.string().max(100),
+  status: Joi.string().uppercase().valid('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'),
+  priority: Joi.string().uppercase().valid('LOW', 'MEDIUM', 'HIGH', 'URGENT'),
+  notes: Joi.string().max(2000).allow('', null),
 });
 
 /**
  * Schema for replying to a ticket.
  */
 const replyToTicketSchema = Joi.object({
-  message: Joi.string().required().max(2000),
+  from: Joi.string().valid('admin', 'chain').default('admin'),
+  body: Joi.string().required().max(2000),
 });
 
 /**
@@ -162,9 +184,9 @@ const replyToTicketSchema = Joi.object({
  */
 const sendBroadcastSchema = Joi.object({
   title: Joi.string().required().max(200),
-  message: Joi.string().required().max(2000),
-  channels: Joi.array().items(Joi.string().valid('email', 'sms', 'whatsapp', 'push')),
-  target_chains: Joi.array().items(Joi.string().uuid()),
+  body: Joi.string().required().max(2000),
+  type: Joi.string().uppercase().valid('INFO', 'WARNING', 'MAINTENANCE', 'PROMO').required(),
+  target: Joi.string().uppercase().valid('ALL', 'TRIAL', 'STARTER', 'PRO', 'ENTERPRISE').required(),
 });
 
 /**
@@ -172,8 +194,15 @@ const sendBroadcastSchema = Joi.object({
  */
 const createPromoCodeSchema = Joi.object({
   code: Joi.string().required().max(20).uppercase(),
-  discount_type: Joi.string().valid('percentage', 'flat').required(),
-  discount_value: Joi.number().min(0).required(),
+  discount_type: Joi.string().uppercase().valid('PERCENT', 'FLAT').required(),
+  discount_value: Joi.number().min(0).when('discount_type', {
+    is: 'PERCENT',
+    then: Joi.number().max(100),
+  }).required(),
+  applicable_plans: Joi.array().items(
+    Joi.string().uppercase().valid('TRIAL', 'STARTER', 'PRO', 'ENTERPRISE')
+  ),
+  description: Joi.string().max(500).allow('', null),
   max_uses: Joi.number().integer().min(0),
   valid_from: Joi.date(),
   valid_until: Joi.date(),
@@ -183,6 +212,15 @@ const createPromoCodeSchema = Joi.object({
  * Schema for updating a promo code.
  */
 const updatePromoCodeSchema = Joi.object({
+  discount_type: Joi.string().uppercase().valid('PERCENT', 'FLAT'),
+  discount_value: Joi.number().min(0).when('discount_type', {
+    is: 'PERCENT',
+    then: Joi.number().max(100),
+  }),
+  applicable_plans: Joi.array().items(
+    Joi.string().uppercase().valid('TRIAL', 'STARTER', 'PRO', 'ENTERPRISE')
+  ),
+  description: Joi.string().max(500).allow('', null),
   is_active: Joi.boolean(),
   max_uses: Joi.number().integer().min(0),
   valid_until: Joi.date(),
@@ -218,7 +256,18 @@ const logImpersonationSchema = Joi.object({
  * Schema for saving platform settings.
  */
 const savePlatformSettingsSchema = Joi.object({
-  settings: Joi.object().required(),
+  maintenance_mode: Joi.boolean(),
+  registration_open: Joi.boolean(),
+  platform_name: Joi.string().max(150).allow(''),
+  support_email: Joi.string().email().allow(''),
+  default_trial_days: Joi.number().integer().min(0),
+  plan_pricing: Joi.object().pattern(Joi.string(), Joi.number().min(0)),
+  max_outlets_per_plan: Joi.object().pattern(Joi.string(), Joi.number().integer().min(0)),
+  allow_impersonation: Joi.boolean(),
+  onboarding_required: Joi.boolean(),
+  min_password_length: Joi.number().integer().min(1),
+  session_timeout_hours: Joi.number().integer().min(1),
+  updated_at: Joi.date().optional(),
 });
 
 module.exports = {

@@ -134,11 +134,17 @@ Object.assign(superadminService, {
     return all;
   },
 
+  // Region-aware fixed-plan pricing. AU chains are billed in AUD, IN in INR.
+  // Keyed by region; the chain's country_code selects the table.
+  PLAN_PRICE_BY_REGION: {
+    IN: { currency: 'INR', prices: { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 } },
+    AU: { currency: 'AUD', prices: { TRIAL: 0, STARTER: 59, PRO: 149, ENTERPRISE: 399 } },
+  },
+
   async generateMonthlyInvoices(month, year) {
-    const PLAN_PRICE = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
     const chains = await prisma.headOffice.findMany({
       where: { is_deleted: false, is_active: true },
-      select: { id: true, name: true, contact_email: true, plan: true },
+      select: { id: true, name: true, contact_email: true, plan: true, country_code: true, region: true },
     });
 
     const existing = await superadminService._loadInvoices();
@@ -147,7 +153,9 @@ Object.assign(superadminService, {
     for (const chain of chains) {
       const alreadyExists = existing.find(i => i.head_office_id === chain.id && i.month === month && i.year === year);
       if (alreadyExists) continue;
-      const amount = PLAN_PRICE[chain.plan] || 0;
+      const region = (chain.country_code || chain.region) === 'AU' ? 'AU' : 'IN';
+      const table = superadminService.PLAN_PRICE_BY_REGION[region] || superadminService.PLAN_PRICE_BY_REGION.IN;
+      const amount = table.prices[chain.plan] || 0;
       if (amount === 0) continue;
       newInvoices.push({
         id: `INV-${Date.now()}-${chain.id.slice(0, 6)}`,
@@ -156,6 +164,8 @@ Object.assign(superadminService, {
         email: chain.contact_email,
         plan: chain.plan,
         amount,
+        currency: table.currency,
+        region,
         month, year,
         status: 'PENDING',
         created_at: new Date().toISOString(),
