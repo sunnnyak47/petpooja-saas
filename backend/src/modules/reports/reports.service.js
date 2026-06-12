@@ -100,13 +100,15 @@ async function getDailySales(outletId, date, tz) {
           _sum: { grand_total: true },
         }),
         // Refunds in range (EOD nets these out of total_revenue): payments with a
-        // positive refund updated within the day window.
+        // positive refund. M6: net refunds by created_at — the SAME timestamp basis
+        // EOD uses (eod.service.js) — so headline revenue reconciles with EOD
+        // rather than drifting on payment.updated_at.
         prisma.payment.aggregate({
           where: {
             outlet_id: outletId,
             is_deleted: false,
             refund_amount: { gt: 0 },
-            updated_at: { gte: start, lt: end },
+            created_at: { gte: start, lt: end },
           },
           _sum: { refund_amount: true },
         }),
@@ -462,10 +464,10 @@ async function getCategoryWiseSales(outletId, from, to) {
 async function getGstReport(outletId, from, to, tz) {
   const prisma = getDbClient();
   const outletTz = await resolveOutletTz(prisma, outletId, tz);
-  const fromDate = from ? new Date(from) : new Date();
-  if(!from) fromDate.setHours(0,0,0,0);
-  const toDate = to ? new Date(to) : new Date();
-  if(!to) toDate.setDate(toDate.getDate() + 1);
+  // H6: use the shared half-open [start, end) day boundaries in the outlet tz
+  // (mirrors getDailySales/getItemWiseSales). The old manual fromDate/toDate UTC
+  // math truncated the last LOCAL day, so "Today" was empty for IST/AU outlets.
+  const { start, end } = getDateRange(from, to, outletTz);
 
   return await cached(`gst-report:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.MEDIUM, async () => {
     // Aggregate subtotal/total_tax per LOCAL calendar day directly in Postgres.
@@ -475,14 +477,14 @@ async function getGstReport(outletId, from, to, tz) {
     // interpolation) and resolveOutletTz/safeTz validate it.
     const rows = await prisma.$queryRaw`
       SELECT to_char((created_at AT TIME ZONE 'UTC' AT TIME ZONE ${outletTz})::date, 'YYYY-MM-DD') AS date,
-             COALESCE(SUM(subtotal), 0)  AS taxable,
+             COALESCE(SUM(subtotal - COALESCE(discount_amount, 0)), 0)  AS taxable,
              COALESCE(SUM(total_tax), 0) AS total_tax
       FROM orders
       WHERE outlet_id = ${outletId}::uuid
         AND is_deleted = false
-        AND status NOT IN ('cancelled')
-        AND created_at >= ${fromDate}
-        AND created_at <= ${toDate}
+        AND status NOT IN ('cancelled', 'voided')
+        AND created_at >= ${start}
+        AND created_at < ${end}
       GROUP BY 1
       ORDER BY 1
     `;

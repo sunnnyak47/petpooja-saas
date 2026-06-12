@@ -864,6 +864,13 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       // Cap the redemption discount at the order grand total so points can never
       // produce a negative charge or a refund.
       loyaltyDiscount = round2(Math.min(pointsToRedeem * Number(loyaltyCfg.redeem_value), grandTotal));
+      // Also enforce the configured per-order points-liability cap (max_redemption_pct,
+      // M2). The frontend caps redemption client-side, but a crafted API call could
+      // otherwise pay the whole bill in points and bypass the owner's business rule.
+      const maxPct = Number(loyaltyCfg.max_redemption_pct) || 0;
+      if (maxPct > 0) {
+        loyaltyDiscount = Math.min(loyaltyDiscount, round2(grandTotal * (maxPct / 100)));
+      }
     }
 
     const amountOwed = round2(grandTotal - loyaltyDiscount);
@@ -1391,21 +1398,35 @@ async function refundOrder(orderId, data, userId) {
   );
   if (!payment) throw new BadRequestError('No completed payment found');
 
-  const refund = await prisma.payment.create({
-    data: {
-      order_id: orderId, outlet_id: order.outlet_id,
-      method: payment.method, amount: -(data.refund_amount || order.grand_total),
-      status: 'refunded', transaction_id: `RFND-${Date.now()}`,
-    },
+  // Clamp the refund to [0, grand_total] so a crafted request can neither create
+  // free money via an over-refund (H4) nor have refund_amount=0 silently refund the
+  // FULL total (H5). This single clamped value is used everywhere below: the negative
+  // payment row, the isFullRefund test, and the ledger reversal.
+  const refundAmount = Math.min(
+    Math.max(Number(data.refund_amount) || 0, 0),
+    Number(order.grand_total)
+  );
+
+  // Atomically write the negative refund payment and flip the order status (M1) so a
+  // DB hiccup between the two writes cannot leave an orphan refund row on a still-'paid'
+  // order (which would allow a second refund and corrupt settlement reports).
+  const refund = await prisma.$transaction(async (tx) => {
+    const created = await tx.payment.create({
+      data: {
+        order_id: orderId, outlet_id: order.outlet_id,
+        method: payment.method, amount: -refundAmount,
+        status: 'refunded', transaction_id: `RFND-${Date.now()}`,
+      },
+    });
+    await tx.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
+    return created;
   });
-  await prisma.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
-  logger.info('Order refunded', { orderId, refundAmount: data.refund_amount, userId });
+  logger.info('Order refunded', { orderId, refundAmount, userId });
 
   // Reverse the inventory consumed by this order (M12) so a refund doesn't leave
   // phantom consumption on the books. Mirrors cancelOrder's restock. Only restock
   // on a FULL refund; restockFromCancelledOrder is idempotent (it soft-deletes the
   // consumption rows it reverses) so it won't double-restock if already cancelled.
-  const refundAmount = Number(data.refund_amount ?? order.grand_total);
   const isFullRefund = Math.abs(refundAmount - Number(order.grand_total)) <= 0.01;
   if (isFullRefund) {
     try {
@@ -1421,7 +1442,7 @@ async function refundOrder(orderId, data, userId) {
   setImmediate(() => {
     try {
       require('../accounting/accounting.posting.service')
-        .reverseOrderRefund(order, data.refund_amount || Number(order.grand_total))
+        .reverseOrderRefund(order, refundAmount)
         .catch((e) => logger.warn('Ledger reverseOrderRefund failed', { error: e.message }));
     } catch (e) { logger.warn('Ledger refund hook error', { error: e.message }); }
   });
