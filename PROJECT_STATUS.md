@@ -168,7 +168,18 @@ MSG91_AUTH_KEY=...
 RESTAURANT_APP_URL=https://petpooja-saas.vercel.app
 SUPERADMIN_URL=https://petpooja-admin.vercel.app
 QR_MENU_BASE_URL=https://petpooja-saas.vercel.app
+# SuperAdmin (platform owner) login — sourced from env, never hardcoded.
+# The seed updates the owner account in place on every deploy.
+SUPERADMIN_EMAIL=you@example.com
+SUPERADMIN_PASSWORD=[strong password — set in Render, not in source]
+SUPERADMIN_PHONE=9999999999   # optional
 ```
+
+> **SuperAdmin login:** credentials come from `SUPERADMIN_EMAIL` /
+> `SUPERADMIN_PASSWORD` (set in the backend's deploy env). `prisma/seed.js`
+> runs on each deploy and updates the single owner account in place — no
+> credentials are committed to source. If the env vars are unset, a local-only
+> fallback (`admin@petpooja.com`) is used for development.
 
 ### Frontend (.env on Vercel):
 ```
