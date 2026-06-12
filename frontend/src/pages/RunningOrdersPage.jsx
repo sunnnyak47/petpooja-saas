@@ -530,7 +530,22 @@ export default function RunningOrdersPage() {
   const handleAction = useCallback((type, order) => {
     switch (type) {
       case 'generate_bill':    billMutation.mutate(order.id); break;
-      case 'view_bill':        openModal('bill', order); break;
+      case 'view_bill': {
+        // The list order object carries only `_count: { order_items }` — not the
+        // `order_items` array — so the bill preview would render an empty line-item
+        // table. Open immediately with what we have, then hydrate from GET /orders/:id
+        // (getOrderById includes order_items) so the items appear once loaded.
+        openModal('bill', order);
+        if (!order.order_items && isOnline) {
+          api.get(`/orders/${order.id}`)
+            .then((r) => {
+              const full = r.data?.data || r.data;
+              if (full?.order_items) setSelectedOrder((prev) => (prev?.id === order.id ? full : prev));
+            })
+            .catch(() => { /* keep the list object; totals still render */ });
+        }
+        break;
+      }
       case 'pay':              openModal('pay', order); break;
       case 'cancel':           openModal('cancel', order); break;
       case 'add_kot':          openModal('kot', order); break;
@@ -554,7 +569,7 @@ export default function RunningOrdersPage() {
         break;
       default: break;
     }
-  }, [billMutation, openModal]);
+  }, [billMutation, openModal, isOnline]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Selection helpers

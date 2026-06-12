@@ -135,14 +135,44 @@ async function updateTableStatus(tableId, status) {
  * Bulk-creates multiple tables in one call, each with its own configuration
  * (number, capacity, shape, area). Auto-positions each table progressively so
  * they don't overlap on the floor plan. Skips rows with a blank table_number.
+ * Resilient to duplicates: existing table_numbers (including soft-deleted rows,
+ * which still hold the unique [outlet_id, table_number] constraint) are skipped
+ * and reported rather than aborting the whole batch.
  * @param {string} outletId
  * @param {Array<{table_number,capacity,shape,area_id}>} rows
- * @returns {Promise<{ created: number, tables: object[] }>}
+ * @returns {Promise<{ created: number, skipped: number, skipped_numbers: string[], tables: object[] }>}
  */
 async function bulkCreateTables(outletId, rows) {
   const prisma = getDbClient();
   const clean = (rows || []).filter((r) => r && String(r.table_number || '').trim() !== '');
   if (clean.length === 0) throw new BadRequestError('Provide at least one table with a number');
+
+  // Pre-filter against numbers that already exist for this outlet. The unique
+  // constraint [outlet_id, table_number] is enforced regardless of is_deleted,
+  // so we must consider soft-deleted rows too.
+  const existingRows = await prisma.table.findMany({
+    where: { outlet_id: outletId },
+    select: { table_number: true },
+  });
+  const existingNumbers = new Set(existingRows.map((t) => t.table_number));
+
+  // De-dupe within the incoming batch as well, and skip any that already exist.
+  const seen = new Set();
+  const skipped = [];
+  const toCreate = [];
+  for (const r of clean) {
+    const num = String(r.table_number).trim();
+    if (existingNumbers.has(num) || seen.has(num)) {
+      skipped.push(num);
+      continue;
+    }
+    seen.add(num);
+    toCreate.push(r);
+  }
+
+  if (toCreate.length === 0) {
+    return { created: 0, skipped: skipped.length, skipped_numbers: skipped, tables: [] };
+  }
 
   // Start positioning from the furthest-right existing table.
   const existing = await prisma.table.findMany({
@@ -154,7 +184,7 @@ async function bulkCreateTables(outletId, rows) {
   let x = existing.length > 0 ? existing[0].pos_x + 100 : 20;
   const y = existing.length > 0 ? existing[0].pos_y : 20;
 
-  const data = clean.map((r) => {
+  const data = toCreate.map((r) => {
     const row = {
       outlet_id: outletId,
       table_number: String(r.table_number).trim(),
@@ -172,7 +202,9 @@ async function bulkCreateTables(outletId, rows) {
     return row;
   });
 
-  await prisma.table.createMany({ data });
+  // skipDuplicates guards against a race where a number is created between the
+  // pre-filter read and this write; pre-filtering already handles soft-deleted rows.
+  await prisma.table.createMany({ data, skipDuplicates: true });
   const created = await prisma.table.findMany({
     where: { outlet_id: outletId, table_number: { in: data.map((d) => d.table_number) }, is_deleted: false },
   });
@@ -180,7 +212,12 @@ async function bulkCreateTables(outletId, rows) {
   const io = getIO();
   if (io) io.of('/orders').to(`outlet:${outletId}`).emit('tables_changed', { outlet_id: outletId });
 
-  return { created: data.length, tables: created };
+  return {
+    created: created.length,
+    skipped: skipped.length,
+    skipped_numbers: skipped,
+    tables: created,
+  };
 }
 
 /**

@@ -149,7 +149,7 @@ export default function EnhancedOrderCard({
   const displayName = order.table?.table_number
     ? `T-${order.table.table_number}`
     : order.customer?.full_name || order.customer_name || '—';
-  const waiterName = order.staff?.name || null;
+  const waiterName = order.staff?.full_name || order.staff?.name || null;
   const waiterInitials = waiterName
     ? waiterName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : null;
