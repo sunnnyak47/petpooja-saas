@@ -53,7 +53,13 @@ export default function PaymentsPage() {
 
   const getDateParams = () => {
     const today = new Date();
-    const fmt = (d) => d.toISOString().split('T')[0];
+    // TZ-safe: build YYYY-MM-DD from local date components, not UTC (toISOString).
+    const fmt = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
     switch (dateRange) {
       case 'today': return `&from=${fmt(today)}&to=${fmt(today)}`;
       case 'week': {
@@ -80,7 +86,7 @@ export default function PaymentsPage() {
     mutationFn: (data) => api.post(`/orders/${data.orderId}/refund`, {
       reason: data.reason,
       manager_pin: data.pin,
-      outlet_id: outletId,
+      refund_amount: Number(data.amount),
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
@@ -156,18 +162,18 @@ export default function PaymentsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total Revenue', value: format(stats.total), icon: <TrendingUp className="w-5 h-5" />, color: 'text-brand-400' },
-          { label: 'Transactions', value: stats.count, icon: <Receipt className="w-5 h-5" />, color: 'text-blue-400' },
-          { label: 'Cash', value: format(stats.cash), icon: <Banknote className="w-5 h-5" />, color: 'text-emerald-400' },
-          { label: 'Card', value: format(stats.card), icon: <CreditCard className="w-5 h-5" />, color: 'text-blue-400' },
-          { label: digitalLabel, value: format(stats.digital), icon: <Wallet className="w-5 h-5" />, color: 'text-purple-400' },
+          { label: 'Total Revenue', value: format(stats.total), icon: <TrendingUp className="w-5 h-5" /> },
+          { label: 'Transactions', value: stats.count, icon: <Receipt className="w-5 h-5" /> },
+          { label: 'Cash', value: format(stats.cash), icon: <Banknote className="w-5 h-5" /> },
+          { label: 'Card', value: format(stats.card), icon: <CreditCard className="w-5 h-5" /> },
+          { label: digitalLabel, value: format(stats.digital), icon: <Wallet className="w-5 h-5" /> },
         ].map((s, i) => (
           <div key={i} className="bg-surface-900 rounded-2xl p-4 border border-surface-800">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-surface-400 uppercase font-bold tracking-wider">{s.label}</span>
-              <span className={s.color}>{s.icon}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{s.icon}</span>
             </div>
-            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+            <p className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -263,8 +269,8 @@ export default function PaymentsPage() {
             className="input w-full resize-none" rows={3} placeholder="Reason for refund..." />
           <input type="password" value={managerPin} onChange={(e) => setManagerPin(e.target.value)}
             className="input w-full text-center text-2xl tracking-[1em]" maxLength={4} placeholder="Manager PIN" />
-          <button onClick={() => refundMutation.mutate({ orderId: selectedPayment?.id, reason: refundReason, pin: managerPin })}
-            disabled={!refundReason || managerPin.length < 4}
+          <button onClick={() => refundMutation.mutate({ orderId: selectedPayment?.id, reason: refundReason, pin: managerPin, amount: selectedPayment?.grand_total })}
+            disabled={!refundReason || refundReason.trim().length < 3 || managerPin.length < 4 || !(Number(selectedPayment?.grand_total) >= 0)}
             className="btn-primary w-full py-3 bg-red-500 hover:bg-red-600 disabled:opacity-50">
             Process Refund
           </button>
