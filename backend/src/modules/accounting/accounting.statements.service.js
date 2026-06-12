@@ -23,7 +23,10 @@ function round2(n) {
  * @returns {Date}
  */
 function endOfDay(value) {
-  const d = value ? new Date(value) : new Date();
+  let d = value ? new Date(value) : new Date();
+  // Guard against empty/invalid input (e.g. cleared date filter → '') which
+  // would otherwise yield an Invalid Date and crash Prisma serialisation.
+  if (Number.isNaN(d.getTime())) d = new Date();
   d.setHours(23, 59, 59, 999);
   return d;
 }
@@ -34,7 +37,11 @@ function endOfDay(value) {
  * @returns {Date}
  */
 function startOfDay(value) {
-  const d = new Date(value);
+  let d = new Date(value);
+  // Guard against empty/invalid input (e.g. cleared date filter → '') which
+  // would otherwise yield an Invalid Date and crash Prisma serialisation.
+  // Default to the epoch so the lower bound includes all prior history.
+  if (Number.isNaN(d.getTime())) d = new Date(0);
   d.setHours(0, 0, 0, 0);
   return d;
 }

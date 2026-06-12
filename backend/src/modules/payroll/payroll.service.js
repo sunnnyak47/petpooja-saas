@@ -44,11 +44,14 @@ function calcPAYE(annualGross) {
  * @param {{periodsPerYear?:number, superRate?:number}} opts
  * @returns {{gross:number, paye:number, super_amt:number, net:number}}
  */
-function calcPayslip(gross, { periodsPerYear = 52, superRate = 0.115 } = {}) {
+// Australian Super Guarantee rate: 12% from 1 July 2025 (FY2025-26).
+const SUPER_GUARANTEE_RATE = 0.12;
+
+function calcPayslip(gross, { periodsPerYear = 52, superRate = SUPER_GUARANTEE_RATE } = {}) {
   const periodGross = Number(gross) || 0;
   const periods = Number(periodsPerYear) || 52;
   const rate = Number(superRate);
-  const effRate = Number.isFinite(rate) ? rate : 0.115;
+  const effRate = Number.isFinite(rate) ? rate : SUPER_GUARANTEE_RATE;
 
   const annualGross = periodGross * periods;
   const annualTax = calcPAYE(annualGross);
@@ -113,7 +116,7 @@ async function createPayRun(
     period_end,
     pay_date,
     periodsPerYear = 52,
-    superRate = 0.115,
+    superRate = SUPER_GUARANTEE_RATE,
     lines = [],
     created_by,
   } = {}
@@ -122,6 +125,13 @@ async function createPayRun(
 
   if (!Array.isArray(lines) || lines.length === 0) {
     throw new Error('createPayRun: at least one employee line is required');
+  }
+
+  // The request schema still defaults superRate to the prior-year 0.115; the UI
+  // has no super-rate field, so that legacy default is what arrives here. Promote
+  // it to the current Super Guarantee rate (12% from 1 July 2025).
+  if (Number(superRate) === 0.115) {
+    superRate = SUPER_GUARANTEE_RATE;
   }
 
   let grossTotal = 0;

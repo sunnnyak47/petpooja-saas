@@ -121,7 +121,7 @@ export default function PayrollPage() {
       resetForm();
       queryClient.invalidateQueries({ queryKey: ['pay-runs'] });
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Failed to create pay run'),
+    onError: (e) => toast.error(e?.message || 'Failed to create pay run'),
   });
 
   const finaliseMutation = useMutation({
@@ -131,7 +131,7 @@ export default function PayrollPage() {
       queryClient.invalidateQueries({ queryKey: ['pay-runs'] });
       queryClient.invalidateQueries({ queryKey: ['pay-run'] });
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Failed to finalise pay run'),
+    onError: (e) => toast.error(e?.message || 'Failed to finalise pay run'),
   });
 
   const handleSubmit = (e) => {
@@ -378,10 +378,10 @@ function PayslipTable({ detail }) {
   if (payslips.length === 0) return <EmptyState message="No payslips on this pay run." />;
 
   const totals = payslips.reduce((acc, p) => ({
-    gross: acc.gross + (p.gross || 0),
-    paye: acc.paye + (p.paye || 0),
-    super_amt: acc.super_amt + (p.super_amt || 0),
-    net: acc.net + (p.net || 0),
+    gross: acc.gross + (Number(p.gross) || 0),
+    paye: acc.paye + (Number(p.paye) || 0),
+    super_amt: acc.super_amt + (Number(p.super_amt) || 0),
+    net: acc.net + (Number(p.net) || 0),
   }), { gross: 0, paye: 0, super_amt: 0, net: 0 });
 
   return (

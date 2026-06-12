@@ -13,6 +13,7 @@ import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
+import { useRegion } from '../hooks/useRegion';
 import BankReconciliation from '../components/accounting/BankReconciliation';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
@@ -183,7 +184,23 @@ function StatCard({ label, value, color }) {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  MAIN COMPONENT                                                            */
 /* ═══════════════════════════════════════════════════════════════════════════ */
+// This module is AU-only: native double-entry accounting denominated in AUD
+// with ATO/BAS tax concepts. Guard so non-AU (e.g. IN) tenants never render it.
 export default function AccountingPage() {
+  const region = useRegion();
+  if (region !== 'AU') {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center" style={{ color: 'var(--text-secondary)' }}>
+        <Landmark className="w-10 h-10 mb-3" style={{ color: 'var(--text-secondary)' }} />
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Accounting is not available in your region</p>
+        <p className="text-xs mt-1 max-w-sm">This double-entry accounting module is specific to Australian (AU) businesses. For Indian outlets, use GST Returns and Reports instead.</p>
+      </div>
+    );
+  }
+  return <AccountingPageInner />;
+}
+
+function AccountingPageInner() {
   const [tab, setTab] = useState('chart');
   const queryClient = useQueryClient();
 
@@ -591,7 +608,7 @@ function ChartTab({ query, addM, deactivateM }) {
                     <td className="px-4 py-2.5 text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{a.code}</td>
                     <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{a.name}</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{a.subtype || '—'}</td>
-                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{a.gst || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{a.gst ? 'GST' : '—'}</td>
                     <td className="px-4 py-2.5">
                       <span
                         className="text-[10px] font-semibold px-2 py-0.5 rounded-full"

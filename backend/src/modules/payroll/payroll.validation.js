@@ -10,7 +10,7 @@ const createPayRunSchema = Joi.object({
   period_end: Joi.string().required(),
   pay_date: Joi.string().required(),
   periodsPerYear: Joi.number().integer().min(1).max(366).default(52),
-  superRate: Joi.number().min(0).max(1).default(0.115),
+  superRate: Joi.number().min(0).max(1).default(0.12), // AU Super Guarantee from 1 Jul 2025
   lines: Joi.array()
     .items(
       Joi.object({
