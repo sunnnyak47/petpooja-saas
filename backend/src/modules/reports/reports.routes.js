@@ -9,11 +9,36 @@ const reportsService = require('./reports.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { sendSuccess } = require('../../utils/response');
+const { getDbClient } = require('../../config/database');
+const { BadRequestError } = require('../../utils/errors');
+
+/**
+ * Resolve the outlet to scope a report to. Falls back to the caller's first
+ * outlet for head-office owners/super_admins who have no outlet bound to their
+ * token and did not pass ?outlet_id — preventing the Prisma "outlet_id must not
+ * be null" 500. Throws a clean 400 if no outlet can be resolved.
+ * @param {import('express').Request} req
+ * @returns {Promise<string>} outlet UUID
+ */
+async function resolveOutletId(req) {
+  let outletId = req.query.outlet_id || req.user.outlet_id;
+  if (!outletId && req.user.head_office_id) {
+    const prisma = getDbClient();
+    const first = await prisma.outlet.findFirst({
+      where: { head_office_id: req.user.head_office_id, is_deleted: false },
+      orderBy: { created_at: 'asc' },
+      select: { id: true },
+    });
+    outletId = first?.id;
+  }
+  if (!outletId) throw new BadRequestError('No outlet found for this account. Create an outlet or pass outlet_id.');
+  return outletId;
+}
 
 /** GET /api/reports/dashboard */
 router.get('/dashboard', authenticate, hasPermission('VIEW_DASHBOARD'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req);
     const data = await reportsService.getDashboard(outletId);
     sendSuccess(res, data, 'Dashboard data retrieved');
   } catch (error) { next(error); }
@@ -22,7 +47,7 @@ router.get('/dashboard', authenticate, hasPermission('VIEW_DASHBOARD'), enforceO
 /** GET /api/reports/topSellingItems?limit=5 */
 router.get('/topSellingItems', authenticate, hasPermission('VIEW_DASHBOARD'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req);
     const limit = parseInt(req.query.limit) || 5;
     const data = await reportsService.getTopSellingItems(outletId, limit);
     sendSuccess(res, data, 'Top selling items retrieved');
