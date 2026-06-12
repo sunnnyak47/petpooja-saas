@@ -10,7 +10,6 @@ import {
   Zap, Users, Store, ShoppingCart, TrendingUp, RefreshCw, Clock,
   BarChart2, Shield, Globe
 } from 'lucide-react';
-import { useCurrency } from '../hooks/useCurrency';
 
 function StatusBadge({ status }) {
   const isOk = status === 'Operational';
@@ -43,8 +42,17 @@ function MetricCard({ label, value, sub, color, icon: Icon }) {
   );
 }
 
+const REGION_NAMES = { IN: 'India', AU: 'Australia', US: 'USA' };
+const REGION_CURRENCY = { IN: 'INR', AU: 'AUD', US: 'USD' };
+const CURRENCY_SYMBOL = { INR: '₹', AUD: 'A$', USD: '$' };
+
+const fmtRegionMoney = (amount, currency) => {
+  const sym = CURRENCY_SYMBOL[currency] || '₹';
+  const loc = currency === 'AUD' ? 'en-AU' : currency === 'USD' ? 'en-US' : 'en-IN';
+  return `${sym}${Number(amount || 0).toLocaleString(loc, { maximumFractionDigits: 0 })}`;
+};
+
 export default function PlatformHealthPage() {
-  const { symbol, locale } = useCurrency();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const { data: health, isLoading, refetch, dataUpdatedAt } = useQuery({
@@ -158,22 +166,66 @@ export default function PlatformHealthPage() {
             <div className="rounded-xl p-5 space-y-4"
               style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <TrendingUp className="w-4 h-4 text-green-400" /> Revenue Activity
+                <TrendingUp className="w-4 h-4 text-green-400" /> Revenue Activity (24h)
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
-                  <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
-                    {symbol}{(health.revenue?.last_24h || 0).toLocaleString(locale, { maximumFractionDigits: 0 })}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Revenue (24h)</p>
-                </div>
-                <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
-                  <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {health.activity?.audit_logs_24h?.toLocaleString()}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Audit Events (24h)</p>
-                </div>
-              </div>
+              {(() => {
+                // Never sum ₹ (IN) + A$ (AU) into one number under a single symbol.
+                // Prefer a per-region breakdown from the backend; normalize either
+                // { IN: { last_24h }, ... } or { IN: number, ... } shapes.
+                const raw = health.revenue?.by_region;
+                const byRegion = raw && typeof raw === 'object'
+                  ? Object.entries(raw).map(([region, v]) => ({
+                      region,
+                      amount: typeof v === 'object' ? (v.last_24h ?? v.revenue ?? v.amount ?? 0) : v,
+                      currency: (typeof v === 'object' && v.currency) || REGION_CURRENCY[region] || 'INR',
+                    }))
+                  : null;
+
+                if (byRegion && byRegion.length) {
+                  return (
+                    <div className="space-y-3">
+                      <div className={`grid gap-4 ${byRegion.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {byRegion.map(r => (
+                          <div key={r.region} className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
+                            <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
+                              {fmtRegionMoney(r.amount, r.currency)}
+                            </p>
+                            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                              {REGION_NAMES[r.region] || r.region} revenue
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
+                        <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                          {health.activity?.audit_logs_24h?.toLocaleString()}
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Audit Events (24h)</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Fallback: backend only exposes a single (currency-mixed) scalar.
+                // Don't label it with the viewer's currency symbol — show the raw
+                // count and flag that it spans currencies, plus audit events.
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
+                      <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
+                        {(health.revenue?.last_24h || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Order value (24h, all currencies)</p>
+                    </div>
+                    <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
+                      <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                        {health.activity?.audit_logs_24h?.toLocaleString()}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Audit Events (24h)</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

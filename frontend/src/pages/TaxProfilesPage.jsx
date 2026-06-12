@@ -217,6 +217,7 @@ export default function TaxProfilesPage() {
   const saveMutation = useMutation({
     mutationFn: (updated) => api.put('/superadmin/tax-profiles', { profiles: updated }),
     onSuccess: () => qc.invalidateQueries(['tax-profiles']),
+    onError: (e) => toast.error(e.message || 'Failed to save tax profiles'),
   });
 
   const handleSaveProfile = (updated) => {

@@ -50,13 +50,13 @@ export default function AnnouncementsPage() {
       setShowCreate(false);
       setForm(emptyForm);
     },
-    onError: (e) => toast.error(e.response?.data?.message || 'Failed to create'),
+    onError: (e) => toast.error(e.message || 'Failed to create'),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, is_active }) => api.patch(`/superadmin/announcements/${id}`, { is_active }),
     onSuccess: () => queryClient.invalidateQueries(['announcements']),
-    onError: (e) => toast.error(e.response?.data?.message || 'Failed to update'),
+    onError: (e) => toast.error(e.message || 'Failed to update'),
   });
 
   const deleteMutation = useMutation({
@@ -66,7 +66,7 @@ export default function AnnouncementsPage() {
       toast.success('Announcement deleted');
       setDeleteConfirm(null);
     },
-    onError: (e) => toast.error(e.response?.data?.message || 'Failed to delete'),
+    onError: (e) => toast.error(e.message || 'Failed to delete'),
   });
 
   const handleChainToggle = (chainId) => {
@@ -83,10 +83,11 @@ export default function AnnouncementsPage() {
     if (!form.message.trim()) return toast.error('Message is required');
     if (form.target === 'specific' && form.chain_ids.length === 0)
       return toast.error('Select at least one chain');
+    const { chain_ids, target, ...rest } = form;
     createMutation.mutate({
-      ...form,
+      ...rest,
       expires_at: form.expires_at || null,
-      chain_ids: form.target === 'all' ? [] : form.chain_ids,
+      target_chain_ids: target === 'all' ? [] : chain_ids,
     });
   };
 
@@ -131,8 +132,9 @@ export default function AnnouncementsPage() {
           {announcements.map(ann => {
             const meta = TYPE_META[ann.type] || TYPE_META.info;
             const TypeIcon = meta.icon;
-            const targetLabel = ann.chain_ids?.length
-              ? `${ann.chain_ids.length} specific chain${ann.chain_ids.length > 1 ? 's' : ''}`
+            const targetCount = ann.target_chain_ids?.length || 0;
+            const targetLabel = targetCount
+              ? `${targetCount} specific chain${targetCount > 1 ? 's' : ''}`
               : 'All chains';
 
             return (
@@ -166,7 +168,7 @@ export default function AnnouncementsPage() {
                       <p className="text-sm mt-1 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{ann.message}</p>
                       <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
                         <span className="flex items-center gap-1">
-                          {ann.chain_ids?.length ? <Users className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                          {targetCount ? <Users className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                           {targetLabel}
                         </span>
                         {ann.expires_at && (

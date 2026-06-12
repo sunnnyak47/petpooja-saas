@@ -194,7 +194,14 @@ export default function SuperAdminPage() {
     </div>
   );
 
-  const sym = liveStats?.currency_symbol || REGIONS.IN.symbol;
+  // Backend /superadmin/live-stats returns { today:{orders,revenue}, this_month:{orders}, ... }.
+  // Read the nested paths (the old flat reads were always undefined → '—').
+  const ordersToday     = liveStats?.today?.orders;
+  const revenueToday    = liveStats?.today?.revenue;
+  const ordersThisMonth = liveStats?.this_month?.orders;
+  // The payload carries no currency_symbol and the revenue is a cross-region
+  // (₹ + A$) sum, so only prefix a symbol if the backend ever supplies one.
+  const sym = liveStats?.currency_symbol || '';
 
   return (
     <div className="space-y-6 animate-fade-in pb-10" onClick={() => setPlanDropdown(null)}>
@@ -239,13 +246,13 @@ export default function SuperAdminPage() {
           <LiveStatCard
             icon={<ShoppingCart className="w-4 h-4" />}
             label="Orders Today"
-            value={liveStats?.orders_today ?? '—'}
+            value={ordersToday ?? '—'}
             color="#10B981"
           />
           <LiveStatCard
             icon={<TrendingUp className="w-4 h-4" />}
             label="Revenue Today"
-            value={liveStats?.revenue_today != null ? `${sym}${Number(liveStats.revenue_today).toLocaleString()}` : '—'}
+            value={revenueToday != null ? `${sym}${Number(revenueToday).toLocaleString()}` : '—'}
             color="#3B82F6"
           />
           <LiveStatCard
@@ -257,7 +264,7 @@ export default function SuperAdminPage() {
           <LiveStatCard
             icon={<BarChart3 className="w-4 h-4" />}
             label="Orders This Month"
-            value={liveStats?.orders_this_month ?? '—'}
+            value={ordersThisMonth ?? '—'}
             color="#F97316"
           />
         </div>

@@ -45,7 +45,7 @@ export default function AllUsersPage() {
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [planFilter, setPlanFilter] = useState('ALL');
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['all-users', search, roleFilter, planFilter],
     queryFn: () => api.get('/superadmin/users', {
       params: {
@@ -58,8 +58,15 @@ export default function AllUsersPage() {
   });
 
   const totalActive = users.filter(u => u.is_active).length;
-  const roles = [...new Set(users.map(u => u.role))];
+  const roles = [...new Set(users.map(u => u.role).filter(Boolean))];
   const chains = [...new Set(users.map(u => u.chain_name))].length;
+
+  // The backend only ever returns the seeded roles (super_admin/owner/manager/
+  // cashier). Filtering by 'waiter'/'kitchen_staff' always matched zero rows, so
+  // drive the dropdown from roles seen in data, falling back to the real set.
+  const ROLE_OPTIONS = roles.length
+    ? roles
+    : ['super_admin', 'owner', 'manager', 'cashier'];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -104,7 +111,7 @@ export default function AllUsersPage() {
           className="text-sm px-3 py-2 rounded-lg outline-none"
           style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
           <option value="ALL">All Roles</option>
-          {Object.keys(ROLE_COLORS).map(r => (
+          {ROLE_OPTIONS.map(r => (
             <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
           ))}
         </select>
@@ -121,6 +128,17 @@ export default function AllUsersPage() {
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2">
+            <AlertCircle className="w-10 h-10" style={{ color: '#f87171' }} />
+            <p className="font-medium" style={{ color: 'var(--text-primary)' }}>Couldn't load users</p>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>The request failed — this isn't an empty result.</p>
+            <button onClick={() => refetch()}
+              className="mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:opacity-80"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              Retry
+            </button>
           </div>
         ) : users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2">

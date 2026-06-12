@@ -165,11 +165,13 @@ export default function PromoCodesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => api.patch(`/superadmin/promo-codes/${id}`, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['promo-codes'] }); setEditing(null); },
+    onError: (e) => toast.error(e.message || 'Failed to update promo code'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/superadmin/promo-codes/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['promo-codes'] }),
+    onError: (e) => toast.error(e.message || 'Failed to delete promo code'),
   });
 
   const copyCode = (code) => {

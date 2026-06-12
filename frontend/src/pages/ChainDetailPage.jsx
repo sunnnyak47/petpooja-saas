@@ -47,17 +47,21 @@ export default function ChainDetailPage() {
   const navigate = useNavigate();
   const [sort, setSort] = useState('revenue_30d');
 
-  const { data: chainData } = useQuery({
+  const { data: chainData, isLoading: chainLoading, isError: chainError } = useQuery({
     queryKey: ['chain-detail', id],
     queryFn: () => api.get(`/superadmin/chains/${id}`).then(r => r.data),
     staleTime: 60_000,
   });
 
-  const { data: outlets = [], isLoading } = useQuery({
+  const { data: outlets = [], isLoading: outletsLoading } = useQuery({
     queryKey: ['chain-outlets', id],
     queryFn: () => api.get(`/superadmin/chains/${id}/outlets`).then(r => r.data),
     staleTime: 30_000,
   });
+
+  // Money rendering must wait for the chain's own region/currency so AU chains
+  // never flash/persist ₹. Gate money + the table on the chain-detail query.
+  const isLoading = chainLoading || outletsLoading;
 
   const sorted = [...outlets].sort((a, b) => b[sort] - a[sort]);
 
@@ -84,6 +88,25 @@ export default function ChainDetailPage() {
     if (h < 24) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
   };
+
+  // Guard the failure path: never render AU money as ₹ (or stub TRIAL/Suspended
+  // badges) when the chain-detail query fails. Show an explicit error + back button.
+  if (chainError) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <AlertCircle className="w-10 h-10" style={{ color: '#f87171' }} />
+          <p className="font-medium" style={{ color: 'var(--text-primary)' }}>Unable to load this chain</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>It may have been removed, or the request failed.</p>
+          <button onClick={() => navigate('/super-admin')}
+            className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:opacity-80"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <ArrowLeft className="w-4 h-4" /> Back to chains
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">

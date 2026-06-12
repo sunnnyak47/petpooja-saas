@@ -398,15 +398,23 @@ export default function BillingPage() {
     : Array.isArray(rawData?.chains) ? rawData.chains
     : [];
 
+  // Normalize the raw HeadOffice rows the backend returns. listChains() emits
+  // is_active (Boolean), plan (UPPERCASE), users[] (with email), region/country_code
+  // and _count.outlets — NOT status/subscription_plan/owner_email.
+  const planKey = (c) => (c.plan || 'TRIAL').toLowerCase();
+  const statusKey = (c) => (c.is_active ? 'active' : 'suspended');
+  const emailOf = (c) => c.contact_email || c.users?.[0]?.email || '';
+  const regionOf = (c) => ((c.country_code || c.region) === 'AU' ? 'AU' : 'IN');
+
   // Compute summary stats
   const totalChains   = chains.length;
-  const activeChains  = chains.filter(c => c.status === 'active').length;
-  const trialChains   = chains.filter(c => c.status === 'trial' || !c.status).length;
+  const activeChains  = chains.filter(c => c.is_active).length;
+  const trialChains   = chains.filter(c => planKey(c) === 'trial').length;
   const totalOutlets  = chains.reduce((s, c) => s + (c._count?.outlets || 0), 0);
 
   const PLAN_PRICES = { trial: 0, starter: 999, pro: 2499, enterprise: 4999 };
   const apiMrr = revenueData?.data?.mrr ?? revenueData?.data?.monthly_recurring_revenue;
-  const mrr = apiMrr ?? chains.reduce((s, c) => s + (PLAN_PRICES[c.subscription_plan] || 0), 0);
+  const mrr = apiMrr ?? chains.reduce((s, c) => s + (PLAN_PRICES[planKey(c)] || 0), 0);
 
   const stats = [
     { label: 'Total Chains',  value: totalChains,  icon: Users,       accent: 'blue' },
@@ -720,7 +728,7 @@ export default function BillingPage() {
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(PLAN_PRICES).map(([plan, price]) => {
-            const count = chains.filter(c => (c.subscription_plan || 'trial') === plan).length;
+            const count = chains.filter(c => planKey(c) === plan).length;
             const cfg = PLAN_COLORS[plan] || PLAN_COLORS.trial;
             return (
               <div
@@ -798,12 +806,13 @@ export default function BillingPage() {
               </thead>
               <tbody>
                 {chains.map(c => {
-                  const plan = c.subscription_plan || 'trial';
-                  const status = c.status || 'trial';
+                  const plan = planKey(c);
+                  const status = statusKey(c);
                   const planCfg = PLAN_COLORS[plan] || PLAN_COLORS.trial;
                   const statusCfg = STATUS_COLORS[status] || STATUS_COLORS.trial;
                   const StatusIcon = statusCfg.icon;
                   const revenue = PLAN_PRICES[plan] || 0;
+                  const region = regionOf(c);
                   return (
                     <tr
                       key={c.id}
@@ -824,10 +833,10 @@ export default function BillingPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5" style={{ color: 'var(--text-secondary)' }}>
-                        {c.owner_email || <span style={{ opacity: 0.4 }}>—</span>}
+                        {emailOf(c) || <span style={{ opacity: 0.4 }}>—</span>}
                       </td>
                       <td className="px-5 py-3.5" style={{ color: 'var(--text-secondary)' }}>
-                        {c.region === 'AU' ? '🇦🇺 AU' : '🇮🇳 IN'}
+                        {region === 'AU' ? '🇦🇺 AU' : '🇮🇳 IN'}
                       </td>
                       <td className="px-5 py-3.5 font-medium" style={{ color: 'var(--text-primary)' }}>
                         {c._count?.outlets || 0}
@@ -849,7 +858,7 @@ export default function BillingPage() {
                       >
                         {revenue === 0
                           ? <span style={{ color: 'var(--text-secondary)', opacity: 0.5 }}>—</span>
-                          : `${c.region === 'AU' ? 'A$' : '₹'}${revenue}`
+                          : `${region === 'AU' ? 'A$' : '₹'}${revenue}`
                         }
                       </td>
                     </tr>

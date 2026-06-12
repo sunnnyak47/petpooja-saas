@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 import {
@@ -31,8 +32,13 @@ function InvoiceRow({ inv, onUpdate }) {
 
   const handleStatusChange = async (newStatus) => {
     setUpdating(true);
-    await onUpdate(inv.id, { status: newStatus, paid_at: newStatus === 'PAID' ? new Date().toISOString() : inv.paid_at });
-    setUpdating(false);
+    try {
+      await onUpdate(inv.id, { status: newStatus, paid_at: newStatus === 'PAID' ? new Date().toISOString() : inv.paid_at });
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e?.message || 'Failed to update invoice status');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   return (
@@ -56,7 +62,7 @@ function InvoiceRow({ inv, onUpdate }) {
         </span>
       </td>
       <td className="px-5 py-3.5 font-bold" style={{ color: '#4ade80' }}>
-        {formatCurrencyStatic(inv.amount)}
+        {formatCurrencyStatic(inv.amount, inv.currency || (inv.region === 'AU' ? 'AUD' : 'INR'))}
       </td>
       <td className="px-5 py-3.5">
         <span className="flex items-center gap-1.5 text-xs font-semibold w-fit px-2.5 py-1 rounded-full"
@@ -104,6 +110,7 @@ export default function InvoicingPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => api.patch(`/superadmin/invoices/${id}`, data),
     onSuccess: () => qc.invalidateQueries(['invoices']),
+    onError: (e) => toast.error(e?.response?.data?.message || e?.message || 'Failed to update invoice status'),
   });
 
   const handleGenerate = async () => {

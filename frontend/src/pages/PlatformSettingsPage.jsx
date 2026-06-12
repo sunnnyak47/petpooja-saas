@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import {
   Settings, Save, ToggleLeft, ToggleRight, DollarSign,
   Shield, Globe, Clock, Users, AlertTriangle, CheckCircle2,
@@ -73,6 +74,7 @@ export default function PlatformSettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
+    onError: (e) => toast.error(e.message || 'Failed to save platform settings'),
   });
 
   const { symbol } = useCurrency();

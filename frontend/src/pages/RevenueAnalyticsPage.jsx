@@ -20,6 +20,26 @@ const PLAN_COLORS = {
 
 const REGION_NAMES = { IN: '🇮🇳 India', AU: '🇦🇺 Australia', US: '🇺🇸 USA' };
 
+// Each region's figure must be shown in its OWN currency, not the viewer's.
+const REGION_CURRENCY = { IN: 'INR', AU: 'AUD', US: 'USD' };
+const CURRENCY_SYMBOL = { INR: '₹', AUD: 'A$', USD: '$' };
+
+// Short money formatter for an explicit currency (per-region), mirroring the
+// magnitude buckets of useCurrency().formatShort but symbol-driven by the region.
+function formatRegionShort(amount, currency) {
+  const num = Number(amount || 0);
+  const sym = CURRENCY_SYMBOL[currency] || '₹';
+  if (currency === 'INR') {
+    if (num >= 10000000) return `${sym}${(num / 10000000).toFixed(1)}Cr`;
+    if (num >= 100000) return `${sym}${(num / 100000).toFixed(1)}L`;
+    if (num >= 1000) return `${sym}${(num / 1000).toFixed(1)}k`;
+    return `${sym}${Math.round(num).toLocaleString('en-IN')}`;
+  }
+  if (num >= 1000000) return `${sym}${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${sym}${(num / 1000).toFixed(1)}k`;
+  return `${sym}${num.toFixed(2)}`;
+}
+
 function MetricCard({ icon: Icon, label, value, change, changeLabel, color = '#6366f1', positive }) {
   const isUp = parseFloat(change) > 0;
   return (
@@ -220,7 +240,9 @@ export default function RevenueAnalyticsPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold" style={{ color: '#4ade80' }}>{fmt(info.mrr)}</p>
+                    <p className="text-lg font-bold" style={{ color: '#4ade80' }}>
+                      {formatRegionShort(info.mrr, info.currency || REGION_CURRENCY[region] || 'INR')}
+                    </p>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>MRR</p>
                   </div>
                 </div>

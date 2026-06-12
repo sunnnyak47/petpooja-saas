@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import toast from 'react-hot-toast';
 import {
   Radio, Send, Users, Info, AlertTriangle, CheckCircle2, Gift,
   Clock, Megaphone, ChevronDown, X
@@ -56,6 +57,7 @@ export default function BroadcastPage() {
       setSent(true);
       setTimeout(() => setSent(false), 4000);
     },
+    onError: (e) => toast.error(e.message || 'Failed to send broadcast'),
   });
 
   const totalSent = broadcasts.reduce((s, b) => s + (b.recipient_count || 0), 0);

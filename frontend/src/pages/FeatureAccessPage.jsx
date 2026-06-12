@@ -97,7 +97,9 @@ export default function FeatureAccessPage() {
   // Load all chains for the selector
   const { data: chainsData } = useQuery({
     queryKey: ['saas-chains'],
-    queryFn: () => api.get('/superadmin/chains'),
+    // Backend listChains defaults to limit=20 (page 1 only); raise it so every
+    // chain is configurable here, not just the 20 most-recently-created.
+    queryFn: () => api.get('/superadmin/chains', { params: { limit: 500 } }),
   });
   const rawChains = chainsData?.data;
   const chains = Array.isArray(rawChains)
@@ -137,7 +139,9 @@ export default function FeatureAccessPage() {
       setDirty(false);
       toast.success('Feature access updated!');
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to save'),
+    // The api interceptor rejects with new Error(message); the real reason lives
+    // on err.message, not err.response.data.message (which is always undefined here).
+    onError: (err) => toast.error(err?.message || 'Failed to save'),
   });
 
   const handleToggle = (key, value) => {
