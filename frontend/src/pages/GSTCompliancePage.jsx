@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../hooks/useCurrency';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -25,13 +25,12 @@ const DATE_PRESETS = [
 const RATE_COLORS_IN = { '0': '#64748b', '5': '#3b82f6', '12': '#10b981', '18': '#f59e0b', '28': '#ef4444' };
 const RATE_COLORS_AU = { '0': '#64748b', '10': '#3b82f6' };
 
+const isValidDate = (d) => d instanceof Date && !Number.isNaN(d.getTime());
+const safeFormat = (d, fmt, fallback = '') => (isValidDate(d) ? format(d, fmt) : fallback);
+
 function StatCard({ label, value, sub, icon: Icon, accent }) {
   return (
-    <div className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col gap-2 relative overflow-hidden group">
-      <div
-        className="absolute -right-4 -top-4 w-14 h-14 rounded-full opacity-20 group-hover:scale-150 transition-transform"
-        style={{ background: accent || 'var(--accent)' }}
-      />
+    <div className="bg-surface-900 border border-surface-800 rounded-2xl p-4 flex flex-col gap-2">
       <div className="flex items-center gap-2 text-surface-400 text-xs font-bold uppercase tracking-widest">
         {Icon && <Icon className="w-3.5 h-3.5" />}
         {label}
@@ -54,8 +53,8 @@ export default function GSTCompliancePage() {
   const [selectedOutlet, setSelectedOutlet] = useState(user?.outlet_id || '');
   const [activeTab, setActiveTab] = useState('summary'); // summary | register | hsn
 
-  const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-  const toStr = format(dateRange.to, 'yyyy-MM-dd');
+  const fromStr = safeFormat(dateRange.from, 'yyyy-MM-dd');
+  const toStr = safeFormat(dateRange.to, 'yyyy-MM-dd');
 
   const { data: outlets } = useQuery({
     queryKey: ['outlets'],
@@ -63,11 +62,19 @@ export default function GSTCompliancePage() {
     enabled: user?.role === 'owner' || user?.role === 'super_admin',
   });
 
+  // Auto-select an outlet for owner/super_admin accounts that have no outlet_id,
+  // otherwise the core GST query never fires and the page renders empty.
+  useEffect(() => {
+    if (!selectedOutlet && outlets?.length) {
+      setSelectedOutlet(outlets[0].id);
+    }
+  }, [selectedOutlet, outlets]);
+
   const { data: gstData, isLoading } = useQuery({
     queryKey: ['gst', 'detailed', selectedOutlet, fromStr, toStr],
     queryFn: () =>
       api.get(`/reports/gstDetailed?outlet_id=${selectedOutlet}&from=${fromStr}&to=${toStr}`).then((r) => r.data),
-    enabled: !!selectedOutlet,
+    enabled: !!selectedOutlet && !!fromStr && !!toStr,
     refetchInterval: 300000,
   });
 
@@ -132,9 +139,9 @@ export default function GSTCompliancePage() {
 
           {showCustom && (
             <div className="flex items-center gap-2">
-              <input type="date" className="input text-xs py-1" value={fromStr} onChange={(e) => setDateRange((p) => ({ ...p, from: new Date(e.target.value) }))} />
+              <input type="date" className="input text-xs py-1" value={fromStr} onChange={(e) => setDateRange((p) => ({ ...p, from: e.target.value ? new Date(e.target.value) : null }))} />
               <span className="text-surface-500 text-xs">to</span>
-              <input type="date" className="input text-xs py-1" value={toStr} onChange={(e) => setDateRange((p) => ({ ...p, to: new Date(e.target.value) }))} />
+              <input type="date" className="input text-xs py-1" value={toStr} onChange={(e) => setDateRange((p) => ({ ...p, to: e.target.value ? new Date(e.target.value) : null }))} />
             </div>
           )}
         </div>
@@ -157,7 +164,7 @@ export default function GSTCompliancePage() {
       {/* Alert Banner */}
       <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl px-4 py-3 text-sm">
         <AlertCircle className="w-4 h-4 shrink-0" />
-        <span>GST figures shown are based on recorded orders. {isAU ? 'Verify with your accountant before lodging BAS.' : 'Verify with your CA before filing.'} Period: <strong>{format(dateRange.from, 'dd MMM yyyy')}</strong> to <strong>{format(dateRange.to, 'dd MMM yyyy')}</strong></span>
+        <span>GST figures shown are based on recorded orders. {isAU ? 'Verify with your accountant before lodging BAS.' : 'Verify with your CA before filing.'} Period: <strong>{safeFormat(dateRange.from, 'dd MMM yyyy', '—')}</strong> to <strong>{safeFormat(dateRange.to, 'dd MMM yyyy', '—')}</strong></span>
       </div>
 
       {isLoading ? (
@@ -277,7 +284,7 @@ export default function GSTCompliancePage() {
                             <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
                           ) : (
                             <>
-                              <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
+                              <td className="p-3">{fmt(row.cgst)}</td>
                               <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
                               <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
                             </>
@@ -295,7 +302,7 @@ export default function GSTCompliancePage() {
                             <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
                           ) : (
                             <>
-                              <td className="p-3 text-purple-400">{fmt(rateWiseData.reduce((s, r) => s + r.cgst, 0))}</td>
+                              <td className="p-3">{fmt(rateWiseData.reduce((s, r) => s + r.cgst, 0))}</td>
                               <td className="p-3 text-amber-400">{fmt(rateWiseData.reduce((s, r) => s + r.sgst, 0))}</td>
                               <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
                             </>
@@ -344,7 +351,7 @@ export default function GSTCompliancePage() {
                     {dailyRegister.length > 0 ? dailyRegister.map((row, i) => (
                       <tr key={i} className="hover:bg-surface-800/30">
                         <td className="p-3 text-surface-200 font-medium whitespace-nowrap">
-                          {format(new Date(row.date), 'dd MMM yyyy')}
+                          {safeFormat(new Date(row.date), 'dd MMM yyyy', row.date)}
                         </td>
                         <td className="p-3 text-center text-surface-300">{row.order_count}</td>
                         <td className="p-3 text-surface-300">{fmt(row.gross_revenue)}</td>
@@ -354,9 +361,9 @@ export default function GSTCompliancePage() {
                           <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
                         ) : (
                           <>
-                            <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
+                            <td className="p-3">{fmt(row.cgst)}</td>
                             <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
-                            <td className="p-3 text-blue-400">{row.igst > 0 ? fmt(row.igst) : '—'}</td>
+                            <td className="p-3">{row.igst > 0 ? fmt(row.igst) : '—'}</td>
                             <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
                           </>
                         )}
@@ -376,9 +383,9 @@ export default function GSTCompliancePage() {
                           <td className="p-3 text-brand-400">{fmt(dailyRegister.reduce((s, r) => s + r.total_tax, 0))}</td>
                         ) : (
                           <>
-                            <td className="p-3 text-purple-400">{fmt(dailyRegister.reduce((s, r) => s + r.cgst, 0))}</td>
+                            <td className="p-3">{fmt(dailyRegister.reduce((s, r) => s + r.cgst, 0))}</td>
                             <td className="p-3 text-amber-400">{fmt(dailyRegister.reduce((s, r) => s + r.sgst, 0))}</td>
-                            <td className="p-3 text-blue-400">{fmt(dailyRegister.reduce((s, r) => s + r.igst, 0))}</td>
+                            <td className="p-3">{fmt(dailyRegister.reduce((s, r) => s + r.igst, 0))}</td>
                             <td className="p-3 text-brand-400">{fmt(dailyRegister.reduce((s, r) => s + r.total_tax, 0))}</td>
                           </>
                         )}
@@ -431,7 +438,7 @@ export default function GSTCompliancePage() {
                           </span>
                         </td>
                         <td className="p-3 text-surface-200">{fmt(row.taxable)}</td>
-                        <td className="p-3 text-purple-400">{fmt(row.cgst)}</td>
+                        <td className="p-3">{fmt(row.cgst)}</td>
                         <td className="p-3 text-amber-400">{fmt(row.sgst)}</td>
                         <td className="p-3 font-bold text-brand-400 bg-brand-500/5">{fmt(row.total_tax)}</td>
                       </tr>
