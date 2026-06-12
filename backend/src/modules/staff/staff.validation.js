@@ -14,8 +14,11 @@ const createStaffSchema = Joi.object({
   employee_code: Joi.string().max(20),
   department: Joi.string().max(50),
   designation: Joi.string().max(50),
-  manager_pin: Joi.string().length(4).pattern(/^[0-9]{4}$/)
-    .messages({ 'string.pattern.base': 'Manager PIN must be 4 digits' }),
+  manager_pin: Joi.string().pattern(/^[0-9]{4,6}$/)
+    .messages({ 'string.pattern.base': 'Manager PIN must be 4 to 6 digits' }),
+  // Pay (optional, additive) — was previously stripped, silently discarding salary
+  monthly_salary: Joi.number().min(0).allow(null, ''),
+  hourly_rate: Joi.number().min(0).allow(null, ''),
   join_date: Joi.date(),
   role: Joi.string().valid('manager', 'cashier', 'waiter', 'chef', 'delivery'),
   outlet_id: Joi.string().uuid().required(),
@@ -27,8 +30,8 @@ const updateStaffSchema = Joi.object({
   employee_code: Joi.string().max(20).allow('', null),
   department: Joi.string().max(50).allow('', null),
   designation: Joi.string().max(100).allow('', null),
-  manager_pin: Joi.string().length(4).pattern(/^[0-9]{4}$/).allow('', null)
-    .messages({ 'string.pattern.base': 'Manager PIN must be 4 digits' }),
+  manager_pin: Joi.string().pattern(/^[0-9]{4,6}$/).allow('', null)
+    .messages({ 'string.pattern.base': 'Manager PIN must be 4 to 6 digits' }),
   employment_type: Joi.string().valid('full_time', 'part_time', 'casual', 'contract').allow('', null),
   join_date: Joi.date().allow(null),
   end_date: Joi.date().allow(null),
@@ -73,7 +76,8 @@ const updateStaffSchema = Joi.object({
 });
 
 const verifyPinSchema = Joi.object({
-  pin: Joi.string().length(4).required(),
+  pin: Joi.string().pattern(/^[0-9]{4,6}$/).required()
+    .messages({ 'string.pattern.base': 'Manager PIN must be 4 to 6 digits' }),
   outlet_id: Joi.string().uuid().required(),
 });
 

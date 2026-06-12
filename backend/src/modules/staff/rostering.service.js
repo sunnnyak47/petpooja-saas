@@ -60,9 +60,12 @@ const rosteringService = {
   },
 
   async publishRoster(rosterId, outletId) {
-    const roster = await prisma.roster.findFirst({ where: { id: rosterId, outlet_id: outletId } });
+    const roster = await prisma.roster.findFirst({
+      where: { id: rosterId, outlet_id: outletId },
+      include: { _count: { select: { assignments: true } } },
+    });
     if (!roster) throw new NotFoundError('Roster not found');
-    if (roster.assignments?.length === 0) throw new BadRequestError('Cannot publish empty roster');
+    if (roster._count.assignments === 0) throw new BadRequestError('Cannot publish empty roster');
     return prisma.roster.update({
       where: { id: rosterId },
       data: { status: 'published', updated_at: new Date() }

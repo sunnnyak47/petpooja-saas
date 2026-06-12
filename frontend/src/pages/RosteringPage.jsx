@@ -110,6 +110,7 @@ export default function RosteringPage() {
   const removeShiftMut = useMutation({
     mutationFn: (assignmentId) => api.delete(`/rostering/assignments/${assignmentId}`),
     onSuccess: () => { qc.invalidateQueries(['rosters']); toast.success('Shift removed'); },
+    onError: e => toast.error(e.message || 'Failed to remove shift'),
   });
 
   const addCertMut = useMutation({
@@ -135,7 +136,9 @@ export default function RosteringPage() {
   }) || [];
 
   const getStaffColor = (staffId) => {
-    const idx = staff.findIndex(s => s.id === staffId);
+    // Assignments store the User id (RosterAssignment.staff_id → User.id), but the
+    // /staff list returns StaffProfile rows where the User id lives at s.user.id.
+    const idx = staff.findIndex(s => (s.user?.id || s.id) === staffId);
     return SHIFT_COLORS[idx % SHIFT_COLORS.length] || '#6B7280';
   };
 
@@ -461,7 +464,8 @@ export default function RosteringPage() {
                 style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               >
                 <option value="">Select Staff Member</option>
-                {staff.map(s => <option key={s.id} value={s.id}>{s.full_name || s.name}</option>)}
+                {/* Submit the User id (assignment FK targets User.id), not the StaffProfile id. */}
+                {staff.map(s => <option key={s.id} value={s.user?.id || s.id}>{s.user?.full_name || s.full_name || s.name}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -513,7 +517,7 @@ export default function RosteringPage() {
                 className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"
                 style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
                 <option value="">Select Staff Member</option>
-                {staff.map(s => <option key={s.id} value={s.id}>{s.full_name || s.name}</option>)}
+                {staff.map(s => <option key={s.id} value={s.user?.id || s.id}>{s.user?.full_name || s.full_name || s.name}</option>)}
               </select>
               <select value={certForm.cert_type} onChange={e => setCertForm(p => ({ ...p, cert_type: e.target.value }))}
                 className="w-full px-3 py-2.5 rounded-lg text-sm border outline-none"

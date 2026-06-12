@@ -8,7 +8,7 @@ import Modal from '../components/Modal';
 import { isValidPhone, isValidEmail, PHONE_MAXLEN, phonePlaceholder } from '../lib/validation';
 import {
   Users, UserPlus, Search, Clock, Phone, Edit2,
-  RefreshCw, LogIn, LogOut, Key, IndianRupee,
+  RefreshCw, LogIn, LogOut, Key, Wallet,
   ShieldCheck, Hash, X
 } from 'lucide-react';
 
@@ -147,7 +147,7 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
   const mutation = useMutation({
     mutationFn: (body) => staff
       ? api.patch(`/staff/${staff.id}`, body)
-      : api.post('/staff', { ...body, outlet_id: outletId, role: 'staff' }),
+      : api.post('/staff', { ...body, outlet_id: outletId }),
     onSuccess: () => { toast.success(staff ? 'Staff updated ✓' : 'Staff added ✓'); onSuccess(); onClose(); },
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed'),
   });
@@ -168,7 +168,14 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="label">Full Name *</label>
-            <input className="input" value={form.full_name} onChange={e => upd('full_name', e.target.value)} placeholder="John Doe" />
+            <input className="input" value={form.full_name} onChange={e => upd('full_name', e.target.value)}
+              placeholder="John Doe" disabled={!!staff} readOnly={!!staff}
+              title={staff ? 'Name is part of the user account and cannot be changed here' : undefined} />
+            {staff && (
+              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                Name is part of the user account and cannot be edited here.
+              </p>
+            )}
           </div>
           {!staff && (
             <>
@@ -345,6 +352,7 @@ function AttendanceTab({ outletId }) {
 // ── Salary Tab ──────────────────────────────────────────────────
 function SalaryTab({ outletId }) {
   const queryClient = useQueryClient();
+  const { currency } = useCurrency();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -388,7 +396,7 @@ function SalaryTab({ outletId }) {
         </button>
         <div className="ml-auto text-right">
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Total Payable</p>
-          <p className="text-xl font-bold" style={{ color: 'var(--accent)' }}>{fmtCurrency(totalPayable)}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--accent)' }}>{fmtCurrency(totalPayable, currency)}</p>
         </div>
       </div>
 
@@ -431,10 +439,10 @@ function SalaryTab({ outletId }) {
                   <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{r.present_days}/{r.working_days}</td>
                   <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{parseFloat(r.total_hours).toFixed(1)}</td>
                   <td className="px-3 py-2.5 font-medium" style={{ color: 'var(--warning)' }}>{parseFloat(r.overtime_hours).toFixed(1)}</td>
-                  <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.basic_salary)}</td>
-                  <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.overtime_pay)}</td>
-                  <td className="px-3 py-2.5" style={{ color: 'var(--success)' }}>{fmtCurrency(r.bonus)}</td>
-                  <td className="px-3 py-2.5 font-bold" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.net_salary)}</td>
+                  <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.basic_salary, currency)}</td>
+                  <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.overtime_pay, currency)}</td>
+                  <td className="px-3 py-2.5" style={{ color: 'var(--success)' }}>{fmtCurrency(r.bonus, currency)}</td>
+                  <td className="px-3 py-2.5 font-bold" style={{ color: 'var(--text-primary)' }}>{fmtCurrency(r.net_salary, currency)}</td>
                   <td className="px-3 py-2.5">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
                       r.status === 'paid' ? 'badge-success' :
@@ -459,7 +467,7 @@ function SalaryTab({ outletId }) {
                       ) : (
                         <button onClick={() => { setBonusId(r.id); setBonusAmt(''); }}
                           className="btn-primary btn-sm flex items-center gap-1">
-                          <IndianRupee className="w-3 h-3" /> Pay
+                          <Wallet className="w-3 h-3" /> Pay
                         </button>
                       )
                     )}
@@ -477,6 +485,7 @@ function SalaryTab({ outletId }) {
 // ── Main Page ───────────────────────────────────────────────────
 export default function StaffPage() {
   const { user } = useSelector((s) => s.auth);
+  const { currency } = useCurrency();
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
 
@@ -508,7 +517,7 @@ export default function StaffPage() {
   const TABS = [
     { id: 'list', label: 'Staff List', icon: Users },
     { id: 'attendance', label: 'Attendance', icon: Clock },
-    { id: 'salary', label: 'Salary', icon: IndianRupee },
+    { id: 'salary', label: 'Salary', icon: Wallet },
   ];
 
   return (
@@ -610,9 +619,9 @@ export default function StaffPage() {
                         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Salary</p>
                         <p className="text-sm font-bold" style={{ color: 'var(--accent)' }}>
                           {profile?.monthly_salary
-                            ? fmtCurrency(profile.monthly_salary) + '/mo'
+                            ? fmtCurrency(profile.monthly_salary, currency) + '/mo'
                             : profile?.hourly_rate
-                            ? fmtCurrency(profile.hourly_rate) + '/hr'
+                            ? fmtCurrency(profile.hourly_rate, currency) + '/hr'
                             : '—'}
                         </p>
                       </div>
