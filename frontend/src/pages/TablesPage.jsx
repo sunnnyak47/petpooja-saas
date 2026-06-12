@@ -277,11 +277,11 @@ export default function TablesPage() {
   /* ── void order ── */
   const handleVoid = async () => {
     if (!voidPin) return toast.error('PIN required');
-    if (!voidReason) return toast.error('Reason required');
+    if (!voidReason || voidReason.trim().length < 3) return toast.error('Reason must be at least 3 characters');
     const orderId = focusTable?.orders?.[0]?.id;
     if (!orderId) return toast.error('No active order');
     try {
-      await api.post(`/orders/${orderId}/void`, { pin: voidPin, reason: voidReason });
+      await api.post(`/orders/${orderId}/void`, { manager_pin: voidPin, reason: voidReason });
       toast.success('Order voided');
       setVoidOpen(false);
       setDetailOpen(false);
@@ -1517,7 +1517,8 @@ export default function TablesPage() {
           </div>
           <div className="flex gap-2">
             <button onClick={() => setVoidOpen(false)} className="btn-ghost flex-1">Cancel</button>
-            <button onClick={handleVoid} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">Confirm Void</button>
+            <button onClick={handleVoid} disabled={!voidPin || voidReason.trim().length < 3}
+              className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Confirm Void</button>
           </div>
         </div>
       </Modal>

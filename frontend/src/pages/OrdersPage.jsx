@@ -23,13 +23,38 @@ function formatOrderNo(num) {
   return `#ORD-${String(num).padStart(5, '0')}`;
 }
 
+// Styles cover both the backend's accepted status enum AND legacy/derived
+// statuses that may already exist on historical orders, so no order ever
+// renders a blank badge.
 const STATUS_STYLES = {
-  created: 'badge-info', confirmed: 'badge-info', preparing: 'badge-warning',
-  ready: 'badge-success', served: 'badge-success', paid: 'badge-success',
-  cancelled: 'badge-danger', voided: 'badge-danger',
+  pending: 'badge-info', created: 'badge-info', confirmed: 'badge-info',
+  preparing: 'badge-warning', ready: 'badge-success', served: 'badge-success',
+  delivered: 'badge-success', completed: 'badge-success', paid: 'badge-success',
+  billed: 'badge-info', cancelled: 'badge-danger', voided: 'badge-danger',
+  refunded: 'badge-danger',
 };
 
-const STATUS_FLOW = ['created', 'confirmed', 'preparing', 'ready', 'served', 'paid'];
+// The ONLY status values the backend accepts on PATCH /orders/:id/status
+// (updateOrderStatusSchema). Sending anything else (created/confirmed/paid/
+// voided) returns a 400. Order here doubles as the forward progression.
+const ALLOWED_STATUSES = ['pending', 'preparing', 'ready', 'served', 'delivered', 'completed', 'cancelled'];
+
+// Terminal statuses can't transition further from this screen.
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'paid', 'voided', 'refunded']);
+
+/**
+ * Valid next-status targets to offer for a given current status.
+ * Always returns only backend-accepted values; never the current status.
+ */
+function nextStatusTargets(current) {
+  if (TERMINAL_STATUSES.has(current)) return [];
+  const idx = ALLOWED_STATUSES.indexOf(current);
+  // Unknown/legacy current status (e.g. 'created'): offer the full forward path.
+  if (idx === -1) return ALLOWED_STATUSES;
+  return ALLOWED_STATUSES.slice(idx + 1);
+}
+
+const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
@@ -46,33 +71,39 @@ export default function OrdersPage() {
   const [sortField,    setSortField]    = useState('time');     // time|amount|order|status
   const [sortDir,      setSortDir]      = useState('desc');     // asc|desc
   const [searchQ,      setSearchQ]      = useState('');
+  const [page,         setPage]         = useState(1);
+  const PAGE_LIMIT = 200;
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isVoidOpen, setIsVoidOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [managerPin, setManagerPin] = useState('');
   const [voidReason, setVoidReason] = useState('Voided from dashboard');
+  const [voidError, setVoidError] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  /* Date-range bounds (local TZ) */
+  /* Date-range bounds (local TZ). `fromStr`/`toStr` are date-only YYYY-MM-DD
+     strings passed to the backend (listOrders supports query.from + query.to,
+     both required together, and expands them to full-day UTC bounds). */
   const dateBounds = (() => {
     const now = new Date();
     const startOf = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
     const endOf   = (d) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
+    const ymd     = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`; };
     if (dateRange === 'today') {
-      return { from: startOf(now), to: endOf(now), label: 'Today' };
+      return { from: startOf(now), to: endOf(now), fromStr: ymd(now), toStr: ymd(now), label: 'Today' };
     }
     if (dateRange === 'yesterday') {
       const y = new Date(now); y.setDate(y.getDate() - 1);
-      return { from: startOf(y), to: endOf(y), label: 'Yesterday' };
+      return { from: startOf(y), to: endOf(y), fromStr: ymd(y), toStr: ymd(y), label: 'Yesterday' };
     }
     if (dateRange === '7d') {
-      const s = new Date(now); s.setDate(s.getDate() - 6); return { from: startOf(s), to: endOf(now), label: 'Last 7 days' };
+      const s = new Date(now); s.setDate(s.getDate() - 6); return { from: startOf(s), to: endOf(now), fromStr: ymd(s), toStr: ymd(now), label: 'Last 7 days' };
     }
     if (dateRange === '30d') {
-      const s = new Date(now); s.setDate(s.getDate() - 29); return { from: startOf(s), to: endOf(now), label: 'Last 30 days' };
+      const s = new Date(now); s.setDate(s.getDate() - 29); return { from: startOf(s), to: endOf(now), fromStr: ymd(s), toStr: ymd(now), label: 'Last 30 days' };
     }
-    return { from: null, to: null, label: 'All time' };
+    return { from: null, to: null, fromStr: null, toStr: null, label: 'All time' };
   })();
 
   const handleReorder = async (order) => {
@@ -110,19 +141,35 @@ export default function OrdersPage() {
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', outletId, statusFilter, isOnline],
+    queryKey: ['orders', outletId, statusFilter, dateRange, page, isOnline],
     queryFn: async () => {
       if (IS_ELECTRON && !isOnline) {
         return hybridAPI.getOrders(outletId, statusFilter ? { status: statusFilter } : {});
       }
-      return api.get(`/orders?outlet_id=${outletId}&limit=200&sort=created_at&order=desc${statusFilter ? `&status=${statusFilter}` : ''}`).then(r => r.data);
+      const params = new URLSearchParams({
+        outlet_id: outletId,
+        limit: String(PAGE_LIMIT),
+        page: String(page),
+        sort: 'created_at',
+        order: 'desc',
+      });
+      if (statusFilter) params.set('status', statusFilter);
+      // Server-side date filtering so older orders/revenue are no longer
+      // silently truncated by a single 200-row page. from+to must be sent
+      // together (listOrders only applies the window when both are present).
+      if (dateBounds.fromStr && dateBounds.toStr) {
+        params.set('from', dateBounds.fromStr);
+        params.set('to', dateBounds.toStr);
+      }
+      return api.get(`/orders?${params.toString()}`);
     },
     enabled: !!outletId,
+    keepPreviousData: true,
     refetchInterval: isOnline ? 10000 : false,
     staleTime: isOnline ? 5000 : Infinity,
   });
 
-  const { data: orderDetail } = useQuery({
+  const { data: orderDetail, isLoading: isDetailLoading, isError: isDetailError } = useQuery({
     queryKey: ['orderDetail', selectedOrder?.id],
     queryFn: async () => {
       if (IS_ELECTRON && !isOnline) {
@@ -150,11 +197,17 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setIsVoidOpen(false);
       setManagerPin('');
+      setVoidError('');
     },
-    onError: (e) => toast.error(e.message || 'Failed to void order'),
+    onError: (e) => {
+      const msg = e.message || 'Failed to void order';
+      setVoidError(msg);
+      toast.error(msg);
+    },
   });
 
   const rawOrders = Array.isArray(data) ? data : (data?.data || data?.items || []);
+  const meta = (!Array.isArray(data) && data?.meta) || null;
 
   /* Filter by date + search */
   const filtered = rawOrders.filter(o => {
@@ -288,7 +341,7 @@ export default function OrdersPage() {
           ].map(d => {
             const active = dateRange === d.id;
             return (
-              <button key={d.id} onClick={() => setDateRange(d.id)}
+              <button key={d.id} onClick={() => { setDateRange(d.id); setPage(1); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
                 style={{
                   background: active ? 'var(--bg-secondary)' : 'transparent',
@@ -314,7 +367,7 @@ export default function OrdersPage() {
           ].map(s => {
             const active = statusFilter === s.id;
             return (
-              <button key={s.id || 'all'} onClick={() => setStatusFilter(s.id)}
+              <button key={s.id || 'all'} onClick={() => { setStatusFilter(s.id); setPage(1); }}
                 className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
                 style={{
                   background: active ? 'var(--bg-secondary)' : 'transparent',
@@ -371,13 +424,26 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order._count?.order_items || 0}</td>
                   <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{format(order.grand_total || 0)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <select
-                      className={`${STATUS_STYLES[order.status] || 'badge-neutral'} bg-transparent border-0 font-medium cursor-pointer focus:ring-0 appearance-none text-sm`}
-                      value={order.status}
-                      onChange={e => updateStatusMutation.mutate({ id: order.id, status: e.target.value })}
-                    >
-                      {STATUS_FLOW.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                    </select>
+                    {(() => {
+                      const targets = nextStatusTargets(order.status);
+                      // Terminal / no valid transition → read-only badge (never blank).
+                      if (targets.length === 0) {
+                        return <span className={STATUS_STYLES[order.status] || 'badge-neutral'}>{titleCase(order.status)}</span>;
+                      }
+                      // Current status is always the (disabled) selected option, so the
+                      // control renders correctly even for legacy statuses; the user can
+                      // only pick a backend-accepted next state.
+                      return (
+                        <select
+                          className={`${STATUS_STYLES[order.status] || 'badge-neutral'} bg-transparent border-0 font-medium cursor-pointer focus:ring-0 appearance-none text-sm`}
+                          value={order.status}
+                          onChange={e => { if (e.target.value !== order.status) updateStatusMutation.mutate({ id: order.id, status: e.target.value }); }}
+                        >
+                          <option value={order.status} disabled>{titleCase(order.status)}</option>
+                          {targets.map(s => <option key={s} value={s}>{titleCase(s)}</option>)}
+                        </select>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{formatRelative(order.created_at)}</td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
@@ -396,6 +462,27 @@ export default function OrdersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination — driven by backend meta (total / totalPages / hasNextPage) */}
+      {meta && meta.totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Page {meta.page} of {meta.totalPages} · {meta.total} order{meta.total !== 1 ? 's' : ''} in {dateBounds.label.toLowerCase()}
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary disabled:opacity-40"
+              disabled={!meta.hasPrevPage || isLoading}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >Previous</button>
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold btn-secondary disabled:opacity-40"
+              disabled={!meta.hasNextPage || isLoading}
+              onClick={() => setPage(p => p + 1)}
+            >Next</button>
+          </div>
+        </div>
+      )}
 
       {/* Order Detail Modal */}
       <Modal isOpen={isDetailOpen} onClose={() => setIsDetailOpen(false)} title={`Order ${formatOrderNo(selectedOrder?.order_number)}`} size="lg">
@@ -422,8 +509,10 @@ export default function OrdersPage() {
                 <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Order Items</span>
               </div>
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                {(orderDetail?.order_items || orderDetail?.items || []).length > 0
-                  ? (orderDetail?.order_items || orderDetail?.items || []).map((item, i) => (
+                {(() => {
+                  const items = orderDetail?.order_items || orderDetail?.items || [];
+                  if (items.length > 0) {
+                    return items.map((item, i) => (
                       <div key={i} className="px-4 py-3 flex items-center justify-between">
                         <div className="flex-1">
                           <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.menu_item?.name || item.name || 'Item'}</p>
@@ -431,9 +520,19 @@ export default function OrdersPage() {
                         </div>
                         <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{format(item.item_total || item.total_price || item.price || 0)}</p>
                       </div>
-                    ))
-                  : <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Loading items...</div>
-                }
+                    ));
+                  }
+                  // Distinguish loading vs errored vs loaded-but-empty so the
+                  // modal never shows a perpetual "Loading items..." for orders
+                  // that genuinely have zero items.
+                  if (isDetailLoading) {
+                    return <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Loading items...</div>;
+                  }
+                  if (isDetailError) {
+                    return <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--danger)' }}>Failed to load items</div>;
+                  }
+                  return <div className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>No items</div>;
+                })()}
               </div>
             </div>
 
@@ -447,18 +546,21 @@ export default function OrdersPage() {
               </div>
             </div>
 
-            {/* Quick Status Change */}
-            <div>
-              <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Quick Status Update</p>
-              <div className="flex gap-2 flex-wrap">
-                {STATUS_FLOW.map(s => (
-                  <button key={s} disabled={s === selectedOrder.status || updateStatusMutation.isPending}
-                    onClick={() => updateStatusMutation.mutate({ id: selectedOrder.id, status: s })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${s === selectedOrder.status ? 'tab-btn-active' : 'tab-btn'}`}
-                  >{s.charAt(0).toUpperCase() + s.slice(1)}</button>
-                ))}
+            {/* Quick Status Change — only backend-accepted next states */}
+            {nextStatusTargets(selectedOrder.status).length > 0 && (
+              <div>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Quick Status Update</p>
+                <div className="flex gap-2 flex-wrap">
+                  <span className={`${STATUS_STYLES[selectedOrder.status] || 'badge-neutral'} self-center`}>{titleCase(selectedOrder.status)}</span>
+                  {nextStatusTargets(selectedOrder.status).map(s => (
+                    <button key={s} disabled={updateStatusMutation.isPending}
+                      onClick={() => updateStatusMutation.mutate({ id: selectedOrder.id, status: s })}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all tab-btn"
+                    >{titleCase(s)}</button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </Modal>
@@ -479,15 +581,22 @@ export default function OrdersPage() {
 
             <div>
                <label className="label">Reason for Void*</label>
-               <textarea value={voidReason} onChange={e=>setVoidReason(e.target.value)}
+               <textarea value={voidReason} onChange={e=>{ setVoidReason(e.target.value); if (voidError) setVoidError(''); }}
                   className="input h-20 text-sm py-2" placeholder="Explain why this order is being voided..." required />
+               {voidReason.trim().length > 0 && voidReason.trim().length < 3 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>Reason must be at least 3 characters.</p>
+               )}
             </div>
 
+            {voidError && (
+               <p className="text-xs" style={{ color: 'var(--danger)' }}>{voidError}</p>
+            )}
+
             <div className="flex gap-3 pt-2">
-               <button onClick={() => setIsVoidOpen(false)} className="btn-surface flex-1">Keep Order</button>
-               <button 
-                  onClick={() => voidMutation.mutate({ id: selectedOrder.id, pin: managerPin, reason: voidReason })}
-                  disabled={!managerPin || voidMutation.isPending}
+               <button onClick={() => { setIsVoidOpen(false); setVoidError(''); }} className="btn-surface flex-1">Keep Order</button>
+               <button
+                  onClick={() => { setVoidError(''); voidMutation.mutate({ id: selectedOrder.id, pin: managerPin, reason: voidReason.trim() }); }}
+                  disabled={!managerPin || voidReason.trim().length < 3 || voidMutation.isPending}
                   className="btn-danger flex-1"
                >
                   {voidMutation.isPending ? 'Voiding...' : 'Confirm Void'}

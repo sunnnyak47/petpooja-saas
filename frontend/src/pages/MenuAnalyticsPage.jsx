@@ -201,7 +201,7 @@ export default function MenuAnalyticsPage() {
 
   const { data: outlets = [] } = useQuery({
     queryKey: ['outlets-list'],
-    queryFn:  () => api.get('/outlets').then(r => r.data).catch(() => []),
+    queryFn:  () => api.get('/ho/outlets').then(r => r.data?.data || []).catch(() => []),
     staleTime: 300_000,
   });
 
@@ -212,7 +212,7 @@ export default function MenuAnalyticsPage() {
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['menu-analytics', outletId],
     queryFn:  () =>
-      api.get('/superadmin/menu-analytics', { params: { outlet_id: outletId } }).then(r => r.data),
+      api.get('/ho/menu-analytics', { params: { outlet_id: outletId } }).then(r => r.data?.data),
     enabled:   !!outletId,
     staleTime: 60_000,
   });

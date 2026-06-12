@@ -116,8 +116,7 @@ export function TransferTableModal({ isOpen, onClose, order, outletId, onSuccess
   const transferMutation = useMutation({
     mutationFn: () =>
       api.post(`/orders/${order.id}/transfer-table`, {
-        table_id: selectedTableId,
-        outlet_id: outletId,
+        target_table_id: selectedTableId,
       }),
     onSuccess: () => {
       toast.success('Table transferred!');

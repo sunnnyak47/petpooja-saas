@@ -63,12 +63,14 @@ export default function ReservationsPage() {
       toast.error('Please enter a valid email address');
       return;
     }
-    saveMutation.mutate(editId ? form : { ...form, outlet_id: outletId });
+    const payload = { ...form, party_size: Number(form.party_size) };
+    saveMutation.mutate(editId ? payload : { ...payload, outlet_id: outletId });
   };
 
   const { data: reservations = [], isLoading } = useQuery({
-    queryKey: ['reservations'],
-    queryFn: () => api.get('/reservations').then(r => r.data),
+    queryKey: ['reservations', outletId],
+    queryFn: () => api.get('/reservations', { params: { outlet_id: outletId } }).then(r => r.data),
+    enabled: !!outletId,
     staleTime: 30_000,
   });
 
@@ -83,7 +85,13 @@ export default function ReservationsPage() {
       setForm(EMPTY_FORM);
       setEditId(null);
     },
-    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Failed to save reservation'),
+    onError: (e) => {
+      const fieldErrors = e?.response?.data?.errors;
+      const msg = Array.isArray(fieldErrors) && fieldErrors.length
+        ? fieldErrors.map(fe => `${fe.field}: ${fe.message}`).join('; ')
+        : e?.response?.data?.message || e.message || 'Failed to save reservation';
+      toast.error(msg);
+    },
   });
 
   const statusMutation = useMutation({
@@ -109,7 +117,7 @@ export default function ReservationsPage() {
   });
 
   const filtered = reservations.filter(r => {
-    if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+    if (statusFilter !== 'ALL' && r.status?.toUpperCase() !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return r.customer_name?.toLowerCase().includes(q) || r.customer_phone?.includes(q);
@@ -118,8 +126,8 @@ export default function ReservationsPage() {
   });
 
   const todayRes  = reservations.filter(r => r.reservation_date?.startsWith(today));
-  const pending   = reservations.filter(r => r.status === 'PENDING').length;
-  const confirmed = reservations.filter(r => r.status === 'CONFIRMED').length;
+  const pending   = reservations.filter(r => r.status?.toUpperCase() === 'PENDING').length;
+  const confirmed = reservations.filter(r => r.status?.toUpperCase() === 'CONFIRMED').length;
 
   const handleEdit = (r) => {
     setEditId(r.id);
@@ -253,7 +261,13 @@ export default function ReservationsPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saveMutation.isPending || !form.customer_name || !form.reservation_date}
+                disabled={
+                  saveMutation.isPending ||
+                  !form.customer_name ||
+                  !form.reservation_date ||
+                  !form.reservation_time ||
+                  !(Number(form.party_size) >= 1)
+                }
                 className="flex-1 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>
                 {saveMutation.isPending ? 'Saving…' : editId ? 'Update' : 'Create Reservation'}
@@ -292,7 +306,7 @@ export default function ReservationsPage() {
               </thead>
               <tbody>
                 {filtered.map((r, i) => {
-                  const cfg = STATUS_CFG[r.status] || STATUS_CFG.PENDING;
+                  const cfg = STATUS_CFG[r.status?.toUpperCase()] || STATUS_CFG.PENDING;
                   return (
                     <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none' }}
                       className="hover:opacity-80 transition-opacity">
@@ -325,14 +339,14 @@ export default function ReservationsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          {r.status === 'PENDING' && (
+                          {r.status?.toUpperCase() === 'PENDING' && (
                             <button onClick={() => statusMutation.mutate({ id: r.id, status: 'CONFIRMED' })}
                               className="text-xs px-2 py-1 rounded-lg"
                               style={{ background: 'rgba(96,165,250,0.12)', color: '#60a5fa' }}>
                               Confirm
                             </button>
                           )}
-                          {r.status === 'CONFIRMED' && (
+                          {r.status?.toUpperCase() === 'CONFIRMED' && (
                             <button onClick={() => statusMutation.mutate({ id: r.id, status: 'SEATED' })}
                               className="text-xs px-2 py-1 rounded-lg"
                               style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>

@@ -103,6 +103,7 @@ function ModalShell({ title, onClose, children, maxWidth = 'max-w-lg' }) {
 
 function CustomerModal({ customer, outletId, onClose }) {
   const qc = useQueryClient();
+  const { isAU } = useCurrency();
   const isEdit = !!customer;
   const [form, setForm] = useState({
     full_name:           customer?.full_name || '',
@@ -145,7 +146,7 @@ function CustomerModal({ customer, outletId, onClose }) {
         </div>
         <div>
           <label className="label">Phone *</label>
-          <input className="input w-full" maxLength={PHONE_MAXLEN} value={form.phone} onChange={set('phone')} placeholder={phonePlaceholder('AU')} required />
+          <input className="input w-full" maxLength={PHONE_MAXLEN} value={form.phone} onChange={set('phone')} placeholder={phonePlaceholder(isAU ? 'AU' : 'IN')} required />
         </div>
         <div>
           <label className="label">Email</label>
@@ -243,8 +244,8 @@ function LoyaltyHistoryModal({ customer, onClose }) {
     queryFn: () => api.get(`/customers/${customer.id}/loyalty/history?limit=50`).then(r => r.data),
   });
 
-  const txns    = data?.data?.data || [];
-  const summary = data?.data?.summary;
+  const txns    = data?.transactions || [];
+  const summary = data?.summary;
 
   return (
     <ModalShell title={`${customer.full_name || customer.phone} — Loyalty History`} onClose={onClose} maxWidth="max-w-xl">
@@ -341,7 +342,6 @@ function CampaignModal({ outletId, onClose }) {
               <option value="sms">SMS</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="email">Email</option>
-              <option value="push">Push Notification</option>
             </select>
           </div>
           <div>
@@ -391,7 +391,7 @@ function CampaignModal({ outletId, onClose }) {
         <button
           className="btn-primary flex-1 flex items-center justify-center gap-2"
           disabled={mut.isPending || !form.name || !form.message}
-          onClick={() => mut.mutate({ ...form, outlet_id: outletId })}
+          onClick={() => mut.mutate({ ...form, schedule_at: form.schedule_at || null, outlet_id: outletId })}
         >
           <ChannelIcon className="w-4 h-4" />
           {mut.isPending ? 'Sending…' : form.schedule_at ? 'Schedule' : 'Send Now'}
@@ -532,7 +532,10 @@ function DashboardTab({ outletId, onEditConfig }) {
             icon={Calendar}
             action={birthdayList.length > 0 && (
               <button
-                onClick={() => birthdayMut.mutate({ outlet_id: outletId })}
+                onClick={() => birthdayMut.mutate({
+                  outlet_id: outletId,
+                  message_template: 'Happy Birthday {name}! 🎉 Celebrate with us — enjoy a special treat on your next visit. With love, the team.',
+                })}
                 disabled={birthdayMut.isPending}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
                 style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' }}>

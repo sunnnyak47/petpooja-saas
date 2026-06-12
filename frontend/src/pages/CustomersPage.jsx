@@ -72,7 +72,7 @@ export default function CustomersPage() {
   // ── Queries ─────────────────────────────────────────────────
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, segFilter],
-    queryFn: () => api.get(`/customers?limit=100${search ? `&search=${search}` : ''}${segFilter ? `&segment=${segFilter}` : ''}`).then(r => r.data),
+    queryFn: () => api.get(`/customers?limit=100${search ? `&search=${encodeURIComponent(search)}` : ''}${segFilter ? `&segment=${segFilter}` : ''}`).then(r => r.data),
     enabled: !!outletId,
   });
 
@@ -515,7 +515,6 @@ export default function CustomersPage() {
                   <option value="whatsapp">WhatsApp</option>
                   <option value="sms">SMS</option>
                   <option value="email">Email</option>
-                  <option value="push">Push Notification</option>
                 </select>
               </div>
               <div>
@@ -535,7 +534,7 @@ export default function CustomersPage() {
               <p className="text-[10px] text-surface-500 mt-1">{campaignData.message.length}/160 chars · Use {'{name}'} for personalisation</p>
             </div>
             <button
-              onClick={() => { if (!campaignData.name || !campaignData.message) return toast.error('Fill in name and message'); campaignMut.mutate(campaignData); }}
+              onClick={() => { if (!campaignData.name || !campaignData.message) return toast.error('Fill in name and message'); campaignMut.mutate({ ...campaignData, outlet_id: outletId }); }}
               disabled={campaignMut.isPending}
               className="btn-primary w-full py-3 gap-2"
             >
@@ -628,7 +627,6 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
             <option value="non_veg">Non-Veg</option>
             <option value="vegan">Vegan</option>
             <option value="jain">Jain</option>
-            <option value="keto">Keto</option>
           </select>
         </div>
         <div>

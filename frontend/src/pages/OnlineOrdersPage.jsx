@@ -33,23 +33,28 @@ function PlatformBadge({ platform }) {
 }
 
 function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejecting, isReadying }) {
+  const { symbol } = useCurrency();
   const [prepTime, setPrepTime] = useState(20);
+  // Backend statuses are lowercase: created/confirmed/preparing/ready/cancelled.
+  const status = String(order.status || '').toLowerCase();
   const statusColors = {
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    ACCEPTED: 'bg-blue-100 text-blue-800',
-    PREPARING: 'bg-purple-100 text-purple-800',
-    READY: 'bg-green-100 text-green-800',
-    REJECTED: 'bg-red-100 text-red-800',
+    created: 'bg-yellow-100 text-yellow-800',
+    confirmed: 'bg-blue-100 text-blue-800',
+    preparing: 'bg-purple-100 text-purple-800',
+    ready: 'bg-green-100 text-green-800',
+    cancelled: 'bg-red-100 text-red-800',
   };
-  const total = order.total_amount ?? order.items?.reduce((s, i) => s + (i.price * i.quantity), 0) ?? 0;
+  const items = order.order_items || [];
+  const total = order.grand_total ?? order.total_amount
+    ?? items.reduce((s, i) => s + (Number(i.unit_price || 0) * Number(i.quantity || 0)), 0) ?? 0;
 
   return (
-    <div className="card p-4 border-l-4 mb-3" style={{ borderLeftColor: PLATFORM_META[order.platform]?.color || '#ccc' }}>
+    <div className="card p-4 border-l-4 mb-3" style={{ borderLeftColor: PLATFORM_META[order.aggregator]?.color || '#ccc' }}>
       <div className="flex justify-between items-start mb-2">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <PlatformBadge platform={order.platform} />
-            <span className="font-semibold text-sm">#{order.order_number || order.platform_order_id}</span>
+            <PlatformBadge platform={order.aggregator} />
+            <span className="font-semibold text-sm">#{order.order_number || order.aggregator_order_id}</span>
           </div>
           {order.customer_name && (
             <div className="flex items-center gap-1 text-xs text-secondary">
@@ -64,22 +69,22 @@ function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejec
         </div>
         <div className="text-right">
           <div className="font-bold text-lg">{symbol}{Number(total).toFixed(2)}</div>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-700'}`}>
-            {order.status}
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[status] || 'bg-gray-100 text-gray-700'}`}>
+            {status || 'unknown'}
           </span>
         </div>
       </div>
 
       <div className="bg-surface rounded p-2 mb-3 space-y-1">
-        {(order.items || []).map((item, i) => (
-          <div key={i} className="flex justify-between text-xs">
+        {items.map((item, i) => (
+          <div key={item.id || i} className="flex justify-between text-xs">
             <span>{item.quantity}× {item.name}</span>
-            <span>{symbol}{(item.price * item.quantity).toFixed(2)}</span>
+            <span>{symbol}{(Number(item.unit_price || 0) * Number(item.quantity || 0)).toFixed(2)}</span>
           </div>
         ))}
       </div>
 
-      {order.status === 'PENDING' && (
+      {status === 'created' && (
         <div className="flex items-center gap-2">
           <select value={prepTime} onChange={e => setPrepTime(Number(e.target.value))}
             className="input text-xs py-1 flex-1">
@@ -95,7 +100,7 @@ function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejec
           </button>
         </div>
       )}
-      {order.status === 'ACCEPTED' && (
+      {(status === 'confirmed' || status === 'preparing') && (
         <button onClick={() => onReady(order.id)} disabled={isReadying}
           className="btn-primary w-full text-xs py-1.5 flex items-center justify-center gap-1">
           <CheckCircle2 size={12} /> Mark Ready for Pickup
@@ -106,12 +111,14 @@ function AggOrderCard({ order, onAccept, onReject, onReady, isAccepting, isRejec
 }
 
 function HistoryView({ outletId, platformFilter }) {
+  const { symbol } = useCurrency();
   const [search, setSearch] = useState('');
   const { data: history, isLoading } = useQuery({
     queryKey: ['agg-order-history', outletId, platformFilter],
     queryFn: () => {
       const params = new URLSearchParams({ outlet_id: outletId, limit: 50 });
-      if (platformFilter !== 'all') params.set('platform', platformFilter);
+      // Backend filters on `aggregator`, not `platform`.
+      if (platformFilter !== 'all') params.set('aggregator', platformFilter);
       return api.get(`/aggregators/orders/history?${params}`).then(r => r.data?.data || r.data || []);
     },
     enabled: !!outletId,
@@ -138,23 +145,26 @@ function HistoryView({ outletId, platformFilter }) {
       ) : (
         <div className="space-y-2">
           {filtered.map(order => {
-            const total = order.total_amount ?? 0;
+            const total = order.grand_total ?? order.total_amount ?? 0;
+            const status = String(order.status || '').toLowerCase();
+            const createdAt = order.created_at ? new Date(order.created_at) : null;
+            const createdLabel = createdAt && !isNaN(createdAt.getTime()) ? createdAt.toLocaleString() : '—';
             return (
               <div key={order.id} className="card p-3 flex justify-between items-center">
                 <div>
                   <div className="flex items-center gap-2">
-                    <PlatformBadge platform={order.platform} />
-                    <span className="text-sm font-medium">#{order.order_number || order.platform_order_id}</span>
+                    <PlatformBadge platform={order.aggregator} />
+                    <span className="text-sm font-medium">#{order.order_number || order.aggregator_order_id}</span>
                     <span className="text-xs text-secondary">{order.customer_name}</span>
                   </div>
                   <div className="text-xs text-secondary mt-0.5">
-                    {new Date(order.created_at).toLocaleString()}
+                    {createdLabel}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="font-semibold">{symbol}{Number(total).toFixed(2)}</div>
-                  <span className={`text-xs ${order.status === 'DELIVERED' ? 'text-green-600' : order.status === 'REJECTED' ? 'text-red-600' : 'text-blue-600'}`}>
-                    {order.status}
+                  <span className={`text-xs capitalize ${status === 'completed' ? 'text-green-600' : status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>
+                    {status || 'unknown'}
                   </span>
                 </div>
               </div>
@@ -200,23 +210,27 @@ export default function OnlineOrdersPage() {
     enabled: !!outletId,
   });
 
-  // Socket.io for real-time order notifications
+  // Socket.io for real-time order notifications.
+  // Server emits on the /orders namespace, room `outlet:<id>`, event `new_online_order`.
+  // Room join is via the `join_outlet` event; auth token via handshake `auth.token`.
   useEffect(() => {
     if (!outletId || !token) return;
-    socketRef.current = io(SOCKET_URL, { auth: { token }, path: '/socket.io' });
-    socketRef.current.on('connect', () => {
-      socketRef.current.emit('join-outlet', outletId);
+    const socket = io(`${SOCKET_URL}/orders`, { auth: { token }, path: '/socket.io' });
+    socketRef.current = socket;
+    socket.on('connect', () => {
+      socket.emit('join_outlet', outletId);
     });
-    socketRef.current.on('new-online-order', (order) => {
+    socket.on('new_online_order', (payload) => {
       if (soundEnabled) notificationSound.current.play().catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['agg-orders-active', outletId] });
       queryClient.invalidateQueries({ queryKey: ['agg-orders-stats', outletId] });
-      toast.success(`New ${order.platform || ''} order received!`, { duration: 5000 });
-      if (autoAccept) {
-        acceptMutation.mutate({ id: order.id, prepTime: 20 });
+      toast.success(`New ${payload?.platform || ''} order received!`, { duration: 5000 });
+      // payload shape: { order_id, order_number, platform, external_id }
+      if (autoAccept && payload?.order_id) {
+        acceptMutation.mutate({ id: payload.order_id, prepTime: 20 });
       }
     });
-    return () => socketRef.current?.disconnect();
+    return () => socket.disconnect();
   }, [outletId, token, soundEnabled, autoAccept]);
 
   const acceptMutation = useMutation({
@@ -247,16 +261,21 @@ export default function OnlineOrdersPage() {
   });
 
   const filteredOrders = (activeOrders || []).filter(o =>
-    platformFilter === 'all' || o.platform === platformFilter
+    platformFilter === 'all' || o.aggregator === platformFilter
   );
 
-  const pending   = filteredOrders.filter(o => o.status === 'PENDING');
-  const preparing = filteredOrders.filter(o => ['ACCEPTED','PREPARING'].includes(o.status));
-  const ready     = filteredOrders.filter(o => o.status === 'READY');
+  // Backend statuses are lowercase. Map to UI buckets:
+  //   created            -> New Orders (pending)
+  //   confirmed/preparing -> Preparing
+  //   ready              -> Ready for Pickup
+  const statusOf = o => String(o.status || '').toLowerCase();
+  const pending   = filteredOrders.filter(o => statusOf(o) === 'created');
+  const preparing = filteredOrders.filter(o => ['confirmed', 'preparing'].includes(statusOf(o)));
+  const ready     = filteredOrders.filter(o => statusOf(o) === 'ready');
 
   const statsByPlatform = {};
   Object.keys(REGION_PLATFORMS).forEach(p => {
-    statsByPlatform[p] = (activeOrders || []).filter(o => o.platform === p).length;
+    statsByPlatform[p] = (activeOrders || []).filter(o => o.aggregator === p).length;
   });
 
   return (
@@ -412,16 +431,17 @@ export default function OnlineOrdersPage() {
         <HistoryView outletId={outletId} platformFilter={platformFilter} />
       )}
 
-      {/* Today's Summary Footer */}
+      {/* Today's Summary Footer — backend shape: { total_orders, total_revenue, by_platform: { [p]: { count, revenue } } } */}
       {stats && (
         <div className="card p-4 flex flex-wrap gap-6 text-sm border-t">
-          <div><span className="text-secondary">Today's Orders:</span> <strong>{stats.today_orders ?? 0}</strong></div>
-          <div><span className="text-secondary">Revenue:</span> <strong>{symbol}{Number(stats.today_revenue ?? 0).toFixed(2)}</strong></div>
-          <div><span className="text-secondary">Accepted:</span> <strong className="text-green-600">{stats.accepted ?? 0}</strong></div>
-          <div><span className="text-secondary">Rejected:</span> <strong className="text-red-600">{stats.rejected ?? 0}</strong></div>
-          {Object.entries(REGION_PLATFORMS).map(([p, meta]) => stats[p] != null && (
-            <div key={p}><span className="text-secondary">{meta.label}:</span> <strong style={{ color: meta.color }}>{stats[p]}</strong></div>
-          ))}
+          <div><span className="text-secondary">Today's Orders:</span> <strong>{stats.total_orders ?? 0}</strong></div>
+          <div><span className="text-secondary">Revenue:</span> <strong>{symbol}{Number(stats.total_revenue ?? 0).toFixed(2)}</strong></div>
+          {Object.entries(REGION_PLATFORMS).map(([p, meta]) => {
+            const count = stats.by_platform?.[p]?.count ?? 0;
+            return (
+              <div key={p}><span className="text-secondary">{meta.label}:</span> <strong style={{ color: meta.color }}>{count}</strong></div>
+            );
+          })}
         </div>
       )}
     </div>

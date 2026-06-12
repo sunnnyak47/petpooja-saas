@@ -86,7 +86,8 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
   const warn    = mins >= 8 && !urgent;
 
   const items   = kot.items ?? kot.kot_items ?? [];
-  const allDone = items.length > 0 && items.every(i => i.is_ready);
+  // Per-item ready is tracked on KOTItem.status === 'ready' (no is_ready column).
+  const allDone = items.length > 0 && items.every(i => i.is_ready ?? i.status === 'ready');
 
   const tableNum  = kot.order?.table?.table_number;
   const orderType = kot.order?.order_type === 'takeaway' ? 'Takeaway'
@@ -124,11 +125,8 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
         borderBottom: `1px solid ${P.border}`,
         background: 'var(--bg-secondary)',
       }}>
-        {/* KOT number + rush flag */}
+        {/* KOT number */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {kot.is_rush && (
-            <Flame size={14} color={P.urgent} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-          )}
           <span style={{
             fontFamily: 'ui-monospace,"SF Mono",Menlo,monospace',
             fontSize: 13, fontWeight: 700, color: P.text,
@@ -181,12 +179,6 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
             #{kot.order.order_number}
           </span>
         )}
-
-        {kot.order?.covers > 0 && (
-          <span style={{ fontSize: 11, color: P.muted, marginLeft: 'auto', flexShrink: 0 }}>
-            {kot.order.covers} pax
-          </span>
-        )}
       </div>
 
       {/* ── Items ── */}
@@ -209,15 +201,17 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
               border: `1px solid ${done ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
               transition: 'background 0.2s',
             }}>
-              {/* Checkbox */}
+              {/* Checkbox — once ready it's irreversible (no un-ready endpoint), so no-op */}
               <button
-                onClick={() => onItemReady?.(kot.id, item.id)}
+                onClick={() => { if (!done) onItemReady?.(kot.id, item.id); }}
+                disabled={done}
+                aria-pressed={done}
                 style={{
                   width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
                   border: `2px solid ${done ? P.ready : 'var(--border)'}`,
                   background: done ? P.ready : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', padding: 0, transition: 'all 0.15s',
+                  cursor: done ? 'default' : 'pointer', padding: 0, transition: 'all 0.15s',
                 }}
               >
                 {done && <CheckCircle2 size={13} color="#fff" strokeWidth={3} />}
@@ -267,8 +261,8 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
           );
         })}
 
-        {/* Order-level note */}
-        {(kot.order?.special_instructions || kot.notes) && (
+        {/* Order-level note (Order.notes) */}
+        {(kot.order?.notes || kot.notes) && (
           <div style={{
             padding: '7px 10px', borderRadius: 7, marginTop: 2,
             background: 'rgba(245,158,11,0.07)',
@@ -276,7 +270,7 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
             fontSize: 11.5, color: P.warn, lineHeight: 1.5,
           }}>
             <span style={{ fontWeight: 700 }}>Note: </span>
-            {kot.order?.special_instructions || kot.notes}
+            {kot.order?.notes || kot.notes}
           </div>
         )}
 
@@ -413,13 +407,13 @@ export default function KitchenDisplayPage() {
   /* ── KOTs ── */
   const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
   const { data: kots, isLoading } = useQuery({
-    queryKey: ['kds-kots', outletId, activeStation, isOnline],
+    queryKey: ['kds-kots', outletId, activeStation, showCompleted, isOnline],
     queryFn: async () => {
       if (IS_ELECTRON && !isOnline) {
         try { const r = await window.electron.invoke('db-get-kots-for-order', null); return Array.isArray(r) ? r : []; }
         catch { return []; }
       }
-      const r = await api.get(`/kitchen/kots?outlet_id=${outletId}${activeStation !== 'ALL' ? `&station=${activeStation}` : ''}`);
+      const r = await api.get(`/kitchen/kots?outlet_id=${outletId}${activeStation !== 'ALL' ? `&station=${activeStation}` : ''}${showCompleted ? '&show_completed=true' : ''}`);
       const raw = r.data?.data ?? r.data ?? r;
       return Array.isArray(raw) ? raw : [];
     },

@@ -295,22 +295,10 @@ export function TipModal({ isOpen, onClose, order, onSuccess }) {
       onClose();
     },
     onError: (err) => {
-      const status = err?.response?.status;
-      if (status === 404 || status === 405) {
-        // Soft-save to localStorage
-        try {
-          const stored = JSON.parse(localStorage.getItem('petpooja_tips') || '{}');
-          stored[order.id] = tipAmount;
-          localStorage.setItem('petpooja_tips', JSON.stringify(stored));
-        } catch {
-          // ignore
-        }
-        toast.success('Tip noted! Will be collected at payment.');
-        onSuccess?.();
-        onClose();
-      } else {
-        toast.error(err?.response?.data?.message || 'Failed to add tip');
-      }
+      // The axios interceptor normalises failures to a thrown Error whose
+      // `message` already carries the backend message — `err.response` is stripped,
+      // so read `err.message` directly.
+      toast.error(err?.message || 'Failed to add tip');
     },
   });
 
