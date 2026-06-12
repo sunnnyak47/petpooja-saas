@@ -330,7 +330,12 @@ export default function InventoryPage() {
   // Auto-order trigger
   const autoOrderMut = useMutation({
     mutationFn: () => api.post('/inventory/auto-order', { outlet_id: outletId }),
-    onSuccess: (res) => toast.success(`Auto-order done! ${res.data?.orders_created || 0} POs created`),
+    onSuccess: (res) => {
+      toast.success(`Auto-order done! ${res.data?.orders_created || 0} POs created`);
+      qc.invalidateQueries({ queryKey: ['inv-pos'] });
+      qc.invalidateQueries({ queryKey: ['inv-stock-check'] });
+      qc.invalidateQueries({ queryKey: ['inv-stock'] });
+    },
     onError: e => toast.error(e.response?.data?.message || 'Failed'),
   });
 

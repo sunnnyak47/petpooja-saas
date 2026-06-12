@@ -641,8 +641,8 @@ const STATUS_COLORS = {
 };
 
 function TimelineEntry({ entry, isLast }) {
-  const StatusIcon = STATUS_ICONS[entry.new_status] || Clock;
-  const colorClass = STATUS_COLORS[entry.new_status] || 'text-slate-400';
+  const StatusIcon = STATUS_ICONS[entry.to_status] || Clock;
+  const colorClass = STATUS_COLORS[entry.to_status] || 'text-slate-400';
 
   return (
     <div className="flex gap-3 relative">
@@ -666,11 +666,11 @@ function TimelineEntry({ entry, isLast }) {
       <div className="pb-5 flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-sm font-semibold ${colorClass}`}>
-            {entry.new_status?.toUpperCase() ?? '—'}
+            {entry.to_status?.toUpperCase() ?? '—'}
           </span>
-          {entry.old_status && (
+          {entry.from_status && (
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              from {entry.old_status}
+              from {entry.from_status}
             </span>
           )}
         </div>
@@ -715,7 +715,7 @@ export function AuditLogModal({ isOpen, onClose, order }) {
       '',
       ...(statusHistory.map(
         (e) =>
-          `${e.created_at ? new Date(e.created_at).toLocaleString() : '—'} | ${e.old_status || '—'} → ${e.new_status || '—'} | ${e.changed_by_name || e.user?.name || 'System'}${e.reason ? ` | ${e.reason}` : ''}`
+          `${e.created_at ? new Date(e.created_at).toLocaleString() : '—'} | ${e.from_status || '—'} → ${e.to_status || '—'} | ${e.changed_by_name || e.user?.name || 'System'}${e.reason ? ` | ${e.reason}` : ''}`
       )),
       '',
       'Payments:',

@@ -435,7 +435,7 @@ function DashboardTab({ outletId, onEditConfig }) {
     </div>
   );
 
-  const d            = data?.data || {};
+  const d            = data || {};
   const segments     = d.segments || {};
   const loyaltyStats = d.loyalty_stats || {};
   const loyaltyCfg   = { earn_rate: 1, earn_per_amount: 10, redeem_value: 1, min_redemption: 100, ...(d.loyalty_config || {}) };
@@ -642,7 +642,7 @@ function CustomersTab({ outletId }) {
     onError:   (e) => toast.error(e.response?.data?.message || e.message),
   });
 
-  const customers = data?.data?.data || [];
+  const customers = Array.isArray(data) ? data : [];
 
   return (
     <div className="space-y-4">
@@ -743,14 +743,14 @@ function LoyaltyTab({ outletId }) {
     queryFn: () => api.get(`/customers/crm/dashboard?outlet_id=${outletId}`).then(r => r.data),
   });
 
-  const cfg   = data?.data?.loyalty_config || {};
-  const stats = data?.data?.loyalty_stats  || {};
+  const cfg   = data?.loyalty_config || {};
+  const stats = data?.loyalty_stats  || {};
 
   const { data: customersData } = useQuery({
     queryKey: ['customers-loyalty'],
     queryFn: () => api.get('/customers?limit=100').then(r => r.data),
   });
-  const customers  = customersData?.data?.data || [];
+  const customers  = Array.isArray(customersData) ? customersData : [];
   const withPoints = customers
     .filter(c => c.loyalty_points?.current_balance > 0)
     .sort((a, b) => b.loyalty_points.current_balance - a.loyalty_points.current_balance);
@@ -863,7 +863,7 @@ function CampaignsTab({ outletId }) {
     queryFn: () => api.get(`/customers/campaigns?outlet_id=${outletId}&limit=50`).then(r => r.data),
   });
 
-  const campaigns = data?.data?.data || [];
+  const campaigns = Array.isArray(data) ? data : [];
   const CHANNEL_ICON = { sms: Smartphone, whatsapp: MessageCircle, email: Mail, push: Zap };
   const STATUS_CFG   = {
     sent:      { cls: 'bg-emerald-500/15 text-emerald-600', label: 'Sent' },

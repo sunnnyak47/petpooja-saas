@@ -130,11 +130,14 @@ function OTPClockModal({ isOpen, onClose, outletId }) {
 // ── Add / Edit Staff Modal ──────────────────────────────────────
 function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
   const { symbol } = useCurrency();
-  const profile = staff?.profile || staff?.staff_profiles?.[0];
+  // The staff list row IS a StaffProfile: profile fields are directly on `staff`,
+  // and the User (id/name/email/phone) is under `staff.user`.
+  const profile = staff || {};
+  const stUser = staff?.user || {};
   const [form, setForm] = useState({
-    full_name: staff?.full_name || '',
-    email: staff?.email || '',
-    phone: staff?.phone || '',
+    full_name: stUser.full_name || staff?.full_name || '',
+    email: stUser.email || staff?.email || '',
+    phone: stUser.phone || staff?.phone || '',
     designation: profile?.designation || '',
     department: profile?.department || '',
     monthly_salary: profile?.monthly_salary || '',
@@ -146,9 +149,10 @@ function StaffModal({ isOpen, onClose, staff, outletId, onSuccess }) {
 
   const mutation = useMutation({
     mutationFn: (body) => staff
-      ? api.patch(`/staff/${staff.id}`, body)
+      // PATCH keys the profile upsert on the User id, not the StaffProfile id.
+      ? api.patch(`/staff/${staff.user?.id || staff.id}`, { ...body, user_id: staff.user?.id })
       : api.post('/staff', { ...body, outlet_id: outletId }),
-    onSuccess: () => { toast.success(staff ? 'Staff updated ✓' : 'Staff added ✓'); onSuccess(); onClose(); },
+    onSuccess: () => { toast.success(staff ? 'Staff updated' : 'Staff added'); onSuccess(); onClose(); },
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed'),
   });
 
@@ -244,7 +248,7 @@ function AttendanceTab({ outletId }) {
 
   const { data: report, isLoading, refetch } = useQuery({
     queryKey: ['shift-report', outletId, from, to],
-    queryFn: () => api.get(`/staff/shift-report?outlet_id=${outletId}&from=${from}&to=${to}`).then(r => r.data.data),
+    queryFn: () => api.get(`/staff/shift-report?outlet_id=${outletId}&from=${from}&to=${to}`).then(r => r.data),
     enabled: !!outletId,
   });
 
@@ -361,7 +365,7 @@ function SalaryTab({ outletId }) {
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ['salary', outletId, month, year],
-    queryFn: () => api.get(`/staff/salary?outlet_id=${outletId}&month=${month}&year=${year}`).then(r => r.data.data || []),
+    queryFn: () => api.get(`/staff/salary?outlet_id=${outletId}&month=${month}&year=${year}`).then(r => r.data || []),
     enabled: !!outletId,
   });
 
@@ -501,7 +505,7 @@ export default function StaffPage() {
     enabled: !!outletId,
   });
 
-  const staff = staffData?.data?.staff || staffData?.data || [];
+  const staff = Array.isArray(staffData) ? staffData : (staffData?.staff || []);
 
   const clockSelf = useMutation({
     mutationFn: (action) => action === 'in'
@@ -580,8 +584,8 @@ export default function StaffPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {staff.map(s => {
-                const profile = s.profile || s.staff_profiles?.[0];
-                const name = s.full_name || s.name;
+                const profile = s;
+                const name = s.user?.full_name || s.full_name || s.name;
                 return (
                   <div key={s.id} className="card space-y-3">
                     <div className="flex items-start justify-between">

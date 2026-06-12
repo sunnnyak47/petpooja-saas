@@ -294,7 +294,7 @@ export default function RosteringPage() {
             {staff.slice(0, 8).map((s, i) => (
               <span key={s.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full text-white font-medium"
                 style={{ background: SHIFT_COLORS[i % SHIFT_COLORS.length] }}>
-                {s.full_name?.split(' ')[0] || s.name}
+                {s.user?.full_name?.split(' ')[0] || s.full_name?.split(' ')[0] || s.name}
               </span>
             ))}
           </div>

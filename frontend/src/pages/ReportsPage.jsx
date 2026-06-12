@@ -752,7 +752,7 @@ export default function ReportsPage() {
           {/* ── HEATMAP TAB (AU only) ── */}
           {activeTab === 'heatmap' && isAU && (() => {
             const HOURS = Array.from({ length: 24 }, (_, i) => i);
-            const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // index === backend day (0=Sun)
             const heatData = advancedReports?.hourly_heatmap || [];
             const heatMatrix = DAYS.map((_, di) =>
               HOURS.map(h => {
