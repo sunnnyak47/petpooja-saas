@@ -10,7 +10,7 @@ const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { sendSuccess } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
-const { BadRequestError } = require('../../utils/errors');
+const { BadRequestError, ForbiddenError } = require('../../utils/errors');
 
 /**
  * Resolve the outlet to scope a report to. Falls back to the caller's first
@@ -21,9 +21,23 @@ const { BadRequestError } = require('../../utils/errors');
  * @returns {Promise<string>} outlet UUID
  */
 async function resolveOutletId(req) {
-  let outletId = req.query.outlet_id || req.user.outlet_id;
+  const prisma = getDbClient();
+  // An EXPLICIT ?outlet_id must be verified to belong to the caller's tenant
+  // (super_admin excepted) — otherwise an owner could read another chain's
+  // reports by guessing an outlet UUID.
+  const explicit = req.query.outlet_id;
+  if (explicit) {
+    if (req.user.role !== 'super_admin') {
+      const owned = await prisma.outlet.findFirst({
+        where: { id: explicit, head_office_id: req.user.head_office_id, is_deleted: false },
+        select: { id: true },
+      });
+      if (!owned) throw new ForbiddenError('Access denied: that outlet is not in your account.');
+    }
+    return explicit;
+  }
+  let outletId = req.user.outlet_id;
   if (!outletId && req.user.head_office_id) {
-    const prisma = getDbClient();
     const first = await prisma.outlet.findFirst({
       where: { head_office_id: req.user.head_office_id, is_deleted: false },
       orderBy: { created_at: 'asc' },

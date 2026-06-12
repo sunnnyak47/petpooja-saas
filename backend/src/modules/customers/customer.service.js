@@ -139,18 +139,22 @@ async function findByPhone(phone, caller) {
   });
 }
 
-async function updateCustomer(customerId, data) {
+async function updateCustomer(customerId, data, caller) {
   const prisma = getDbClient();
-  const existing = await prisma.customer.findFirst({ where: { id: customerId, is_deleted: false } });
+  const existing = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
+  });
   if (!existing) throw new NotFoundError('Customer not found');
   if (data.date_of_birth) data.date_of_birth = new Date(data.date_of_birth);
   if (data.anniversary) data.anniversary = new Date(data.anniversary);
   return await prisma.customer.update({ where: { id: customerId }, data });
 }
 
-async function deleteCustomer(customerId) {
+async function deleteCustomer(customerId, caller) {
   const prisma = getDbClient();
-  const existing = await prisma.customer.findFirst({ where: { id: customerId, is_deleted: false } });
+  const existing = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
+  });
   if (!existing) throw new NotFoundError('Customer not found');
   return await prisma.customer.update({ where: { id: customerId }, data: { is_deleted: true } });
 }

@@ -25,6 +25,7 @@ router.get('/', authenticate, hasPermission('VIEW_STAFF'), enforceOutletScope, a
 router.post('/', authenticate, hasPermission('MANAGE_STAFF'), validate(createStaffSchema), enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const result = await staffService.createStaffWithUser(outletId, req.body);
     sendCreated(res, result, 'Staff member created');
   } catch (error) { next(error); }
@@ -55,6 +56,7 @@ router.patch('/:id', authenticate, hasPermission('MANAGE_STAFF'), validate(updat
   try {
     const userId = req.body.user_id || req.params.id;
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    await staffService.assertOutletInTenant(outletId, req.user);
     const profile = await staffService.upsertStaffProfile(userId, outletId, req.body);
     sendSuccess(res, profile, 'Staff updated');
   } catch (error) { next(error); }

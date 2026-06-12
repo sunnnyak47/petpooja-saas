@@ -41,6 +41,19 @@ async function listCustomersScoped(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function updateCustomerScoped(req, res, next) {
+  try {
+    sendSuccess(res, await customerService.updateCustomer(req.params.id, req.body, req.user), 'Customer updated');
+  } catch (e) { next(e); }
+}
+
+async function deleteCustomerScoped(req, res, next) {
+  try {
+    await customerService.deleteCustomer(req.params.id, req.user);
+    sendSuccess(res, null, 'Customer deleted');
+  } catch (e) { next(e); }
+}
+
 /** CRM Dashboard */
 router.get('/crm/dashboard', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getCRMDashboard);
 
@@ -67,8 +80,8 @@ router.put('/loyalty/config', authenticate, hasPermission('MANAGE_CUSTOMERS'),  
 router.post('/', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(createCustomerSchema), c.createCustomer);
 router.get('/', authenticate, hasPermission('VIEW_CUSTOMERS'), listCustomersScoped);
 router.get('/:id', authenticate, hasPermission('VIEW_CUSTOMERS'), getCustomerScoped);
-router.patch('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(updateCustomerSchema), c.updateCustomer);
-router.delete('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), c.deleteCustomer);
+router.patch('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(updateCustomerSchema), updateCustomerScoped);
+router.delete('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), deleteCustomerScoped);
 
 /** Addresses */
 router.post('/:id/addresses', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(addAddressSchema), c.addAddress);
