@@ -21,15 +21,25 @@ const path = require('path');
 const logger = require('./logger');
 const { uploadToS3 } = require('./aws');
 
-const SB_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SB_RAW = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SB_KEY_ID = process.env.SUPABASE_S3_ACCESS_KEY_ID || '';
 const SB_SECRET = process.env.SUPABASE_S3_SECRET_ACCESS_KEY || '';
 const SB_REGION = process.env.SUPABASE_REGION || 'us-east-1';
 const SB_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'uploads';
 
+// Derive the project ref (first host label) so we can build both hosts Supabase
+// uses: the S3 endpoint lives on <ref>.storage.supabase.co, public object URLs
+// on <ref>.supabase.co. Accepting either form of SUPABASE_URL keeps it foolproof.
+let SB_REF = '';
+try { if (SB_RAW) SB_REF = new URL(SB_RAW).hostname.split('.')[0]; } catch { SB_REF = ''; }
+
+const SB_PUBLIC_BASE = SB_REF ? `https://${SB_REF}.supabase.co` : SB_RAW;
+const SB_S3_ENDPOINT = process.env.SUPABASE_S3_ENDPOINT
+  || (SB_REF ? `https://${SB_REF}.storage.supabase.co/storage/v1/s3` : `${SB_RAW}/storage/v1/s3`);
+
 /** @returns {boolean} whether Supabase Storage credentials are present. */
 function isSupabaseConfigured() {
-  return !!(SB_URL && SB_KEY_ID && SB_SECRET);
+  return !!(SB_RAW && SB_KEY_ID && SB_SECRET);
 }
 
 let sbClient = null;
@@ -38,7 +48,7 @@ function getSupabaseClient() {
     sbClient = new S3Client({
       forcePathStyle: true,
       region: SB_REGION,
-      endpoint: `${SB_URL}/storage/v1/s3`,
+      endpoint: SB_S3_ENDPOINT,
       credentials: { accessKeyId: SB_KEY_ID, secretAccessKey: SB_SECRET },
     });
   }
@@ -59,7 +69,7 @@ async function uploadToSupabase(fileBuffer, originalName, folder, contentType = 
     ContentType: contentType,
     CacheControl: 'max-age=31536000',
   }));
-  const url = `${SB_URL}/storage/v1/object/public/${SB_BUCKET}/${key}`;
+  const url = `${SB_PUBLIC_BASE}/storage/v1/object/public/${SB_BUCKET}/${key}`;
   logger.info('File uploaded to Supabase Storage', { key, folder, size: fileBuffer.length });
   return { key, url };
 }
