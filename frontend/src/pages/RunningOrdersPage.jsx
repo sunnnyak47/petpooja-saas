@@ -36,7 +36,7 @@ import {
   Clock, ChefHat, Plus, Send, X, WifiOff, Wifi,
   RefreshCw, Printer, Receipt, CreditCard, Ban,
   Download, ShoppingBag, Utensils, Globe, Timer,
-  CheckCircle2, AlertTriangle
+  CheckCircle2, AlertTriangle, Bell, BellOff
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ export default function RunningOrdersPage() {
         knownOrderIds.current.add(orderId);
         setNewOrderIds(prev => new Set([...prev, orderId]));
         if (soundEnabled) playNewOrderSound();
-        toast.success('New order received!', { icon: '🍽️', duration: 3000 });
+        toast.success('New order received!', { duration: 3000 });
         // Clear animation after 4 seconds
         setTimeout(() => {
           setNewOrderIds(prev => { const next = new Set(prev); next.delete(orderId); return next; });
@@ -619,7 +619,7 @@ export default function RunningOrdersPage() {
             className={`p-2 rounded-lg border text-xs font-medium transition-all ${soundEnabled ? 'bg-brand-500/10 border-brand-500/20 text-brand-400' : 'border-surface-600 text-surface-500'}`}
             style={{ background: soundEnabled ? undefined : "var(--bg-hover)" }}
           >
-            {soundEnabled ? '🔔' : '🔕'}
+            {soundEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
           </button>
 
           {/* Export */}
@@ -803,7 +803,7 @@ export default function RunningOrdersPage() {
                     razorpay_payment_id: razorpayId,
                   });
                 }
-                toast.success('Payment recorded ✓');
+                toast.success('Payment recorded');
                 closeModal();
                 queryClient.invalidateQueries({ queryKey: ['running-orders'] });
               }}

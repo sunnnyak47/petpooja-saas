@@ -57,10 +57,10 @@ export function StatsStrip({
   );
 
   const statusPills = [
-    { key: 'created',   label: 'Pending',   classes: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
-    { key: 'confirmed', label: 'Confirmed',  classes: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
-    { key: 'held',      label: 'On Hold',    classes: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
-    { key: 'billed',    label: 'Billed',     classes: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+    { key: 'created',   label: 'Pending' },
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'held',      label: 'On Hold' },
+    { key: 'billed',    label: 'Billed' },
   ];
 
   return (
@@ -147,13 +147,14 @@ export function StatsStrip({
 
       {/* Status pills */}
       <div className="flex flex-wrap gap-1.5">
-        {statusPills.map(({ key, label, classes }) => (
+        {statusPills.map(({ key, label }) => (
           <span
             key={key}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium tabular-nums ${classes}`}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium tabular-nums"
+            style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderColor: 'var(--border)' }}
           >
             {label}
-            <span className="font-mono font-semibold">{statusCounts[key]}</span>
+            <span className="font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{statusCounts[key]}</span>
           </span>
         ))}
       </div>
