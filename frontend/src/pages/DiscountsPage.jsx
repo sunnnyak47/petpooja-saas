@@ -27,7 +27,11 @@ export default function DiscountsPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const queryClient = useQueryClient();
-  const { symbol } = useCurrency();
+  const { symbol, format } = useCurrency();
+
+  // M32: render a discount's value cleanly from the raw Prisma Decimal string.
+  // Percentage → trimmed number + '%'; fixed → region currency. Avoids '20.00%' / '₹100.00'.
+  const fmtPct = (v) => `${Number(v)}%`;
   const region = useRegion();
   const isAU = region === 'AU';
   const today = new Date().toISOString().split('T')[0];
@@ -98,9 +102,17 @@ export default function DiscountsPage() {
 
   const handleSubmit = () => {
     if (!form.name || !form.value) return toast.error('Name and value required');
+    if (form.type === 'percentage' && Number(form.value) > 100) {
+      return toast.error('Percentage discount cannot exceed 100%');
+    }
     createMutation.mutate({
       ...form,
       value: Number(form.value),
+      // Omit empty code (auto-apply discounts have none) and empty dates
+      // (always-on discounts have none) so the backend gets null, not ''.
+      code: form.code?.trim() ? form.code.trim() : null,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
       min_order_value: form.min_order_value ? Number(form.min_order_value) : 0,
       max_discount: form.max_discount ? Number(form.max_discount) : null,
       max_uses: form.max_uses ? Number(form.max_uses) : null,
@@ -190,7 +202,11 @@ export default function DiscountsPage() {
                     <p className="text-xs text-surface-400">{conf.label}</p>
                   </div>
                 </div>
-                <button onClick={() => toggleMutation.mutate({ id: d.id, is_active: !d.is_active })} className="text-surface-400 hover:text-brand-400 transition-colors">
+                <button onClick={() => {
+                  // M33: confirm before switching a live discount OFF (activating needs no confirm).
+                  if (d.is_active && !window.confirm(`Turn off "${d.name}"? It will stop applying immediately.`)) return;
+                  toggleMutation.mutate({ id: d.id, is_active: !d.is_active });
+                }} className="text-surface-400 hover:text-brand-400 transition-colors">
                   {d.is_active ? <ToggleRight className="w-6 h-6 text-brand-400" /> : <ToggleLeft className="w-6 h-6" />}
                 </button>
               </div>
@@ -199,7 +215,7 @@ export default function DiscountsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-surface-400">Value</span>
                   <span className="text-lg font-black text-brand-400">
-                    {d.type === 'percentage' ? `${d.value}%` : `${symbol}${d.value}`}
+                    {d.type === 'percentage' ? fmtPct(d.value) : format(d.value)}
                   </span>
                 </div>
                 {d.code && (
@@ -213,7 +229,7 @@ export default function DiscountsPage() {
                 {d.min_order_value > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-surface-400">Min Order</span>
-                    <span className="text-xs text-surface-300">{symbol}{d.min_order_value}</span>
+                    <span className="text-xs text-surface-300">{format(d.min_order_value)}</span>
                   </div>
                 )}
                 {d.auto_apply && (
@@ -225,7 +241,11 @@ export default function DiscountsPage() {
 
               <div className="flex items-center gap-2 pt-3 border-t border-surface-800">
                 <button onClick={() => openEdit(d)} className="flex-1 py-2 rounded-xl bg-surface-800 text-surface-300 text-xs font-bold hover:bg-surface-700 transition-all flex items-center justify-center gap-1"><Edit3 className="w-3 h-3" /> Edit</button>
-                <button onClick={() => deleteMutation.mutate(d.id)} className="py-2 px-3 rounded-xl bg-red-500/10 text-red-400 text-xs font-bold hover:bg-red-500/20 transition-all"><Trash2 className="w-3 h-3" /></button>
+                <button onClick={() => {
+                  // M33: confirm before destructive delete.
+                  if (!window.confirm(`Delete "${d.name}"? This cannot be undone.`)) return;
+                  deleteMutation.mutate(d.id);
+                }} className="py-2 px-3 rounded-xl bg-red-500/10 text-red-400 text-xs font-bold hover:bg-red-500/20 transition-all"><Trash2 className="w-3 h-3" /></button>
               </div>
             </div>
           );
