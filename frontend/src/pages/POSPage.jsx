@@ -373,7 +373,8 @@ export default function POSPage() {
         const itemBase = Number(item.base_price) + (item.variant_price || 0);
         const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
         const lineAmt = (itemBase + addonsTotal) * item.quantity;
-        const rate = item.gst_rate || item.tax_rate || defaultGstRate;
+        // Nullish (not ||) so an explicit 0% / GST-free item is honored, not coerced to the 10% default
+        const rate = item.gst_rate ?? item.tax_rate ?? defaultGstRate;
         // tax = lineAmt - lineAmt / (1 + rate/100)
         return sum + (lineAmt - lineAmt / (1 + rate / 100));
       }, 0);
@@ -384,7 +385,7 @@ export default function POSPage() {
       tax = cart.reduce((sum, item) => {
         const itemBase = Number(item.base_price) + (item.variant_price || 0);
         const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
-        return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate || item.tax_rate || defaultGstRate) / 100);
+        return sum + ((itemBase + addonsTotal) * item.quantity * (item.gst_rate ?? item.tax_rate ?? defaultGstRate) / 100);
       }, 0);
     }
     // BOGO: deduct the free item's unit price from the total
@@ -492,7 +493,8 @@ export default function POSPage() {
       menu_item_id: item.id,
       name: item.name,
       base_price: Number(item.base_price),
-      gst_rate: Number(item.gst_rate) || (isAU ? 10 : 5),
+      // Honor an explicit 0% / GST-free rate; only fall back to the regional default when unset/NaN
+      gst_rate: Number.isFinite(Number(item.gst_rate)) ? Number(item.gst_rate) : (isAU ? 10 : 5),
       food_type: item.food_type,
       kitchen_station: item.kitchen_station,
       variant_id: null,

@@ -60,7 +60,14 @@ const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
 export default function OrdersPage() {
   const { user } = useSelector((s) => s.auth);
-  const outletId = user?.outlet_id;
+  // Multi-outlet owners (and the seeded super_admin) have outlet_id=null on their
+  // JWT, so fall back to their first bound outlet — same pattern used across the
+  // app (AccountingPage, PaymentsPage, SettingsPage, …). We intentionally keep a
+  // concrete outlet_id rather than omitting it: listOrders builds its Prisma
+  // `where` as { outlet_id, … } unconditionally, so an undefined outletId would
+  // make Prisma drop the filter and return EVERY tenant's orders. Resolving to
+  // the owner's first outlet keeps the ledger populated AND tenant-scoped.
+  const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const { format, locale } = useCurrency();
   const region = useRegion();
   const isAU = region === 'AU';
@@ -209,12 +216,12 @@ export default function OrdersPage() {
   const rawOrders = Array.isArray(data) ? data : (data?.data || data?.items || []);
   const meta = (!Array.isArray(data) && data?.meta) || null;
 
-  /* Filter by date + search */
+  /* Filter by search only. The server already applies the authoritative date
+     window (listOrders expands from/to to UTC day bounds). Re-filtering here
+     against LOCAL-midnight bounds would drop rows that legitimately fall inside
+     the server's UTC window for non-UTC tenants (IST/AU), under-reporting both
+     the table and the KPI/revenue totals. Trust the server's date filtering. */
   const filtered = rawOrders.filter(o => {
-    if (dateBounds.from && dateBounds.to) {
-      const t = new Date(o.created_at);
-      if (t < dateBounds.from || t > dateBounds.to) return false;
-    }
     if (searchQ.trim()) {
       const q = searchQ.toLowerCase();
       const num = String(o.order_number || '').toLowerCase();
@@ -498,7 +505,7 @@ export default function OrdersPage() {
                 <button onClick={() => handleReorder(orderDetail || selectedOrder)} className="btn-success py-1.5 px-3 h-auto text-xs flex items-center gap-1.5">
                   <RefreshCw className="w-3 h-3"/> Reorder Items
                 </button>
-                <span className={STATUS_STYLES[selectedOrder.status] || 'badge-neutral'}>{selectedOrder.status}</span>
+                <span className={STATUS_STYLES[selectedOrder.status] || 'badge-neutral'}>{titleCase(selectedOrder.status)}</span>
               </div>
             </div>
 

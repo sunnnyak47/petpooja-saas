@@ -95,8 +95,8 @@ router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDE
 router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(generateKOTSchema), auditLog('order'), orderController.generateKOT);
 router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(updateOrderStatusSchema), auditLog('order'), orderController.updateStatus);
 router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), assertOrderOwnership, validate(processPaymentSchema), auditLog('payment'), orderController.processPayment);
-router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(generateBillSchema), auditLog('order'), orderController.generateBill);
-router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
+router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(generateBillSchema), auditLog('order'), orderController.generateBill);
+router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), auditLog('order'), orderController.voidOrder);
 router.post('/:id/refund', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(refundOrderSchema), auditLog('payment'), orderController.refundOrder);
 router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(transferTableSchema), auditLog('order'), orderController.transferTable);

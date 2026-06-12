@@ -541,8 +541,10 @@ export default function PaymentModal({
 /* ── Cash change calculator ── */
 function CashChangeCalculator({ amount }) {
   const [tendered, setTendered] = useState('');
-  const { format, symbol, locale } = useCurrency();
-  const QUICK = [10, 20, 50, 100, 200, 500, 2000];
+  const { format, symbol, locale, isAU } = useCurrency();
+  // Quick-tender note denominations per region. AU real notes: 5/10/20/50/100.
+  // IN: 10/20/50/100/200/500/2000.
+  const QUICK = isAU ? [5, 10, 20, 50, 100] : [10, 20, 50, 100, 200, 500, 2000];
   const change = tendered && Number(tendered) >= amount ? Number(tendered) - amount : null;
 
   return (

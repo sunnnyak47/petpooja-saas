@@ -12,6 +12,18 @@ const createOrderSchema = Joi.object({
   table_id: Joi.string().uuid().allow(null),
   customer_id: Joi.string().uuid().allow(null),
   source: Joi.string().valid('pos', 'qr', 'online', 'kiosk', 'app').default('pos'),
+  // 'held' lets the POS create a truly held (parked) order; default 'created' goes live.
+  status: Joi.string().valid('created', 'held').default('created'),
+  // Cart-level discount the POS attaches to the order (BOGO / manager / coupon).
+  // Field names mirror the POSPage payload and applyDiscountSchema so createOrder
+  // can apply them to the totals via the shared pricing helpers.
+  discount_type: Joi.string().valid('percentage', 'flat').allow(null),
+  discount_value: Joi.when('discount_type', {
+    is: 'percentage',
+    then: Joi.number().min(0).max(100).default(0),
+    otherwise: Joi.number().min(0).default(0),
+  }),
+  discount_reason: Joi.string().max(200).allow('', null),
   notes: Joi.string().max(500).allow('', null),
   items: Joi.array().items(Joi.object({
     menu_item_id: Joi.string().uuid().required(),
@@ -67,7 +79,7 @@ const assignStaffSchema = Joi.object({
 });
 
 const processPaymentSchema = Joi.object({
-  method: Joi.string().valid('cash', 'card', 'card_pine_labs', 'upi', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid', 'due').required(),
+  method: Joi.string().valid('cash', 'card', 'card_pine_labs', 'eftpos', 'upi', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid', 'due').required(),
   amount: Joi.number().precision(2).min(0).required(),
   transaction_id: Joi.string().max(100).allow('', null),
   customer_phone: phoneOptional,

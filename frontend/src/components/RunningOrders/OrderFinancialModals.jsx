@@ -540,9 +540,8 @@ export function ReprintKOTModal({ isOpen, onClose, order, outletId, onSuccess })
   });
 
   const kots = fullOrder?.kots || order?.kots || [];
-  const hasPendingItems = (fullOrder?.items || order?.items || []).some(
-    (item) => item.status === 'pending' || !item.kot_id
-  );
+  const orderItems = fullOrder?.order_items || order?.order_items || [];
+  const hasPendingItems = orderItems.some((item) => !item?.is_kot_sent);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Reprint / New KOT" size="md">
@@ -583,7 +582,7 @@ export function ReprintKOTModal({ isOpen, onClose, order, outletId, onSuccess })
                     {kot.created_at
                       ? new Date(kot.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                       : '—'}{' '}
-                    &bull; {kot.items?.length ?? kot._count?.items ?? '?'} items
+                    &bull; {kot.kot_items?.length ?? kot.items_count ?? '?'} items
                   </p>
                 </div>
                 <button

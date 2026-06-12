@@ -254,8 +254,47 @@ async function createOrder(data, staffId) {
     // Pass customer_state for inter-state detection (IN only).
     const taxCfg = { ...outletTaxConfig, customer_state: data.delivery_address_state || '' };
     const { orderItemsData, subtotal, tax } = buildOrderItems(data.items, menuItemMap, taxCfg);
-    const { cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff } =
-      computeOrderTotals(subtotal, taxCfg, countryCode, tax);
+
+    // Cart-level discount the POS attaches to the order (BOGO / manager / coupon).
+    // Resolve the money amount, clamp to subtotal (never negative total), then
+    // recompute per-item tax on the discounted base so GST is charged post-discount
+    // — identical semantics to the apply-discount controller path.
+    let discountAmount = 0;
+    if (data.discount_type === 'percentage') {
+      discountAmount = subtotal * (Math.min(Number(data.discount_value) || 0, 100) / 100);
+    } else if (data.discount_type === 'flat') {
+      discountAmount = Number(data.discount_value) || 0;
+    }
+    discountAmount = round2(Math.min(Math.max(discountAmount, 0), subtotal));
+
+    let totalCgst, totalSgst, totalIgst, totalTax, totalAmount, grandTotal, roundOff;
+    if (discountAmount > 0) {
+      // Proportional factor across items so tax follows the discounted base.
+      const factor = subtotal > 0 ? Math.max(subtotal - discountAmount, 0) / subtotal : 0;
+      let cgstPaise = 0, sgstPaise = 0, igstPaise = 0, totalTaxPaise = 0;
+      for (const oi of orderItemsData) {
+        const qty = Number(oi.quantity) || 1;
+        const discountedUnitBase = (Number(oi.item_total) * factor) / qty;
+        const t = calculateItemTax(
+          { base_price: discountedUnitBase, quantity: qty, gst_rate: oi.gst_rate, is_inclusive: taxCfg.gst_inclusive },
+          taxCfg
+        );
+        cgstPaise += Math.round(t.cgst * 100);
+        sgstPaise += Math.round(t.sgst * 100);
+        igstPaise += Math.round(t.igst * 100);
+        totalTaxPaise += Math.round(t.total_tax * 100);
+      }
+      totalCgst = cgstPaise / 100;
+      totalSgst = sgstPaise / 100;
+      totalIgst = igstPaise / 100;
+      totalTax = totalTaxPaise / 100;
+      const discountedSubtotal = round2(Math.max(subtotal - discountAmount, 0));
+      totalAmount = taxCfg.gst_inclusive ? discountedSubtotal : round2(discountedSubtotal + totalTax);
+      ({ grandTotal, roundOff } = computeGrandTotal(totalAmount, countryCode));
+    } else {
+      ({ cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff } =
+        computeOrderTotals(subtotal, taxCfg, countryCode, tax));
+    }
 
     let orderNumber;
     const order = await prisma.$transaction(async (tx) => {
@@ -273,7 +312,13 @@ async function createOrder(data, staffId) {
           customer_id: data.customer_id || null,
           staff_id: staffId,
           subtotal,
-          taxable_amount: subtotal,
+          taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
+          discount_amount: discountAmount,
+          ...(discountAmount > 0 ? {
+            discount_type: data.discount_type,
+            discount_value: Number(data.discount_value) || 0,
+            discount_reason: data.discount_reason || null,
+          } : {}),
           cgst: round2(totalCgst),
           sgst: round2(totalSgst),
           igst: round2(totalIgst),
@@ -1322,6 +1367,19 @@ async function updateOrderStatus(orderId, newStatus, staffId, outletId = null) {
 
 async function refundOrder(orderId, data, userId) {
   const prisma = getDbClient();
+
+  // Verify the manager PIN before authorizing a refund — same gate as voidOrder.
+  // Without this, any PIN (or a forged one) could authorize a refund.
+  const manager = await prisma.staffProfile.findFirst({
+    where: { manager_pin: data.manager_pin, is_deleted: false },
+    include: { user: { include: { user_roles: { include: { role: true } } } } },
+  });
+  if (!manager) throw new ForbiddenError('Invalid manager PIN');
+  const hasManagerRole = manager.user.user_roles.some(
+    (ur) => ['super_admin', 'owner', 'manager'].includes(ur.role.name)
+  );
+  if (!hasManagerRole) throw new ForbiddenError('PIN does not belong to an authorized manager');
+
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { payments: true } });
   if (!order) throw new NotFoundError('Order not found');
   if (order.status !== 'paid') throw new BadRequestError('Can only refund paid orders');
