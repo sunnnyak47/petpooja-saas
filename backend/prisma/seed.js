@@ -71,24 +71,57 @@ async function main() {
   }
   console.log('✅ Platform RBAC seeded (roles: super_admin, platform_admin, platform_support, platform_billing, platform_readonly).');
 
-  // 2. Create the Master SuperAdmin User
-  const passwordHash = await bcrypt.hash('Petpooja@2026', 12);
-  
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@petpooja.com' },
-    update: { password_hash: passwordHash, failed_login_attempts: 0, locked_until: null, is_active: true, is_deleted: false },
-    create: {
-      full_name: 'Global Software Owner',
-      email: 'admin@petpooja.com',
-      phone: '9999999999',
-      password_hash: passwordHash,
-      is_active: true,
-      is_email_verified: true,
-      is_phone_verified: true
-    }
-  });
+  // 2. Master SuperAdmin owner account.
+  //    Credentials are sourced from the environment so NO real password is ever
+  //    committed to source control. The defaults below are LOCAL-ONLY fallbacks.
+  //    In production set: SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD (and optionally
+  //    SUPERADMIN_PHONE). The existing owner account is updated IN PLACE so the
+  //    login simply changes — no duplicate accounts, no phone collisions.
+  const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || 'admin@petpooja.com').toLowerCase().trim();
+  const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'Petpooja@2026';
+  const SUPERADMIN_PHONE = (process.env.SUPERADMIN_PHONE || '9999999999').trim();
+  const passwordHash = await bcrypt.hash(SUPERADMIN_PASSWORD, 12);
 
   const saRole = await prisma.role.findUnique({ where: { name: 'super_admin' } });
+
+  // Find the master owner: either the already-configured account (idempotent
+  // re-run) or the legacy default — but never another platform_staff super_admin.
+  const masterSA = await prisma.user.findFirst({
+    where: {
+      is_deleted: false,
+      OR: [{ email: SUPERADMIN_EMAIL }, { email: 'admin@petpooja.com' }],
+      user_roles: { some: { is_deleted: false, outlet_id: null, role: { name: 'super_admin' } } },
+    },
+  });
+
+  let admin;
+  if (masterSA) {
+    // Update in place — this is what "change the SuperAdmin login" means.
+    admin = await prisma.user.update({
+      where: { id: masterSA.id },
+      data: {
+        email: SUPERADMIN_EMAIL,
+        password_hash: passwordHash,
+        ...(process.env.SUPERADMIN_PHONE ? { phone: SUPERADMIN_PHONE } : {}),
+        failed_login_attempts: 0, locked_until: null, is_active: true, is_deleted: false,
+      },
+    });
+  } else {
+    // Fresh database — create the owner.
+    admin = await prisma.user.upsert({
+      where: { email: SUPERADMIN_EMAIL },
+      update: { password_hash: passwordHash, failed_login_attempts: 0, locked_until: null, is_active: true, is_deleted: false },
+      create: {
+        full_name: 'Global Software Owner',
+        email: SUPERADMIN_EMAIL,
+        phone: SUPERADMIN_PHONE,
+        password_hash: passwordHash,
+        is_active: true,
+        is_email_verified: true,
+        is_phone_verified: true,
+      },
+    });
+  }
   
   // 3. Link SuperAdmin Role (Hand-crafted for Cloud Success)
   const existingRole = await prisma.userRole.findFirst({
@@ -110,7 +143,7 @@ async function main() {
     });
   }
 
-  console.log('🏆 VICTORY: SuperAdmin Account Created (admin@petpooja.com / Petpooja@2026)');
+  console.log(`🏆 SuperAdmin owner ready: ${SUPERADMIN_EMAIL} (password from SUPERADMIN_PASSWORD env)`);
 
   // 4. Default usage-based billing plans (editable data, NOT hardcoded in app).
   //    These are launch defaults — tune rate_rules / percentages per advisor input.
