@@ -294,11 +294,11 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
             disabled={loading}
             style={{
               width: '100%', padding: '11px 0', borderRadius: 8, border: 'none',
-              background: `linear-gradient(135deg, #6366f1, #4f46e5)`,
+              background: 'var(--accent)',
               color: '#fff', fontWeight: 700, fontSize: 13,
               letterSpacing: '0.04em', cursor: 'pointer', opacity: loading ? 0.5 : 1,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+              boxShadow: 'none',
               transition: 'opacity 0.15s, transform 0.1s',
             }}
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -313,11 +313,11 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
             disabled={loading}
             style={{
               width: '100%', padding: '11px 0', borderRadius: 8, border: 'none',
-              background: `linear-gradient(135deg, #16a34a, #15803d)`,
+              background: '#16a34a',
               color: '#fff', fontWeight: 700, fontSize: 13,
               letterSpacing: '0.04em', cursor: 'pointer', opacity: loading ? 0.5 : 1,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              boxShadow: '0 4px 14px rgba(22,163,74,0.35)',
+              boxShadow: 'none',
               transition: 'opacity 0.15s, transform 0.1s',
             }}
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
@@ -553,9 +553,9 @@ export default function KitchenDisplayPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+            background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+            boxShadow: 'none',
           }}>
             <ChefHat size={18} color="#fff" strokeWidth={2.2} />
           </div>
