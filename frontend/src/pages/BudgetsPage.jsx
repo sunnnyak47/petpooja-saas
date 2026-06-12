@@ -124,7 +124,7 @@ export default function BudgetsPage() {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)18' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
             <Target className="w-5 h-5" style={{ color: 'var(--accent)' }} />
           </div>
           <div>
@@ -225,7 +225,7 @@ export default function BudgetsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
         {/* ── Budget list ───────────────────────────────────────────────────── */}
-        <Card className="p-3 h-fit">
+        <Card className="p-3 h-full">
           <h3 className="text-xs font-bold uppercase tracking-wide px-2 py-2" style={{ color: 'var(--text-secondary)' }}>Budgets</h3>
           {budgetsLoading ? (
             <LoadingState label="Loading budgets…" />
