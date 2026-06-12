@@ -38,14 +38,18 @@ export default function ItemDetailPanel({ item, outletId, onClose }) {
     reorder_qty: item.reorder_qty || 5,
   });
 
-  // Last 15 transactions for this item
+  // Last 15 stock transactions for this item.
+  // The axios response interceptor (lib/api.js) already unwraps to the envelope
+  // { success, data, message }, so we read `txData.data` directly (no extra .then).
   const { data: txData } = useQuery({
     queryKey: ['item-tx', item.id, outletId],
-    queryFn: () => api.get(`/inventory/stock?outlet_id=${outletId}&item_id=${item.id}&limit=15`).then(r => r.data),
+    queryFn: () => api.get(`/inventory/items/${item.id}/transactions`, {
+      params: { outlet_id: outletId, limit: 15 },
+    }),
     enabled: !!item.id,
   });
 
-  const transactions = txData?.data?.transactions || [];
+  const transactions = txData?.data || [];
 
   const updateMut = useMutation({
     mutationFn: (data) => api.patch(`/inventory/items/${item.id}`, data),

@@ -330,9 +330,26 @@ export default function InventoryPage() {
   // Auto-order trigger
   const autoOrderMut = useMutation({
     mutationFn: () => api.post('/inventory/auto-order', { outlet_id: outletId }),
-    onSuccess: (res) => toast.success(`Auto-order done! ${res.data?.data?.ordersCreated || 0} POs created`),
+    onSuccess: (res) => toast.success(`Auto-order done! ${res.data?.orders_created || 0} POs created`),
     onError: e => toast.error(e.response?.data?.message || 'Failed'),
   });
+
+  // Download a PO PDF through the axios `api` client so it carries the auth
+  // Bearer token AND the correct base URL. A raw window.open('/api/...') sends no
+  // Authorization header (→ 401) and, in the Electron desktop build, resolves the
+  // relative /api path against the local app:// origin instead of the Render
+  // backend (→ blank/404). Fetching as a blob and opening an object URL avoids both.
+  const downloadPO = async (po) => {
+    try {
+      const blob = await api.get(`/purchase-orders/${po.id}/download`, { responseType: 'blob' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Revoke after a tick so the new tab/window has time to load the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      toast.error(e?.message || 'Failed to download PDF');
+    }
+  };
 
   const handleInsightAction = (key) => {
     if (key === 'create-po') setSheet('po');
@@ -538,7 +555,7 @@ export default function InventoryPage() {
                       )}
                       {po.pdf_path && (
                         <button
-                          onClick={() => window.open(`/api/purchase-orders/${po.id}/download`, '_blank')}
+                          onClick={() => downloadPO(po)}
                           className="px-3 py-1.5 rounded-xl text-xs font-black"
                           style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
                           PDF

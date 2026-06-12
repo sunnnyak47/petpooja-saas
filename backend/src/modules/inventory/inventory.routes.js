@@ -31,6 +31,7 @@ router.get('/summary', authenticate, hasPermission('VIEW_INVENTORY'), enforceOut
 
 router.get('/items', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.listItems);
 router.post('/items', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createItemSchema), auditLog('inventory'), inventoryController.createItem);
+router.get('/items/:id/transactions', authenticate, hasPermission('VIEW_INVENTORY'), enforceOutletScope, inventoryController.getItemTransactions);
 router.patch('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), validate(updateItemSchema), auditLog('inventory'), inventoryController.updateItem);
 router.delete('/items/:id', authenticate, hasPermission('MANAGE_INVENTORY'), auditLog('inventory'), inventoryController.deleteItem);
 

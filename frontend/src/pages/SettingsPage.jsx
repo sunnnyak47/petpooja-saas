@@ -75,7 +75,9 @@ export default function SettingsPage() {
     // Payment
     accept_cash: true,
     accept_card: true,
-    accept_upi: true,
+    // UPI is an India-only method; EFTPOS is the AU card-present default.
+    accept_upi: !isAU,
+    accept_eftpos: isAU,
     upi_vpa: '',
     merchant_name: '',
     razorpay_enabled: false,
@@ -98,6 +100,16 @@ export default function SettingsPage() {
   });
 
   const updateSetting = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
+
+  // Revert any unsaved edits back to the last-saved values from the backend.
+  const resetSettings = () => {
+    setSettings(prev => ({
+      ...prev,
+      outlet_name: savedSettings?.outlet_name || outletInfo?.name || prev.outlet_name,
+      ...(savedSettings || {}),
+    }));
+    toast.success('Reverted to last saved settings');
+  };
 
   // Load saved settings from backend on mount
   const { data: savedSettings } = useQuery({
@@ -142,6 +154,13 @@ export default function SettingsPage() {
   const saveMutation = useMutation({
     mutationFn: () => {
       const { primary_color, dark_mode, ...apiSettings } = settings;
+      // Don't persist the payment flag that is irrelevant to the active region
+      // (UPI is hidden on AU outlets; EFTPOS is hidden on non-AU outlets).
+      if (isAU) {
+        delete apiSettings.accept_upi;
+      } else {
+        delete apiSettings.accept_eftpos;
+      }
       return api.put(`/ho/settings`, { outlet_id: outletId, settings: apiSettings });
     },
     onSuccess: () => {
@@ -505,7 +524,7 @@ export default function SettingsPage() {
             {renderSection()}
             <div className="flex justify-end gap-3 mt-8 pt-5 border-t" style={{ borderColor: 'var(--border)' }}>
               <button
-                onClick={() => toast('Reset not yet implemented')}
+                onClick={resetSettings}
                 className="btn-secondary flex items-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" /> Reset

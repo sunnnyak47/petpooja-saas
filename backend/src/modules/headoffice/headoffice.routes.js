@@ -51,7 +51,7 @@ router.get('/outlets', authenticate, hasRole('super_admin', 'owner'), async (req
 });
 
 /** GET /api/ho/outlets/:id — Single outlet details */
-router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
+router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner', 'manager'), async (req, res, next) => {
   try {
     const outlet = await hoService.getOutletById(req.params.id, tenantContext(req));
     sendSuccess(res, outlet, 'Outlet details retrieved');

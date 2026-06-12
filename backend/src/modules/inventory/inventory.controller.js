@@ -85,6 +85,15 @@ async function deleteItem(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/** GET /api/inventory/items/:id/transactions */
+async function getItemTransactions(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const rows = await inventoryService.listItemTransactions(outletId, req.params.id, req.query.limit);
+    sendSuccess(res, rows, 'Transactions retrieved');
+  } catch (error) { next(error); }
+}
+
 /** GET /api/inventory/low-stock */
 async function getLowStock(req, res, next) {
   try {
@@ -203,6 +212,7 @@ async function getSummary(req, res, next) {
 module.exports = {
   getStock, adjustStock, recordWastage, createRecipe, getRecipeCost,
   listItems, createItem, updateItem, deleteItem,
+  getItemTransactions,
   getLowStock, getWastageLogs, getConsumptionReport,
   triggerAutoOrder, restockOrder,
   listRecipes,

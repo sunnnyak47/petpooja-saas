@@ -642,9 +642,27 @@ async function restockFromCancelledOrder(orderId) {
 // createSupplier that previously lived here were removed to eliminate two divergent
 // live endpoints.
 
+/**
+ * Lists recent stock transactions for a single inventory item.
+ * @param {string} outletId - Outlet UUID (scope)
+ * @param {string} itemId - Inventory item UUID
+ * @param {number} [limit=15] - Max rows to return (capped at 50)
+ * @returns {Promise<object[]>} Transactions, newest first
+ */
+async function listItemTransactions(outletId, itemId, limit = 15) {
+  const prisma = getDbClient();
+  const take = Math.min(Math.max(parseInt(limit, 10) || 15, 1), 50);
+  return await prisma.stockTransaction.findMany({
+    where: { outlet_id: outletId, inventory_item_id: itemId, is_deleted: false },
+    orderBy: { created_at: 'desc' },
+    take,
+  });
+}
+
 module.exports = {
   getStock, adjustStock, deductByRecipe, recordWastage, createRecipe, getRecipeCost,
   listInventoryItems, createInventoryItem, updateInventoryItem, deleteInventoryItem,
   getLowStock, getWastageLogs, getConsumptionReport,
   checkAndAutoOrder, restockFromCancelledOrder,
+  listItemTransactions,
 };
