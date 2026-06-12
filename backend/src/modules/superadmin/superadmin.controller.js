@@ -92,6 +92,16 @@ const superadminController = {
   },
 
   /**
+   * Platform audit trail — recent SuperAdmin/chain actions.
+   */
+  async getPlatformAuditLog(req, res, next) {
+    try {
+      const rows = await superadminService.getPlatformAuditLog(req.query);
+      sendSuccess(res, rows, 'Audit log retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /**
    * Update Client License
    */
   async updateSubscription(req, res, next) {

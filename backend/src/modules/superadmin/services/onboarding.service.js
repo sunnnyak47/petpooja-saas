@@ -222,6 +222,41 @@ Object.assign(superadminService, {
   },
 
   /**
+   * Platform-owner audit trail: recent SuperAdmin / chain-level actions (suspend,
+   * activate, plan change, region switch, impersonation, owner-password reset),
+   * newest first, with the acting user's email and the affected chain name.
+   * @param {{limit?:number}} [query]
+   * @returns {Promise<object[]>}
+   */
+  async getPlatformAuditLog(query = {}) {
+    const take = Math.min(parseInt(query.limit, 10) || 100, 200);
+    const rows = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { action: { startsWith: 'SUPERADMIN_' } },
+          { action: { in: ['CHAIN_SUSPENDED', 'CHAIN_ACTIVATED', 'PLAN_ASSIGNED', 'REGION_SWITCHED', 'CHAIN_REGION_SWITCHED'] } },
+        ],
+      },
+      orderBy: { created_at: 'desc' },
+      take,
+      include: { user: { select: { email: true, full_name: true } } },
+    });
+    const chainIds = [...new Set(rows.map((r) => r.entity_id).filter(Boolean))];
+    const chains = chainIds.length
+      ? await prisma.headOffice.findMany({ where: { id: { in: chainIds } }, select: { id: true, name: true } })
+      : [];
+    const cMap = Object.fromEntries(chains.map((c) => [c.id, c.name]));
+    return rows.map((r) => ({
+      id: r.id,
+      action: r.action,
+      created_at: r.created_at,
+      actor: r.user?.email || r.user?.full_name || 'super_admin',
+      chain: cMap[r.entity_id] || r.entity_id || '—',
+      details: r.new_values || null,
+    }));
+  },
+
+  /**
    * Onboard New Restaurant — Full Transactional Setup
    * Creates HeadOffice, Owner User, Outlet, Role, and Subscription
    */

@@ -61,6 +61,7 @@ import SetupWizard from './pages/SetupWizard';
 import WelcomePage from './pages/WelcomePage';
 import PlatformHealthPage from './pages/PlatformHealthPage';
 import ImpersonationLogPage from './pages/ImpersonationLogPage';
+import PlatformAuditLogPage from './pages/PlatformAuditLogPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import MenuAnalyticsPage from './pages/MenuAnalyticsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
@@ -269,6 +270,7 @@ export default function App() {
         {/* P3 Routes */}
         <Route path="platform-health"    element={<RoleGuard allowed={['super_admin']}><PlatformHealthPage /></RoleGuard>} />
         <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
+        <Route path="platform-audit-log" element={<RoleGuard allowed={['super_admin']}><PlatformAuditLogPage /></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="xero-analytics"    element={<XeroAnalyticsPage />} />
         <Route path="business-health"   element={<BusinessHealthPage />} />

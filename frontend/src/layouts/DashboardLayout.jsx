@@ -15,7 +15,7 @@ import {
   QrCode, BellRing, Sun, Moon, Warehouse, Heart, Globe, Zap, Sparkles, ShieldAlert,
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
-  Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling,
+  Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
   HeartPulse, Palmtree, IdCard, Landmark,
 } from 'lucide-react';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -47,6 +47,7 @@ const superAdminNav = [
   { path: '/platform-health',     label: 'Platform Health',    icon: Activity },
   { path: '/chain-health',        label: 'Chain Health Scores',icon: HeartPulse },
   { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck },
+  { path: '/platform-audit-log',  label: 'Audit Trail',        icon: ScrollText },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 
