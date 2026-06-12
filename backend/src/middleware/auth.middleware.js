@@ -10,6 +10,7 @@ const { getRedisClient } = require('../config/redis');
 const { UnauthorizedError } = require('../utils/errors');
 const logger = require('../config/logger');
 const prisma = require('../config/database').getDbClient();
+const { isPlatformRole } = require('../modules/superadmin/platform-rbac');
 
 /**
  * Express middleware that verifies JWT access token.
@@ -76,8 +77,8 @@ async function authenticate(req, res, next) {
 
     req.token = token;
 
-    // Block suspended chains (non-superadmin only)
-    if (req.user.head_office_id && req.user.role !== 'super_admin') {
+    // Block suspended chains (tenant users only; platform staff are outlet-less)
+    if (req.user.head_office_id && !isPlatformRole(req.user.role)) {
       try {
         const ho = await prisma.headOffice.findUnique({
           where: { id: req.user.head_office_id },
@@ -166,8 +167,13 @@ const hasRole = (...roles) => (req, res, next) => {
   next();
 };
 
+/**
+ * Gate the SuperAdmin console: the user must hold ANY platform role
+ * (super_admin or a scoped platform_* staff role). Per-route capability is
+ * then enforced by requirePlatformPermission().
+ */
 const isSuperAdmin = (req, res, next) => {
-  if (req.user?.role !== 'super_admin') {
+  if (!req.user || !isPlatformRole(req.user.role)) {
     return res.status(403).json({
       success: false,
       message: 'Access Denied: SuperAdmin only.',
@@ -176,4 +182,28 @@ const isSuperAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, optionalAuth, hasRole, isSuperAdmin };
+/**
+ * Require one of the given platform permission keys on the current platform
+ * staff user. `super_admin` always passes (god account). Scoped staff are
+ * checked against the `permissions` array carried in their JWT.
+ * @param {...string} keys — accepted permission keys (any-of)
+ */
+const requirePlatformPermission = (...keys) => (req, res, next) => {
+  if (!req.user || !isPlatformRole(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied: SuperAdmin only.',
+    });
+  }
+  if (req.user.role === 'super_admin') return next(); // founder/god account
+  const perms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+  if (!keys.some((k) => perms.includes(k))) {
+    return res.status(403).json({
+      success: false,
+      message: `Access Denied: your role lacks permission (${keys.join(' or ')}).`,
+    });
+  }
+  next();
+};
+
+module.exports = { authenticate, optionalAuth, hasRole, isSuperAdmin, requirePlatformPermission };

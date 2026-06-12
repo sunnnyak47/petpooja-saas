@@ -62,6 +62,8 @@ import WelcomePage from './pages/WelcomePage';
 import PlatformHealthPage from './pages/PlatformHealthPage';
 import ImpersonationLogPage from './pages/ImpersonationLogPage';
 import PlatformAuditLogPage from './pages/PlatformAuditLogPage';
+import PlatformStaffPage from './pages/PlatformStaffPage';
+import { hasSAPermission } from './lib/platformRoles';
 import SubscriptionPage from './pages/SubscriptionPage';
 import MenuAnalyticsPage from './pages/MenuAnalyticsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
@@ -136,6 +138,25 @@ function RoleGuard({ allowed, children }) {
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((s) => s.auth);
   return isAuthenticated ? children : <Navigate to="/welcome" replace />;
+}
+
+/* ── Permission Guard ──────────────────────────────────────────────────────────
+   For SuperAdmin console pages that scoped staff must not reach. super_admin
+   always passes; scoped staff need the given permission. (Backend re-enforces.) */
+function PermissionGuard({ permission, children }) {
+  const { user } = useSelector((s) => s.auth);
+  if (!hasSAPermission(user, permission)) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400, fontFamily: 'Inter, -apple-system, sans-serif' }}>
+        <div style={{ textAlign: 'center', padding: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Access Denied</h2>
+          <p style={{ fontSize: 14, color: '#64748b' }}>You don't have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+  return children;
 }
 
 // Logic: If I am the software owner, take me to my client list.
@@ -271,6 +292,7 @@ export default function App() {
         <Route path="platform-health"    element={<RoleGuard allowed={['super_admin']}><PlatformHealthPage /></RoleGuard>} />
         <Route path="impersonation-log"  element={<RoleGuard allowed={['super_admin']}><ImpersonationLogPage /></RoleGuard>} />
         <Route path="platform-audit-log" element={<RoleGuard allowed={['super_admin']}><PlatformAuditLogPage /></RoleGuard>} />
+        <Route path="platform-staff" element={<RoleGuard allowed={['super_admin']}><PermissionGuard permission="sa.staff.manage"><PlatformStaffPage /></PermissionGuard></RoleGuard>} />
         <Route path="advanced-reports"   element={<AdvancedReportsPage />} />
         <Route path="xero-analytics"    element={<XeroAnalyticsPage />} />
         <Route path="business-health"   element={<BusinessHealthPage />} />

@@ -4,6 +4,7 @@
  */
 
 const Joi = require('joi');
+const { PLATFORM_ROLES } = require('./platform-rbac');
 
 /**
  * Schema for super admin login.
@@ -270,8 +271,24 @@ const savePlatformSettingsSchema = Joi.object({
   updated_at: Joi.date().optional(),
 });
 
+/** Create a platform staff member. */
+const createStaffSchema = Joi.object({
+  full_name: Joi.string().trim().min(2).max(150).required(),
+  email: Joi.string().email().lowercase().trim().required(),
+  phone: Joi.string().trim().min(6).max(15).required(),
+  role: Joi.string().valid(...PLATFORM_ROLES).required(),
+});
+
+/** Update a platform staff member's role and/or active status. */
+const updateStaffSchema = Joi.object({
+  role: Joi.string().valid(...PLATFORM_ROLES),
+  is_active: Joi.boolean(),
+}).min(1);
+
 module.exports = {
   superadminLoginSchema,
+  createStaffSchema,
+  updateStaffSchema,
   onboardSchema,
   impersonateSchema,
   updateSubscriptionSchema,

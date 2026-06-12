@@ -537,6 +537,56 @@ const superadminController = {
       sendSuccess(res, result, 'Wizard reset for chain');
     } catch (error) { next(error); }
   },
+
+  // ─── Platform staff management ──────────────────────────────────────────────
+
+  /** GET /api/superadmin/staff/roles — assignable platform roles + permissions */
+  async listPlatformRoles(req, res, next) {
+    try {
+      const roles = await superadminService.listPlatformRoles();
+      sendSuccess(res, roles, 'Platform roles retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** GET /api/superadmin/staff — list platform staff */
+  async listStaff(req, res, next) {
+    try {
+      const staff = await superadminService.listStaff();
+      sendSuccess(res, staff, 'Platform staff retrieved');
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/superadmin/staff — create a staff member (returns one-time temp password) */
+  async createStaff(req, res, next) {
+    try {
+      const result = await superadminService.createStaff(req.body, req.user);
+      sendSuccess(res, result, 'Platform staff created');
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /api/superadmin/staff/:id — change role and/or active status */
+  async updateStaff(req, res, next) {
+    try {
+      const result = await superadminService.updateStaff(req.params.id, req.body, req.user);
+      sendSuccess(res, result, 'Platform staff updated');
+    } catch (err) { next(err); }
+  },
+
+  /** POST /api/superadmin/staff/:id/reset-password — reset & unlock staff login */
+  async resetStaffPassword(req, res, next) {
+    try {
+      const result = await superadminService.resetStaffPassword(req.params.id, req.user);
+      sendSuccess(res, result, 'Platform staff login reset');
+    } catch (err) { next(err); }
+  },
+
+  /** DELETE /api/superadmin/staff/:id — deactivate a staff member */
+  async deactivateStaff(req, res, next) {
+    try {
+      const result = await superadminService.deactivateStaff(req.params.id, req.user);
+      sendSuccess(res, result, 'Platform staff deactivated');
+    } catch (err) { next(err); }
+  },
 };
 
 module.exports = superadminController;

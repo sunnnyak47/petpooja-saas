@@ -27,18 +27,29 @@ export default function SuperAdminLoginPage() {
       const res     = await api.post('/superadmin/login', { email, password });
       const payload = res.data?.data || res.data;
 
-      // Store token + user; role comes back as 'super_admin' from the superadmin endpoint
-      localStorage.setItem('accessToken', payload.token || payload.accessToken || '');
-      localStorage.setItem('user', JSON.stringify({
-        ...(payload.user || {}),
+      // The backend returns the staff member's REAL platform role + permissions.
+      // We keep `role: 'super_admin'` for the routing shell (so any platform staff
+      // can enter the console), preserve the real role in `platform_role`, and
+      // carry `permissions` to drive nav visibility. Per-action security is
+      // enforced server-side on every /superadmin route.
+      const u = payload.user || {};
+      const platformRole = u.role || 'super_admin';
+      const sessionUser = {
+        ...u,
+        platform_role: platformRole,
         role: 'super_admin',
-        is_super_admin: true,
-      }));
+        is_super_admin: platformRole === 'super_admin',
+        permissions: Array.isArray(u.permissions) ? u.permissions : [],
+      };
+      const accessToken = payload.token || payload.accessToken || '';
+
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('user', JSON.stringify(sessionUser));
 
       dispatch(loginSuccess({
-        accessToken: payload.token || payload.accessToken,
-        refreshToken: payload.refreshToken || payload.token || payload.accessToken,
-        user: { ...(payload.user || {}), role: 'super_admin', is_super_admin: true },
+        accessToken,
+        refreshToken: payload.refreshToken || accessToken,
+        user: sessionUser,
       }));
 
       toast.success(`Welcome, ${payload.user?.full_name || payload.user?.email || 'Admin'} 🚀`);

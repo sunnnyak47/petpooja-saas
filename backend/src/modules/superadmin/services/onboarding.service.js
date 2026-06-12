@@ -9,6 +9,7 @@ const {
   superadminService, prisma, jwt, bcrypt, appConfig, logger,
   UnauthorizedError, NotFoundError, BadRequestError, ConflictError,
 } = require('./_shared');
+const { isPlatformRole } = require('../platform-rbac');
 
 Object.assign(superadminService, {
   /**
@@ -32,31 +33,44 @@ Object.assign(superadminService, {
       throw new UnauthorizedError('Service temporarily unavailable. Try again.');
     }
 
-    // If DB user found, verify password normally
-    if (user) {
-      const valid = await bcrypt.compare(password, user.password_hash);
-      if (!valid) throw new UnauthorizedError('Invalid email or password');
+    // No hardcoded credentials — user must exist in DB.
+    if (!user) throw new UnauthorizedError('Invalid email or password');
 
-      // Check if user has super_admin role in DB
-      const role = await prisma.userRole.findFirst({
-        where: { user_id: user.id },
-        include: { role: true }
-      }).catch(() => null);
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) throw new UnauthorizedError('Invalid email or password');
 
-      const roleName = role?.role?.name || '';
-      if (roleName !== 'super_admin') {
-        throw new UnauthorizedError('Access denied: SuperAdmin only');
-      }
-    } else {
-      // No hardcoded credentials — user must exist in DB
-      throw new UnauthorizedError('Invalid email or password');
+    // The user must hold a PLATFORM role (outlet-less). A user may also have
+    // tenant roles, so scan their outlet-less role grants for a platform one and
+    // collect that role's permissions from the DB (the real, current grant set).
+    const platformGrants = await prisma.userRole.findMany({
+      where: { user_id: user.id, outlet_id: null, is_deleted: false },
+      include: {
+        role: {
+          include: {
+            role_permissions: { where: { is_deleted: false }, include: { permission: true } },
+          },
+        },
+      },
+    }).catch(() => []);
+
+    const grant = platformGrants.find((g) => g.role && isPlatformRole(g.role.name));
+    if (!grant) {
+      throw new UnauthorizedError('Access denied: SuperAdmin console requires a platform role');
     }
+
+    const roleName = grant.role.name;
+    const permissions = [...new Set(
+      (grant.role.role_permissions || [])
+        .map((rp) => rp.permission?.key)
+        .filter((k) => typeof k === 'string' && k.startsWith('sa.'))
+    )];
 
     const tokenPayload = {
       id: user.id,
       email: user.email,
-      role: 'super_admin',
+      role: roleName,
       full_name: user.full_name || 'Super Admin',
+      permissions,
     };
 
     const token = jwt.sign(tokenPayload, appConfig.jwt.secret, { expiresIn: '24h' });
@@ -64,11 +78,12 @@ Object.assign(superadminService, {
     return {
       token,
       user: {
-        id: tokenPayload.id,
-        email: tokenPayload.email,
+        id: user.id,
+        email: user.email,
         full_name: tokenPayload.full_name,
-        role: 'super_admin',
-      }
+        role: roleName,
+        permissions,
+      },
     };
   },
 

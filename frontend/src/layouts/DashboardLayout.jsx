@@ -16,8 +16,9 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
-  HeartPulse, Palmtree, IdCard, Landmark,
+  HeartPulse, Palmtree, IdCard, Landmark, UserCog,
 } from 'lucide-react';
+import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import NotificationCenter from '../components/NotificationCenter';
 import AutoFreeTableManager from '../components/AutoFreeTableManager';
@@ -25,29 +26,32 @@ import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
 import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
 
+// `perm` gates visibility for scoped platform staff. Items without a `perm`
+// are visible to any platform staff. super_admin sees everything.
 const superAdminNav = [
   { section: 'Platform' },
-  { path: '/',                    label: 'Analytics',          icon: BarChart3 },
-  { path: '/super-admin',         label: 'Restaurant Chains',  icon: ShieldCheck },
-  { path: '/all-users',           label: 'All Users',          icon: Users },
-  { path: '/feature-access',      label: 'Feature Access',     icon: ToggleLeft },
-  { path: '/announcements',       label: 'Announcements',      icon: Megaphone },
-  { path: '/broadcasts',          label: 'Broadcast Center',   icon: Radio },
+  { path: '/',                    label: 'Analytics',          icon: BarChart3,      perm: 'sa.dashboard.view' },
+  { path: '/super-admin',         label: 'Restaurant Chains',  icon: ShieldCheck,    perm: 'sa.chains.view' },
+  { path: '/all-users',           label: 'All Users',          icon: Users,          perm: 'sa.chains.view' },
+  { path: '/feature-access',      label: 'Feature Access',     icon: ToggleLeft,     perm: 'sa.chains.manage' },
+  { path: '/announcements',       label: 'Announcements',      icon: Megaphone,      perm: 'sa.support.manage' },
+  { path: '/broadcasts',          label: 'Broadcast Center',   icon: Radio,          perm: 'sa.support.manage' },
   { section: 'Finance' },
-  { path: '/revenue-analytics',   label: 'Revenue Analytics',  icon: TrendingUp },
-  { path: '/invoicing',           label: 'Invoicing',          icon: FileText },
-  { path: '/tax-profiles',        label: 'Tax Profiles',       icon: Receipt },
-  { path: '/promo-codes',         label: 'Promo Codes',        icon: Tag },
+  { path: '/revenue-analytics',   label: 'Revenue Analytics',  icon: TrendingUp,     perm: 'sa.billing.view' },
+  { path: '/invoicing',           label: 'Invoicing',          icon: FileText,       perm: 'sa.billing.view' },
+  { path: '/tax-profiles',        label: 'Tax Profiles',       icon: Receipt,        perm: 'sa.billing.view' },
+  { path: '/promo-codes',         label: 'Promo Codes',        icon: Tag,            perm: 'sa.promos.manage' },
   { section: 'Support' },
-  { path: '/support-tickets',     label: 'Support Tickets',    icon: MessageSquare },
+  { path: '/support-tickets',     label: 'Support Tickets',    icon: MessageSquare,  perm: 'sa.support.manage' },
   { section: 'System' },
-  { path: '/audit-log',           label: 'System Logs',        icon: ClipboardList },
-  { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart },
-  { path: '/platform-settings',   label: 'Platform Settings',  icon: Sliders },
-  { path: '/platform-health',     label: 'Platform Health',    icon: Activity },
-  { path: '/chain-health',        label: 'Chain Health Scores',icon: HeartPulse },
-  { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck },
-  { path: '/platform-audit-log',  label: 'Audit Trail',        icon: ScrollText },
+  { path: '/audit-log',           label: 'System Logs',        icon: ClipboardList,  perm: 'sa.audit.view' },
+  { path: '/billing',             label: 'SaaS Billing',       icon: ShoppingCart,   perm: 'sa.billing.view' },
+  { path: '/platform-settings',   label: 'Platform Settings',  icon: Sliders,        perm: 'sa.settings.manage' },
+  { path: '/platform-health',     label: 'Platform Health',    icon: Activity,       perm: 'sa.audit.view' },
+  { path: '/chain-health',        label: 'Chain Health Scores',icon: HeartPulse,     perm: 'sa.dashboard.view' },
+  { path: '/impersonation-log',   label: 'Impersonation Log',  icon: UserCheck,      perm: 'sa.audit.view' },
+  { path: '/platform-audit-log',  label: 'Audit Trail',        icon: ScrollText,     perm: 'sa.audit.view' },
+  { path: '/platform-staff',      label: 'Platform Staff',     icon: UserCog,        perm: 'sa.staff.manage' },
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 
@@ -247,10 +251,16 @@ export default function DashboardLayout() {
 
   const userRegion = useRegion();
   const rawNavItems = user?.role === 'super_admin' ? superAdminNav : (userRegion === 'AU' ? ownerNavAU : ownerNav);
-  // Filter out disabled features and region-restricted items. Keep section headers that still have at least one visible item below.
+  // Filter out disabled features and region-restricted items. For platform staff,
+  // also hide console items they lack permission for (backend still enforces).
+  // Keep section headers that still have at least one visible item below.
   const navItems = (() => {
     const filtered = rawNavItems.filter(item =>
-      item.section || (isFeatureEnabled(user, item.feature) && (!item.region || item.region === userRegion))
+      item.section || (
+        isFeatureEnabled(user, item.feature) &&
+        (!item.region || item.region === userRegion) &&
+        (!item.perm || hasSAPermission(user, item.perm))
+      )
     );
     // Drop section headers with no items beneath them
     return filtered.filter((item, i) => {
@@ -425,7 +435,7 @@ export default function DashboardLayout() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate leading-tight" style={{ color: 'var(--text-primary)' }}>{user?.full_name || 'User'}</p>
-                  <p className="text-[10px] capitalize" style={{ color: 'var(--text-secondary)' }}>{user?.role?.replace('_', ' ') || 'Staff'}</p>
+                  <p className="text-[10px] capitalize" style={{ color: 'var(--text-secondary)' }}>{user?.platform_role ? platformRoleLabel(user.platform_role) : (user?.role?.replace('_', ' ') || 'Staff')}</p>
                 </div>
               </div>
             )}

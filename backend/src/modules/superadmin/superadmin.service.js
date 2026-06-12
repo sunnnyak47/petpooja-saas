@@ -24,5 +24,6 @@ require('./services/announcements.service');
 require('./services/tickets.service');
 require('./services/promos.service');
 require('./services/analytics.service');
+require('./services/staff.service');
 
 module.exports = superadminService;

@@ -1,5 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const {
+  PLATFORM_PERMISSIONS,
+  PLATFORM_ROLE_DEFS,
+} = require('../src/modules/superadmin/platform-rbac');
 const prisma = new PrismaClient();
 
 async function main() {
@@ -21,6 +25,51 @@ async function main() {
     });
   }
   console.log('✅ Core Roles Created.');
+
+  // 1b. Platform (SuperAdmin) RBAC — scoped roles + permission catalog.
+  //     Lets platform access be handed to staff with least privilege.
+  //     Data-only (no schema change): reuses roles / permissions / role_permissions.
+  for (const def of PLATFORM_ROLE_DEFS) {
+    await prisma.role.upsert({
+      where: { name: def.name },
+      update: { display_name: def.display_name, description: def.description, is_system: true, is_deleted: false },
+      create: { name: def.name, display_name: def.display_name, description: def.description, is_system: true },
+    });
+  }
+
+  const permByKey = {};
+  for (const perm of PLATFORM_PERMISSIONS) {
+    const row = await prisma.permission.upsert({
+      where: { key: perm.key },
+      update: { display_name: perm.display_name, module: 'platform', description: perm.description, is_deleted: false },
+      create: { key: perm.key, display_name: perm.display_name, module: 'platform', description: perm.description },
+    });
+    permByKey[perm.key] = row.id;
+  }
+
+  for (const def of PLATFORM_ROLE_DEFS) {
+    const roleRow = await prisma.role.findUnique({ where: { name: def.name } });
+    if (!roleRow) continue;
+    // Desired set for this platform role.
+    const desiredIds = def.permissions.map((k) => permByKey[k]).filter(Boolean);
+    // Add/ensure the desired grants (idempotent).
+    for (const permission_id of desiredIds) {
+      await prisma.rolePermission.upsert({
+        where: { role_id_permission_id: { role_id: roleRow.id, permission_id } },
+        update: { is_deleted: false },
+        create: { role_id: roleRow.id, permission_id },
+      });
+    }
+    // Revoke any platform-permission grants that are no longer in the preset
+    // (keeps presets authoritative across redeploys without touching tenant perms).
+    const staleIds = Object.values(permByKey).filter((id) => !desiredIds.includes(id));
+    if (staleIds.length) {
+      await prisma.rolePermission.deleteMany({
+        where: { role_id: roleRow.id, permission_id: { in: staleIds } },
+      });
+    }
+  }
+  console.log('✅ Platform RBAC seeded (roles: super_admin, platform_admin, platform_support, platform_billing, platform_readonly).');
 
   // 2. Create the Master SuperAdmin User
   const passwordHash = await bcrypt.hash('Petpooja@2026', 12);
