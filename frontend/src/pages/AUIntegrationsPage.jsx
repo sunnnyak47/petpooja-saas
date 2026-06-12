@@ -77,7 +77,30 @@ export default function AUIntegrationsPage() {
 
   const { data: status = {} } = useQuery({
     queryKey: ['au-integrations', outletId],
-    queryFn: () => api.get('/integrations/au/au-status', { params: { outlet_id: outletId } }).then(r => r.data),
+    queryFn: async () => {
+      const params = { outlet_id: outletId };
+      // au-status only returns { connected, name, description, color } per
+      // integration — it omits every per-card stat field. Fetch each
+      // per-integration /status endpoint (which DO surface org_name,
+      // invoices_exported, merchant_name, total_processed, company_name,
+      // records_exported, site_id, orders_synced, business_name) and merge
+      // their stats in, so the connected-card stats actually populate.
+      const [base, xero, square, myob, google, pronto] = await Promise.all([
+        api.get('/integrations/au/au-status', { params }).then(r => r.data),
+        api.get('/integrations/au/xero/status', { params }).then(r => r.data).catch(() => null),
+        api.get('/integrations/au/square/status', { params }).then(r => r.data).catch(() => null),
+        api.get('/integrations/au/myob/status', { params }).then(r => r.data).catch(() => null),
+        api.get('/integrations/au/google-reviews/status', { params }).then(r => r.data).catch(() => null),
+        api.get('/integrations/au/pronto/status', { params }).then(r => r.data).catch(() => null),
+      ]);
+      const merge = (key, extra) => { if (base?.[key] && extra) base[key] = { ...base[key], ...extra }; };
+      merge('xero', xero);
+      merge('square', square);
+      merge('myob', myob);
+      merge('google_reviews', google);
+      merge('pronto', pronto);
+      return base;
+    },
     enabled: !!outletId,
     refetchInterval: 30000,
   });
@@ -92,7 +115,16 @@ export default function AUIntegrationsPage() {
   const xeroAuthMut = useMutation({
     mutationFn: () => api.get('/integrations/au/xero/auth-url', { params: { outlet_id: outletId } }).then(r => r.data),
     onSuccess: (data) => {
-      if (data?.url) {
+      // The backend always returns a URL, even when Xero OAuth is unconfigured
+      // (XERO_CLIENT_ID unset) — in that case the URL carries an empty
+      // client_id=, which Xero rejects with "unknown client". Detect that here
+      // and fall back to the mock-mode message instead of opening a broken
+      // Xero login window.
+      let clientId = null;
+      try {
+        clientId = data?.url ? new URL(data.url).searchParams.get('client_id') : null;
+      } catch { /* malformed URL → treat as unconfigured */ }
+      if (data?.url && clientId) {
         // Store state for callback verification
         sessionStorage.setItem('xero_oauth_state', data.state);
         window.open(data.url, '_blank', 'width=600,height=700');
@@ -242,7 +274,7 @@ export default function AUIntegrationsPage() {
   });
 
   const syncProntoMut = useMutation({
-    mutationFn: () => api.post('/integrations/au/pronto/sync', { outlet_id: outletId }),
+    mutationFn: () => api.post('/integrations/au/pronto/sync', { outlet_id: outletId }).then(r => r.data),
     onSuccess: d => toast.success(`${d.orders_synced} orders synced to Pronto`),
     onError: e => toast.error(e.message),
   });

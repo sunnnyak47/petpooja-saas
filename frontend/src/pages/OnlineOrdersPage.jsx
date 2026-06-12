@@ -163,7 +163,7 @@ function HistoryView({ outletId, platformFilter }) {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold">{symbol}{Number(total).toFixed(2)}</div>
-                  <span className={`text-xs capitalize ${status === 'completed' ? 'text-green-600' : status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>
+                  <span className={`text-xs capitalize ${status === 'completed' || status === 'ready' ? 'text-green-600' : status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>
                     {status || 'unknown'}
                   </span>
                 </div>
@@ -195,6 +195,15 @@ export default function OnlineOrdersPage() {
   const [activeView, setActiveView] = useState('live');
   const [platformFilter, setPlatformFilter] = useState('all');
 
+  // Mirror the toggle states (and auto-accept dispatch) into refs so the live
+  // socket handler always reads the latest values without forcing the socket
+  // effect to re-create the connection when a toggle changes (M5).
+  const autoAcceptRef = useRef(autoAccept);
+  const soundEnabledRef = useRef(soundEnabled);
+  const autoAcceptDispatchRef = useRef(null);
+  useEffect(() => { autoAcceptRef.current = autoAccept; }, [autoAccept]);
+  useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
+
   const notificationSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2861/2861-preview.mp3'));
 
   const { data: activeOrders = [], isLoading } = useQuery({
@@ -221,17 +230,17 @@ export default function OnlineOrdersPage() {
       socket.emit('join_outlet', outletId);
     });
     socket.on('new_online_order', (payload) => {
-      if (soundEnabled) notificationSound.current.play().catch(() => {});
+      if (soundEnabledRef.current) notificationSound.current.play().catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['agg-orders-active', outletId] });
       queryClient.invalidateQueries({ queryKey: ['agg-orders-stats', outletId] });
       toast.success(`New ${payload?.platform || ''} order received!`, { duration: 5000 });
       // payload shape: { order_id, order_number, platform, external_id }
-      if (autoAccept && payload?.order_id) {
-        acceptMutation.mutate({ id: payload.order_id, prepTime: 20 });
+      if (autoAcceptRef.current && payload?.order_id) {
+        autoAcceptDispatchRef.current?.(payload.order_id);
       }
     });
     return () => socket.disconnect();
-  }, [outletId, token, soundEnabled, autoAccept]);
+  }, [outletId, token, queryClient]);
 
   const acceptMutation = useMutation({
     mutationFn: ({ id, prepTime }) => api.post(`/aggregators/orders/${id}/accept`, { prep_time: prepTime }),
@@ -241,6 +250,14 @@ export default function OnlineOrdersPage() {
     },
     onError: () => toast.error('Failed to accept order'),
   });
+
+  // Keep the auto-accept dispatcher pointed at the latest acceptMutation so the
+  // socket handler can trigger it via a ref without re-creating the socket (M5).
+  useEffect(() => {
+    autoAcceptDispatchRef.current = (orderId) => {
+      acceptMutation.mutate({ id: orderId, prepTime: 20 });
+    };
+  }, [acceptMutation]);
 
   const rejectMutation = useMutation({
     mutationFn: (id) => api.post(`/aggregators/orders/${id}/reject`, { reason: 'Rejected by restaurant' }),
