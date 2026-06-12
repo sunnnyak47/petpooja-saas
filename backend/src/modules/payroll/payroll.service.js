@@ -13,8 +13,9 @@ function round2(n) {
 
 /**
  * SIMPLIFIED AU PAYG annual tax on ANNUAL gross.
- * Marginal brackets (2024-25, approximate, no Medicare levy nuance).
- * Clearly approximate — not for compliance use.
+ * Resident individual marginal rates for FY2024-25 and FY2025-26 (the Stage-3
+ * tax cuts effective 1 Jul 2024): 16% / 30% / 37% / 45%. No Medicare levy,
+ * offsets, or HELP — clearly approximate, not for compliance lodgement.
  *
  * @param {number} annualGross
  * @returns {number} annual tax
@@ -25,13 +26,13 @@ function calcPAYE(annualGross) {
   if (g <= 18200) {
     tax = 0;
   } else if (g <= 45000) {
-    tax = (g - 18200) * 0.19;
+    tax = (g - 18200) * 0.16;                 // 16%
   } else if (g <= 135000) {
-    tax = 5092 + (g - 45000) * 0.325;
+    tax = 4288 + (g - 45000) * 0.30;          // $4,288 + 30%
   } else if (g <= 190000) {
-    tax = 34342 + (g - 135000) * 0.37;
+    tax = 31288 + (g - 135000) * 0.37;        // $31,288 + 37%
   } else {
-    tax = 54692 + (g - 190000) * 0.45;
+    tax = 51638 + (g - 190000) * 0.45;        // $51,638 + 45%
   }
   return round2(tax);
 }
