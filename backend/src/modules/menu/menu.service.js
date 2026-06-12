@@ -103,13 +103,24 @@ async function deleteCategory(categoryId, outletId) {
     });
     if (!existing) throw new NotFoundError('Category not found');
 
+    // Items require a category (non-nullable FK), so block deleting a non-empty
+    // category rather than orphaning its items.
+    const itemCount = await prisma.menuItem.count({
+      where: { category_id: categoryId, is_deleted: false },
+    });
+    if (itemCount > 0) {
+      throw new BadRequestError(
+        `This category still has ${itemCount} item${itemCount > 1 ? 's' : ''}. Move or delete ${itemCount > 1 ? 'them' : 'it'} before removing the category.`
+      );
+    }
+
     const deleted = await prisma.menuCategory.update({
       where: { id: categoryId },
       data: { is_deleted: true },
     });
     return deleted;
   } catch (error) {
-    if (error instanceof NotFoundError) throw error;
+    if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     throw error;
   }
 }

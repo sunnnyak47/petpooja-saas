@@ -71,6 +71,8 @@ export default function MenuPage() {
   const [comboItemSearch, setComboItemSearch] = useState('');
 
   const [catForm, setCatForm] = useState({ name: '', description: '', display_order: 1 });
+  const [catDeleteTarget, setCatDeleteTarget] = useState(null);
+  const canManageCats = user?.role === 'owner' || user?.role === 'manager';
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
   const [bulkForm, setBulkForm] = useState({ type: 'percentage', value: 0 });
 
@@ -102,15 +104,40 @@ export default function MenuPage() {
   });
 
   // Mutations
+  const resetCatForm = () => setCatForm({ name: '', description: '', display_order: 1 });
+
   const addCatMutation = useMutation({
     mutationFn: (d) => api.post('/menu/categories', d),
     onSuccess: () => {
       toast.success('Category created!');
       queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
       setIsAddCatOpen(false);
-      setCatForm({ name: '', description: '', display_order: 1 });
+      resetCatForm();
     },
     onError: (e) => toast.error(e.message || 'Failed to create category'),
+  });
+
+  const updateCatMutation = useMutation({
+    mutationFn: ({ id, ...d }) => api.patch(`/menu/categories/${id}`, d),
+    onSuccess: () => {
+      toast.success('Category updated');
+      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
+      setIsAddCatOpen(false);
+      resetCatForm();
+    },
+    onError: (e) => toast.error(e.message || 'Failed to update category'),
+  });
+
+  const deleteCatMutation = useMutation({
+    mutationFn: (id) => api.delete(`/menu/categories/${id}`),
+    onSuccess: (_r, id) => {
+      toast.success('Category deleted');
+      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
+      if (categoryFilter === id) setCategoryFilter('');
+      setCatDeleteTarget(null);
+    },
+    // Backend blocks deleting a non-empty category — surface that message.
+    onError: (e) => { toast.error(e.message || 'Failed to delete category'); setCatDeleteTarget(null); },
   });
 
   const saveItemMutation = useMutation({
@@ -367,10 +394,30 @@ export default function MenuPage() {
                 {(categories || []).map(cat => {
                   const count = dbItems.filter(i => i.category_id === cat.id).length;
                   return (
-                    <button key={cat.id} onClick={() => setCategoryFilter(cat.id)} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${categoryFilter === cat.id ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
-                      <span className="truncate pr-2">{cat.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${categoryFilter === cat.id ? 'bg-white/20' : 'bg-surface-800'}`}>{count}</span>
-                    </button>
+                    <div key={cat.id} className={`group w-full px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${categoryFilter === cat.id ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
+                      <button onClick={() => setCategoryFilter(cat.id)} className="flex-1 min-w-0 text-left">
+                        <span className="truncate block pr-2">{cat.name}</span>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {canManageCats && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCatForm({ id: cat.id, name: cat.name, description: cat.description || '', display_order: cat.display_order || 1 }); setIsAddCatOpen(true); }}
+                              title="Rename category"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-700 text-surface-300 transition-opacity">
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCatDeleteTarget(cat); }}
+                              title="Delete category"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-500/20 text-red-400 transition-opacity">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${categoryFilter === cat.id ? 'bg-white/20' : 'bg-surface-800'}`}>{count}</span>
+                      </div>
+                    </div>
                   );
                })}
             </div>
@@ -799,13 +846,36 @@ export default function MenuPage() {
          </form>
       </Modal>
 
-      {/* Add Category Modal */}
-      <Modal isOpen={isAddCatOpen} onClose={() => setIsAddCatOpen(false)} title="New Category" size="sm">
-         <form onSubmit={e=>{e.preventDefault(); addCatMutation.mutate({...catForm, outlet_id: outletId});}} className="space-y-4 pt-2">
+      {/* Add / Rename Category Modal */}
+      <Modal isOpen={isAddCatOpen} onClose={() => { setIsAddCatOpen(false); resetCatForm(); }} title={catForm.id ? 'Rename Category' : 'New Category'} size="sm">
+         <form onSubmit={e=>{
+             e.preventDefault();
+             if (catForm.id) updateCatMutation.mutate({ id: catForm.id, name: catForm.name, description: catForm.description, display_order: catForm.display_order });
+             else addCatMutation.mutate({ ...catForm, outlet_id: outletId });
+           }} className="space-y-4 pt-2">
             <div><label className="block text-xs font-bold text-surface-400 mb-1">Category Name</label><input required type="text" className="input w-full" placeholder="e.g. Main Course" value={catForm.name} onChange={e=>setCatForm({...catForm, name: e.target.value})} /></div>
             <div><label className="block text-xs font-bold text-surface-400 mb-1">Display Order</label><input type="number" min="1" className="input w-full" value={catForm.display_order} onChange={e=>setCatForm({...catForm, display_order: Number(e.target.value)})} /></div>
-            <button type="submit" disabled={addCatMutation.isPending} className="btn-primary w-full py-3 mt-2">Save Category</button>
+            <button type="submit" disabled={addCatMutation.isPending || updateCatMutation.isPending} className="btn-primary w-full py-3 mt-2">{catForm.id ? 'Save changes' : 'Save Category'}</button>
          </form>
+      </Modal>
+
+      {/* Delete Category Confirm */}
+      <Modal isOpen={!!catDeleteTarget} onClose={() => setCatDeleteTarget(null)} title="Delete Category" size="sm">
+         {catDeleteTarget && (
+           <div className="space-y-4 pt-2">
+             <p className="text-sm text-surface-300">
+               Delete <b className="text-white">{catDeleteTarget.name}</b>? This can’t be undone.
+               A category that still contains items can’t be deleted — move or remove its items first.
+             </p>
+             <div className="flex gap-2">
+               <button onClick={() => setCatDeleteTarget(null)} className="flex-1 py-2.5 rounded-lg font-semibold text-surface-300 bg-surface-800 hover:bg-surface-700">Cancel</button>
+               <button onClick={() => deleteCatMutation.mutate(catDeleteTarget.id)} disabled={deleteCatMutation.isPending}
+                 className="flex-1 py-2.5 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-500 disabled:opacity-60">
+                 {deleteCatMutation.isPending ? 'Deleting…' : 'Delete'}
+               </button>
+             </div>
+           </div>
+         )}
       </Modal>
 
       {/* Bulk Price Update Modal */}
