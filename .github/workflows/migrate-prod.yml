@@ -1,0 +1,87 @@
+name: Migrate production DB (prisma db push)
+
+# Manually-triggered, free alternative to the (paid) Render Shell for applying
+# Prisma schema changes to the production database.
+#
+# It runs `prisma db push` against the connection string in the
+# BACKUP_DATABASE_URL secret (the same prod URL the nightly backup uses).
+#
+# Safety:
+#   - Manual only (workflow_dispatch) — never runs automatically.
+#   - Requires typing "MIGRATE" in the confirm box to proceed.
+#   - Runs a dry-run/preview first; only applies destructive changes when you
+#     tick accept_data_loss (off by default). Additive changes (new columns/
+#     tables, e.g. subscriptions.is_deleted) apply without that flag.
+#   - STRONGLY recommended: run the "Keep backend warm"/backup first, or rely on
+#     your nightly backup, before applying.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type MIGRATE to confirm you want to push the schema to PRODUCTION'
+        required: true
+        default: ''
+      accept_data_loss:
+        description: 'Allow destructive changes (--accept-data-loss). Leave false unless the preview shows only additive changes you accept.'
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard — confirmation required
+        if: ${{ inputs.confirm != 'MIGRATE' }}
+        run: |
+          echo "::error::You must type MIGRATE in the confirm box to run this. Got: '${{ inputs.confirm }}'"
+          exit 1
+
+      - name: Guard — secret present
+        run: |
+          if [ -z "${{ secrets.BACKUP_DATABASE_URL }}" ]; then
+            echo "::error::BACKUP_DATABASE_URL secret is not set. Add your prod connection string under Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Preview pending schema changes (no writes)
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          echo "── Schema diff (DB → desired) ──"
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --script || true
+
+      - name: Apply schema (prisma db push)
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          if [ "${{ inputs.accept_data_loss }}" = "true" ]; then
+            echo "Applying WITH --accept-data-loss"
+            npx prisma db push --accept-data-loss --skip-generate
+          else
+            echo "Applying additive changes only (no --accept-data-loss)"
+            npx prisma db push --skip-generate
+          fi
+
+      - name: Done
+        run: echo "✅ Schema pushed to production. Try creating a profile again."
