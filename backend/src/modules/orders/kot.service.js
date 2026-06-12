@@ -18,15 +18,35 @@ const { scheduleAutoFreeIfReady } = require('./autofree.service');
 async function listPendingKOTs(outletId, query = {}) {
   const prisma = getDbClient();
   try {
-    // Include 'ready' so KDS can show the full board (pending → preparing → ready)
-    const where = { outlet_id: outletId, is_deleted: false, status: { in: ['pending', 'preparing', 'ready'] } };
+    // Include 'ready' so KDS can show the full board (pending → preparing → ready).
+    // M3: when the client asks for completed/served tickets (SERVED column,
+    // "show completed" toggle, "clear served"), also return today's completed KOTs.
+    const statuses = ['pending', 'preparing', 'ready'];
+    const wantCompleted = query.include_completed === 'true'
+      || query.include_completed === true
+      || query.show_completed === 'true'
+      || query.show_completed === true;
+    if (wantCompleted) statuses.push('completed');
+
+    const where = { outlet_id: outletId, is_deleted: false, status: { in: statuses } };
     if (query.station && query.station !== 'ALL') where.station = query.station;
+
+    // Time-bound completed tickets to today so the board doesn't grow unbounded.
+    if (wantCompleted) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      where.OR = [
+        { status: { in: ['pending', 'preparing', 'ready'] } },
+        { status: 'completed', completed_at: { gte: startOfDay } },
+      ];
+      delete where.status;
+    }
 
     return await prisma.kOT.findMany({
       where,
       orderBy: { created_at: 'asc' },
       include: {
-        order: { select: { order_number: true, order_type: true, table_id: true, table: { select: { table_number: true } } } },
+        order: { select: { order_number: true, order_type: true, table_id: true, notes: true, table: { select: { table_number: true } } } },
         kot_items: {
           include: {
             order_item: {

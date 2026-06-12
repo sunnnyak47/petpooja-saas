@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema, applyDiscountSchema, updateNotesSchema, assignStaffSchema, voidItemSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema, applyDiscountSchema, updateNotesSchema, assignStaffSchema, voidItemSchema, addTipSchema } = require('./order.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
 const taxService = require('./tax.service');
@@ -105,6 +105,7 @@ router.post('/:id/ebill', authenticate, assertOrderOwnership, orderController.se
 router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(syncOfflineOrdersSchema), auditLog('order'), orderController.syncOfflineOrders);
 
 router.post('/:id/apply-discount', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(applyDiscountSchema), auditLog('order'), orderController.applyDiscount);
+router.post('/:id/tip', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(addTipSchema), auditLog('order'), orderController.addTip);
 router.patch('/:id/notes', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(updateNotesSchema), orderController.updateNotes);
 router.patch('/:id/assign-staff', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(assignStaffSchema), auditLog('order'), orderController.assignStaff);
 router.post('/:id/void-item', authenticate, checkLicense, hasPermission('VOID_ORDER'), assertOrderOwnership, validate(voidItemSchema), auditLog('order'), orderController.voidItem);

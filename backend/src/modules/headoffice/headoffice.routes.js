@@ -8,7 +8,7 @@ const router = express.Router();
 const hoService = require('./headoffice.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasRole, hasPermission } = require('../../middleware/rbac.middleware');
-const { sendSuccess, sendCreated } = require('../../utils/response');
+const { sendSuccess, sendCreated, sendError } = require('../../utils/response');
 const Joi = require('joi');
 const { validate } = require('../../middleware/validate.middleware');
 const logger = require('../../config/logger');
@@ -55,6 +55,26 @@ router.get('/outlets/:id', authenticate, hasRole('super_admin', 'owner'), async 
   try {
     const outlet = await hoService.getOutletById(req.params.id, tenantContext(req));
     sendSuccess(res, outlet, 'Outlet details retrieved');
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/ho/menu-analytics?outlet_id= — ABC menu performance (last 30 days).
+ * Owner-accessible mirror of the SuperAdmin endpoint. Reuses the existing
+ * analytics service. Tenant-safe: getOutletById throws NotFound when the
+ * outlet does not belong to the caller's head office (super_admin: global).
+ */
+router.get('/menu-analytics', authenticate, hasRole('super_admin', 'owner'), async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id;
+    if (!outletId) return sendError(res, 400, 'outlet_id required');
+
+    // Ownership / tenant-isolation guard — throws NotFoundError on cross-tenant access.
+    await hoService.getOutletById(outletId, tenantContext(req));
+
+    const superadminService = require('../superadmin/superadmin.service');
+    const data = await superadminService.getMenuAnalytics(outletId);
+    sendSuccess(res, data, 'Menu analytics');
   } catch (error) { next(error); }
 });
 

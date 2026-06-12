@@ -1762,9 +1762,78 @@ async function punchKOT(data, staffId) {
   };
 }
 
+/**
+ * Add (or replace) a gratuity/tip on an order's bill.
+ *
+ * There is no dedicated tip column on the Order model, so the gratuity is folded
+ * into the amount the customer owes: it is added on top of the *clean* recomputed
+ * grand total. To stay idempotent (re-tipping replaces rather than stacks) and to
+ * keep tax/round_off authoritative, the base totals are always recomputed from the
+ * surviving order items via the shared recompute helper before the tip is applied.
+ *
+ * @param {string} orderId - Order UUID
+ * @param {number} tipAmount - Gratuity amount (>= 0). 0 clears a prior tip.
+ * @param {function} recomputeBase - (tx, orderId, outlet, discount, loyalty) => totals
+ *   The controller passes its recomputeOrderWithDiscount helper so the tax engine
+ *   and region-aware rounding (computeGrandTotal) remain the single source of truth.
+ * @returns {Promise<object>} The updated order row.
+ */
+async function addTip(orderId, tipAmount, recomputeBase) {
+  const prisma = getDbClient();
+
+  const tip = round2(Math.max(Number(tipAmount) || 0, 0));
+
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: { id: orderId, is_deleted: false },
+      include: {
+        outlet: {
+          include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+        },
+      },
+    });
+    if (!order) throw new NotFoundError('Order not found');
+
+    // A tip only makes sense on a live or just-settled bill — never on a
+    // cancelled/voided order.
+    const BLOCKED = ['cancelled', 'voided', 'refunded'];
+    if (BLOCKED.includes(order.status)) {
+      throw new BadRequestError(`Cannot add a tip to a ${order.status} order`);
+    }
+
+    // Recompute the clean (no-tip) base so tax, round_off and the base grand_total
+    // are authoritative and re-applying a tip never stacks.
+    const base = await recomputeBase(
+      tx,
+      orderId,
+      order.outlet,
+      Number(order.discount_amount) || 0,
+      Number(order.loyalty_discount) || 0,
+    );
+
+    const totalAmount = round2(base.total_amount + tip);
+    const grandTotal = round2(base.grand_total + tip);
+
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        cgst: base.cgst,
+        sgst: base.sgst,
+        igst: base.igst,
+        total_tax: base.total_tax,
+        round_off: base.round_off,
+        total_amount: totalAmount,
+        grand_total: grandTotal,
+      },
+    });
+
+    return updated;
+  });
+}
+
 module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
   generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
   generateInvoiceNumber, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
-  sendEBill, punchKOT,
+  sendEBill, punchKOT, addTip,
 };

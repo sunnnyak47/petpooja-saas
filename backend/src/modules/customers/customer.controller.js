@@ -66,7 +66,13 @@ async function adjustPoints(req, res, next) {
 async function getLoyaltyHistory(req, res, next) {
   try {
     const result = await customerService.getLoyaltyHistory(req.params.id, req.query);
-    sendPaginated(res, result.transactions, result.total, result.page, result.limit, 'Loyalty history retrieved');
+    sendSuccess(res, {
+      transactions: result.transactions,
+      summary: result.summary,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    }, 'Loyalty history retrieved');
   } catch (e) { next(e); }
 }
 

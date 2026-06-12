@@ -303,6 +303,22 @@ async function updateNotes(req, res, next) {
   } catch (error) { next(error); }
 }
 
+/**
+ * POST /api/orders/:id/tip
+ * Adds (or replaces) a gratuity on the bill. The tip is folded into total_amount /
+ * grand_total on top of the freshly-recomputed clean base, so tax + round_off stay
+ * correct and re-tipping is idempotent. The recompute helper is passed into the
+ * service so the tax engine / region rounding remain the single source of truth.
+ */
+async function addTip(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+    const updated = await orderService.addTip(id, amount, recomputeOrderWithDiscount);
+    sendSuccess(res, updated, 'Tip added to bill');
+  } catch (error) { next(error); }
+}
+
 /** POST /api/orders/:id/void-item */
 async function voidItem(req, res, next) {
   try {
@@ -457,5 +473,5 @@ module.exports = {
   createOrder, listOrders, getOrder, addItems,
   generateKOT, generateBill, updateStatus, processPayment,
   cancelOrder, voidOrder, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
-  sendEBill, applyDiscount, updateNotes, assignStaff, voidItem, punchKOT,
+  sendEBill, applyDiscount, updateNotes, assignStaff, voidItem, punchKOT, addTip,
 };

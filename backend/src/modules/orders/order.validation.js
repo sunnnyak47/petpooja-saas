@@ -56,6 +56,12 @@ const updateNotesSchema = Joi.object({
   notes: Joi.string().max(500).allow('', null).required(),
 });
 
+// Gratuity / tip added to the bill. A flat money amount (>= 0). Sending 0
+// clears any previously applied tip. Capped at 2 decimals to match currency.
+const addTipSchema = Joi.object({
+  amount: Joi.number().precision(2).min(0).required(),
+});
+
 const assignStaffSchema = Joi.object({
   staff_id: Joi.string().uuid().allow(null).required(),
 });
@@ -168,6 +174,7 @@ module.exports = {
   addItemsSchema,
   applyDiscountSchema,
   updateNotesSchema,
+  addTipSchema,
   assignStaffSchema,
   processPaymentSchema,
   voidOrderSchema,
