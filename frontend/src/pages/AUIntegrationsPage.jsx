@@ -4,13 +4,13 @@ import { useSelector } from 'react-redux';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp, Download, FileSpreadsheet, Calculator, DownloadCloud, LineChart } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, X, Globe, Star, RefreshCw, ExternalLink, MessageSquare, TrendingUp, Download, FileSpreadsheet, Calculator, DownloadCloud, LineChart, CreditCard } from 'lucide-react';
 
 const INTEGRATIONS_META = {
   xero: {
     name: 'Xero',
     description: 'Cloud accounting — export invoices, manage P&L, BAS reports',
-    logo: '💼',
+    icon: FileSpreadsheet,
     color: '#13B5EA',
     useOAuth: true, // OAuth2 flow — no manual fields needed
     fields: [],
@@ -18,7 +18,7 @@ const INTEGRATIONS_META = {
   square: {
     name: 'Square',
     description: 'Card & contactless payments — process, reconcile, track fees',
-    logo: '🟦',
+    icon: CreditCard,
     color: '#000000',
     useOAuth: true, // OAuth2 flow — owner connects their own Square account
     fields: [],
@@ -26,7 +26,7 @@ const INTEGRATIONS_META = {
   myob: {
     name: 'MYOB',
     description: 'Australian accounting & payroll — export sales, bills, tax',
-    logo: '📊',
+    icon: Calculator,
     color: '#7B2FBE',
     fields: [
       { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'MYOB API Key' },
@@ -37,7 +37,7 @@ const INTEGRATIONS_META = {
   google_reviews: {
     name: 'Google Reviews',
     description: 'Monitor & respond to Google reviews, track sentiment trends',
-    logo: '⭐',
+    icon: Star,
     color: '#4285F4',
     fields: [
       { key: 'api_key', label: 'Google API Key', type: 'password', placeholder: 'Google Places API Key' },
@@ -48,7 +48,7 @@ const INTEGRATIONS_META = {
   pronto: {
     name: 'Pronto',
     description: 'POS system sync — orders, menu items, settlements',
-    logo: '🔄',
+    icon: RefreshCw,
     color: '#FF6B35',
     fields: [
       { key: 'api_endpoint', label: 'API Endpoint', type: 'text', placeholder: 'https://api.pronto.com/v1' },
@@ -98,7 +98,7 @@ export default function AUIntegrationsPage() {
         window.open(data.url, '_blank', 'width=600,height=700');
         toast.success('Xero login window opened — complete authorization there');
       } else {
-        toast('Xero OAuth not configured — using mock mode', { icon: '⚙️' });
+        toast('Xero OAuth not configured — using mock mode');
       }
     },
     onError: e => toast.error(e?.response?.data?.message || 'Failed to start Xero OAuth'),
@@ -125,7 +125,7 @@ export default function AUIntegrationsPage() {
     if (code && state) {
       api.post('/integrations/au/xero/callback', { code, outlet_id: outletId })
         .then(() => {
-          toast.success('🎉 Xero connected! Syncing financial data…');
+          toast.success('Xero connected! Syncing financial data…');
           qc.invalidateQueries({ queryKey: ['au-integrations'] });
           window.history.replaceState({}, '', window.location.pathname);
         })
@@ -153,10 +153,10 @@ export default function AUIntegrationsPage() {
     const flag = new URLSearchParams(window.location.search).get('square');
     if (!flag) return;
     if (flag === 'connected') {
-      toast.success('🟦 Square connected! You can now take card payments.');
+      toast.success('Square connected! You can now take card payments.');
       qc.invalidateQueries({ queryKey: ['au-integrations'] });
     } else if (flag === 'denied') {
-      toast('Square connection was cancelled', { icon: '⚠️' });
+      toast('Square connection was cancelled');
     } else {
       toast.error('Square connection failed — please try again');
     }
@@ -222,7 +222,7 @@ export default function AUIntegrationsPage() {
       // Check if response is a JSON (no data) or a CSV blob
       const contentType = response.headers?.['content-type'] || '';
       if (contentType.includes('application/json')) {
-        toast('No data found for the selected period', { icon: '📭' });
+        toast('No data found for the selected period');
         return;
       }
       // Trigger CSV download in the browser
@@ -276,12 +276,14 @@ export default function AUIntegrationsPage() {
           const st = status[type] || {};
           const isConnected = st.connected;
           return (
-            <div key={type} className="rounded-2xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: isConnected ? meta.color + '40' : 'var(--border)' }}>
-              {isConnected && <div className="h-1" style={{ background: meta.color }} />}
+            <div key={type} className="rounded-2xl border overflow-hidden" style={{ background: 'var(--bg-card)', borderColor: isConnected ? 'color-mix(in srgb, var(--accent) 25%, transparent)' : 'var(--border)' }}>
+              {isConnected && <div className="h-1" style={{ background: 'var(--accent)' }} />}
               <div className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">{meta.logo}</span>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
+                      <meta.icon className="w-5 h-5" style={{ color: 'var(--accent)' }} />
+                    </div>
                     <div>
                       <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>{meta.name}</h3>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -333,7 +335,7 @@ export default function AUIntegrationsPage() {
                       {type === 'xero' && (
                         <button onClick={() => importXeroMut.mutate()} disabled={importXeroMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                          style={{ background: meta.color }}
+                          style={{ background: 'var(--accent)' }}
                           title="Import P&L, balance sheet, invoices & more from Xero">
                           <DownloadCloud className={`w-3 h-3 inline mr-1 ${importXeroMut.isPending ? 'animate-spin' : ''}`} />
                           {importXeroMut.isPending ? 'Importing…' : 'Import from Xero'}
@@ -351,7 +353,7 @@ export default function AUIntegrationsPage() {
                       {type === 'myob' && (
                         <button onClick={() => setMyobExportModal(true)} disabled={exportMyobMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                          style={{ background: meta.color }}>
+                          style={{ background: 'var(--accent)' }}>
                           <Download className="w-3 h-3 inline mr-1" />
                           Export CSV
                         </button>
@@ -359,7 +361,7 @@ export default function AUIntegrationsPage() {
                       {type === 'pronto' && (
                         <button onClick={() => syncProntoMut.mutate()} disabled={syncProntoMut.isPending}
                           className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                          style={{ background: meta.color }}>
+                          style={{ background: 'var(--accent)' }}>
                           <RefreshCw className="w-3 h-3 inline mr-1" />Sync Now
                         </button>
                       )}
@@ -388,7 +390,7 @@ export default function AUIntegrationsPage() {
                       }}
                       disabled={(type === 'xero' && xeroAuthMut.isPending) || (type === 'square' && squareAuthMut.isPending)}
                       className="flex-1 py-2 rounded-lg text-xs font-semibold text-white flex items-center justify-center gap-1 disabled:opacity-60"
-                      style={{ background: meta.color }}
+                      style={{ background: 'var(--accent)' }}
                     >
                       {meta.useOAuth ? (
                         <>
@@ -522,7 +524,7 @@ export default function AUIntegrationsPage() {
           <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--bg-card)' }}>
             <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
               <div className="flex items-center gap-3">
-                <span className="text-2xl">📊</span>
+                <Calculator className="w-5 h-5" style={{ color: 'var(--accent)' }} />
                 <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>Export to MYOB</h3>
               </div>
               <button onClick={() => setMyobExportModal(false)}><X className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} /></button>
