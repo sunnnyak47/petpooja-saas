@@ -35,7 +35,7 @@ const STEPS = [
   { id: 5, label: 'Done',    icon: Zap,      title: "You're all set!" },
 ];
 
-export default function InventoryOnboarding({ outletId, onComplete }) {
+export default function InventoryOnboarding({ outletId, onComplete, onSkip }) {
   const { symbol } = useCurrency();
   const region = useRegion();
   const CUISINE_PRESETS = region === 'AU' ? CUISINE_PRESETS_AU : CUISINE_PRESETS_IN;
@@ -182,9 +182,22 @@ export default function InventoryOnboarding({ outletId, onComplete }) {
                 Inventory Setup
               </span>
             </div>
-            <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-              Step {step} of {STEPS.length}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
+                Step {step} of {STEPS.length}
+              </span>
+              {onSkip && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  aria-label="Close inventory setup"
+                  title="Skip for now — you can set up inventory later"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:opacity-70"
+                  style={{ color: 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Step dots */}

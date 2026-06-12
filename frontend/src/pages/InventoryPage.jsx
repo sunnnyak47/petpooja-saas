@@ -244,7 +244,11 @@ export default function InventoryPage() {
   const hasItems = ((Array.isArray(stockData?.data) ? stockData.data : stockData?.data?.items || stockData?.data || []).length > 0);
   const [onboardingDone, setOnboardingDone] = useState(false);
 
-  const showOnboarding = !checkingStock && !hasItems && !onboardingDone;
+  // Remember if the user dismissed the setup wizard for this outlet, so it
+  // doesn't pop up again on every refresh when inventory is still empty.
+  const onboardSkipped = !!outletId && (typeof window !== 'undefined') &&
+    window.localStorage.getItem(`inv_onboard_skip_${outletId}`) === '1';
+  const showOnboarding = !checkingStock && !hasItems && !onboardingDone && !onboardSkipped;
 
   // Suppliers query (for suppliers section)
   const { data: suppliersData } = useQuery({
@@ -356,6 +360,12 @@ export default function InventoryPage() {
             setOnboardingDone(true);
             qc.invalidateQueries({ queryKey: ['inv-stock-check'] });
             qc.invalidateQueries({ queryKey: ['inv-stock'] });
+          }}
+          onSkip={() => {
+            setOnboardingDone(true);
+            if (outletId) {
+              try { window.localStorage.setItem(`inv_onboard_skip_${outletId}`, '1'); } catch { /* ignore */ }
+            }
           }}
         />
       )}
