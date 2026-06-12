@@ -1070,6 +1070,8 @@ async function startApp() {
       logger.info(`   Health: http://localhost:${appConfig.port}/health`);
       logger.info(`   API:    http://localhost:${appConfig.port}/api`);
     });
+    // Opt-in: if SUPERADMIN_EMAIL/PASSWORD are set, ensure the owner login on boot.
+    require('./bootstrap/ensureSuperAdmin').ensureSuperAdmin().catch(() => {});
   }
 }
 
