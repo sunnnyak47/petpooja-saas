@@ -13,7 +13,7 @@ const Joi = require('joi');
 const { validate } = require('../../middleware/validate.middleware');
 const logger = require('../../config/logger');
 const multer = require('multer');
-const { uploadToS3 } = require('../../config/aws');
+const { uploadFile } = require('../../config/storage');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 const {
   menuSyncSchema,
@@ -190,7 +190,7 @@ router.post('/upload-logo', authenticate, hasRole('owner', 'manager'), upload.si
       return sendError(res, 400, 'Logo must be an image (PNG, JPG, SVG, WebP)');
     }
     try {
-      const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'branding', req.file.mimetype);
+      const { url } = await uploadFile(req.file.buffer, req.file.originalname, 'branding', req.file.mimetype);
       return sendSuccess(res, { url }, 'Logo uploaded');
     } catch (s3Error) {
       // S3 not configured / failed → save to local disk (served at /uploads).

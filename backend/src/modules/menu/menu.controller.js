@@ -5,7 +5,7 @@
 
 const menuService = require('./menu.service');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
-const { uploadToS3 } = require('../../config/aws');
+const { uploadFile } = require('../../config/storage');
 
 /** POST /api/menu/categories */
 async function createCategory(req, res, next) {
@@ -228,7 +228,7 @@ async function uploadImage(req, res, next) {
 
     // Try S3 first, fall back to local filesystem
     try {
-      const { url } = await uploadToS3(req.file.buffer, req.file.originalname, 'menu-items', req.file.mimetype);
+      const { url } = await uploadFile(req.file.buffer, req.file.originalname, 'menu-items', req.file.mimetype);
       return sendSuccess(res, { url }, 'Image uploaded successfully');
     } catch (s3Error) {
       // S3 failed (invalid keys, etc.) — save locally
