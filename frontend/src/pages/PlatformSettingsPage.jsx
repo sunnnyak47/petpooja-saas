@@ -13,14 +13,14 @@ import {
 } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
 
-const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
+const PLAN_COLORS = { TRIAL: '#64748b', STARTER: 'var(--accent)', PRO: 'var(--accent)', ENTERPRISE: '#16a34a' };
 
 function Toggle({ value, onChange, disabled }) {
   return (
     <button
       onClick={() => !disabled && onChange(!value)}
       className={`relative w-12 h-6 rounded-full transition-all ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'}`}
-      style={{ background: value ? '#6366f1' : 'var(--border)' }}
+      style={{ background: value ? 'var(--accent)' : 'var(--border)' }}
     >
       <div className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all"
         style={{ left: value ? '28px' : '4px' }} />
@@ -28,11 +28,11 @@ function Toggle({ value, onChange, disabled }) {
   );
 }
 
-function SectionCard({ title, icon: Icon, color = '#6366f1', children }) {
+function SectionCard({ title, icon: Icon, color = 'var(--accent)', children }) {
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
       <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}20` }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
         <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
@@ -83,7 +83,7 @@ export default function PlatformSettingsPage() {
 
   if (isLoading || !draft) return (
     <div className="flex items-center justify-center h-64">
-      <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -101,10 +101,10 @@ export default function PlatformSettingsPage() {
           onClick={() => saveMutation.mutate(draft)}
           disabled={saveMutation.isPending}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}
+          style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
         >
           {saveMutation.isPending
-            ? <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+            ? <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
             : <Save className="w-4 h-4" />}
           Save Changes
         </button>
@@ -112,15 +112,15 @@ export default function PlatformSettingsPage() {
 
       {/* Warning banner */}
       <div className="flex items-start gap-3 p-4 rounded-xl"
-        style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
-        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#fbbf24' }} />
-        <p className="text-sm" style={{ color: '#fbbf24' }}>
+        style={{ background: 'color-mix(in srgb, #f59e0b 14%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 30%, transparent)' }}>
+        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f59e0b' }} />
+        <p className="text-sm" style={{ color: '#f59e0b' }}>
           Changes here affect the entire platform and all restaurant chains. Apply with caution.
         </p>
       </div>
 
       {/* Platform Identity */}
-      <SectionCard title="Platform Identity" icon={Building2} color="#6366f1">
+      <SectionCard title="Platform Identity" icon={Building2} color="var(--accent)">
         <div className="grid grid-cols-2 gap-4">
           {[
             { label: 'Platform Name', key: 'platform_name', placeholder: 'MS-RM System' },
@@ -141,7 +141,7 @@ export default function PlatformSettingsPage() {
       </SectionCard>
 
       {/* Access Control */}
-      <SectionCard title="Access Control" icon={Shield} color="#ef4444">
+      <SectionCard title="Access Control" icon={Shield} color="var(--accent)">
         <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
           <SettingRow
             label="Maintenance Mode"
@@ -149,7 +149,7 @@ export default function PlatformSettingsPage() {
           >
             <div className="flex items-center gap-2">
               <Toggle value={draft.maintenance_mode} onChange={v => set('maintenance_mode', v)} />
-              <span className="text-xs font-semibold" style={{ color: draft.maintenance_mode ? '#ef4444' : '#4ade80' }}>
+              <span className="text-xs font-semibold" style={{ color: draft.maintenance_mode ? '#ef4444' : '#16a34a' }}>
                 {draft.maintenance_mode ? 'ON — Platform Locked' : 'OFF — Normal'}
               </span>
             </div>
@@ -160,7 +160,7 @@ export default function PlatformSettingsPage() {
           >
             <div className="flex items-center gap-2">
               <Toggle value={draft.registration_open} onChange={v => set('registration_open', v)} />
-              <span className="text-xs font-semibold" style={{ color: draft.registration_open ? '#4ade80' : '#f59e0b' }}>
+              <span className="text-xs font-semibold" style={{ color: draft.registration_open ? '#16a34a' : '#f59e0b' }}>
                 {draft.registration_open ? 'Open' : 'Closed'}
               </span>
             </div>
@@ -181,13 +181,13 @@ export default function PlatformSettingsPage() {
       </SectionCard>
 
       {/* Plan Pricing */}
-      <SectionCard title={`Plan Pricing (${symbol}/month)`} icon={DollarSign} color="#22c55e">
+      <SectionCard title={`Plan Pricing (${symbol}/month)`} icon={DollarSign} color="var(--accent)">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'].map(plan => (
-            <div key={plan} className="rounded-xl p-4" style={{ background: 'var(--bg-primary)', border: `1px solid ${PLAN_COLORS[plan]}40` }}>
+            <div key={plan} className="rounded-xl p-4" style={{ background: 'var(--bg-primary)', border: `1px solid color-mix(in srgb, ${PLAN_COLORS[plan]} 35%, var(--border))` }}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full" style={{ background: PLAN_COLORS[plan] }} />
-                <span className="text-xs font-bold" style={{ color: PLAN_COLORS[plan] }}>{plan}</span>
+                <span className="text-xs font-semibold" style={{ color: PLAN_COLORS[plan] }}>{plan}</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{symbol}</span>
@@ -207,13 +207,13 @@ export default function PlatformSettingsPage() {
       </SectionCard>
 
       {/* Outlet Limits */}
-      <SectionCard title="Max Outlets Per Plan" icon={Globe} color="#f59e0b">
+      <SectionCard title="Max Outlets Per Plan" icon={Globe} color="var(--accent)">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'].map(plan => (
-            <div key={plan} className="rounded-xl p-4" style={{ background: 'var(--bg-primary)', border: `1px solid ${PLAN_COLORS[plan]}40` }}>
+            <div key={plan} className="rounded-xl p-4" style={{ background: 'var(--bg-primary)', border: `1px solid color-mix(in srgb, ${PLAN_COLORS[plan]} 35%, var(--border))` }}>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-2 h-2 rounded-full" style={{ background: PLAN_COLORS[plan] }} />
-                <span className="text-xs font-bold" style={{ color: PLAN_COLORS[plan] }}>{plan}</span>
+                <span className="text-xs font-semibold" style={{ color: PLAN_COLORS[plan] }}>{plan}</span>
               </div>
               <input
                 type="number"
@@ -230,7 +230,7 @@ export default function PlatformSettingsPage() {
       </SectionCard>
 
       {/* Session & Security */}
-      <SectionCard title="Session & Security" icon={Lock} color="#8b5cf6">
+      <SectionCard title="Session & Security" icon={Lock} color="var(--accent)">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Default Trial Period (days)</label>
@@ -277,7 +277,7 @@ export default function PlatformSettingsPage() {
 
       {saved && (
         <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl z-50"
-          style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#4ade80' }}>
+          style={{ background: 'color-mix(in srgb, #16a34a 14%, transparent)', border: '1px solid color-mix(in srgb, #16a34a 35%, transparent)', color: '#16a34a' }}>
           <CheckCircle2 className="w-4 h-4" />
           Platform settings saved successfully
         </div>

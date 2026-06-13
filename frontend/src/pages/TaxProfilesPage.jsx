@@ -44,7 +44,8 @@ function SlabRow({ slab, onChange, onDelete }) {
         />
       </div>
       <button onClick={onDelete}
-        className="w-7 h-7 rounded flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors">
+        className="w-7 h-7 rounded flex items-center justify-center transition-colors"
+        style={{ color: '#ef4444' }}>
         <Trash2 className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -93,7 +94,7 @@ function ProfileCard({ profile, onSave, onDelete }) {
             <>
               <button onClick={handleSave}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90"
-                style={{ background: 'rgba(34,197,94,0.2)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
                 <Save className="w-3.5 h-3.5" /> Save
               </button>
               <button onClick={() => { setDraft(profile); setEditing(false); }}
@@ -106,12 +107,12 @@ function ProfileCard({ profile, onSave, onDelete }) {
             <>
               <button onClick={() => setEditing(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
-                style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)' }}>
+                style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' }}>
                 <Edit2 className="w-3.5 h-3.5" /> Edit
               </button>
               <button onClick={() => onDelete(profile.id)}
                 className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:opacity-80"
-                style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                style={{ background: 'color-mix(in srgb, #ef4444 12%, transparent)', color: '#ef4444', border: '1px solid color-mix(in srgb, #ef4444 30%, transparent)' }}>
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </>
@@ -153,7 +154,7 @@ function ProfileCard({ profile, onSave, onDelete }) {
           <button
             onClick={() => editing && setDraft(d => ({ ...d, inclusive: !d.inclusive }))}
             className={`w-10 h-5 rounded-full transition-all ${editing ? 'cursor-pointer' : 'cursor-default'}`}
-            style={{ background: draft.inclusive ? '#6366f1' : 'var(--border)' }}>
+            style={{ background: draft.inclusive ? 'var(--accent)' : 'var(--border)' }}>
             <div className="w-4 h-4 bg-white rounded-full shadow transition-transform mx-0.5"
               style={{ transform: draft.inclusive ? 'translateX(20px)' : 'translateX(0)' }} />
           </button>
@@ -170,7 +171,7 @@ function ProfileCard({ profile, onSave, onDelete }) {
             {editing && (
               <button onClick={addSlab}
                 className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                 <Plus className="w-3 h-3" /> Add Slab
               </button>
             )}
@@ -185,13 +186,13 @@ function ProfileCard({ profile, onSave, onDelete }) {
                 <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg"
                   style={{ background: 'var(--bg-primary)' }}>
                   <span className="w-12 text-center text-sm font-bold px-2 py-0.5 rounded"
-                    style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                    style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                     {slab.rate}%
                   </span>
                   <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{slab.label}</span>
                   {slab.rate === draft.default_slab && (
                     <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>Default</span>
+                      style={{ background: 'color-mix(in srgb, #16a34a 12%, transparent)', color: '#16a34a' }}>Default</span>
                   )}
                 </div>
               )
@@ -249,7 +250,7 @@ export default function TaxProfilesPage() {
         </div>
         <button onClick={() => setShowNewForm(v => !v)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
+          style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
           <Plus className="w-4 h-4" />
           New Profile
         </button>
@@ -257,7 +258,7 @@ export default function TaxProfilesPage() {
 
       {/* New profile quick form */}
       {showNewForm && (
-        <div className="rounded-xl p-5 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid #6366f1' }}>
+        <div className="rounded-xl p-5 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--accent)' }}>
           <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>New Tax Profile</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
@@ -295,8 +296,8 @@ export default function TaxProfilesPage() {
               Cancel
             </button>
             <button onClick={handleAddNew}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: 'rgba(34,197,94,0.2)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
+              style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
               <CheckCircle2 className="w-4 h-4" /> Create Profile
             </button>
           </div>
@@ -305,16 +306,16 @@ export default function TaxProfilesPage() {
 
       {/* Notice */}
       <div className="flex items-start gap-3 p-4 rounded-xl"
-        style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
-        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#fbbf24' }} />
-        <p className="text-sm" style={{ color: '#fbbf24' }}>
+        style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 30%, transparent)' }}>
+        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f59e0b' }} />
+        <p className="text-sm" style={{ color: '#f59e0b' }}>
           Changes to tax profiles affect all restaurant chains in that region. Existing orders are not retroactively updated.
         </p>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="space-y-4">
@@ -333,7 +334,7 @@ export default function TaxProfilesPage() {
 
       {saveMutation.isSuccess && (
         <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl z-50"
-          style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#4ade80' }}>
+          style={{ background: 'color-mix(in srgb, #16a34a 12%, transparent)', border: '1px solid color-mix(in srgb, #16a34a 40%, transparent)', color: '#16a34a' }}>
           <CheckCircle2 className="w-4 h-4" />
           Tax profiles saved successfully
         </div>

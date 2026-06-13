@@ -16,8 +16,8 @@ function StatusBadge({ status }) {
   return (
     <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
       style={{
-        background: isOk ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-        color: isOk ? '#4ade80' : '#f87171',
+        background: isOk ? 'color-mix(in srgb, #16a34a 12%, transparent)' : 'color-mix(in srgb, #ef4444 12%, transparent)',
+        color: isOk ? '#16a34a' : '#ef4444',
       }}>
       {isOk ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
       {status}
@@ -30,7 +30,7 @@ function MetricCard({ label, value, sub, color, icon: Icon }) {
     <div className="rounded-xl p-5 flex items-start gap-4"
       style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
       <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: `${color}20` }}>
+        style={{ background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
         <Icon className="w-5 h-5" style={{ color }} />
       </div>
       <div>
@@ -69,14 +69,14 @@ export default function PlatformHealthPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Platform Health</h1>
+          <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Platform Health</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Real-time system metrics and operational status
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`} />
+            <div className="w-2 h-2 rounded-full" style={{ background: autoRefresh ? '#16a34a' : '#64748b' }} />
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {autoRefresh ? 'Auto-refresh ON' : 'Manual'}
             </span>
@@ -96,21 +96,21 @@ export default function PlatformHealthPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-24">
-          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         </div>
       ) : !health ? (
         <div className="flex flex-col items-center py-16 gap-2">
-          <AlertCircle className="w-10 h-10 text-red-400" />
+          <AlertCircle className="w-10 h-10" style={{ color: '#ef4444' }} />
           <p style={{ color: 'var(--text-primary)' }}>Unable to load health data</p>
         </div>
       ) : (
         <>
           {/* System Status Bar */}
           <div className="rounded-xl p-4 flex items-center justify-between"
-            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            style={{ background: 'color-mix(in srgb, #16a34a 8%, transparent)', border: '1px solid color-mix(in srgb, #16a34a 30%, transparent)' }}>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-              <span className="font-semibold text-sm" style={{ color: '#4ade80' }}>All Systems Operational</span>
+              <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#16a34a' }} />
+              <span className="font-semibold text-sm" style={{ color: '#16a34a' }}>All Systems Operational</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
               <Clock className="w-3.5 h-3.5" />
@@ -138,10 +138,10 @@ export default function PlatformHealthPage() {
 
           {/* Key Metrics */}
           <div className="grid grid-cols-4 gap-4">
-            <MetricCard label="Total Chains"   value={health.chains?.total}   sub={`${health.chains?.active} active`}  color="#6366f1" icon={Store} />
-            <MetricCard label="Total Outlets"  value={health.outlets?.total}  sub="across all chains"                   color="#f59e0b" icon={Globe} />
-            <MetricCard label="Platform Users" value={health.users?.total}    sub="all restaurants"                     color="#22c55e" icon={Users} />
-            <MetricCard label="Trial Chains"   value={health.chains?.trial}   sub="on free tier"                        color="#94a3b8" icon={Shield} />
+            <MetricCard label="Total Chains"   value={health.chains?.total}   sub={`${health.chains?.active} active`}  color="var(--accent)" icon={Store} />
+            <MetricCard label="Total Outlets"  value={health.outlets?.total}  sub="across all chains"                   color="var(--accent)" icon={Globe} />
+            <MetricCard label="Platform Users" value={health.users?.total}    sub="all restaurants"                     color="var(--accent)" icon={Users} />
+            <MetricCard label="Trial Chains"   value={health.chains?.trial}   sub="on free tier"                        color="#64748b" icon={Shield} />
           </div>
 
           {/* Orders & Revenue */}
@@ -149,7 +149,7 @@ export default function PlatformHealthPage() {
             <div className="rounded-xl p-5 space-y-4"
               style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <ShoppingCart className="w-4 h-4 text-indigo-400" /> Order Activity
+                <ShoppingCart className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Order Activity
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
@@ -166,7 +166,7 @@ export default function PlatformHealthPage() {
             <div className="rounded-xl p-5 space-y-4"
               style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
               <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <TrendingUp className="w-4 h-4 text-green-400" /> Revenue Activity (24h)
+                <TrendingUp className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Revenue Activity (24h)
               </h3>
               {(() => {
                 // Never sum ₹ (IN) + A$ (AU) into one number under a single symbol.
@@ -187,7 +187,7 @@ export default function PlatformHealthPage() {
                       <div className={`grid gap-4 ${byRegion.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                         {byRegion.map(r => (
                           <div key={r.region} className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
-                            <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
+                            <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>
                               {fmtRegionMoney(r.amount, r.currency)}
                             </p>
                             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -212,7 +212,7 @@ export default function PlatformHealthPage() {
                 return (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-lg p-3" style={{ background: 'var(--bg-primary)' }}>
-                      <p className="text-2xl font-bold" style={{ color: '#4ade80' }}>
+                      <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>
                         {(health.revenue?.last_24h || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Order value (24h, all currencies)</p>
@@ -233,14 +233,14 @@ export default function PlatformHealthPage() {
           <div className="rounded-xl p-5 space-y-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              <BarChart2 className="w-4 h-4 text-purple-400" /> Chain Distribution
+              <BarChart2 className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Chain Distribution
             </h3>
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: 'TRIAL',      value: health.chains?.trial,                                                         color: '#94a3b8' },
-                { label: 'STARTER',    value: Math.max(0, (health.chains?.active || 0) - (health.chains?.trial || 0) - 3),  color: '#60a5fa' },
-                { label: 'PRO',        value: 2,                                                                             color: '#a78bfa' },
-                { label: 'ENTERPRISE', value: 1,                                                                             color: '#4ade80' },
+                { label: 'TRIAL',      value: health.chains?.trial,                                                         color: '#64748b' },
+                { label: 'STARTER',    value: Math.max(0, (health.chains?.active || 0) - (health.chains?.trial || 0) - 3),  color: 'var(--accent)' },
+                { label: 'PRO',        value: 2,                                                                             color: 'var(--accent)' },
+                { label: 'ENTERPRISE', value: 1,                                                                             color: 'var(--accent)' },
               ].map(p => (
                 <div key={p.label} className="text-center p-3 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
                   <p className="text-xl font-bold" style={{ color: p.color }}>{p.value ?? 0}</p>

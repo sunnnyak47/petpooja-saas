@@ -12,18 +12,18 @@ import {
 } from 'lucide-react';
 
 const TYPE_CFG = {
-  INFO:        { color: '#60a5fa', bg: 'rgba(96,165,250,0.15)',  icon: Info,          label: 'Information' },
-  WARNING:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',  icon: AlertTriangle, label: 'Warning' },
-  MAINTENANCE: { color: '#f87171', bg: 'rgba(239,68,68,0.15)',   icon: Clock,         label: 'Maintenance' },
-  PROMO:       { color: '#4ade80', bg: 'rgba(34,197,94,0.15)',   icon: Gift,          label: 'Promotion' },
+  INFO:        { color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)', icon: Info,          label: 'Information' },
+  WARNING:     { color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: AlertTriangle, label: 'Warning' },
+  MAINTENANCE: { color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: Clock,         label: 'Maintenance' },
+  PROMO:       { color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 14%, transparent)', icon: Gift,          label: 'Promotion' },
 };
 
 const TARGET_CFG = {
-  ALL:        { label: 'All Chains',        color: '#818cf8' },
-  TRIAL:      { label: 'Trial Only',        color: '#94a3b8' },
-  STARTER:    { label: 'Starter Plans',     color: '#60a5fa' },
-  PRO:        { label: 'Pro Plans',         color: '#a78bfa' },
-  ENTERPRISE: { label: 'Enterprise Plans',  color: '#4ade80' },
+  ALL:        { label: 'All Chains',        color: '#64748b' },
+  TRIAL:      { label: 'Trial Only',        color: '#64748b' },
+  STARTER:    { label: 'Starter Plans',     color: '#64748b' },
+  PRO:        { label: 'Pro Plans',         color: '#64748b' },
+  ENTERPRISE: { label: 'Enterprise Plans',  color: '#16a34a' },
 };
 
 function timeAgo(dt) {
@@ -75,8 +75,8 @@ export default function BroadcastPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Broadcasts', value: broadcasts.length, color: '#6366f1', icon: Radio },
-          { label: 'Total Recipients Reached', value: totalSent.toLocaleString(), color: '#22c55e', icon: Users },
+          { label: 'Total Broadcasts', value: broadcasts.length, color: '#64748b', icon: Radio },
+          { label: 'Total Recipients Reached', value: totalSent.toLocaleString(), color: '#16a34a', icon: Users },
           { label: 'This Month', value: broadcasts.filter(b => new Date(b.sent_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length, color: '#f59e0b', icon: Megaphone },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-4 flex items-center gap-4"
@@ -126,9 +126,9 @@ export default function BroadcastPage() {
                   <button key={key} onClick={() => setForm(f => ({ ...f, target: key }))}
                     className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
                     style={{
-                      background: form.target === key ? `${cfg.color}20` : 'var(--bg-primary)',
-                      border: `1px solid ${form.target === key ? cfg.color : 'var(--border)'}`,
-                      color: form.target === key ? cfg.color : 'var(--text-secondary)',
+                      background: form.target === key ? 'var(--accent)' : 'var(--bg-primary)',
+                      border: `1px solid ${form.target === key ? 'var(--accent)' : 'var(--border)'}`,
+                      color: form.target === key ? 'var(--accent-text)' : 'var(--text-secondary)',
                     }}>
                     {cfg.label}
                   </button>
@@ -166,9 +166,9 @@ export default function BroadcastPage() {
                 onClick={() => sendMutation.mutate(form)}
                 disabled={sendMutation.isPending || !form.title || !form.body}
                 className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 flex-1 justify-center"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
+                style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
                 {sendMutation.isPending
-                  ? <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  ? <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
                   : <Send className="w-4 h-4" />}
                 Send to {TARGET_CFG[form.target]?.label}
               </button>
@@ -202,7 +202,7 @@ export default function BroadcastPage() {
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center py-10">
-                <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                <div className="w-5 h-5 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
               </div>
             ) : broadcasts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
@@ -248,7 +248,7 @@ export default function BroadcastPage() {
 
       {sent && (
         <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl z-50"
-          style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#4ade80' }}>
+          style={{ background: 'color-mix(in srgb, #16a34a 14%, transparent)', border: '1px solid color-mix(in srgb, #16a34a 40%, transparent)', color: '#16a34a' }}>
           <CheckCircle2 className="w-4 h-4" />
           Broadcast sent successfully!
         </div>

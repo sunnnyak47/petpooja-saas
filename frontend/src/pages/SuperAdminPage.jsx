@@ -309,36 +309,36 @@ export default function SuperAdminPage() {
             icon={<ShoppingCart className="w-4 h-4" />}
             label="Orders Today"
             value={ordersToday ?? '—'}
-            color="#10B981"
+            color="#16a34a"
           />
           <LiveStatCard
             icon={<TrendingUp className="w-4 h-4" />}
             label="Revenue Today"
             value={revenueToday != null ? `${sym}${Number(revenueToday).toLocaleString()}` : '—'}
-            color="#3B82F6"
+            color="#64748b"
           />
           <LiveStatCard
             icon={<Building2 className="w-4 h-4" />}
             label="Active Chains"
             value={liveStats?.active_chains ?? chains.filter(c => c.is_active !== false).length}
-            color="#8B5CF6"
+            color="#64748b"
           />
           <LiveStatCard
             icon={<BarChart3 className="w-4 h-4" />}
             label="Orders This Month"
             value={ordersThisMonth ?? '—'}
-            color="#F97316"
+            color="#f59e0b"
           />
         </div>
       </div>
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard icon={<Building2 className="w-5 h-5" />} label="Total Chains"  value={chains.length}  color="#6366F1" />
+        <KPICard icon={<Building2 className="w-5 h-5" />} label="Total Chains"  value={chains.length}  color="var(--accent)" />
         <KPICard icon={<span className="text-lg">{REGIONS.IN.flag}</span>}       label="India Chains"   value={inCount}  color="#FF6B35" />
         <KPICard icon={<span className="text-lg">{REGIONS.AU.flag}</span>}       label="AU Chains"      value={auCount}  color="#0052CC" />
         <KPICard icon={<DollarSign className="w-5 h-5" />}                      label="Active Plans"
-          value={chains.filter(c => c.subscriptions?.[0]?.status === 'active').length} color="#10B981" />
+          value={chains.filter(c => c.subscriptions?.[0]?.status === 'active').length} color="#16a34a" />
       </div>
 
       {/* ── Region Profile Switcher ── */}
@@ -420,7 +420,7 @@ export default function SuperAdminPage() {
               {tab.label}
               {tab.count !== null && (
                 <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold"
-                  style={{ background: 'var(--accent)', color: '#fff' }}>
+                  style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
                   {tab.count}
                 </span>
               )}
@@ -452,7 +452,7 @@ export default function SuperAdminPage() {
                 className="px-4 py-2 text-xs font-medium transition-colors"
                 style={{
                   background: filterRegion === r ? 'var(--accent)' : 'var(--bg-primary)',
-                  color: filterRegion === r ? '#fff' : 'var(--text-secondary)',
+                  color: filterRegion === r ? 'var(--accent-text)' : 'var(--text-secondary)',
                   borderRight: r !== 'AU' ? '1px solid var(--border)' : 'none',
                 }}>
                 {r === 'ALL' ? 'All' : `${REGIONS[r].flag} ${r}`}
@@ -472,7 +472,7 @@ export default function SuperAdminPage() {
             const target = REGIONS[curRegion === 'AU' ? 'IN' : 'AU'];
             const sub = chain.subscriptions?.[0];
             const status = sub?.status || 'trial';
-            const statusColor = status === 'active' ? '#10B981' : status === 'trial' ? '#F59E0B' : '#EF4444';
+            const statusColor = status === 'active' ? '#16a34a' : status === 'trial' ? '#f59e0b' : '#ef4444';
             const suspended = chain.is_active === false;
             const currentPlan = (chain.plan || sub?.plan_name || 'TRIAL').toUpperCase();
             const planStyle = PLAN_COLORS[currentPlan] || PLAN_COLORS.TRIAL;
@@ -482,13 +482,13 @@ export default function SuperAdminPage() {
                 className="rounded-xl border transition-shadow hover:shadow-sm relative overflow-hidden"
                 style={{
                   background: 'var(--bg-primary)',
-                  borderColor: suspended ? '#EF4444' : 'var(--border)',
+                  borderColor: suspended ? '#ef4444' : 'var(--border)',
                 }}>
 
                 {/* Suspended overlay banner */}
                 {suspended && (
                   <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1"
-                    style={{ background: '#EF4444' }}>
+                    style={{ background: '#ef4444' }}>
                     <span className="text-white text-[11px] font-bold tracking-widest uppercase">Suspended</span>
                   </div>
                 )}
@@ -560,7 +560,11 @@ export default function SuperAdminPage() {
                       onClick={() => impersonateMutation.mutate(chain.id)}
                       disabled={impersonateMutation.isPending}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#6366F130', background: '#6366F108', color: '#6366F1' }}>
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                        color: 'var(--accent)',
+                      }}>
                       <LogIn className="w-3 h-3" />
                       Login As
                     </button>
@@ -571,7 +575,7 @@ export default function SuperAdminPage() {
                       disabled={resetLoginMutation.isPending}
                       title="Reset & unlock the chain owner's login"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#F59E0B30', background: '#F59E0B08', color: '#F59E0B' }}>
+                      style={{ borderColor: '#f59e0b4d', background: '#f59e0b14', color: '#f59e0b' }}>
                       <KeyRound className="w-3 h-3" />
                       Reset Login
                     </button>
@@ -581,7 +585,7 @@ export default function SuperAdminPage() {
                       onClick={() => setTransferModal({ chain, mode: 'existing', user_id: '', full_name: '', email: '', phone: '' })}
                       title="Transfer chain ownership to another user"
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#0EA5E930', background: '#0EA5E908', color: '#0EA5E9' }}>
+                      style={{ borderColor: '#64748b4d', background: '#64748b14', color: '#64748b' }}>
                       <ArrowLeftRight className="w-3 h-3" />
                       Transfer
                     </button>
@@ -592,7 +596,7 @@ export default function SuperAdminPage() {
                         onClick={() => statusMutation.mutate({ id: chain.id, action: 'activate' })}
                         disabled={statusMutation.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#10B98130', background: '#10B98108', color: '#10B981' }}>
+                        style={{ borderColor: '#16a34a4d', background: '#16a34a14', color: '#16a34a' }}>
                         <PlayCircle className="w-3 h-3" />
                         Activate
                       </button>
@@ -601,7 +605,7 @@ export default function SuperAdminPage() {
                         onClick={() => statusMutation.mutate({ id: chain.id, action: 'suspend' })}
                         disabled={statusMutation.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#EF444430', background: '#EF444408', color: '#EF4444' }}>
+                        style={{ borderColor: '#ef44444d', background: '#ef444414', color: '#ef4444' }}>
                         <PauseCircle className="w-3 h-3" />
                         Suspend
                       </button>
@@ -613,7 +617,7 @@ export default function SuperAdminPage() {
                         onClick={() => setDeleteConfirm({ chain, reason: '' })}
                         title="Archive (soft-delete) this chain — reversible"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#DC262630', background: '#DC262608', color: '#DC2626' }}>
+                        style={{ borderColor: '#ef44444d', background: '#ef444414', color: '#ef4444' }}>
                         <Trash2 className="w-3 h-3" />
                         Archive
                       </button>
@@ -664,7 +668,11 @@ export default function SuperAdminPage() {
                     <button
                       onClick={() => navigate(`/chain/${chain.id}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80 ml-auto"
-                      style={{ borderColor: '#f59e0b30', background: '#f59e0b08', color: '#f59e0b' }}>
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                        color: 'var(--accent)',
+                      }}>
                       <ChevronRight className="w-3 h-3" />
                       View Outlets
                     </button>
@@ -699,7 +707,7 @@ export default function SuperAdminPage() {
             <button
               onClick={() => refetchOnboarding()}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              style={{ background: 'var(--accent)', color: '#fff' }}
+              style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
             >
               <RefreshCw size={14} /> Refresh
             </button>
@@ -709,9 +717,9 @@ export default function SuperAdminPage() {
           {!onboardingLoading && onboardingData.length > 0 && (
             <div className="grid grid-cols-3 gap-4 mb-6">
               {[
-                { label: 'Total Chains', value: onboardingData.length, accent: '#3B82F6' },
-                { label: 'Setup Complete', value: onboardingData.filter(c => c.setup_completed).length, accent: '#10B981' },
-                { label: 'In Progress / Not Started', value: onboardingData.filter(c => !c.setup_completed).length, accent: '#F59E0B' },
+                { label: 'Total Chains', value: onboardingData.length, accent: 'var(--accent)' },
+                { label: 'Setup Complete', value: onboardingData.filter(c => c.setup_completed).length, accent: '#16a34a' },
+                { label: 'In Progress / Not Started', value: onboardingData.filter(c => !c.setup_completed).length, accent: '#f59e0b' },
               ].map(stat => (
                 <div key={stat.label} className="rounded-2xl p-4 border"
                   style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
@@ -748,17 +756,17 @@ export default function SuperAdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                          style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+                          style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                           {chain.plan || 'TRIAL'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         {chain.setup_completed ? (
-                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#10B981' }}>
+                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#16a34a' }}>
                             <CheckCircle size={13} /> Complete
                           </span>
                         ) : chain.wizard_step > 1 ? (
-                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#F59E0B' }}>
+                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#f59e0b' }}>
                             <Clock size={13} /> In Progress
                           </span>
                         ) : (
@@ -767,7 +775,7 @@ export default function SuperAdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         {chain.setup_completed ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: '#10B981' }}>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: '#16a34a' }}>
                             <Check size={13} /> 7/7
                           </span>
                         ) : (
@@ -775,7 +783,7 @@ export default function SuperAdminPage() {
                             <div className="flex gap-0.5">
                               {[1,2,3,4,5,6,7].map(s => (
                                 <div key={s} className="w-3 h-3 rounded-full"
-                                  style={{ background: s < (chain.wizard_step||1) ? 'var(--accent)' : s === (chain.wizard_step||1) ? '#F59E0B' : 'var(--border)' }} />
+                                  style={{ background: s < (chain.wizard_step||1) ? 'var(--accent)' : s === (chain.wizard_step||1) ? '#f59e0b' : 'var(--border)' }} />
                               ))}
                             </div>
                             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{chain.wizard_step || 1}/7</span>
@@ -793,7 +801,7 @@ export default function SuperAdminPage() {
                             }
                           }}
                           className="text-xs hover:underline"
-                          style={{ color: '#EF4444' }}
+                          style={{ color: '#ef4444' }}
                         >
                           Reset Wizard
                         </button>
@@ -812,7 +820,7 @@ export default function SuperAdminPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
           <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-2">
-              <KeyRound className="w-5 h-5" style={{ color: '#F59E0B' }} />
+              <KeyRound className="w-5 h-5" style={{ color: '#f59e0b' }} />
               <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Reset owner login?</h3>
             </div>
             <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
@@ -825,7 +833,7 @@ export default function SuperAdminPage() {
               <button
                 onClick={() => { const c = resetConfirm; setResetConfirm(null); resetLoginMutation.mutate(c.id); }}
                 disabled={resetLoginMutation.isPending}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#F59E0B' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#f59e0b' }}>
                 {resetLoginMutation.isPending ? 'Resetting…' : 'Reset login'}
               </button>
             </div>
@@ -870,7 +878,7 @@ export default function SuperAdminPage() {
                 <button key={m} onClick={() => setTransferModal(p => ({ ...p, mode: m }))}
                   className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
                   style={transferModal.mode === m
-                    ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }
+                    ? { background: 'var(--accent)', color: 'var(--accent-text)', borderColor: 'var(--accent)' }
                     : { background: 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border)' }}>
                   {label}
                 </button>
@@ -902,7 +910,7 @@ export default function SuperAdminPage() {
                     : { new_owner: { full_name: transferModal.full_name.trim(), email: transferModal.email.trim(), phone: transferModal.phone.trim() } };
                   transferMutation.mutate({ id: transferModal.chain.id, body });
                 }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#0EA5E9' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#64748b' }}>
                 {transferMutation.isPending ? 'Transferring…' : 'Transfer'}
               </button>
             </div>
@@ -939,7 +947,7 @@ export default function SuperAdminPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
           <div className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <Trash2 className="w-5 h-5" style={{ color: '#DC2626' }} />
+              <Trash2 className="w-5 h-5" style={{ color: '#ef4444' }} />
               <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Archive {deleteConfirm.chain.name}?</h3>
             </div>
             <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
@@ -954,7 +962,7 @@ export default function SuperAdminPage() {
                 className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
               <button onClick={() => deleteMutation.mutate({ id: deleteConfirm.chain.id, reason: deleteConfirm.reason })}
                 disabled={deleteMutation.isPending}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#DC2626' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#ef4444' }}>
                 {deleteMutation.isPending ? 'Archiving…' : 'Archive chain'}
               </button>
             </div>
@@ -982,7 +990,7 @@ export default function SuperAdminPage() {
                   </div>
                   <button onClick={() => restoreMutation.mutate(dc.id)} disabled={restoreMutation.isPending}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border shrink-0 disabled:opacity-50"
-                    style={{ borderColor: '#10B98130', background: '#10B98108', color: '#10B981' }}>
+                    style={{ borderColor: '#16a34a4d', background: '#16a34a14', color: '#16a34a' }}>
                     <RotateCcw className="w-3 h-3" /> Restore
                   </button>
                 </div>
@@ -1085,7 +1093,7 @@ export default function SuperAdminPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                      ABN (Australian Business Number) <span style={{ color: '#EF4444' }}>*</span>
+                      ABN (Australian Business Number) <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
                       placeholder="e.g. 12 345 678 901"
@@ -1225,11 +1233,12 @@ export default function SuperAdminPage() {
 }
 
 function LiveStatCard({ icon, label, value, color }) {
+  const tint = (pct) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border"
-      style={{ background: `${color}08`, borderColor: `${color}20` }}>
+      style={{ background: tint(4), borderColor: tint(13) }}>
       <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: `${color}15`, color }}>
+        style={{ background: tint(9), color }}>
         {icon}
       </div>
       <div className="min-w-0">
@@ -1249,7 +1258,7 @@ function KPICard({ icon, label, value, color }) {
           <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{label}</p>
         </div>
         <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: `${color}10`, color }}>
+          style={{ background: `color-mix(in srgb, ${color} 10%, transparent)`, color }}>
           {icon}
         </div>
       </div>

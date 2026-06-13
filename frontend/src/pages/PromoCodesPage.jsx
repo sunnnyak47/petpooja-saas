@@ -13,14 +13,14 @@ import {
 } from 'lucide-react';
 import { useCurrency } from '../hooks/useCurrency';
 
-const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
+const PLAN_COLORS = { TRIAL: '#64748b', STARTER: '#64748b', PRO: '#64748b', ENTERPRISE: '#16a34a' };
 const ALL_PLANS = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
 
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)}
       className="relative w-10 h-5 rounded-full transition-all cursor-pointer"
-      style={{ background: value ? '#6366f1' : 'var(--border)' }}>
+      style={{ background: value ? 'var(--accent)' : 'var(--border)' }}>
       <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
         style={{ left: value ? '22px' : '2px' }} />
     </button>
@@ -133,7 +133,7 @@ function PromoForm({ initial, onSave, onClose, currencySymbol }) {
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
           <button onClick={() => onSave(form)} disabled={!form.code}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
             <CheckCircle2 className="w-4 h-4" />
             {initial ? 'Save Changes' : 'Create Code'}
           </button>
@@ -197,7 +197,7 @@ export default function PromoCodesPage() {
         </div>
         <button onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
+          style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
           <Plus className="w-4 h-4" /> New Code
         </button>
       </div>
@@ -205,8 +205,8 @@ export default function PromoCodesPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Active Codes', value: activeCount, color: '#22c55e', icon: Tag },
-          { label: 'Total Codes', value: promos.length, color: '#6366f1', icon: Tag },
+          { label: 'Active Codes', value: activeCount, color: '#16a34a', icon: Tag },
+          { label: 'Total Codes', value: promos.length, color: '#64748b', icon: Tag },
           { label: 'Total Uses', value: totalUses, color: '#f59e0b', icon: Users },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-4 flex items-center gap-4"
@@ -225,7 +225,7 @@ export default function PromoCodesPage() {
       {/* Promo cards */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
         </div>
       ) : promos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-2 rounded-xl"
@@ -245,20 +245,20 @@ export default function PromoCodesPage() {
               <div key={p.id} className="rounded-xl p-5 space-y-3"
                 style={{
                   background: 'var(--bg-secondary)',
-                  border: `1px solid ${invalid ? 'var(--border)' : '#6366f140'}`,
+                  border: `1px solid ${invalid ? 'var(--border)' : 'color-mix(in srgb, var(--accent) 25%, transparent)'}`,
                   opacity: invalid ? 0.7 : 1,
                 }}>
                 {/* Code + actions */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-lg tracking-widest"
-                      style={{ color: invalid ? 'var(--text-secondary)' : '#818cf8' }}>
+                      style={{ color: invalid ? 'var(--text-secondary)' : 'var(--accent)' }}>
                       {p.code}
                     </span>
                     <button onClick={() => copyCode(p.code)}
                       className="p-1 rounded hover:opacity-70">
                       {copied === p.code
-                        ? <CheckCircle2 className="w-4 h-4" style={{ color: '#4ade80' }} />
+                        ? <CheckCircle2 className="w-4 h-4" style={{ color: '#16a34a' }} />
                         : <Copy className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />}
                     </button>
                   </div>
@@ -269,13 +269,13 @@ export default function PromoCodesPage() {
                     />
                     <button onClick={() => setEditing(p)}
                       className="p-1.5 rounded-lg hover:opacity-80"
-                      style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                      style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     {/* TODO: Replace window.confirm with a state-based confirmation dialog */}
                     <button onClick={() => { if (confirm('Delete this promo code?')) deleteMutation.mutate(p.id); }}
                       className="p-1.5 rounded-lg hover:opacity-80"
-                      style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                      style={{ background: 'color-mix(in srgb, #ef4444 14%, transparent)', color: '#ef4444' }}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -284,17 +284,17 @@ export default function PromoCodesPage() {
                 {/* Discount */}
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg"
-                    style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                    style={{ background: 'color-mix(in srgb, #16a34a 14%, transparent)', border: '1px solid color-mix(in srgb, #16a34a 30%, transparent)' }}>
                     {p.discount_type === 'PERCENT'
-                      ? <Percent className="w-3.5 h-3.5" style={{ color: '#4ade80' }} />
-                      : <IndianRupee className="w-3.5 h-3.5" style={{ color: '#4ade80' }} />}
-                    <span className="text-sm font-bold" style={{ color: '#4ade80' }}>
+                      ? <Percent className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                      : <IndianRupee className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />}
+                    <span className="text-sm font-bold" style={{ color: '#16a34a' }}>
                       {p.discount_type === 'PERCENT' ? `${p.discount_value}% off` : `${currencySymbol}${p.discount_value} off`}
                     </span>
                   </div>
                   {(expired || maxed || !p.is_active) && (
                     <span className="text-xs px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                      style={{ background: 'color-mix(in srgb, #ef4444 14%, transparent)', color: '#ef4444' }}>
                       {!p.is_active ? 'Disabled' : expired ? 'Expired' : 'Limit reached'}
                     </span>
                   )}
@@ -331,7 +331,7 @@ export default function PromoCodesPage() {
                     <div className="h-1 rounded-full transition-all"
                       style={{
                         width: `${Math.min(100, (p.used_count / p.max_uses) * 100)}%`,
-                        background: maxed ? '#ef4444' : '#6366f1',
+                        background: maxed ? '#ef4444' : 'var(--accent)',
                       }} />
                   </div>
                 )}

@@ -57,13 +57,13 @@ export default function ImpersonationLogPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Sessions',  value: logs.length,    color: '#6366f1', icon: UserCheck },
-          { label: 'Today',           value: today.length,   color: '#f59e0b', icon: Clock },
-          { label: 'This Week',       value: thisWeek.length, color: '#22c55e', icon: Calendar },
+          { label: 'Total Sessions',  value: logs.length,    color: 'var(--accent)', icon: UserCheck },
+          { label: 'Today',           value: today.length,   color: 'var(--accent)', icon: Clock },
+          { label: 'This Week',       value: thisWeek.length, color: 'var(--accent)', icon: Calendar },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-4 flex items-center gap-3"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${c.color}20` }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${c.color} 12%, transparent)` }}>
               <c.icon className="w-4 h-4" style={{ color: c.color }} />
             </div>
             <div>
@@ -76,7 +76,7 @@ export default function ImpersonationLogPage() {
 
       {/* Security Notice */}
       <div className="rounded-xl p-4 flex items-start gap-3"
-        style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}>
+        style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', border: '1px solid color-mix(in srgb, #f59e0b 30%, transparent)' }}>
         <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f59e0b' }} />
         <p className="text-sm" style={{ color: '#f59e0b' }}>
           This log records every instance of superadmin accessing a restaurant chain's account. All sessions are audited for security compliance.
@@ -96,7 +96,7 @@ export default function ImpersonationLogPage() {
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -126,7 +126,7 @@ export default function ImpersonationLogPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                          style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                          style={{ background: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent)' }}>
                           <Shield className="w-3.5 h-3.5" />
                         </div>
                         <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{log.admin_email || 'Super Admin'}</span>

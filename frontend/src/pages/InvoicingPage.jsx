@@ -13,14 +13,14 @@ import {
 } from 'lucide-react';
 
 const STATUS_STYLES = {
-  PAID: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80', icon: CheckCircle2 },
-  PENDING: { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', icon: Clock },
-  OVERDUE: { bg: 'rgba(239,68,68,0.15)', color: '#f87171', icon: AlertCircle },
-  WAIVED: { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', icon: X },
+  PAID: { bg: 'color-mix(in srgb, #16a34a 12%, transparent)', color: '#16a34a', icon: CheckCircle2 },
+  PENDING: { bg: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: '#f59e0b', icon: Clock },
+  OVERDUE: { bg: 'color-mix(in srgb, #ef4444 12%, transparent)', color: '#ef4444', icon: AlertCircle },
+  WAIVED: { bg: 'color-mix(in srgb, #64748b 12%, transparent)', color: '#64748b', icon: X },
 };
 
 const PLAN_COLORS = {
-  TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80',
+  TRIAL: '#64748b', STARTER: 'var(--accent)', PRO: '#16a34a', ENTERPRISE: '#f59e0b',
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -57,11 +57,11 @@ function InvoiceRow({ inv, onUpdate }) {
       </td>
       <td className="px-5 py-3.5">
         <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
-          style={{ background: `${PLAN_COLORS[inv.plan]}20`, color: PLAN_COLORS[inv.plan] }}>
+          style={{ background: `color-mix(in srgb, ${PLAN_COLORS[inv.plan]} 12%, transparent)`, color: PLAN_COLORS[inv.plan] }}>
           {inv.plan}
         </span>
       </td>
-      <td className="px-5 py-3.5 font-bold" style={{ color: '#4ade80' }}>
+      <td className="px-5 py-3.5 font-bold" style={{ color: 'var(--text-primary)' }}>
         {formatCurrencyStatic(inv.amount, inv.currency || (inv.region === 'AU' ? 'AUD' : 'INR'))}
       </td>
       <td className="px-5 py-3.5">
@@ -76,7 +76,7 @@ function InvoiceRow({ inv, onUpdate }) {
       </td>
       <td className="px-5 py-3.5">
         {updating ? (
-          <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-4 h-4 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         ) : (
           <select
             value={inv.status}
@@ -157,8 +157,8 @@ export default function InvoicingPage() {
           </select>
           <button onClick={handleGenerate} disabled={generating}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
-            {generating ? <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Plus className="w-4 h-4" />}
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
+            {generating ? <div className="w-4 h-4 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent-text)', borderTopColor: 'transparent' }} /> : <Plus className="w-4 h-4" />}
             Generate Invoices
           </button>
         </div>
@@ -168,12 +168,12 @@ export default function InvoicingPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Pending Collection', value: format(totalPending), sub: `${invoices.filter(i => i.status === 'PENDING').length} invoices`, color: '#f59e0b', icon: Clock },
-          { label: 'Collected This Month', value: format(totalPaid), sub: `${invoices.filter(i => i.status === 'PAID').length} invoices paid`, color: '#22c55e', icon: CheckCircle2 },
+          { label: 'Collected This Month', value: format(totalPaid), sub: `${invoices.filter(i => i.status === 'PAID').length} invoices paid`, color: '#16a34a', icon: CheckCircle2 },
           { label: 'Overdue Invoices', value: overdue, sub: 'Requires follow-up', color: '#ef4444', icon: AlertCircle },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-5 flex items-start gap-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}20` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${c.color} 12%, transparent)` }}>
               <c.icon className="w-5 h-5" style={{ color: c.color }} />
             </div>
             <div>
@@ -198,9 +198,9 @@ export default function InvoicingPage() {
           <button key={s} onClick={() => setStatusFilter(s)}
             className="px-3 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{
-              background: statusFilter === s ? 'rgba(99,102,241,0.2)' : 'var(--bg-secondary)',
-              border: `1px solid ${statusFilter === s ? '#6366f1' : 'var(--border)'}`,
-              color: statusFilter === s ? '#818cf8' : 'var(--text-secondary)',
+              background: statusFilter === s ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-secondary)',
+              border: `1px solid ${statusFilter === s ? 'var(--accent)' : 'var(--border)'}`,
+              color: statusFilter === s ? 'var(--accent)' : 'var(--text-secondary)',
             }}>
             {s}
           </button>
@@ -211,7 +211,7 @@ export default function InvoicingPage() {
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2">

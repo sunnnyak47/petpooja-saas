@@ -12,13 +12,16 @@ import {
 } from 'lucide-react';
 
 const PLAN_COLORS = {
-  TRIAL: '#94a3b8',
-  STARTER: '#60a5fa',
-  PRO: '#a78bfa',
-  ENTERPRISE: '#4ade80',
+  TRIAL: '#64748b',
+  STARTER: 'var(--accent)',
+  PRO: '#16a34a',
+  ENTERPRISE: '#f59e0b',
 };
 
 const REGION_NAMES = { IN: '🇮🇳 India', AU: '🇦🇺 Australia', US: '🇺🇸 USA' };
+
+// 12% tint of any colour (supports CSS vars), for badge/bar backgrounds.
+const tint = (c) => `color-mix(in srgb, ${c} 12%, transparent)`;
 
 // Each region's figure must be shown in its OWN currency, not the viewer's.
 const REGION_CURRENCY = { IN: 'INR', AU: 'AUD', US: 'USD' };
@@ -40,19 +43,20 @@ function formatRegionShort(amount, currency) {
   return `${sym}${num.toFixed(2)}`;
 }
 
-function MetricCard({ icon: Icon, label, value, change, changeLabel, color = '#6366f1', positive }) {
+function MetricCard({ icon: Icon, label, value, change, changeLabel, color = 'var(--accent)', positive }) {
   const isUp = parseFloat(change) > 0;
+  const good = positive ? isUp : !isUp;
   return (
     <div className="rounded-xl p-5" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
       <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${color}20` }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: tint(color) }}>
           <Icon className="w-5 h-5" style={{ color }} />
         </div>
         {change !== undefined && (
           <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full`}
             style={{
-              background: (positive ? isUp : !isUp) ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-              color: (positive ? isUp : !isUp) ? '#4ade80' : '#f87171'
+              background: tint(good ? '#16a34a' : '#ef4444'),
+              color: good ? '#16a34a' : '#ef4444'
             }}>
             {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {Math.abs(change)}%
@@ -77,14 +81,15 @@ function MrrChart({ data, symbol = '$' }) {
         const isLast = i === data.length - 1;
         return (
           <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none"
+              style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)' }}>
               {d.label}: {symbol}{(d.mrr / 1000).toFixed(0)}K
             </div>
             <div
               className="w-full rounded-t transition-all"
               style={{
                 height: `${h}%`,
-                background: isLast ? 'linear-gradient(to top, #6366f1, #818cf8)' : 'rgba(99,102,241,0.3)',
+                background: isLast ? 'var(--accent)' : 'color-mix(in srgb, var(--accent) 30%, transparent)',
               }}
             />
           </div>
@@ -123,7 +128,7 @@ export default function RevenueAnalyticsPage() {
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      <div className="w-8 h-8 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -148,8 +153,8 @@ export default function RevenueAnalyticsPage() {
 
       {/* Top metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard icon={IndianRupee} label="Monthly Recurring Revenue" value={fmt(data?.current_mrr)} change={data?.mrr_growth} changeLabel="vs last month" color="#6366f1" positive />
-        <MetricCard icon={TrendingUp} label="Annual Recurring Revenue" value={fmt(arr)} color="#22c55e" />
+        <MetricCard icon={IndianRupee} label="Monthly Recurring Revenue" value={fmt(data?.current_mrr)} change={data?.mrr_growth} changeLabel="vs last month" color="var(--accent)" positive />
+        <MetricCard icon={TrendingUp} label="Annual Recurring Revenue" value={fmt(arr)} color="#16a34a" />
         <MetricCard icon={Users} label="Total Chains" value={data?.total_chains || 0} change={newThisMonth} changeLabel={`${newThisMonth} new this month`} color="#f59e0b" positive />
         <MetricCard icon={Activity} label="Churn Rate" value={`${data?.churn_rate || 0}%`} change={data?.churn_rate} changeLabel={`${data?.churned_chains || 0} inactive chains`} color="#ef4444" positive={false} />
       </div>
@@ -163,10 +168,10 @@ export default function RevenueAnalyticsPage() {
           </div>
           <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to top, #6366f1, #818cf8)' }} /> Current month
+              <div className="w-3 h-3 rounded" style={{ background: 'var(--accent)' }} /> Current month
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded" style={{ background: 'rgba(99,102,241,0.3)' }} /> Past months
+              <div className="w-3 h-3 rounded" style={{ background: 'color-mix(in srgb, var(--accent) 30%, transparent)' }} /> Past months
             </div>
           </div>
         </div>
@@ -200,7 +205,7 @@ export default function RevenueAnalyticsPage() {
                 <div key={plan}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: PLAN_COLORS[plan] || '#94a3b8' }} />
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: PLAN_COLORS[plan] || '#64748b' }} />
                       <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{plan}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -209,7 +214,7 @@ export default function RevenueAnalyticsPage() {
                     </div>
                   </div>
                   <div className="h-2 rounded-full" style={{ background: 'var(--border)' }}>
-                    <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, background: PLAN_COLORS[plan] || '#94a3b8' }} />
+                    <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, background: PLAN_COLORS[plan] || '#64748b' }} />
                   </div>
                   <p className="text-right text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{pct}%</p>
                 </div>
@@ -240,7 +245,7 @@ export default function RevenueAnalyticsPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold" style={{ color: '#4ade80' }}>
+                    <p className="text-lg font-bold" style={{ color: '#16a34a' }}>
                       {formatRegionShort(info.mrr, info.currency || REGION_CURRENCY[region] || 'INR')}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>MRR</p>

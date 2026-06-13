@@ -11,17 +11,17 @@ import {
 } from 'lucide-react';
 
 const STATUS_CFG = {
-  OPEN:        { bg: 'rgba(239,68,68,0.15)',   color: '#f87171', label: 'Open' },
-  IN_PROGRESS: { bg: 'rgba(245,158,11,0.15)',  color: '#fbbf24', label: 'In Progress' },
-  RESOLVED:    { bg: 'rgba(34,197,94,0.15)',   color: '#4ade80', label: 'Resolved' },
-  CLOSED:      { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', label: 'Closed' },
+  OPEN:        { bg: 'color-mix(in srgb, #ef4444 14%, transparent)',  color: '#ef4444', label: 'Open' },
+  IN_PROGRESS: { bg: 'color-mix(in srgb, #f59e0b 14%, transparent)',  color: '#f59e0b', label: 'In Progress' },
+  RESOLVED:    { bg: 'color-mix(in srgb, #16a34a 14%, transparent)',  color: '#16a34a', label: 'Resolved' },
+  CLOSED:      { bg: 'color-mix(in srgb, #64748b 14%, transparent)',  color: '#64748b', label: 'Closed' },
 };
 
 const PRIORITY_CFG = {
-  LOW:    { color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
-  MEDIUM: { color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
-  HIGH:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-  URGENT: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+  LOW:    { color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)' },
+  MEDIUM: { color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)' },
+  HIGH:   { color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)' },
+  URGENT: { color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)' },
 };
 
 function StatusBadge({ status }) {
@@ -118,8 +118,8 @@ function NewTicketForm({ onClose, onCreated }) {
           </button>
           <button onClick={handleSubmit} disabled={loading}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
-            {loading ? <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Plus className="w-4 h-4" />}
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
+            {loading ? <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Plus className="w-4 h-4" />}
             Create Ticket
           </button>
         </div>
@@ -183,7 +183,7 @@ function TicketDetail({ ticket, onClose, onUpdate }) {
           {/* Original */}
           <div className="p-4 rounded-xl" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>{ticket.chain_name || 'Restaurant'}</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{ticket.chain_name || 'Restaurant'}</span>
               <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{timeAgo(ticket.created_at)}</span>
             </div>
             <p className="text-sm" style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{ticket.body}</p>
@@ -193,11 +193,11 @@ function TicketDetail({ ticket, onClose, onUpdate }) {
           {(ticket.replies || []).map((r, i) => (
             <div key={i} className={`p-4 rounded-xl ${r.from === 'admin' ? 'ml-6' : 'mr-6'}`}
               style={{
-                background: r.from === 'admin' ? 'rgba(99,102,241,0.1)' : 'var(--bg-primary)',
-                border: `1px solid ${r.from === 'admin' ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
+                background: r.from === 'admin' ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--bg-primary)',
+                border: `1px solid ${r.from === 'admin' ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'var(--border)'}`,
               }}>
               <div className="flex items-center justify-between mb-2">
-                <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: r.from === 'admin' ? '#818cf8' : '#60a5fa' }}>
+                <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: r.from === 'admin' ? 'var(--accent)' : 'var(--text-secondary)' }}>
                   {r.from === 'admin' ? <><Shield size={12} /> Support Team</> : ticket.chain_name}
                 </span>
                 <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{timeAgo(r.created_at)}</span>
@@ -217,8 +217,8 @@ function TicketDetail({ ticket, onClose, onUpdate }) {
             <div className="flex justify-end">
               <button onClick={handleReply} disabled={sending || !replyText.trim()}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
-                {sending ? <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Send className="w-4 h-4" />}
+                style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
+                {sending ? <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Send className="w-4 h-4" />}
                 Send Reply
               </button>
             </div>
@@ -259,7 +259,7 @@ export default function SupportTicketsPage() {
         </div>
         <button onClick={() => setShowNew(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}>
+          style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
           <Plus className="w-4 h-4" /> New Ticket
         </button>
       </div>
@@ -269,7 +269,7 @@ export default function SupportTicketsPage() {
         {[
           { label: 'Open Tickets', value: openCount, color: '#ef4444', icon: AlertCircle },
           { label: 'In Progress', value: inProgressCount, color: '#f59e0b', icon: Clock },
-          { label: 'Urgent', value: urgentCount, color: '#f97316', icon: AlertTriangle },
+          { label: 'Urgent', value: urgentCount, color: '#ef4444', icon: AlertTriangle },
         ].map(c => (
           <div key={c.label} className="rounded-xl p-4 flex items-center gap-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -297,9 +297,9 @@ export default function SupportTicketsPage() {
           <button key={s} onClick={() => setStatusFilter(s)}
             className="px-3 py-2 rounded-lg text-xs font-semibold transition-all"
             style={{
-              background: statusFilter === s ? 'rgba(99,102,241,0.2)' : 'var(--bg-secondary)',
-              border: `1px solid ${statusFilter === s ? '#6366f1' : 'var(--border)'}`,
-              color: statusFilter === s ? '#818cf8' : 'var(--text-secondary)',
+              background: statusFilter === s ? 'var(--accent)' : 'var(--bg-secondary)',
+              border: `1px solid ${statusFilter === s ? 'var(--accent)' : 'var(--border)'}`,
+              color: statusFilter === s ? 'var(--accent-text)' : 'var(--text-secondary)',
             }}>{s}</button>
         ))}
         <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}
@@ -314,7 +314,7 @@ export default function SupportTicketsPage() {
       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2">
@@ -331,7 +331,7 @@ export default function SupportTicketsPage() {
                 className="w-full text-left px-5 py-4 flex items-start gap-4 hover:opacity-80 transition-opacity"
                 style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none' }}>
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: PRIORITY_CFG[t.priority]?.bg || 'rgba(99,102,241,0.15)', color: PRIORITY_CFG[t.priority]?.color || '#818cf8' }}>
+                  style={{ background: PRIORITY_CFG[t.priority]?.bg || 'color-mix(in srgb, var(--accent) 12%, transparent)', color: PRIORITY_CFG[t.priority]?.color || 'var(--accent)' }}>
                   {t.chain_name?.charAt(0) || '?'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -347,7 +347,7 @@ export default function SupportTicketsPage() {
                 </div>
                 <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                   {(t.replies?.length > 0) && (
-                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                       {t.replies.length} replies
                     </span>
                   )}

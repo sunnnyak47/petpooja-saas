@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 const TYPE_META = {
-  info:        { label: 'Info',        color: '#3B82F6', bg: '#DBEAFE', icon: Info },
-  warning:     { label: 'Warning',     color: '#D97706', bg: '#FEF3C7', icon: AlertTriangle },
-  maintenance: { label: 'Maintenance', color: '#EF4444', bg: '#FEE2E2', icon: Wrench },
-  feature:     { label: 'Feature',     color: '#10B981', bg: '#D1FAE5', icon: Sparkles },
+  info:        { label: 'Info',        color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)', icon: Info },
+  warning:     { label: 'Warning',     color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: AlertTriangle },
+  maintenance: { label: 'Maintenance', color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: Wrench },
+  feature:     { label: 'Feature',     color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 14%, transparent)', icon: Sparkles },
 };
 
 const TYPES = ['info', 'warning', 'maintenance', 'feature'];
@@ -188,7 +188,7 @@ export default function AnnouncementsPage() {
                         disabled={toggleMutation.isPending}
                         className="p-1.5 rounded-lg transition-colors hover:opacity-80"
                         title={ann.is_active ? 'Deactivate' : 'Activate'}
-                        style={{ color: ann.is_active ? '#10B981' : 'var(--text-secondary)' }}>
+                        style={{ color: ann.is_active ? '#16a34a' : 'var(--text-secondary)' }}>
                         {ann.is_active
                           ? <ToggleRight className="w-5 h-5" />
                           : <ToggleLeft className="w-5 h-5" />
@@ -198,7 +198,7 @@ export default function AnnouncementsPage() {
                         onClick={() => setDeleteConfirm(ann)}
                         className="p-1.5 rounded-lg transition-colors hover:opacity-80"
                         title="Delete"
-                        style={{ color: '#EF4444' }}>
+                        style={{ color: '#ef4444' }}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -217,8 +217,8 @@ export default function AnnouncementsPage() {
             style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
             <div className="p-6 text-center">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                style={{ background: '#FEE2E2' }}>
-                <Trash2 className="w-5 h-5" style={{ color: '#EF4444' }} />
+                style={{ background: 'color-mix(in srgb, #ef4444 14%, transparent)' }}>
+                <Trash2 className="w-5 h-5" style={{ color: '#ef4444' }} />
               </div>
               <h3 className="font-semibold text-base mb-1" style={{ color: 'var(--text-primary)' }}>Delete Announcement</h3>
               <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
@@ -234,7 +234,7 @@ export default function AnnouncementsPage() {
                   onClick={() => deleteMutation.mutate(deleteConfirm.id)}
                   disabled={deleteMutation.isPending}
                   className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60 transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
-                  style={{ background: '#EF4444' }}>
+                  style={{ background: '#ef4444' }}>
                   {deleteMutation.isPending ? <><RefreshCw className="w-4 h-4 animate-spin" /> Deleting...</> : 'Delete'}
                 </button>
               </div>
@@ -262,7 +262,7 @@ export default function AnnouncementsPage() {
               {/* Title */}
               <div>
                 <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                  Title <span style={{ color: '#EF4444' }}>*</span>
+                  Title <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -276,7 +276,7 @@ export default function AnnouncementsPage() {
               {/* Message */}
               <div>
                 <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
-                  Message <span style={{ color: '#EF4444' }}>*</span>
+                  Message <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <textarea
                   rows={4}

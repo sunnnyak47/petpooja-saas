@@ -12,7 +12,7 @@ import {
   MapPin, Phone, BarChart2, Package
 } from 'lucide-react';
 
-const SCORE_COLOR = (s) => s >= 75 ? '#22c55e' : s >= 50 ? '#f59e0b' : s >= 25 ? '#f97316' : '#ef4444';
+const SCORE_COLOR = (s) => s >= 75 ? '#16a34a' : s >= 50 ? '#f59e0b' : s >= 25 ? '#f97316' : '#ef4444';
 const SCORE_LABEL = (s) => s >= 75 ? 'Excellent' : s >= 50 ? 'Good' : s >= 25 ? 'Fair' : 'Poor';
 
 function HealthBar({ score }) {
@@ -27,10 +27,10 @@ function HealthBar({ score }) {
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color = '#6366f1' }) {
+function StatCard({ icon: Icon, label, value, sub, color = 'var(--accent)' }) {
   return (
     <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}20` }}>
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
         <Icon className="w-4 h-4" style={{ color }} />
       </div>
       <div>
@@ -95,7 +95,7 @@ export default function ChainDetailPage() {
     return (
       <div className="p-6 max-w-7xl mx-auto">
         <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <AlertCircle className="w-10 h-10" style={{ color: '#f87171' }} />
+          <AlertCircle className="w-10 h-10" style={{ color: '#ef4444' }} />
           <p className="font-medium" style={{ color: 'var(--text-primary)' }}>Unable to load this chain</p>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>It may have been removed, or the request failed.</p>
           <button onClick={() => navigate('/super-admin')}
@@ -127,11 +127,11 @@ export default function ChainDetailPage() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="px-3 py-1 rounded-full text-xs font-semibold"
-            style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+            style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
             {chainData?.plan || 'TRIAL'}
           </span>
           <span className="px-3 py-1 rounded-full text-xs font-semibold"
-            style={{ background: chainData?.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: chainData?.is_active ? '#4ade80' : '#f87171' }}>
+            style={{ background: chainData?.is_active ? 'color-mix(in srgb, #16a34a 12%, transparent)' : 'color-mix(in srgb, #ef4444 12%, transparent)', color: chainData?.is_active ? '#16a34a' : '#ef4444' }}>
             {chainData?.is_active ? 'Active' : 'Suspended'}
           </span>
         </div>
@@ -139,8 +139,8 @@ export default function ChainDetailPage() {
 
       {/* Chain summary stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Store} label="Total Outlets" value={outlets.length} sub={`${activeOutlets} active`} color="#6366f1" />
-        <StatCard icon={DollarSign} label="Revenue (30d)" value={fmt(totalRevenue30d)} sub="Across all outlets" color="#22c55e" />
+        <StatCard icon={Store} label="Total Outlets" value={outlets.length} sub={`${activeOutlets} active`} color="var(--accent)" />
+        <StatCard icon={DollarSign} label="Revenue (30d)" value={fmt(totalRevenue30d)} sub="Across all outlets" color="#16a34a" />
         <StatCard icon={ShoppingCart} label="Orders (30d)" value={totalOrders30d.toLocaleString()} sub={`Avg ${outlets.length ? Math.round(totalOrders30d / outlets.length) : 0}/outlet`} color="#f59e0b" />
         <StatCard icon={Activity} label="Avg Health Score" value={`${avgHealth}/100`} sub={SCORE_LABEL(avgHealth)} color={SCORE_COLOR(avgHealth)} />
       </div>
@@ -161,7 +161,7 @@ export default function ChainDetailPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2">
@@ -186,7 +186,7 @@ export default function ChainDetailPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                          style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                          style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                           {o.name.charAt(0)}
                         </div>
                         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{o.name}</span>
@@ -204,7 +204,7 @@ export default function ChainDetailPage() {
                         ({fmt(o.revenue_today)})
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#4ade80' }}>{fmt(o.revenue_30d)}</td>
+                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#16a34a' }}>{fmt(o.revenue_30d)}</td>
                     <td className="px-5 py-3.5" style={{ color: 'var(--text-primary)' }}>{o.orders_30d}</td>
                     <td className="px-5 py-3.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
                       <div className="flex items-center gap-1">
@@ -223,11 +223,11 @@ export default function ChainDetailPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       {o.is_active ? (
-                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#4ade80' }}>
+                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#16a34a' }}>
                           <CheckCircle2 className="w-3.5 h-3.5" /> Active
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#f87171' }}>
+                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#ef4444' }}>
                           <AlertCircle className="w-3.5 h-3.5" /> Inactive
                         </span>
                       )}

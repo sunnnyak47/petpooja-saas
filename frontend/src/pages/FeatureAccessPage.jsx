@@ -24,11 +24,11 @@ const FEATURE_ICONS = {
 };
 
 const CATEGORY_COLORS = {
-  Core:       { accent: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  text: 'text-blue-400' },
-  Operations: { accent: '#22c55e', bg: 'rgba(34,197,94,0.08)',   text: 'text-green-400' },
-  Growth:     { accent: '#a855f7', bg: 'rgba(168,85,247,0.08)',  text: 'text-purple-400' },
-  Analytics:  { accent: '#f97316', bg: 'rgba(249,115,22,0.08)',  text: 'text-orange-400' },
-  Advanced:   { accent: '#ec4899', bg: 'rgba(236,72,153,0.08)',  text: 'text-pink-400' },
+  Core:       { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+  Operations: { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+  Growth:     { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+  Analytics:  { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+  Advanced:   { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
 };
 
 function ToggleSwitch({ enabled, onChange, disabled }) {
@@ -36,7 +36,8 @@ function ToggleSwitch({ enabled, onChange, disabled }) {
     <button
       onClick={onChange}
       disabled={disabled}
-      className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${enabled ? 'bg-green-500' : 'bg-gray-600'} ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      style={{ background: enabled ? 'var(--accent)' : 'var(--border)' }}
       role="switch"
       aria-checked={enabled}
     >
@@ -63,9 +64,9 @@ function FeatureCard({ feature, enabled, onChange, saving }) {
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: enabled ? catColor.bg : 'rgba(255,255,255,0.04)' }}
+            style={{ background: enabled ? catColor.bg : 'color-mix(in srgb, var(--text-secondary) 8%, transparent)' }}
           >
-            <Icon className={`w-4 h-4 ${enabled ? catColor.text : 'text-gray-500'}`} />
+            <Icon className="w-4 h-4" style={{ color: enabled ? catColor.accent : 'var(--text-secondary)' }} />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate" style={{ color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
@@ -199,8 +200,8 @@ export default function FeatureAccessPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-60"
-            style={{ background: 'var(--accent)' }}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-opacity disabled:opacity-60"
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -233,14 +234,14 @@ export default function FeatureAccessPage() {
 
           {selectedChain && (
             <div className="flex items-center gap-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'rgba(34,197,94,0.08)' }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                <span className="text-green-400">{enabledCount}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'color-mix(in srgb, #16a34a 12%, transparent)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#16a34a' }} />
+                <span style={{ color: '#16a34a' }}>{enabledCount}</span>
                 <span>enabled</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'rgba(239,68,68,0.06)' }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                <span className="text-red-400">{featureDefs.length - enabledCount}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md" style={{ background: 'color-mix(in srgb, #64748b 12%, transparent)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#64748b' }} />
+                <span style={{ color: '#64748b' }}>{featureDefs.length - enabledCount}</span>
                 <span>disabled</span>
               </span>
               <span style={{ color: 'var(--text-secondary)' }}>
@@ -292,13 +293,11 @@ export default function FeatureAccessPage() {
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                    isActive
-                      ? 'text-white'
-                      : 'hover:bg-white/5'
+                    isActive ? '' : 'hover:bg-white/5'
                   }`}
                   style={{
-                    background: isActive ? (col?.accent || 'rgba(255,255,255,0.15)') : 'transparent',
-                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    background: isActive ? 'var(--accent)' : 'transparent',
+                    color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
                   }}
                 >
                   {cat}
@@ -329,8 +328,8 @@ export default function FeatureAccessPage() {
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-0.5 rounded-md text-xs font-medium ${col.text}`}
-                      style={{ background: col.bg }}
+                      className="px-2 py-0.5 rounded-md text-xs font-medium"
+                      style={{ background: col.bg, color: col.accent }}
                     >
                       {category}
                     </span>
@@ -384,20 +383,21 @@ export default function FeatureAccessPage() {
       {dirty && (
         <div
           className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-3 rounded-xl shadow-2xl z-50 backdrop-blur-xl"
-          style={{ background: 'rgba(0,0,0,0.8)', color: '#fff' }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
         >
           <span className="text-sm font-medium">Unsaved changes</span>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-50"
-            style={{ background: 'var(--accent)' }}
+            className="px-3.5 py-1.5 rounded-lg text-sm font-medium transition-opacity disabled:opacity-50"
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
           <button
             onClick={() => { setLocalFeatures(savedFeatures); setDirty(false); }}
-            className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
+            className="text-sm font-medium transition-colors hover:opacity-80"
+            style={{ color: 'var(--text-secondary)' }}
           >
             Discard
           </button>

@@ -16,15 +16,17 @@ import {
 } from 'lucide-react';
 
 // ── Grade config ────────────────────────────────────────────────────────────
+// Health grades use a restrained semantic traffic-light set only.
 const GRADE_CONFIG = {
-  Champion: { color: '#22c55e', bg: '#dcfce7', ring: '#16a34a', icon: Trophy,        label: 'Champion'  },
-  Healthy:  { color: '#3b82f6', bg: '#dbeafe', ring: '#2563eb', icon: CheckCircle2,  label: 'Healthy'   },
-  'At Risk':{ color: '#f59e0b', bg: '#fef3c7', ring: '#d97706', icon: AlertTriangle, label: 'At Risk'   },
-  Critical: { color: '#ef4444', bg: '#fee2e2', ring: '#dc2626', icon: Activity,      label: 'Critical'  },
+  Champion: { color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 12%, transparent)', ring: '#16a34a', icon: Trophy,        label: 'Champion'  },
+  Healthy:  { color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 12%, transparent)', ring: '#16a34a', icon: CheckCircle2,  label: 'Healthy'   },
+  'At Risk':{ color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 12%, transparent)', ring: '#f59e0b', icon: AlertTriangle, label: 'At Risk'   },
+  Critical: { color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 12%, transparent)', ring: '#ef4444', icon: Activity,      label: 'Critical'  },
 };
 
 const PLAN_ICONS = { TRIAL: Zap, STARTER: Star, PRO: Crown, ENTERPRISE: Building2 };
-const PLAN_COLORS = { TRIAL: '#94a3b8', STARTER: '#60a5fa', PRO: '#a78bfa', ENTERPRISE: '#4ade80' };
+// Plan tags are not semantic health signals — render them in a neutral / accent tone.
+const PLAN_COLORS = { TRIAL: '#64748b', STARTER: 'var(--accent)', PRO: 'var(--accent)', ENTERPRISE: 'var(--accent)' };
 
 const DIM_ICONS = {
   orders:    ShoppingCart,
@@ -64,7 +66,7 @@ function ScoreRing({ score, size = 64, grade }) {
 function DimBar({ dim }) {
   const Icon = DIM_ICONS[dim.key] || Activity;
   const pct = Math.round((dim.score / dim.max) * 100);
-  const color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#3b82f6' : pct >= 30 ? '#f59e0b' : '#ef4444';
+  const color = pct >= 50 ? '#16a34a' : pct >= 30 ? '#f59e0b' : '#ef4444';
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
@@ -90,12 +92,15 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
   const cfg = GRADE_CONFIG[chain.grade?.label] || GRADE_CONFIG.Critical;
   const GradeIcon = cfg.icon;
   const PlanIcon = PLAN_ICONS[chain.plan] || Zap;
-  const planColor = PLAN_COLORS[chain.plan] || '#94a3b8';
+  const planColor = PLAN_COLORS[chain.plan] || '#64748b';
+  const planTint = planColor === '#64748b'
+    ? 'color-mix(in srgb, #64748b 12%, transparent)'
+    : 'color-mix(in srgb, var(--accent) 12%, transparent)';
 
   return (
     <div className="rounded-xl overflow-hidden transition-all"
-      style={{ border: `1px solid ${expanded ? cfg.ring + '60' : 'var(--border)'}`,
-               background: expanded ? cfg.bg + '30' : 'var(--bg-secondary)' }}>
+      style={{ border: `1px solid ${expanded ? `color-mix(in srgb, ${cfg.ring} 40%, var(--border))` : 'var(--border)'}`,
+               background: expanded ? `color-mix(in srgb, ${cfg.ring} 6%, var(--bg-card))` : 'var(--bg-secondary)' }}>
       {/* Row Header */}
       <button className="w-full flex items-center gap-4 px-5 py-4 hover:opacity-90 transition-opacity text-left"
         onClick={onToggle}>
@@ -122,13 +127,14 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
               <GradeIcon className="w-3 h-3" />
               {cfg.label}
             </span>
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-              style={{ background: `${planColor}18`, color: planColor }}>
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ background: planTint, color: planColor }}>
               <PlanIcon className="w-3 h-3" />
               {chain.plan}
             </span>
             {!chain.is_active && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">Inactive</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{ background: 'color-mix(in srgb, #ef4444 12%, transparent)', color: '#ef4444' }}>Inactive</span>
             )}
           </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -140,7 +146,7 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
         <div className="hidden md:flex items-center gap-3">
           {(chain.dimensions || []).slice(0, 4).map(d => {
             const pct = Math.round((d.score / d.max) * 100);
-            const col = pct >= 80 ? '#22c55e' : pct >= 50 ? '#3b82f6' : pct >= 30 ? '#f59e0b' : '#ef4444';
+            const col = pct >= 50 ? '#16a34a' : pct >= 30 ? '#f59e0b' : '#ef4444';
             return (
               <div key={d.key} className="flex flex-col items-center gap-0.5">
                 <div className="w-1.5 rounded-full" style={{ height: 32, background: 'var(--bg-primary)' }}>
@@ -165,7 +171,7 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
 
       {/* Expanded Detail */}
       {expanded && (
-        <div className="px-5 pb-5 border-t" style={{ borderColor: cfg.ring + '30' }}>
+        <div className="px-5 pb-5 border-t" style={{ borderColor: `color-mix(in srgb, ${cfg.ring} 25%, var(--border))` }}>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Dimension breakdown */}
             <div className="space-y-3">
@@ -211,7 +217,7 @@ function ChainRow({ chain, rank, expanded, onToggle }) {
                     </p>
                   ))}
                 {(chain.dimensions || []).filter(d => d.score / d.max < 0.6).length === 0 && (
-                  <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-primary)' }}><CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#10B981' }} /> All dimensions looking good</p>
+                  <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-primary)' }}><CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#16a34a' }} /> All dimensions looking good</p>
                 )}
               </div>
             </div>
@@ -264,8 +270,8 @@ export default function ChainHealthPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Activity className="w-7 h-7 text-indigo-500" />
+          <h1 className="text-2xl font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <Activity className="w-6 h-6" style={{ color: 'var(--accent)' }} />
             Chain Health Scores
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -286,7 +292,7 @@ export default function ChainHealthPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {/* Avg score */}
           <div className="col-span-2 md:col-span-1 rounded-xl p-4 flex flex-col items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white' }}>
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
             <BarChart3 className="w-5 h-5 opacity-80 mb-1" />
             <div className="text-3xl font-bold">{summary.avg_score}</div>
             <div className="text-xs opacity-80">Platform Avg</div>
@@ -298,7 +304,7 @@ export default function ChainHealthPage() {
             return (
               <button key={grade}
                 onClick={() => setGradeFilter(gradeFilter === grade ? 'ALL' : grade)}
-                className="rounded-xl p-4 flex flex-col items-center gap-1 transition-all hover:scale-105"
+                className="rounded-xl p-4 flex flex-col items-center gap-1 transition-colors"
                 style={{ background: gradeFilter === grade ? cfg.bg : 'var(--bg-secondary)',
                          border: `1px solid ${gradeFilter === grade ? cfg.ring : 'var(--border)'}` }}>
                 <GI className="w-5 h-5" style={{ color: cfg.color }} />
@@ -312,11 +318,11 @@ export default function ChainHealthPage() {
 
       {/* Score Methodology Info */}
       <div className="rounded-xl p-4 flex items-start gap-3"
-        style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+        style={{ background: 'color-mix(in srgb, var(--accent) 8%, var(--bg-card))', border: '1px solid color-mix(in srgb, var(--accent) 25%, var(--border))' }}>
+        <Info className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--accent)' }} />
         <div>
-          <p className="text-sm font-medium text-blue-800">How Health Scores Work</p>
-          <p className="text-xs text-blue-600 mt-0.5">
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How Health Scores Work</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Each chain is scored 0–100 across 6 dimensions: <strong>Order Velocity (25)</strong> ·
             <strong> Menu Completeness (20)</strong> · <strong>Staff Activity (15)</strong> ·
             <strong> Revenue Health (15)</strong> · <strong>Customer Retention (15)</strong> ·
@@ -345,9 +351,9 @@ export default function ChainHealthPage() {
               onClick={() => setPlanFilter(p)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
-                background: planFilter === p ? '#6366f1' : 'var(--bg-secondary)',
-                color:      planFilter === p ? 'white'   : 'var(--text-secondary)',
-                border:     `1px solid ${planFilter === p ? '#6366f1' : 'var(--border)'}`,
+                background: planFilter === p ? 'var(--accent)'      : 'var(--bg-secondary)',
+                color:      planFilter === p ? 'var(--accent-text)'  : 'var(--text-secondary)',
+                border:     `1px solid ${planFilter === p ? 'var(--accent)' : 'var(--border)'}`,
               }}>
               {p}
             </button>
@@ -358,7 +364,7 @@ export default function ChainHealthPage() {
       {/* Chain List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center py-16 gap-3">

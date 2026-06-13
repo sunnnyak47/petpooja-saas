@@ -52,7 +52,7 @@ export default function SuperAdminLoginPage() {
         user: sessionUser,
       }));
 
-      toast.success(`Welcome, ${payload.user?.full_name || payload.user?.email || 'Admin'} 🚀`);
+      toast.success(`Welcome, ${payload.user?.full_name || payload.user?.email || 'Admin'}`);
       navigate('/');
     } catch (err) {
       toast.error(err.message || 'Authentication failed');
@@ -65,58 +65,39 @@ export default function SuperAdminLoginPage() {
     <div
       className="min-h-screen flex items-center justify-center px-4"
       style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1a0a2e 100%)',
+        background:
+          'radial-gradient(120% 120% at 50% 0%, #1e293b 0%, #0f172a 55%, #0b1120 100%)',
       }}
     >
-      {/* Animated background dots */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full opacity-10 animate-pulse"
-            style={{
-              width: Math.random() * 8 + 4 + 'px',
-              height: Math.random() * 8 + 4 + 'px',
-              background: i % 2 === 0 ? '#6366f1' : '#8b5cf6',
-              top: Math.random() * 100 + '%',
-              left: Math.random() * 100 + '%',
-              animationDelay: Math.random() * 3 + 's',
-              animationDuration: (Math.random() * 2 + 2) + 's',
-            }}
-          />
-        ))}
-      </div>
-
       <div className="relative w-full max-w-md">
         {/* Card */}
         <div
-          className="rounded-3xl p-8 shadow-2xl"
+          className="rounded-2xl p-8 shadow-xl"
           style={{
-            background: 'rgba(15, 23, 42, 0.8)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            backdropFilter: 'blur(20px)',
+            background: '#0f172a',
+            border: '1px solid #1e293b',
           }}
         >
           {/* Logo + Title */}
           <div className="text-center mb-8">
             <div
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+              className="inline-flex items-center justify-center w-14 h-14 rounded-xl mb-4"
+              style={{ background: '#4f46e5' }}
             >
-              <Shield className="w-8 h-8 text-white" />
+              <Shield className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#ffffff' }}>
               SuperAdmin Portal
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-slate-400 text-sm mt-1.5">
               Platform command center — authorized access only
             </p>
           </div>
 
           {/* Status indicator */}
           <div
-            className="flex items-center gap-2 rounded-xl px-4 py-2.5 mb-6"
-            style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)' }}
+            className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 mb-6"
+            style={{ background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.2)' }}
           >
             <Activity className="w-4 h-4 text-green-400" />
             <span className="text-green-400 text-xs font-medium">System operational — all services live</span>
@@ -135,13 +116,13 @@ export default function SuperAdminLoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@admin.com"
                 autoComplete="username"
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 text-sm outline-none transition-all"
+                className="w-full px-4 py-3 rounded-lg text-white placeholder-slate-500 text-sm outline-none transition-colors"
                 style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
                 }}
                 onFocus={(e) => (e.target.style.borderColor = '#6366f1')}
-                onBlur={(e) => (e.target.style.borderColor = 'rgba(99, 102, 241, 0.3)')}
+                onBlur={(e) => (e.target.style.borderColor = '#334155')}
               />
             </div>
 
@@ -157,13 +138,13 @@ export default function SuperAdminLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-slate-500 text-sm outline-none transition-all"
+                  className="w-full px-4 py-3 pr-12 rounded-lg text-white placeholder-slate-500 text-sm outline-none transition-colors"
                   style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
                   }}
                   onFocus={(e) => (e.target.style.borderColor = '#6366f1')}
-                  onBlur={(e) => (e.target.style.borderColor = 'rgba(99, 102, 241, 0.3)')}
+                  onBlur={(e) => (e.target.style.borderColor = '#334155')}
                 />
                 <button
                   type="button"
@@ -179,11 +160,9 @@ export default function SuperAdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl font-semibold text-white text-sm transition-all mt-2 flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-lg font-semibold text-white text-sm transition-colors mt-2 flex items-center justify-center gap-2"
               style={{
-                background: loading
-                  ? 'rgba(99, 102, 241, 0.5)'
-                  : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: loading ? 'rgba(79, 70, 229, 0.5)' : '#4f46e5',
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
@@ -212,7 +191,7 @@ export default function SuperAdminLoginPage() {
           </div>
 
           <p className="text-center text-slate-600 text-xs mt-4">
-            🔒 All actions are logged and audited
+            All actions are logged and audited
           </p>
         </div>
       </div>
