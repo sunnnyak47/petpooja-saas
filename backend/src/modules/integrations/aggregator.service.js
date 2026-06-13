@@ -140,8 +140,13 @@ async function getSyncLogs(outletId, { platform, limit = 50 } = {}) {
 /**
  * Fetches all active menu items for an outlet and returns structured menu payload.
  */
-async function buildMenuPayload(outletId) {
+async function buildMenuPayload(outletId, platform = null) {
   const prisma = getDbClient();
+  // Per-channel pricing: when pushing to a specific platform, apply that
+  // channel's markup so listed prices recover the aggregator commission.
+  const { applyMarkup, getChannelPricing } = require('./aggregator.pricing.service');
+  const pricingCfg = platform ? await getChannelPricing(outletId, platform) : null;
+  const priced = (p) => (pricingCfg ? applyMarkup(Number(p), pricingCfg) : Number(p));
   const categories = await prisma.menuCategory.findMany({
     where: { outlet_id: outletId, is_deleted: false, is_active: true },
     orderBy: { display_order: 'asc' },
@@ -161,7 +166,7 @@ async function buildMenuPayload(outletId) {
       item_id: item.id,
       name: item.name,
       description: item.description || '',
-      base_price: Number(item.base_price),
+      base_price: priced(item.base_price),
       food_type: item.food_type,
       is_available: item.is_available,
       is_bestseller: item.is_bestseller,
@@ -294,7 +299,7 @@ async function pushMenuToPlatform(outletId, platform) {
   const storeId = cfg.store_id;
   if (!storeId) throw new BadRequestError(`${pDef.name} store ID not configured`);
 
-  const menuPayload = await buildMenuPayload(outletId);
+  const menuPayload = await buildMenuPayload(outletId, platform);
   const totalItems = menuPayload.reduce((s, c) => s + c.items.length, 0);
   const transformed = transformMenuForPlatform(platform, menuPayload, storeId);
 

@@ -16,7 +16,7 @@ import {
   CalendarDays, Link2, ShoppingBag, Menu as MenuIcon, X, ToggleLeft, Megaphone,
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
-  HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale,
+  HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale, Truck, Wallet,
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -104,6 +104,8 @@ const ownerNav = [
   { path: '/payments',          label: 'Payments',         icon: CreditCard, feature: 'payments' },
   { path: '/credit-notes',      label: 'Credit Notes',     icon: FileMinus, feature: 'payments' },
   { path: '/settlements',       label: 'Settlements',      icon: Scale, feature: 'payments' },
+  { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
+  { path: '/delivery',          label: 'Own Delivery',     icon: Truck, feature: 'payments' },
   { path: '/chain-health',     label: 'Health Score',     icon: HeartPulse },
 
   // ── Settings: configuration & tools ──
@@ -154,6 +156,8 @@ const ownerNavAU = [
   { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
   { path: '/credit-notes',     label: 'Credit Notes',      icon: FileMinus,     feature: 'payments' },
   { path: '/settlements',      label: 'Settlements',       icon: Scale,         feature: 'payments' },
+  { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
+  { path: '/delivery',         label: 'Own Delivery',      icon: Truck,         feature: 'payments' },
   { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'reports', region: 'AU' },

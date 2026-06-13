@@ -68,6 +68,10 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
       io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', { order_id: kot.order_id, status });
     }
 
+    // Push the new status back to the delivery aggregator (if this is an
+    // aggregator order). Fire-and-forget — never blocks/fails the KDS update.
+    require('../../integrations/aggregator.status.service').pushStatusForKot(kotId, status).catch(() => {});
+
     sendSuccess(res, updated, 'KOT status updated');
   } catch (error) { next(error); }
 });

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { useRegion } from '../hooks/useRegion';
 import { useCurrency } from '../hooks/useCurrency';
 import Modal from '../components/Modal';
+import ChannelPricing from '../components/aggregators/ChannelPricing';
 import {
   Zap, ZapOff, UploadCloud, RefreshCw, CheckCircle2, XCircle,
   AlertTriangle, Copy, Eye, EyeOff, Settings, Play, Clock,
@@ -493,6 +494,13 @@ export default function AggregatorPage() {
               Go to <strong className="text-white">Connect</strong> tab to enable platforms first.
             </p>
           )}
+
+          {/* Per-channel pricing & margin (Phase 1) */}
+          {Object.entries(REGION_PLATFORMS)
+            .filter(([id]) => configs[id]?.enabled)
+            .map(([id, meta]) => (
+              <ChannelPricing key={id} platform={id} platformName={meta.name} />
+            ))}
         </div>
       )}
 

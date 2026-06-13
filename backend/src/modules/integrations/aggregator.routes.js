@@ -7,6 +7,8 @@
 const express = require('express');
 const router = express.Router();
 const agg = require('./aggregator.service');
+const pricingService = require('./aggregator.pricing.service');
+const aggStatus = require('./aggregator.status.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');
@@ -260,6 +262,39 @@ router.get('/logs', authenticate, async (req, res, next) => {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const logs = await agg.getSyncLogs(outletId, req.query);
     sendSuccess(res, logs, 'Sync logs retrieved');
+  } catch (e) { next(e); }
+});
+
+/* ── Per-channel pricing (Phase 1) ──────────────────────────────────────── */
+/** GET /api/aggregators/pricing/:platform — saved markup config */
+router.get('/pricing/:platform', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+  try {
+    const outletId = req.user.outlet_id || req.query.outlet_id;
+    sendSuccess(res, await pricingService.getChannelPricing(outletId, req.params.platform), 'Channel pricing retrieved');
+  } catch (e) { next(e); }
+});
+/** PUT /api/aggregators/pricing/:platform — { type, value, enabled } */
+router.put('/pricing/:platform', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+  try {
+    const outletId = req.user.outlet_id || req.query.outlet_id;
+    const saved = await pricingService.setChannelPricing(outletId, req.params.platform, req.body);
+    sendSuccess(res, saved, 'Channel pricing saved');
+  } catch (e) { next(e); }
+});
+/** GET /api/aggregators/pricing/:platform/preview — margin preview vs live menu */
+router.get('/pricing/:platform/preview', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+  try {
+    const outletId = req.user.outlet_id || req.query.outlet_id;
+    sendSuccess(res, await pricingService.previewChannelMenu(outletId, req.params.platform), 'Margin preview generated');
+  } catch (e) { next(e); }
+});
+
+/* ── Manual status push-back (Phase 2) ──────────────────────────────────── */
+/** POST /api/aggregators/orders/:orderId/status — push order status to the aggregator */
+router.post('/orders/:orderId/status', authenticate, hasPermission('MANAGE_POS'), async (req, res, next) => {
+  try {
+    const result = await aggStatus.pushStatus(req.params.orderId, req.body.status);
+    sendSuccess(res, result, 'Status pushed to aggregator');
   } catch (e) { next(e); }
 });
 

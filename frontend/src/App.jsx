@@ -47,6 +47,8 @@ import KitchenDisplayPage from './pages/KitchenDisplayPage';
 import PaymentsPage from './pages/PaymentsPage';
 import CreditNotesPage from './pages/CreditNotesPage';
 import SettlementsPage from './pages/SettlementsPage';
+import AggregatorReconciliationPage from './pages/AggregatorReconciliationPage';
+import DeliveryDispatchPage from './pages/DeliveryDispatchPage';
 import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
@@ -267,6 +269,8 @@ export default function App() {
         <Route path="payments"        element={<FeatureGate feature="payments"><PaymentsPage /></FeatureGate>} />
         <Route path="credit-notes"    element={<FeatureGate feature="payments"><CreditNotesPage /></FeatureGate>} />
         <Route path="settlements"     element={<FeatureGate feature="payments"><SettlementsPage /></FeatureGate>} />
+        <Route path="aggregator-reconciliation" element={<FeatureGate feature="payments"><AggregatorReconciliationPage /></FeatureGate>} />
+        <Route path="delivery"        element={<FeatureGate feature="payments"><DeliveryDispatchPage /></FeatureGate>} />
         <Route path="discounts"       element={<FeatureGate feature="discounts"><DiscountsPage /></FeatureGate>} />
         <Route path="settings"        element={<SettingsPage />} />
         <Route path="integrations"    element={<FeatureGate feature="integrations"><IntegrationsPage /></FeatureGate>} />

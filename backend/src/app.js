@@ -346,6 +346,8 @@ app.use('/api/audit-logs', auditRoutes);
 app.use('/api/monitoring', require('./modules/monitoring/monitoring.routes'));
 app.use('/api/credit-notes', require('./modules/financial-docs/creditnote.routes'));
 app.use('/api/settlements', require('./modules/settlements/settlement.routes'));
+app.use('/api/aggregator-reconciliation', require('./modules/integrations/aggregator-reconciliation.routes'));
+app.use('/api/delivery', require('./modules/delivery/dispatch.routes'));
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);
