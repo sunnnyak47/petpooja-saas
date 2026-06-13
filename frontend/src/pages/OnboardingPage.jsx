@@ -125,6 +125,48 @@ const inputCls = 'border border-gray-200 rounded-xl px-4 py-2.5 w-full focus:out
 const labelCls = 'text-sm font-medium text-gray-700 mb-1 block';
 const sectionHeading = 'text-lg font-semibold text-gray-900 mb-4';
 
+// Scoped theme remap — converts the wizard's hard-coded Tailwind colours to the
+// app's CSS theme variables so it matches the rest of the admin and follows dark
+// mode. Applied within `.ob-scope` only, so no other page is affected.
+const OB_STYLE = `
+  .ob-scope { color: var(--text-primary); }
+  .ob-scope .bg-white { background: var(--bg-card) !important; }
+  .ob-scope .bg-gray-50, .ob-scope [class*="bg-gray-50/"] { background: var(--bg-secondary) !important; }
+  .ob-scope .text-gray-900, .ob-scope .text-gray-800 { color: var(--text-primary) !important; }
+  .ob-scope .text-gray-700, .ob-scope .text-gray-600, .ob-scope .text-gray-500,
+  .ob-scope .text-gray-400, .ob-scope .text-gray-300, .ob-scope .text-slate-400 { color: var(--text-secondary) !important; }
+  .ob-scope .placeholder-gray-400::placeholder { color: var(--text-secondary) !important; opacity: .55; }
+  .ob-scope .border-gray-200, .ob-scope .border-gray-100, .ob-scope .border-gray-300 { border-color: var(--border) !important; }
+  .ob-scope .divide-gray-100 > * { border-color: var(--border) !important; }
+  /* accent (was indigo) */
+  .ob-scope .bg-indigo-600 { background: var(--accent) !important; color: var(--accent-text) !important; }
+  .ob-scope .text-indigo-600, .ob-scope .text-indigo-700 { color: var(--accent) !important; }
+  .ob-scope .border-indigo-500, .ob-scope .border-indigo-600 { border-color: var(--accent) !important; }
+  .ob-scope .bg-indigo-50 { background: color-mix(in srgb, var(--accent) 14%, transparent) !important; }
+  .ob-scope .hover\\:border-indigo-300:hover, .ob-scope .hover\\:border-gray-300:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)) !important; }
+  .ob-scope .bg-indigo-500 { background: var(--accent) !important; }
+  .ob-scope .bg-indigo-200 { background: var(--border) !important; }
+  .ob-scope .border-indigo-100 { border-color: var(--border) !important; }
+  /* gradient buttons / panels -> flat theme surfaces */
+  .ob-scope [class*="from-indigo-600"] { background-image: none !important; background: var(--accent) !important; color: var(--accent-text) !important; }
+  .ob-scope [class*="from-indigo-50"] { background-image: none !important; background: var(--bg-secondary) !important; }
+  /* success (green) */
+  .ob-scope .text-green-500, .ob-scope .text-green-600, .ob-scope .text-green-700 { color: var(--success) !important; }
+  .ob-scope .bg-green-500 { background: var(--success) !important; }
+  .ob-scope .bg-green-50 { background: color-mix(in srgb, var(--success) 12%, transparent) !important; }
+  .ob-scope .bg-green-100 { background: color-mix(in srgb, var(--success) 18%, transparent) !important; }
+  .ob-scope .border-green-400 { border-color: var(--success) !important; }
+  /* danger (red) */
+  .ob-scope .text-red-400, .ob-scope .text-red-500, .ob-scope .text-red-600,
+  .ob-scope .hover\\:text-red-600:hover { color: var(--danger) !important; }
+  /* info box (blue) -> neutral */
+  .ob-scope .bg-blue-50 { background: var(--bg-hover) !important; }
+  .ob-scope .border-blue-200 { border-color: var(--border) !important; }
+  .ob-scope .text-blue-700 { color: var(--text-secondary) !important; }
+  /* progress track */
+  .ob-scope .bg-gray-200 { background: var(--border) !important; }
+`;
+
 // ─── Step 1 ───────────────────────────────────────────────────────────────────
 
 function Step1({ data, onChange }) {
@@ -739,32 +781,14 @@ function Step7({ wizardData, completedSteps, onComplete, saving }) {
 
   return (
     <>
-      <style>{`
-        @keyframes confetti-fall {
-          0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-          100% { transform: translateY(600px) rotate(720deg); opacity: 0; }
-        }
-        @keyframes rocket-bounce {
-          0%, 100% { transform: translateY(0) rotate(-10deg); }
-          50%       { transform: translateY(-18px) rotate(-10deg); }
-        }
-        .confetti-dot { position: absolute; width: 8px; height: 8px; border-radius: 2px; animation: confetti-fall 3s ease-in infinite; }
-        .rocket-icon  { animation: rocket-bounce 1.4s ease-in-out infinite; }
-      `}</style>
-
-      {/* Confetti */}
-      <div className="absolute inset-x-0 top-0 h-full overflow-hidden pointer-events-none">
-        {['#6366f1','#a855f7','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444'].map((color, i) => (
-          <div key={i} className="confetti-dot"
-            style={{ left: `${10 + i * 13}%`, backgroundColor: color, animationDelay: `${i * 0.4}s`, animationDuration: `${2.5 + i * 0.3}s` }} />
-        ))}
-      </div>
-
       <div className="flex flex-col items-center text-center space-y-6 py-4 relative">
-        <div className="rocket-icon text-6xl select-none">🚀</div>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: 'color-mix(in srgb, var(--success) 16%, transparent)' }}>
+          <CheckCircle2 size={36} style={{ color: 'var(--success)' }} />
+        </div>
 
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">You're All Set! 🎉</h2>
+          <h2 className="text-3xl font-bold text-gray-900">You're all set</h2>
           <p className="text-gray-500 mt-2">Your restaurant is ready to launch on MS-RM.</p>
         </div>
 
@@ -802,7 +826,7 @@ function Step7({ wizardData, completedSteps, onComplete, saving }) {
         <button type="button" onClick={onComplete} disabled={saving}
           className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-xl transition-all disabled:opacity-60">
           {saving ? <Loader2 size={20} className="animate-spin" /> : <Rocket size={20} />}
-          {saving ? 'Launching...' : 'Open My Restaurant 🚀'}
+          {saving ? 'Launching…' : 'Open My Restaurant'}
         </button>
 
         <button type="button" onClick={() => window.location.href = '/'}
@@ -956,13 +980,9 @@ export default function OnboardingPage() {
   const currentStepKey = `step${currentStep}`;
 
   return (
-    <div className="fixed inset-0 z-[999] overflow-y-auto">
-      {/* Background */}
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-900 relative">
-        {/* Animated blobs */}
-        <div className="absolute top-[-100px] left-[-100px] w-96 h-96 bg-indigo-600 rounded-full opacity-20 blur-3xl animate-pulse" />
-        <div className="absolute bottom-[-80px] right-[-80px] w-80 h-80 bg-purple-600 rounded-full opacity-20 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-pink-600 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+    <div className="ob-scope fixed inset-0 z-[999] overflow-y-auto" style={{ background: 'var(--bg-primary)' }}>
+      <style>{OB_STYLE}</style>
+      <div className="min-h-screen relative">
 
         <div className="relative max-w-4xl mx-auto my-8 px-4">
           {/* Card */}
