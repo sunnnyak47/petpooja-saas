@@ -105,19 +105,22 @@ const INTEGRATIONS_AU = [
 // Region-specific defaults, labels and placeholders.
 const REGION = {
   IN: {
-    currency: 'INR', symbol: '₹',
-    cityPh: 'Mumbai', addressPh: '123 Main Street, Bandra West', phonePh: '+91 98765 43210',
-    staffPhonePh: '+91 99999 00000',
+    currency: 'INR', symbol: '₹', dial: '+91',
+    cityPh: 'Mumbai', addressPh: '123 Main Street, Bandra West', phonePh: '98765 43210',
+    staffPhonePh: '99999 00000',
     voiceLanguages: VOICE_LANGUAGES_IN, paymentModes: PAYMENT_MODES_IN, integrations: INTEGRATIONS_IN,
   },
   AU: {
-    currency: 'AUD', symbol: 'A$',
-    cityPh: 'Sydney', addressPh: '123 George St, Sydney NSW 2000', phonePh: '+61 2 9000 0000',
-    staffPhonePh: '+61 400 000 000',
+    currency: 'AUD', symbol: 'A$', dial: '+61',
+    cityPh: 'Sydney', addressPh: '123 George St, Sydney NSW 2000', phonePh: '2 9000 0000',
+    staffPhonePh: '400 000 000',
     voiceLanguages: VOICE_LANGUAGES_AU, paymentModes: PAYMENT_MODES_AU, integrations: INTEGRATIONS_AU,
   },
+  US: { currency: 'USD', symbol: '$', dial: '+1', cityPh: 'New York', addressPh: '123 Main St, New York, NY', phonePh: '(212) 000-0000', staffPhonePh: '(212) 000-0000', voiceLanguages: VOICE_LANGUAGES_AU, paymentModes: PAYMENT_MODES_AU, integrations: INTEGRATIONS_AU },
+  UK: { currency: 'GBP', symbol: '£', dial: '+44', cityPh: 'London', addressPh: '10 High St, London', phonePh: '20 0000 0000', staffPhonePh: '7700 000000', voiceLanguages: VOICE_LANGUAGES_AU, paymentModes: PAYMENT_MODES_AU, integrations: INTEGRATIONS_AU },
+  AE: { currency: 'AED', symbol: 'د.إ', dial: '+971', cityPh: 'Dubai', addressPh: 'Sheikh Zayed Rd, Dubai', phonePh: '50 000 0000', staffPhonePh: '50 000 0000', voiceLanguages: VOICE_LANGUAGES_AU, paymentModes: PAYMENT_MODES_AU, integrations: INTEGRATIONS_AU },
 };
-const regionCfg = (country) => REGION[country === 'AU' ? 'AU' : 'IN'];
+const regionCfg = (country) => REGION[country] || REGION.IN;
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
@@ -167,6 +170,31 @@ const OB_STYLE = `
   .ob-scope .bg-gray-200 { background: var(--border) !important; }
 `;
 
+// Phone input with a fixed country dial-code prefix so the owner only types the
+// local number; the stored value is the full international number.
+function PhoneField({ dial, value, placeholder, onChange, autoFocus }) {
+  const re = new RegExp('^\\' + dial + '\\s*');
+  const local = (value || '').replace(re, '');
+  return (
+    <div className="flex">
+      <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50 text-gray-500 text-sm font-medium select-none">
+        {dial}
+      </span>
+      <input
+        type="tel"
+        autoFocus={autoFocus}
+        className="border border-gray-200 rounded-r-xl px-4 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800 placeholder-gray-400 bg-white"
+        placeholder={placeholder}
+        value={local}
+        onChange={(e) => {
+          const v = e.target.value.replace(/^\+?\d{1,4}\s*/, (m) => (m.trim() === dial ? '' : m));
+          onChange(`${dial} ${v}`.trim());
+        }}
+      />
+    </div>
+  );
+}
+
 // ─── Step 1 ───────────────────────────────────────────────────────────────────
 
 function Step1({ data, onChange }) {
@@ -197,7 +225,7 @@ function Step1({ data, onChange }) {
 
       <div>
         <label className={labelCls}>Country</label>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {COUNTRIES.map(c => (
             <button key={c.code} type="button"
               onClick={() => onChange({ country: c.code })}
@@ -226,7 +254,7 @@ function Step1({ data, onChange }) {
 
       <div>
         <label className={labelCls}>Business Type</label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {BUSINESS_TYPES.map(bt => {
             const Icon = bt.Icon;
             return (
@@ -325,8 +353,8 @@ function Step2({ data, onChange, restaurantName, country }) {
 
       <div>
         <label className={labelCls}>Outlet Phone</label>
-        <input className={inputCls} type="tel" placeholder={rc.phonePh} value={data.phone}
-          onChange={e => onChange({ phone: e.target.value })} />
+        <PhoneField dial={rc.dial} value={data.phone} placeholder={rc.phonePh}
+          onChange={v => onChange({ phone: v })} />
       </div>
 
       <div>
@@ -586,8 +614,8 @@ function Step4({ data, onChange, country }) {
           </div>
           <div>
             <label className={labelCls}>Phone</label>
-            <input className={inputCls} type="tel" placeholder={staffPhonePh} value={form.phone}
-              onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            <PhoneField dial={regionCfg(country).dial} value={form.phone} placeholder={staffPhonePh}
+              onChange={v => setForm(p => ({ ...p, phone: v }))} />
           </div>
           <div>
             <label className={labelCls}>Role</label>
@@ -614,7 +642,7 @@ function Step4({ data, onChange, country }) {
           <p className="text-sm">Add at least one staff member above</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(data.staff_members || []).map((m, idx) => (
             <div key={m.id} className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
@@ -730,7 +758,7 @@ function Step6({ data, onChange, onSkip, country }) {
         <p className="text-gray-500 mt-1">All optional — connect anytime from Settings.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {INTEGRATIONS.map(({ id, label, color, letter, desc, placeholder }) => {
           const filled = !!data[id];
           return (
@@ -955,6 +983,18 @@ export default function OnboardingPage() {
     setCurrentStep(c => c + 1);
   };
 
+  // Express path: persist whatever the owner has entered so far (so nothing is
+  // lost), then complete + provision and go straight to the dashboard.
+  const handleFinishNow = async () => {
+    setSaving(true);
+    try {
+      await api.post(`/onboarding/step/${currentStep}`, { data: wizardData[`step${currentStep}`] }).catch(() => {});
+      await handleComplete();
+    } catch {
+      setSaving(false);
+    }
+  };
+
   const handleComplete = async () => {
     setSaving(true);
     try {
@@ -980,9 +1020,9 @@ export default function OnboardingPage() {
   const currentStepKey = `step${currentStep}`;
 
   return (
-    <div className="ob-scope fixed inset-0 z-[999] overflow-y-auto" style={{ background: 'var(--bg-primary)' }}>
+    <div className="ob-scope fixed inset-0 z-[999] overflow-y-auto overflow-x-hidden" style={{ background: 'var(--bg-primary)' }}>
       <style>{OB_STYLE}</style>
-      <div className="min-h-screen relative">
+      <div className="min-h-screen relative w-full max-w-full">
 
         <div className="relative max-w-4xl mx-auto my-8 px-4">
           {/* Card */}
@@ -1068,10 +1108,19 @@ export default function OnboardingPage() {
             )}
           </div>
 
-          {/* Footer note */}
-          <p className="text-center text-slate-400 text-sm mt-4 pb-4">
-            MS-RM System &mdash; You can change these settings anytime from the dashboard.
-          </p>
+          {/* Footer note + express path */}
+          <div className="text-center mt-4 pb-6 space-y-2">
+            {!isLastStep && (
+              <button type="button" onClick={handleFinishNow} disabled={saving}
+                className="text-sm font-medium underline transition-colors disabled:opacity-50"
+                style={{ color: 'var(--text-secondary)' }}>
+                In a hurry? Skip setup &amp; go to dashboard →
+              </button>
+            )}
+            <p className="text-slate-400 text-sm">
+              MS-RM System &mdash; You can change these settings anytime from the dashboard.
+            </p>
+          </div>
         </div>
       </div>
     </div>
