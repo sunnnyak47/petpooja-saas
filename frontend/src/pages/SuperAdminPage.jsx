@@ -39,6 +39,22 @@ const PLAN_COLORS = {
 
 const PLANS = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
 
+/* Clean region marker — a typographic code chip instead of an emoji flag
+   (emoji flags render as inconsistent platform PNGs and look unprofessional). */
+function RegionChip({ code, size = 'md' }) {
+  const color = REGIONS[code]?.color || 'var(--text-secondary)';
+  const d = size === 'lg' ? 34 : size === 'sm' ? 22 : 28;
+  const fs = size === 'lg' ? 12 : size === 'sm' ? 9 : 11;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: d, height: d, borderRadius: Math.round(d / 3.5), flexShrink: 0,
+      background: `color-mix(in srgb, ${color} 14%, transparent)`,
+      color, fontWeight: 700, fontSize: fs, letterSpacing: '0.02em',
+    }}>{code}</span>
+  );
+}
+
 export default function SuperAdminPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -87,7 +103,7 @@ export default function SuperAdminPage() {
       api.patch(`/superadmin/chains/${chainId}/region`, { region, abn, acn }),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries(['admin-chains']);
-      toast.success(`Switched to ${REGIONS[vars.region].flag} ${REGIONS[vars.region].label} profile!`);
+      toast.success(`Switched to ${REGIONS[vars.region].label} profile!`);
       setRegionModal(null);
     },
     onError: (e) => toast.error(e.response?.data?.message || 'Region switch failed'),
@@ -335,8 +351,8 @@ export default function SuperAdminPage() {
       {/* ── KPI row ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard icon={<Building2 className="w-5 h-5" />} label="Total Chains"  value={chains.length}  color="var(--accent)" />
-        <KPICard icon={<span className="text-lg">{REGIONS.IN.flag}</span>}       label="India Chains"   value={inCount}  color="#FF6B35" />
-        <KPICard icon={<span className="text-lg">{REGIONS.AU.flag}</span>}       label="AU Chains"      value={auCount}  color="#0052CC" />
+        <KPICard icon={<span className="text-xs font-bold">IN</span>}            label="India Chains"   value={inCount}  color="#FF6B35" />
+        <KPICard icon={<span className="text-xs font-bold">AU</span>}            label="AU Chains"      value={auCount}  color="#0052CC" />
         <KPICard icon={<DollarSign className="w-5 h-5" />}                      label="Active Plans"
           value={chains.filter(c => c.subscriptions?.[0]?.status === 'active').length} color="#16a34a" />
       </div>
@@ -346,10 +362,10 @@ export default function SuperAdminPage() {
         <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--accent)', opacity: 0.1 }}>
+              style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
+              <ArrowLeftRight className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             </div>
-            <ArrowLeftRight className="w-4 h-4 absolute ml-2" style={{ color: 'var(--accent)' }} />
-            <div className="ml-6">
+            <div>
               <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Region Profiles</p>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 Currency, timezone, tax model and compliance by country
@@ -370,7 +386,7 @@ export default function SuperAdminPage() {
                   <div className="p-4 flex-1">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <span className="text-3xl leading-none">{r.flag}</span>
+                        <RegionChip code={rKey} size="lg" />
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{r.label}</h3>
@@ -455,7 +471,7 @@ export default function SuperAdminPage() {
                   color: filterRegion === r ? 'var(--accent-text)' : 'var(--text-secondary)',
                   borderRight: r !== 'AU' ? '1px solid var(--border)' : 'none',
                 }}>
-                {r === 'ALL' ? 'All' : `${REGIONS[r].flag} ${r}`}
+                {r === 'ALL' ? 'All' : r}
               </button>
             ))}
           </div>
@@ -502,7 +518,7 @@ export default function SuperAdminPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{chain.name}</h3>
-                        <span className="text-sm">{r.flag}</span>
+                        <RegionChip code={curRegion} size="sm" />
                         <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
                           style={{ background: `${statusColor}14`, color: statusColor }}>
                           {status}
@@ -541,14 +557,14 @@ export default function SuperAdminPage() {
                   {/* Region + switch row */}
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {r.flag} {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
+                      {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
                     </span>
                     <button
                       onClick={() => setRegionModal({ chain, targetRegion: curRegion === 'AU' ? 'IN' : 'AU', abn: chain.abn || '', acn: chain.acn || '' })}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-primary)' }}>
                       <ArrowLeftRight className="w-3 h-3" />
-                      Switch to {target.flag} {target.label}
+                      Switch to {target.label}
                     </button>
                   </div>
 
@@ -1056,7 +1072,7 @@ export default function SuperAdminPage() {
             <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
               <div>
                 <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
-                  Switch to {REGIONS[regionModal.targetRegion].flag} {REGIONS[regionModal.targetRegion].label}
+                  Switch to {REGIONS[regionModal.targetRegion].label}
                 </h3>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{regionModal.chain.name}</p>
               </div>
@@ -1188,7 +1204,7 @@ export default function SuperAdminPage() {
                         color: formData.region === r ? 'var(--text-primary)' : 'var(--text-secondary)',
                         boxShadow: formData.region === r ? '0 0 0 1px var(--accent)' : 'none',
                       }}>
-                      <div className="text-2xl mb-1">{REGIONS[r].flag}</div>
+                      <div className="flex justify-center mb-1.5"><RegionChip code={r} /></div>
                       <div>{REGIONS[r].label}</div>
                       <div className="text-[10px] mt-0.5 opacity-60">{REGIONS[r].currency} · {REGIONS[r].compliance}</div>
                     </button>

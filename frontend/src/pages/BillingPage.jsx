@@ -5,25 +5,21 @@ import api from '../lib/api';
 import { DollarSign, TrendingUp, Users, CreditCard, CheckCircle, Clock, XCircle, Gauge, AlertTriangle, PlayCircle, Layers, Plus, Pencil, FileText, MailWarning, X } from 'lucide-react';
 import { useCurrency, formatCurrencyStatic } from '../hooks/useCurrency';
 
+// Restrained tier palette — uniform neutral card surface, distinguished by a
+// single accent colour used for the dot / left bar only.
 const PLAN_COLORS = {
-  trial:      { bg: 'bg-blue-500/10',   text: 'text-blue-400',   label: 'Trial',      border: 'border-l-blue-400',   dot: 'bg-blue-400' },
-  starter:    { bg: 'bg-green-500/10',  text: 'text-green-400',  label: 'Starter',    border: 'border-l-green-400',  dot: 'bg-green-400' },
-  pro:        { bg: 'bg-purple-500/10', text: 'text-purple-400', label: 'Pro',        border: 'border-l-purple-400', dot: 'bg-purple-400' },
-  enterprise: { bg: 'bg-orange-500/10', text: 'text-orange-400', label: 'Enterprise', border: 'border-l-orange-400', dot: 'bg-orange-400' },
+  trial:      { color: '#64748b',      label: 'Trial' },
+  starter:    { color: 'var(--accent)', label: 'Starter' },
+  pro:        { color: '#7c3aed',      label: 'Pro' },
+  enterprise: { color: '#16a34a',      label: 'Enterprise' },
 };
 
+// Restrained semantics: active→success, trial→warning, suspended→danger, cancelled→neutral.
 const STATUS_COLORS = {
-  active:    { icon: CheckCircle, text: 'text-green-400',  label: 'Active' },
-  trial:     { icon: Clock,       text: 'text-blue-400',   label: 'Trial' },
-  suspended: { icon: XCircle,     text: 'text-red-400',    label: 'Suspended' },
-  cancelled: { icon: XCircle,     text: 'text-gray-400',   label: 'Cancelled' },
-};
-
-const STAT_ICON_COLORS = {
-  blue:   { bg: 'bg-blue-500/10',   text: 'text-blue-400' },
-  green:  { bg: 'bg-green-500/10',  text: 'text-green-400' },
-  amber:  { bg: 'bg-amber-500/10',  text: 'text-amber-400' },
-  purple: { bg: 'bg-purple-500/10', text: 'text-purple-400' },
+  active:    { icon: CheckCircle, color: '#16a34a', label: 'Active' },
+  trial:     { icon: Clock,       color: '#f59e0b', label: 'Trial' },
+  suspended: { icon: XCircle,     color: '#ef4444', label: 'Suspended' },
+  cancelled: { icon: XCircle,     color: '#64748b', label: 'Cancelled' },
 };
 
 // Region presets for the plan form (P4 — region-correctness for IN / AU).
@@ -32,16 +28,16 @@ const REGION_PRESETS = {
   AU: { currency: 'AUD', tax_label: 'GST', tax_percent: 10 },
 };
 
-// Status badge styling for usage-based invoices.
+// Status badge styling for usage-based invoices (restrained semantic palette).
 const INVOICE_STATUS_STYLES = {
-  draft:   { bg: 'bg-gray-500/10',   text: 'text-gray-400',   label: 'Draft' },
-  issued:  { bg: 'bg-blue-500/10',   text: 'text-blue-400',   label: 'Issued' },
-  paid:    { bg: 'bg-green-500/10',  text: 'text-green-400',  label: 'Paid' },
-  overdue: { bg: 'bg-red-500/10',    text: 'text-red-400',    label: 'Overdue' },
-  void:    { bg: 'bg-gray-500/10',   text: 'text-gray-400',   label: 'Void' },
+  draft:   { color: '#64748b', label: 'Draft' },
+  issued:  { color: 'var(--accent)', label: 'Issued' },
+  paid:    { color: '#16a34a', label: 'Paid' },
+  overdue: { color: '#ef4444', label: 'Overdue' },
+  void:    { color: '#64748b', label: 'Void' },
 };
 
-const REGION_FLAG = (region) => (region === 'AU' ? '🇦🇺 AU' : '🇮🇳 IN');
+const REGION_FLAG = (region) => (region === 'AU' ? 'AU' : 'IN');
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
 
@@ -156,7 +152,7 @@ function PlanModal({ plan, onClose, onSubmit, isSubmitting }) {
         <div className="flex items-center justify-between px-5 py-4 sticky top-0"
           style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
           <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Layers className="w-4 h-4 text-indigo-400" />
+            <Layers className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             {isEdit ? `Edit Plan — ${plan.name}` : 'New Billing Plan'}
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/[0.06] transition-colors"
@@ -191,8 +187,8 @@ function PlanModal({ plan, onClose, onSubmit, isSubmitting }) {
             <Field label="Region">
               <select value={form.region} onChange={e => handleRegionChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={inputStyle}>
-                <option value="IN">🇮🇳 India (IN)</option>
-                <option value="AU">🇦🇺 Australia (AU)</option>
+                <option value="IN">India (IN)</option>
+                <option value="AU">Australia (AU)</option>
               </select>
             </Field>
             <Field label="Currency">
@@ -269,7 +265,7 @@ function PlanModal({ plan, onClose, onSubmit, isSubmitting }) {
 
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: 'var(--text-primary)' }}>
             <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)}
-              className="w-4 h-4 rounded accent-indigo-500" />
+              className="w-4 h-4 rounded" style={{ accentColor: 'var(--accent)' }} />
             Plan is active
           </label>
 
@@ -281,7 +277,7 @@ function PlanModal({ plan, onClose, onSubmit, isSubmitting }) {
             </button>
             <button type="submit" disabled={isSubmitting}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              style={{ background: 'var(--accent)', color: '#fff' }}>
+              style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
               {isSubmitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Plan'}
             </button>
           </div>
@@ -417,10 +413,10 @@ export default function BillingPage() {
   const mrr = apiMrr ?? chains.reduce((s, c) => s + (PLAN_PRICES[planKey(c)] || 0), 0);
 
   const stats = [
-    { label: 'Total Chains',  value: totalChains,  icon: Users,       accent: 'blue' },
-    { label: 'Active Chains', value: activeChains, icon: CheckCircle, accent: 'green' },
-    { label: 'Trial Chains',  value: trialChains,  icon: Clock,       accent: 'amber' },
-    { label: 'Est. MRR',      value: `${symbol}${mrr.toLocaleString()}`, icon: DollarSign, accent: 'purple' },
+    { label: 'Total Chains',  value: totalChains,  icon: Users,       color: 'var(--accent)' },
+    { label: 'Active Chains', value: activeChains, icon: CheckCircle, color: '#16a34a' },
+    { label: 'Trial Chains',  value: trialChains,  icon: Clock,       color: '#f59e0b' },
+    { label: 'Est. MRR',      value: `${symbol}${mrr.toLocaleString()}`, icon: DollarSign, color: 'var(--accent)' },
   ];
 
   return (
@@ -458,31 +454,32 @@ export default function BillingPage() {
           style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              <Gauge className="w-4 h-4 text-indigo-400" /> Usage-Based Billing
+              <Gauge className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Usage-Based Billing
               <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>({ov.period})</span>
             </h2>
             <button
               onClick={() => generateMutation.mutate()}
               disabled={generateMutation.isPending}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              style={{ background: 'var(--accent)', color: '#fff' }}>
+              style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
               <PlayCircle className="w-3.5 h-3.5" />
               {generateMutation.isPending ? 'Generating…' : 'Run Monthly Billing'}
             </button>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-              { label: 'Metered Fees', value: ovCur(ov.metered_fee_total), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/10' },
-              { label: 'Gross Volume', value: ovCur(ov.gross_volume), icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-              { label: 'Transactions', value: Number(ov.txn_count).toLocaleString(), icon: Gauge, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-              { label: 'Invoiced', value: `${ovCur(ov.invoiced_total)} (${ov.invoice_count})`, icon: CreditCard, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-              { label: 'Overdue', value: `${ovCur(ov.overdue_total)} (${ov.overdue_count})`, icon: AlertTriangle, color: ov.overdue_count > 0 ? 'text-red-400' : 'text-gray-400', bg: ov.overdue_count > 0 ? 'bg-red-500/10' : 'bg-gray-500/10' },
+              { label: 'Metered Fees', value: ovCur(ov.metered_fee_total), icon: DollarSign, color: '#16a34a' },
+              { label: 'Gross Volume', value: ovCur(ov.gross_volume), icon: TrendingUp, color: 'var(--accent)' },
+              { label: 'Transactions', value: Number(ov.txn_count).toLocaleString(), icon: Gauge, color: 'var(--accent)' },
+              { label: 'Invoiced', value: `${ovCur(ov.invoiced_total)} (${ov.invoice_count})`, icon: CreditCard, color: 'var(--accent)' },
+              { label: 'Overdue', value: `${ovCur(ov.overdue_total)} (${ov.overdue_count})`, icon: AlertTriangle, color: ov.overdue_count > 0 ? '#ef4444' : '#64748b' },
             ].map(m => (
               <div key={m.label} className="rounded-lg p-3.5" style={{ background: 'var(--bg-primary)' }}>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{m.label}</span>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${m.bg}`}>
-                    <m.icon className={`w-3.5 h-3.5 ${m.color}`} />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                    style={{ background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}>
+                    <m.icon className="w-3.5 h-3.5" style={{ color: m.color }} />
                   </div>
                 </div>
                 <p className="text-lg font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{m.value}</p>
@@ -498,7 +495,7 @@ export default function BillingPage() {
           style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
           <div>
             <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              <Layers className="w-4 h-4 text-indigo-400" /> Billing Plans
+              <Layers className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Billing Plans
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               Region-aware usage-based pricing plans (IN / AU).
@@ -507,7 +504,7 @@ export default function BillingPage() {
           <button
             onClick={() => setPlanModal({})}
             className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-            style={{ background: 'var(--accent)', color: '#fff' }}>
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
             <Plus className="w-3.5 h-3.5" /> New Plan
           </button>
         </div>
@@ -549,7 +546,13 @@ export default function BillingPage() {
                         <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{p.code}</p>
                       </td>
                       <td className="px-5 py-3.5" style={{ color: 'var(--text-secondary)' }}>
-                        {REGION_FLAG(p.region)} · {cur}
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                            style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+                            {REGION_FLAG(p.region)}
+                          </span>
+                          {cur}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>
                         {formatCurrencyStatic(p.base_monthly_fee, cur)}
@@ -567,7 +570,11 @@ export default function BillingPage() {
                         {p.max_outlets == null ? '∞' : p.max_outlets} outlets · {p.max_users == null ? '∞' : p.max_users} users
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${p.is_active ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                          style={{
+                            color: p.is_active ? '#16a34a' : '#64748b',
+                            background: `color-mix(in srgb, ${p.is_active ? '#16a34a' : '#64748b'} 12%, transparent)`,
+                          }}>
                           {p.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -593,7 +600,7 @@ export default function BillingPage() {
           style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
           <div>
             <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              <FileText className="w-4 h-4 text-indigo-400" /> Usage-Based Invoices
+              <FileText className="w-4 h-4" style={{ color: 'var(--accent)' }} /> Usage-Based Invoices
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               Metered usage invoices generated from transaction volume.
@@ -611,7 +618,7 @@ export default function BillingPage() {
             </select>
             <button onClick={handleRunDunning} disabled={dunningMutation.isPending}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+              style={{ background: 'color-mix(in srgb, #ef4444 12%, transparent)', color: '#ef4444', border: '1px solid color-mix(in srgb, #ef4444 30%, transparent)' }}>
               <MailWarning className="w-3.5 h-3.5" />
               {dunningMutation.isPending ? 'Running…' : 'Run Dunning'}
             </button>
@@ -670,7 +677,8 @@ export default function BillingPage() {
                         {formatCurrencyStatic(inv.total, cur)}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                          style={{ color: cfg.color, background: `color-mix(in srgb, ${cfg.color} 12%, transparent)` }}>
                           {cfg.label}
                         </span>
                       </td>
@@ -687,7 +695,6 @@ export default function BillingPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => {
-          const colors = STAT_ICON_COLORS[s.accent];
           return (
             <div
               key={s.label}
@@ -709,8 +716,9 @@ export default function BillingPage() {
                     {s.label}
                   </p>
                 </div>
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colors.bg}`}>
-                  <s.icon className={`w-[18px] h-[18px] ${colors.text}`} />
+                <div className="w-9 h-9 rounded-full flex items-center justify-center"
+                  style={{ background: `color-mix(in srgb, ${s.color} 14%, transparent)` }}>
+                  <s.icon className="w-[18px] h-[18px]" style={{ color: s.color }} />
                 </div>
               </div>
             </div>
@@ -733,10 +741,15 @@ export default function BillingPage() {
             return (
               <div
                 key={plan}
-                className={`rounded-xl p-5 border-l-4 ${cfg.border} ${cfg.bg}`}
+                className="rounded-xl p-5"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${cfg.color}`,
+                }}
               >
-                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cfg.text}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.color }} />
                   {cfg.label}
                 </span>
                 <p
@@ -836,18 +849,23 @@ export default function BillingPage() {
                         {emailOf(c) || <span style={{ opacity: 0.4 }}>—</span>}
                       </td>
                       <td className="px-5 py-3.5" style={{ color: 'var(--text-secondary)' }}>
-                        {region === 'AU' ? '🇦🇺 AU' : '🇮🇳 IN'}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+                          {region === 'AU' ? 'AU' : 'IN'}
+                        </span>
                       </td>
                       <td className="px-5 py-3.5 font-medium" style={{ color: 'var(--text-primary)' }}>
                         {c._count?.outlets || 0}
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${planCfg.bg} ${planCfg.text}`}>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                          style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: planCfg.color }} />
                           {planCfg.label}
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusCfg.text}`}>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: statusCfg.color }}>
                           <StatusIcon className="w-3.5 h-3.5" />
                           {statusCfg.label}
                         </span>
