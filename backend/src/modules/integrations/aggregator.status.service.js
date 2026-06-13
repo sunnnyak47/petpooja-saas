@@ -139,57 +139,38 @@ async function pushStatus(orderId, internalStatus) {
       return { ok: true, simulated: true, mapped_status: mappedStatus };
     }
 
-    // ── Live mode: real outbound HTTP call ──
+    // ── Live mode: real outbound HTTP call (shared client) ──
     if (!order.aggregator_order_id) {
       return { skipped: true, reason: 'missing aggregator_order_id' };
     }
 
-    const url = `${pDef.apiUrl}${pDef.statusEndpoint}`.replace('{id}', encodeURIComponent(order.aggregator_order_id));
+    const { aggregatorFetch, resolveEndpoint } = require('./aggregator.http');
+    const url = resolveEndpoint(pDef.apiUrl, pDef.statusEndpoint, order.aggregator_order_id);
     const body = { status: mappedStatus };
 
-    let httpStatus = null;
-    let ok = false;
-    let responseData = null;
-    let errorMsg = null;
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cfg.api_key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      httpStatus = resp.status;
-      ok = resp.ok;
-      responseData = await resp.text().then((t) => {
-        try { return JSON.parse(t); } catch { return t ? { raw: t.slice(0, 1000) } : null; }
-      }).catch(() => null);
-      if (!ok) errorMsg = `HTTP ${httpStatus}`;
-    } catch (e) {
-      errorMsg = e.name === 'AbortError' ? `timeout after ${HTTP_TIMEOUT_MS}ms` : e.message;
-      logger.error(`Status push to ${pDef.name} failed`, { order_id: order.id, error: errorMsg });
-    } finally {
-      clearTimeout(timer);
-    }
+    // A status transition is idempotent (setting READY twice is harmless), so we
+    // pass an idempotency key — enabling safe retry/backoff and platform-side dedupe.
+    const result = await aggregatorFetch({
+      platform, pDef, cfg, method: 'POST', url, body,
+      timeoutMs: HTTP_TIMEOUT_MS,
+      idempotencyKey: `status-${order.aggregator_order_id}-${mappedStatus}`,
+    });
 
     await writeSyncLog(
-      order.outlet_id, platform, 'status_push', ok ? 'success' : 'error', ok ? 1 : 0, errorMsg,
+      order.outlet_id, platform, 'status_push', result.ok ? 'success' : 'error', result.ok ? 1 : 0, result.ok ? null : result.error,
       { order_id: order.id, aggregator_order_id: order.aggregator_order_id, internal_status: internalStatus, mapped_status: mappedStatus, url },
-      { http_status: httpStatus, response: responseData },
+      { http_status: result.status, response: result.data },
     );
 
-    if (ok) {
+    if (result.ok) {
       logger.info(`Status pushed to ${pDef.name}`, {
-        order_id: order.id, mapped_status: mappedStatus, http_status: httpStatus,
+        order_id: order.id, mapped_status: mappedStatus, http_status: result.status, attempts: result.attempts,
       });
+    } else {
+      logger.error(`Status push to ${pDef.name} failed`, { order_id: order.id, error: result.error });
     }
 
-    return { ok, mapped_status: mappedStatus, http_status: httpStatus };
+    return { ok: result.ok, mapped_status: mappedStatus, http_status: result.status };
   } catch (e) {
     // Defensive — pushStatus must never throw to its fire-and-forget callers.
     logger.error('pushStatus unexpected failure', { order_id: orderId, error: e.message });

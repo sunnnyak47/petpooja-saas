@@ -185,6 +185,43 @@ async function buildMenuPayload(outletId, platform = null) {
 }
 
 /**
+ * Builds the platform-specific availability (sold-out / in-stock) request body.
+ *
+ * Most partner APIs accept an items array with a per-item availability flag keyed
+ * off the store. Vocabulary differs slightly per platform; the `default` shape
+ * covers Swiggy/Zomato/Menulog and the per-platform branches match the store-scoped
+ * shape DoorDash and Uber Eats expect.
+ *
+ * Item ids here are our internal menu_item ids — the merchant's POS↔platform item
+ * mapping resolves them on the platform side, which is how aggregator onboarding
+ * works in practice.
+ *
+ * @param {string} platform
+ * @param {string} storeId
+ * @param {string[]} itemIds
+ * @param {boolean} isAvailable
+ * @returns {object}
+ */
+function transformAvailabilityForPlatform(platform, storeId, itemIds, isAvailable) {
+  const items = itemIds.map((id) => ({ id, available: isAvailable }));
+  switch (platform) {
+    case 'uber_eats':
+    case 'doordash':
+      // Store-scoped item suspensions.
+      return {
+        store_id: storeId,
+        items: itemIds.map((id) => ({ id, suspension: { suspend: !isAvailable } })),
+      };
+    case 'zomato':
+      return { restaurant_id: storeId, items, in_stock: isAvailable };
+    case 'swiggy':
+    case 'menulog':
+    default:
+      return { store_id: storeId, items, available: isAvailable };
+  }
+}
+
+/**
  * Transforms internal menu payload to platform-specific format.
  */
 function transformMenuForPlatform(platform, menuPayload, storeId) {
@@ -303,41 +340,39 @@ async function pushMenuToPlatform(outletId, platform) {
   const totalItems = menuPayload.reduce((s, c) => s + c.items.length, 0);
   const transformed = transformMenuForPlatform(platform, menuPayload, storeId);
 
-  // Real API call when api_key present, else simulate
-  let syncStatus = 'success';
-  let responseData = null;
-  let errorMsg = null;
+  // Real outbound call when api_key present; aggregatorFetch returns simulated:true
+  // (no network) when it is absent, so un-provisioned outlets keep working.
+  const { aggregatorFetch, resolveEndpoint } = require('./aggregator.http');
+  const url = resolveEndpoint(pDef.apiUrl, pDef.menuEndpoint, storeId);
+  const result = await aggregatorFetch({
+    platform, pDef, cfg, method: 'POST', url, body: transformed,
+    // Menu pushes are full snapshots — safe (and desirable) to retry/dedupe.
+    idempotencyKey: `menu-${outletId}-${storeId}`,
+  });
 
-  if (cfg.api_key) {
-    try {
-      // In production: actual HTTP call to platform API
-      // const resp = await axios.post(`${pDef.apiUrl}${pDef.menuEndpoint}`, transformed, {
-      //   headers: { Authorization: `Bearer ${cfg.api_key}`, 'Content-Type': 'application/json' }
-      // });
-      // responseData = resp.data;
-      // Simulated successful response for now:
-      responseData = { success: true, acknowledged: true, items_updated: totalItems, platform: pDef.name };
-      logger.info(`Menu pushed to ${pDef.name}`, { outletId, itemCount: totalItems, storeId });
-    } catch (e) {
-      syncStatus = 'error';
-      errorMsg = e.message;
-      logger.error(`Menu push to ${pDef.name} failed`, { error: e.message });
-    }
+  const simulated = Boolean(result.simulated);
+  const syncStatus = result.ok ? 'success' : 'error';
+  const errorMsg = result.ok ? null : result.error;
+  const responseData = result.data;
+
+  if (result.ok) {
+    logger.info(`${simulated ? 'Simulated menu push' : 'Menu pushed'} to ${pDef.name}`,
+      { outletId, itemCount: totalItems, storeId, attempts: result.attempts });
   } else {
-    // Simulation mode
-    responseData = { simulated: true, success: true, items_updated: totalItems, message: `Simulated push to ${pDef.name} — add API key to go live` };
-    logger.info(`Simulated menu push to ${pDef.name}`, { outletId, itemCount: totalItems });
+    logger.error(`Menu push to ${pDef.name} failed`, { outletId, error: errorMsg, http_status: result.status });
   }
 
-  // Update last_menu_push timestamp
-  await setPlatformConfig(outletId, platform, { last_menu_push: new Date().toISOString() });
+  // Only stamp last_menu_push on a real, successful push.
+  if (result.ok && !simulated) {
+    await setPlatformConfig(outletId, platform, { last_menu_push: new Date().toISOString() });
+  }
 
   await writeSyncLog(outletId, platform, 'menu_push', syncStatus, totalItems, errorMsg,
-    { categories: menuPayload.length, items: totalItems }, responseData);
+    { categories: menuPayload.length, items: totalItems, url }, responseData);
 
-  if (syncStatus === 'error') throw new Error(errorMsg);
+  if (!result.ok) throw new Error(`${pDef.name} menu push failed: ${errorMsg}`);
 
-  return { platform: pDef.name, items_synced: totalItems, simulated: !cfg.api_key, response: responseData };
+  return { platform: pDef.name, items_synced: totalItems, simulated, response: responseData };
 }
 
 /**
@@ -372,21 +407,31 @@ async function setItemAvailability(outletId, platform, itemIds, isAvailable) {
   if (!cfg.enabled || cfg.enabled === 'false') throw new BadRequestError(`${pDef.name} not enabled`);
 
   const prisma = getDbClient();
-  // Update internal DB first
+  // Update internal DB first — the source of truth always reflects the toggle,
+  // even if the downstream platform call fails.
   await prisma.menuItem.updateMany({
     where: { id: { in: itemIds }, outlet_id: outletId },
     data: { is_available: isAvailable },
   });
 
-  // Sync to platform (simulated if no key)
-  const responseData = cfg.api_key
-    ? { success: true, updated: itemIds.length, available: isAvailable }
-    : { simulated: true, success: true, updated: itemIds.length };
+  // Push to the platform. PUT is idempotent, so aggregatorFetch will retry on
+  // transient errors; absent credentials short-circuit to a simulated result.
+  const { aggregatorFetch, resolveEndpoint } = require('./aggregator.http');
+  const url = resolveEndpoint(pDef.apiUrl, pDef.availabilityEndpoint, cfg.store_id);
+  const body = transformAvailabilityForPlatform(platform, cfg.store_id, itemIds, isAvailable);
+  const result = await aggregatorFetch({ platform, pDef, cfg, method: 'PUT', url, body });
 
-  await writeSyncLog(outletId, platform, 'availability_update', 'success', itemIds.length, null,
-    { item_ids: itemIds, is_available: isAvailable }, responseData);
+  const status = result.ok ? 'success' : 'error';
+  await writeSyncLog(outletId, platform, 'availability_update', status, itemIds.length,
+    result.ok ? null : result.error,
+    { item_ids: itemIds, is_available: isAvailable, url }, result.data);
 
-  return { platform: pDef.name, updated: itemIds.length, is_available: isAvailable };
+  if (!result.ok) {
+    logger.error(`Availability push to ${pDef.name} failed`, { outletId, error: result.error });
+    throw new Error(`${pDef.name} availability update failed: ${result.error}`);
+  }
+
+  return { platform: pDef.name, updated: itemIds.length, is_available: isAvailable, simulated: Boolean(result.simulated) };
 }
 
 /**
@@ -401,13 +446,31 @@ async function setItemAvailabilityAllPlatforms(outletId, itemIds, isAvailable) {
     data: { is_available: isAvailable },
   });
 
+  const { aggregatorFetch, resolveEndpoint } = require('./aggregator.http');
   const results = [];
   for (const [platform, cfg] of Object.entries(configs)) {
-    if (cfg.enabled) {
-      const responseData = { simulated: !cfg.api_key, success: true, updated: itemIds.length };
-      await writeSyncLog(outletId, platform, 'availability_update', 'success', itemIds.length, null,
-        { item_ids: itemIds, is_available: isAvailable }, responseData);
-      results.push({ platform, success: true, updated: itemIds.length });
+    if (!cfg.enabled) continue;
+    const pDef = PLATFORMS[platform];
+    if (!pDef) continue;
+
+    // Each platform is pushed independently — one platform's failure must not
+    // stop the rest (auto-86 must reach every channel it can).
+    try {
+      const url = resolveEndpoint(pDef.apiUrl, pDef.availabilityEndpoint, cfg.store_id);
+      const body = transformAvailabilityForPlatform(platform, cfg.store_id, itemIds, isAvailable);
+      const result = await aggregatorFetch({ platform, pDef, cfg, method: 'PUT', url, body });
+
+      await writeSyncLog(outletId, platform, 'availability_update', result.ok ? 'success' : 'error',
+        itemIds.length, result.ok ? null : result.error,
+        { item_ids: itemIds, is_available: isAvailable, url }, result.data);
+
+      results.push({ platform, success: result.ok, updated: result.ok ? itemIds.length : 0,
+        simulated: Boolean(result.simulated), error: result.ok ? undefined : result.error });
+    } catch (e) {
+      logger.error(`Bulk availability push to ${pDef.name} failed`, { outletId, error: e.message });
+      await writeSyncLog(outletId, platform, 'availability_update', 'error', 0, e.message,
+        { item_ids: itemIds, is_available: isAvailable }, null).catch(() => {});
+      results.push({ platform, success: false, updated: 0, error: e.message });
     }
   }
   return results;
