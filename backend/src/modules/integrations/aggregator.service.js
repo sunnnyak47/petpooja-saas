@@ -49,6 +49,15 @@ const PLATFORMS = {
     statusEndpoint: '/order/{id}/acknowledge',
     availabilityEndpoint: '/restaurant/product/availability',
   },
+  uber_eats: {
+    name: 'Uber Eats', region: 'AU', color: '#06C167',
+    apiUrl: process.env.UBEREATS_API_URL || 'https://api.uber.com/v1/eats',
+    webhookSecret: process.env.UBEREATS_WEBHOOK_SECRET || '',
+    commission: 0.30,
+    menuEndpoint: '/stores/{id}/menus',
+    statusEndpoint: '/orders/{id}',
+    availabilityEndpoint: '/stores/{id}/menus/items',
+  },
 };
 
 /* ─── Helpers: config stored in OutletSetting ───────────────────────────── */
@@ -533,6 +542,20 @@ async function processIncomingOrder(platform, webhookData) {
       });
     }
 
+    // Aggregator orders are pre-paid and auto-accepted, so send them straight to
+    // the kitchen — generate the KOT(s) which emit `new_kot` to the KDS. Done
+    // out-of-band so the webhook ack isn't blocked; failures are logged, not fatal.
+    // (Idempotent: re-delivery returns the existing order above before reaching here.)
+    setImmediate(() => {
+      try {
+        require('../orders/order.service')
+          .generateKOT(order.id, outlet.id)
+          .catch((e) => logger.warn('Aggregator KOT generation failed', { order_id: order.id, platform, error: e.message }));
+      } catch (e) {
+        logger.warn('Aggregator KOT generation threw', { order_id: order.id, platform, error: e.message });
+      }
+    });
+
     return order;
   } catch (error) {
     logger.error(`Process ${platform} order failed`, { error: error.message });
@@ -589,6 +612,8 @@ function buildMockWebhookPayload(platform, data) {
       return { id: data.order_id, store: { id: data.store_id }, ...base };
     case 'menulog':
       return { order_id: data.order_id, restaurant_id: data.store_id, ...base };
+    case 'uber_eats':
+      return { id: data.order_id, store: { id: data.store_id }, ...base };
     default:
       return { order_id: data.order_id, store_id: data.store_id, ...base };
   }
@@ -726,6 +751,7 @@ function extractExternalOrderId(platform, data) {
     case 'zomato': return data.order?.id || data.order_id;
     case 'doordash': return data.id || data.order_id;
     case 'menulog': return data.order_id || data.id;
+    case 'uber_eats': return data.id || data.order_id || data.meta?.resource_id;
     default: return data.order_id || data.id;
   }
 }
@@ -736,27 +762,31 @@ function extractOutletId(platform, data) {
     case 'zomato': return data.restaurant?.id || data.res_id;
     case 'doordash': return data.store?.id || data.store_id;
     case 'menulog': return data.restaurant_id || data.store_id;
+    case 'uber_eats': return data.store?.id || data.store_id;
     default: return data.store_id || data.restaurant_id;
   }
 }
 
 function extractItems(platform, data) {
-  const raw = data.items || data.order?.items || data.order_items || [];
+  // Uber Eats nests line items under cart.items; others use items/order.items.
+  const raw = data.items || data.cart?.items || data.order?.items || data.order_items || [];
   return raw.map(item => ({
-    external_id: String(item.id || item.item_id || item.external_item_id),
-    name: item.name || item.item_name || 'Unknown',
+    external_id: String(item.id || item.item_id || item.external_item_id || item.instance_id),
+    name: item.name || item.item_name || item.title || 'Unknown',
     quantity: item.quantity || item.qty || 1,
-    price: Number(item.price || item.unit_price || 0),
-    notes: item.instructions || item.notes || item.special_instructions || null,
+    // Uber Eats expresses price as price.unit_price.amount (minor units); fall back to plain fields.
+    price: Number(item.price?.unit_price?.amount != null ? item.price.unit_price.amount / 100 : (item.price || item.unit_price || 0)),
+    notes: item.instructions || item.notes || item.special_instructions || item.special_request || null,
   }));
 }
 
 function extractCustomerName(platform, data) {
-  return data.customer?.name || data.customer_name || data.delivery?.name || null;
+  return data.customer?.name || data.customer_name || data.delivery?.name
+    || [data.eater?.first_name, data.eater?.last_name].filter(Boolean).join(' ') || null;
 }
 
 function extractCustomerPhone(platform, data) {
-  return data.customer?.phone || data.customer_phone || data.delivery?.phone || null;
+  return data.customer?.phone || data.customer_phone || data.delivery?.phone || data.eater?.phone || null;
 }
 
 function extractDeliveryAddress(platform, data) {

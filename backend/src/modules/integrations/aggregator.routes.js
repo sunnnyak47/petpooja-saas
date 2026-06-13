@@ -139,6 +139,7 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
     || req.headers['x-zomato-hmac']
     || req.headers['x-doordash-signature']
     || req.headers['x-menulog-signature']
+    || req.headers['x-uber-signature']
     || '';
 
   const rawBody = Buffer.isBuffer(req.body)

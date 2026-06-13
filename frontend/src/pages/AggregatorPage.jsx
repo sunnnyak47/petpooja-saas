@@ -20,11 +20,31 @@ import {
 
 /* ── platform meta (mirrors backend PLATFORMS) ── */
 const PLATFORM_META = {
-  swiggy:   { name: 'Swiggy',       emoji: '🧡', color: '#FC8019', bg: 'rgba(252,128,25,0.12)', region: 'IN', hint: 'India' },
-  zomato:   { name: 'Zomato',       emoji: '❤️',  color: '#E23744', bg: 'rgba(226,55,68,0.12)',  region: 'IN', hint: 'India' },
-  doordash: { name: 'DoorDash AU',  emoji: '🔴',  color: '#FF3008', bg: 'rgba(255,48,8,0.12)',   region: 'AU', hint: 'Australia' },
-  menulog:  { name: 'Menulog AU',   emoji: '🍽️',  color: '#E8172B', bg: 'rgba(232,23,43,0.12)',  region: 'AU', hint: 'Australia' },
+  swiggy:    { name: 'Swiggy',      color: '#FC8019', region: 'IN', hint: 'India' },
+  zomato:    { name: 'Zomato',      color: '#E23744', region: 'IN', hint: 'India' },
+  doordash:  { name: 'DoorDash AU', color: '#FF3008', region: 'AU', hint: 'Australia' },
+  menulog:   { name: 'Menulog AU',  color: '#E8172B', region: 'AU', hint: 'Australia' },
+  uber_eats: { name: 'Uber Eats',   color: '#06C167', region: 'AU', hint: 'Australia' },
 };
+
+/* derive a 1–2 letter monogram from a platform name */
+function monogram(name = '') {
+  const clean = name.replace(/\s+(AU|IN)$/i, '').trim();
+  return clean.slice(0, 2);
+}
+
+/* small rounded monogram chip tinted in the brand colour */
+function PlatformBadge({ color, name, size = 'md' }) {
+  const dim = size === 'sm' ? 'w-7 h-7 text-[11px]' : 'w-9 h-9 text-sm';
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-lg font-bold shrink-0 ${dim}`}
+      style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+    >
+      {monogram(name)}
+    </span>
+  );
+}
 
 function platformWebhookUrl(platformId) {
   const base = import.meta.env.VITE_API_URL || 'https://petpooja-saas.onrender.com/api';
@@ -150,7 +170,7 @@ export default function AggregatorPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title mb-0 flex items-center gap-2">
-            <Globe className="w-6 h-6 text-brand-400" /> Delivery Aggregators
+            <Globe className="w-6 h-6" style={{ color: 'var(--accent)' }} /> Delivery Aggregators
           </h1>
           <p className="text-sm text-surface-500 mt-0.5">
             {enabledCount} of {Object.keys(REGION_PLATFORMS).length} platforms connected
@@ -186,29 +206,37 @@ export default function AggregatorPage() {
           })),
         ].slice(0, 4).map((s, i) => (
           <div key={i} className="rounded-2xl border p-4"
-            style={{ borderColor: s.color + '30', background: s.color + '10' }}>
-            <p className="text-xs text-surface-500 mb-1">{s.label}</p>
-            <p className="text-xl font-black" style={{ color: s.color }}>{s.value}</p>
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+              <p className="text-xs text-surface-500">{s.label}</p>
+            </div>
+            <p className="text-xl font-semibold text-surface-100">{s.value}</p>
             {s.sub && <p className="text-xs text-surface-500 mt-0.5">{s.sub}</p>}
           </div>
         ))}
       </div>
 
       {/* ── Tabs ── */}
-      <div className="flex gap-1 border-b border-surface-800">
+      <div className="flex gap-1 border-b" style={{ borderColor: 'var(--border)' }}>
         {[
-          { id: 'connect', label: '🔌 Connect' },
-          { id: 'menu',    label: '📋 Menu Sync' },
-          { id: 'orders',  label: '📦 Orders' },
-          { id: 'logs',    label: '🕓 Sync Logs' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-colors ${activeTab === t.id
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-surface-500 hover:text-surface-300'}`}>
-            {t.label}
-          </button>
-        ))}
+          { id: 'connect', label: 'Connect', icon: Link2 },
+          { id: 'menu',    label: 'Menu Sync', icon: UploadCloud },
+          { id: 'orders',  label: 'Orders', icon: Package },
+          { id: 'logs',    label: 'Sync Logs', icon: History },
+        ].map(t => {
+          const active = activeTab === t.id;
+          return (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5"
+              style={{
+                borderColor: active ? 'var(--accent)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+              }}>
+              <t.icon className="w-4 h-4" /> {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ══ TAB: CONNECT ══════════════════════════════════ */}
@@ -226,14 +254,14 @@ export default function AggregatorPage() {
 
                 {/* platform header row */}
                 <div className="flex items-center justify-between p-5 cursor-pointer"
-                  style={{ background: enabled ? meta.bg : 'var(--bg-card)' }}
+                  style={{ background: 'var(--bg-card)' }}
                   onClick={() => setExpanded(isOpen ? null : platformId)}>
 
                   <div className="flex items-center gap-4">
-                    <span className="text-2xl">{meta.emoji}</span>
+                    <PlatformBadge color={meta.color} name={meta.name} />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">{meta.name}</span>
+                        <span className="font-semibold text-surface-100">{meta.name}</span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border"
                           style={{ color: meta.color, borderColor: meta.color + '40', background: meta.color + '15' }}>
                           {meta.hint}
@@ -272,16 +300,16 @@ export default function AggregatorPage() {
 
                     {/* step 1 — credentials */}
                     <div className="mt-5">
-                      <h4 className="text-xs font-black text-surface-400 uppercase tracking-widest mb-3">
+                      <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-widest mb-3">
                         Step 1 — Connect Your Account
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-surface-400 mb-1">
-                            {platformId === 'swiggy' ? 'Swiggy' : platformId === 'zomato' ? 'Zomato' : platformId === 'doordash' ? 'DoorDash' : 'Menulog'} Store / Restaurant ID *
+                            {platformId === 'swiggy' ? 'Swiggy' : platformId === 'zomato' ? 'Zomato' : platformId === 'doordash' ? 'DoorDash' : platformId === 'uber_eats' ? 'Uber Eats' : 'Menulog'} Store / Restaurant ID *
                           </label>
                           <input type="text" className="input w-full font-mono text-sm"
-                            placeholder={platformId === 'swiggy' ? 'e.g. SWG-12345' : platformId === 'zomato' ? 'e.g. 12345678' : platformId === 'doordash' ? 'e.g. store_abc123' : 'e.g. 98765'}
+                            placeholder={platformId === 'swiggy' ? 'e.g. SWG-12345' : platformId === 'zomato' ? 'e.g. 12345678' : platformId === 'doordash' ? 'e.g. store_abc123' : platformId === 'uber_eats' ? 'e.g. 5f3c…' : 'e.g. 98765'}
                             value={draft.store_id || ''}
                             onChange={e => setConfigDraft(d => ({ ...d, [platformId]: { ...d[platformId], store_id: e.target.value } }))} />
                         </div>
@@ -312,17 +340,18 @@ export default function AggregatorPage() {
 
                     {/* step 2 — webhook URL */}
                     <div>
-                      <h4 className="text-xs font-black text-surface-400 uppercase tracking-widest mb-3">
+                      <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-widest mb-3">
                         Step 2 — Paste this Webhook URL in your {meta.name} Partner Dashboard
                       </h4>
-                      <div className="flex items-center gap-2 bg-surface-950 border border-surface-700 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-2 rounded-xl px-4 py-3 border"
+                        style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
                         <Link2 className="w-4 h-4 text-surface-500 shrink-0" />
-                        <code className="flex-1 text-xs font-mono text-brand-400 truncate">
+                        <code className="flex-1 text-xs font-mono truncate" style={{ color: 'var(--accent)' }}>
                           {platformWebhookUrl(platformId)}
                         </code>
                         <button
                           onClick={() => { navigator.clipboard.writeText(platformWebhookUrl(platformId)); toast.success('Copied!'); }}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-surface-800 text-surface-500 hover:text-white transition-colors">
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-surface-800 text-surface-500 hover:text-surface-100 transition-colors">
                           <Copy className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -334,7 +363,7 @@ export default function AggregatorPage() {
 
                     {/* step 3 — actions */}
                     <div>
-                      <h4 className="text-xs font-black text-surface-400 uppercase tracking-widest mb-3">
+                      <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-widest mb-3">
                         Step 3 — Sync Menu & Test
                       </h4>
                       <div className="flex flex-wrap gap-2">
@@ -389,20 +418,24 @@ export default function AggregatorPage() {
       {activeTab === 'menu' && (
         <div className="space-y-4">
           <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-            <h3 className="font-bold text-white mb-1">How Menu Sync Works</h3>
+            <h3 className="font-semibold text-surface-100 mb-1">How Menu Sync Works</h3>
             <p className="text-sm text-surface-400 mb-4">
               Every menu change in MS-RM (price, availability, new item) can be instantly pushed to all connected delivery platforms.
               No more manually updating each platform's tablet.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               {[
-                { icon: '1️⃣', title: 'Edit menu in MS-RM', desc: 'Change price, add item, mark sold-out' },
-                { icon: '2️⃣', title: 'Click Push Menu', desc: 'One click syncs to all platforms instantly' },
-                { icon: '3️⃣', title: 'Customers see updates', desc: 'Swiggy, Zomato, DoorDash all updated live' },
+                { step: '1', title: 'Edit menu in MS-RM', desc: 'Change price, add item, mark sold-out' },
+                { step: '2', title: 'Click Push Menu', desc: 'One click syncs to all platforms instantly' },
+                { step: '3', title: 'Customers see updates', desc: 'All connected platforms updated live' },
               ].map(s => (
-                <div key={s.title} className="bg-surface-800/40 rounded-xl p-4 border border-surface-700">
-                  <span className="text-2xl">{s.icon}</span>
-                  <p className="font-bold text-white mt-2">{s.title}</p>
+                <div key={s.title} className="rounded-xl p-4 border"
+                  style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}>
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-sm font-bold"
+                    style={{ background: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent)' }}>
+                    {s.step}
+                  </span>
+                  <p className="font-semibold text-surface-100 mt-2">{s.title}</p>
                   <p className="text-surface-400 text-xs mt-1">{s.desc}</p>
                 </div>
               ))}
@@ -418,9 +451,9 @@ export default function AggregatorPage() {
                 <div key={id} className="rounded-2xl border p-4 flex items-center justify-between"
                   style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{meta.emoji}</span>
+                    <PlatformBadge color={meta.color} name={meta.name} size="sm" />
                     <div>
-                      <p className="font-bold text-white text-sm">{meta.name}</p>
+                      <p className="font-semibold text-surface-100 text-sm">{meta.name}</p>
                       <p className="text-xs text-surface-500">
                         {enabled
                           ? cfg.last_menu_push
@@ -487,7 +520,7 @@ export default function AggregatorPage() {
           ) : (
             <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
               <table className="w-full text-left">
-                <thead className="bg-surface-900 text-surface-500 text-[10px] font-black uppercase tracking-widest border-b border-surface-800">
+                <thead className="bg-surface-900 text-surface-500 text-[10px] font-semibold uppercase tracking-widest border-b border-surface-800">
                   <tr>
                     <th className="px-4 py-3">Time</th>
                     <th className="px-4 py-3">Platform</th>
@@ -499,16 +532,17 @@ export default function AggregatorPage() {
                 </thead>
                 <tbody className="divide-y divide-surface-800/50 text-sm">
                   {syncLogs.map(log => {
-                    const meta = PLATFORM_META[log.platform] || { name: log.platform, color: '#64748b', emoji: '🔗' };
+                    const meta = PLATFORM_META[log.platform] || { name: log.platform, color: '#64748b' };
                     return (
                       <tr key={log.id} className="hover:bg-surface-800/20 transition-colors">
                         <td className="px-4 py-3 text-surface-400 font-mono text-xs whitespace-nowrap">
                           {new Date(log.created_at).toLocaleString()}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="flex items-center gap-1.5 text-xs font-bold"
+                          <span className="flex items-center gap-1.5 text-xs font-semibold"
                             style={{ color: meta.color }}>
-                            {meta.emoji} {meta.name}
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
+                            {meta.name}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -645,27 +679,36 @@ function OrdersTab({ outletId, qc, regionPlatforms }) {
     <div className="space-y-4">
       {/* platform filter */}
       <div className="flex gap-2 flex-wrap">
-        {['all', ...Object.keys(regionPlatforms)].map(p => (
-          <button key={p} onClick={() => setFilter(p)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${filter === p
-              ? 'border-brand-500 bg-brand-500/10 text-brand-400'
-              : 'border-surface-700 text-surface-500 hover:text-surface-300'}`}>
-            {p === 'all' ? 'All Platforms' : `${regionPlatforms[p].emoji} ${regionPlatforms[p].name}`}
-          </button>
-        ))}
+        {['all', ...Object.keys(regionPlatforms)].map(p => {
+          const active = filter === p;
+          return (
+            <button key={p} onClick={() => setFilter(p)}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5"
+              style={{
+                borderColor: active ? 'var(--accent)' : 'var(--border)',
+                background: active ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+              }}>
+              {p !== 'all' && (
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: regionPlatforms[p].color }} />
+              )}
+              {p === 'all' ? 'All Platforms' : regionPlatforms[p].name}
+            </button>
+          );
+        })}
       </div>
 
       {/* 3-column kanban */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {[
-          { key: 'new',       label: '🔴 New',      dot: 'bg-red-500 animate-pulse' },
-          { key: 'preparing', label: '🟡 Preparing', dot: 'bg-yellow-500' },
-          { key: 'ready',     label: '🟢 Ready',     dot: 'bg-success-500' },
+          { key: 'new',       label: 'New',       dot: 'bg-red-500 animate-pulse' },
+          { key: 'preparing', label: 'Preparing', dot: 'bg-yellow-500' },
+          { key: 'ready',     label: 'Ready',     dot: 'bg-success-500' },
         ].map(col => (
           <div key={col.key} className="space-y-3">
             <div className="flex items-center gap-2 px-1">
               <div className={`w-2 h-2 rounded-full ${col.dot}`} />
-              <span className="text-xs font-black text-surface-300 uppercase tracking-widest">
+              <span className="text-xs font-semibold text-surface-300 uppercase tracking-widest">
                 {col.label} ({cols[col.key].length})
               </span>
             </div>
@@ -695,16 +738,16 @@ function OrdersTab({ outletId, qc, regionPlatforms }) {
 function AggOrderCard({ order, onAccept, onReject, onReady }) {
   const [prep, setPrep] = useState(20);
   const { symbol } = useCurrency();
-  const meta = PLATFORM_META[order.aggregator] || { name: order.aggregator, color: '#64748b', emoji: '📦' };
+  const meta = PLATFORM_META[order.aggregator] || { name: order.aggregator, color: '#64748b' };
 
   return (
     <div className="rounded-2xl border p-4 space-y-3"
-      style={{ borderColor: meta.color + '40', background: meta.color + '08' }}>
+      style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-base">{meta.emoji}</span>
+          <PlatformBadge color={meta.color} name={meta.name} size="sm" />
           <div>
-            <span className="text-xs font-black" style={{ color: meta.color }}>{meta.name}</span>
+            <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.name}</span>
             <p className="text-[10px] text-surface-500 font-mono">
               #{(order.aggregator_order_id || '').slice(-8).toUpperCase()}
             </p>
@@ -726,7 +769,7 @@ function AggOrderCard({ order, onAccept, onReject, onReady }) {
 
       <div className="flex items-center justify-between pt-2 border-t border-surface-800">
         <span className="text-xs text-surface-400">{order.customer_name || 'Online Order'}</span>
-        <span className="font-black text-white">{symbol}{order.grand_total}</span>
+        <span className="font-bold text-surface-100">{symbol}{order.grand_total}</span>
       </div>
 
       {order.status === 'created' && (
@@ -734,7 +777,8 @@ function AggOrderCard({ order, onAccept, onReject, onReady }) {
           <div className="flex gap-1">
             {[15, 20, 30, 45].map(t => (
               <button key={t} onClick={() => setPrep(t)}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-bold transition-all ${prep === t ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-400 hover:bg-surface-700'}`}>
+                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all ${prep === t ? '' : 'bg-surface-800 text-surface-400 hover:bg-surface-700'}`}
+                style={prep === t ? { background: 'var(--accent)', color: 'var(--accent-text)' } : undefined}>
                 {t}m
               </button>
             ))}
@@ -754,8 +798,9 @@ function AggOrderCard({ order, onAccept, onReject, onReady }) {
 
       {(order.status === 'confirmed' || order.status === 'preparing') && (
         <button onClick={onReady}
-          className="w-full py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-sm font-bold transition-colors">
-          Mark Ready ✓
+          className="w-full py-2 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+          style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
+          <CheckCircle2 className="w-4 h-4" /> Mark Ready
         </button>
       )}
     </div>
