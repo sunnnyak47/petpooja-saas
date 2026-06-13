@@ -54,7 +54,7 @@ export default function MenuPage() {
   // Selection
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = useState('items'); // items, combos
+  const [viewMode, setViewMode] = useState('items'); 
 
   // Modal states
   const [isAddCatOpen, setIsAddCatOpen] = useState(false);
@@ -62,13 +62,7 @@ export default function MenuPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [isAISyncOpen, setIsAISyncOpen] = useState(false);
-  const [isComboModalOpen, setIsComboModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-
-  // Combo form state
-  const EMPTY_COMBO = { name: '', description: '', combo_price: '', items: [] };
-  const [comboForm, setComboForm] = useState({ ...EMPTY_COMBO });
-  const [comboItemSearch, setComboItemSearch] = useState('');
 
   const [catForm, setCatForm] = useState({ name: '', description: '', display_order: 1 });
   const [catDeleteTarget, setCatDeleteTarget] = useState(null);
@@ -95,12 +89,6 @@ export default function MenuPage() {
     queryKey: ['addonGroups', outletId],
     queryFn: () => api.get(`/menu/addon-groups?outlet_id=${outletId}`).then(r => r.data),
     enabled: !!outletId,
-  });
-
-  const { data: combosData, isLoading: combosLoading } = useQuery({
-    queryKey: ['menuCombos', outletId],
-    queryFn: () => api.get(`/menu/combos?outlet_id=${outletId}`).then(r => r.data),
-    enabled: !!outletId && viewMode === 'combos',
   });
 
   // Mutations
@@ -191,17 +179,6 @@ export default function MenuPage() {
       setIsBulkOpen(false);
     },
     onError: (e) => toast.error(e.message || 'Bulk update failed')
-  });
-
-  const createComboMutation = useMutation({
-    mutationFn: (d) => api.post('/menu/combos', d),
-    onSuccess: () => {
-      toast.success('Combo created!');
-      queryClient.invalidateQueries({ queryKey: ['menuCombos'] });
-      setComboForm({ ...EMPTY_COMBO });
-      setIsComboModalOpen(false);
-    },
-    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to create combo'),
   });
 
   // Photo Upload — compress to base64 data URL so it persists in DB
@@ -362,16 +339,9 @@ export default function MenuPage() {
             <button onClick={() => setIsAISyncOpen(true)} className="btn-secondary flex items-center gap-2">
                <Sparkles className="w-4 h-4" /> AI Sync
             </button>
-            {viewMode === 'items' && (
-              <button onClick={() => { setItemForm({...EMPTY_ITEM}); setIsItemModalOpen(true); }} className="btn-primary shadow-lg shadow-brand-500/20">
-                <Plus className="w-4 h-4 mr-1"/> Add Item
-              </button>
-            )}
-            {viewMode === 'combos' && (
-              <button onClick={() => setIsComboModalOpen(true)} className="btn-primary shadow-lg shadow-brand-500/20">
-                <Plus className="w-4 h-4 mr-1"/> New Combo
-              </button>
-            )}
+            <button onClick={() => { setItemForm({...EMPTY_ITEM}); setIsItemModalOpen(true); }} className="btn-primary shadow-lg shadow-brand-500/20">
+              <Plus className="w-4 h-4 mr-1"/> Add Item
+            </button>
          </div>
       </div>
 
@@ -386,9 +356,6 @@ export default function MenuPage() {
                 <button onClick={() => { setCategoryFilter(''); setViewMode('items'); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${!categoryFilter && viewMode === 'items' ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
                   <span>All Items</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${!categoryFilter && viewMode === 'items' ? 'bg-white/20' : 'bg-surface-800'}`}>{stats.total}</span>
-                </button>
-                <button onClick={() => { setViewMode('combos'); setCategoryFilter(''); }} className={`w-full text-left px-3 py-2.5 rounded-xl font-medium flex items-center justify-between transition-colors ${viewMode === 'combos' ? 'tab-btn-active' : 'text-surface-300 hover:bg-surface-800'}`}>
-                  <span>Combos</span>
                 </button>
                 <div className="h-4 border-b border-surface-800 mb-2"></div>
                 {(categories || []).map(cat => {
@@ -479,7 +446,7 @@ export default function MenuPage() {
                </div>
             )}
 
-            {/* Item / Combo Grid */}
+            {/* Item Grid */}
             <div className="flex-1 overflow-y-auto px-1 pb-4">
               {viewMode === 'items' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -547,39 +514,7 @@ export default function MenuPage() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {combosLoading ? [...Array(4)].map((_, i) => <div key={i} className="h-40 bg-surface-800 rounded-2xl animate-pulse"/>)
-                  : (combosData || []).map(combo => (
-                    <div key={combo.id} className="bg-surface-800/40 border border-surface-700 rounded-2xl p-4 flex gap-4 hover:border-brand-500/50 transition-colors">
-                       <div className="w-24 h-24 bg-brand-500/10 rounded-xl flex items-center justify-center">
-                          <Plus className="w-8 h-8 text-brand-400 opacity-20" />
-                       </div>
-                       <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                             <h4 className="text-lg font-bold text-white">{combo.name}</h4>
-                             <span className="text-xl font-black text-brand-400">{symbol}{combo.combo_price}</span>
-                          </div>
-                          <p className="text-xs text-surface-400 mt-1 line-clamp-2">{combo.description || 'No description provided.'}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                             {combo.combo_items?.map(ci => (
-                                <span key={ci.id} className="text-[10px] font-bold bg-surface-900 text-surface-400 px-2 py-1 rounded border border-surface-700">
-                                   {ci.quantity}x {ci.menu_item?.name}
-                                </span>
-                             ))}
-                          </div>
-                       </div>
-                    </div>
-                  ))}
-                  {(combosData || []).length === 0 && !combosLoading && (
-                    <div className="col-span-full py-20 text-center">
-                       <h3 className="text-xl font-bold text-surface-400">No combos configured</h3>
-                       <p className="text-surface-500 mt-2">Create item bundles to offer special pricing.</p>
-                       <button onClick={() => setIsComboModalOpen(true)} className="btn-primary mt-6">Create First Combo</button>
-                    </div>
-                  )}
-                </div>
-              )}
+              ) : null}
 
               {viewMode === 'items' && filteredItems.length === 0 && !itemsLoading && (
                  <div className="py-20 text-center">
@@ -904,90 +839,6 @@ export default function MenuPage() {
         outletId={outletId}
       />
 
-      {/* ── Combo Creator Modal ── */}
-      <Modal isOpen={isComboModalOpen} onClose={() => { setIsComboModalOpen(false); setComboForm({ ...EMPTY_COMBO }); setComboItemSearch(''); }} title="Create Combo" size="lg">
-        <div className="mt-4 space-y-5">
-          {/* Basic Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Combo Name *</label>
-              <input className="input w-full" placeholder="e.g. Family Meal Deal" value={comboForm.name} onChange={e => setComboForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Combo Price *</label>
-              <input type="number" className="input w-full" placeholder="e.g. 299" value={comboForm.combo_price} onChange={e => setComboForm(f => ({ ...f, combo_price: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea className="input w-full h-16 text-sm py-2" placeholder="What's included in this combo..." value={comboForm.description} onChange={e => setComboForm(f => ({ ...f, description: e.target.value }))} />
-          </div>
-
-          {/* Item Picker */}
-          <div>
-            <label className="label">Add Items to Combo</label>
-            <input
-              className="input w-full mb-2"
-              placeholder="Search menu items..."
-              value={comboItemSearch}
-              onChange={e => setComboItemSearch(e.target.value)}
-            />
-            <div className="max-h-48 overflow-y-auto border rounded-xl border-surface-700 divide-y divide-surface-700/50 bg-surface-900">
-              {(dbItems || [])
-                .filter(i => i.name.toLowerCase().includes(comboItemSearch.toLowerCase()))
-                .slice(0, 20)
-                .map(item => {
-                  const alreadyAdded = comboForm.items.find(ci => ci.menu_item_id === item.id);
-                  return (
-                    <div key={item.id} className="flex items-center justify-between px-3 py-2 hover:bg-surface-800 transition-colors">
-                      <div>
-                        <p className="text-sm font-medium text-white">{item.name}</p>
-                        <p className="text-xs text-surface-500">{symbol}{item.base_price}</p>
-                      </div>
-                      {alreadyAdded ? (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setComboForm(f => ({ ...f, items: f.items.map(ci => ci.menu_item_id === item.id ? { ...ci, quantity: Math.max(1, ci.quantity - 1) } : ci) }))} className="w-6 h-6 rounded-full bg-surface-700 text-white text-sm flex items-center justify-center hover:bg-red-500 transition-colors">−</button>
-                          <span className="text-sm font-bold text-white w-4 text-center">{alreadyAdded.quantity}</span>
-                          <button onClick={() => setComboForm(f => ({ ...f, items: f.items.map(ci => ci.menu_item_id === item.id ? { ...ci, quantity: ci.quantity + 1 } : ci) }))} className="w-6 h-6 rounded-full bg-brand-500 text-white text-sm flex items-center justify-center hover:bg-brand-600 transition-colors">+</button>
-                          <button onClick={() => setComboForm(f => ({ ...f, items: f.items.filter(ci => ci.menu_item_id !== item.id) }))} className="ml-1 text-surface-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setComboForm(f => ({ ...f, items: [...f.items, { menu_item_id: item.id, name: item.name, quantity: 1 }] }))} className="text-xs font-bold text-brand-400 hover:text-brand-300 border border-brand-500/30 px-2 py-1 rounded-lg hover:bg-brand-500/10 transition-colors">+ Add</button>
-                      )}
-                    </div>
-                  );
-                })}
-              {(dbItems || []).filter(i => i.name.toLowerCase().includes(comboItemSearch.toLowerCase())).length === 0 && (
-                <p className="px-4 py-6 text-center text-sm text-surface-500">No items found</p>
-              )}
-            </div>
-          </div>
-
-          {/* Selected items summary */}
-          {comboForm.items.length > 0 && (
-            <div className="bg-surface-800/50 rounded-xl p-3 space-y-1">
-              <p className="text-xs font-bold text-surface-400 uppercase tracking-widest mb-2">Combo includes:</p>
-              {comboForm.items.map(ci => (
-                <div key={ci.menu_item_id} className="flex items-center justify-between text-sm">
-                  <span className="text-white">{ci.name}</span>
-                  <span className="text-brand-400 font-bold">×{ci.quantity}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={() => { setIsComboModalOpen(false); setComboForm({ ...EMPTY_COMBO }); setComboItemSearch(''); }} className="btn-surface flex-1">Cancel</button>
-            <button
-              onClick={() => createComboMutation.mutate({ outlet_id: outletId, name: comboForm.name, description: comboForm.description, combo_price: Number(comboForm.combo_price), items: comboForm.items.map(ci => ({ menu_item_id: ci.menu_item_id, quantity: ci.quantity })) })}
-              disabled={createComboMutation.isPending || !comboForm.name || !comboForm.combo_price || comboForm.items.length === 0}
-              className="btn-primary flex-1"
-            >
-              {createComboMutation.isPending ? 'Creating…' : 'Create Combo'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
