@@ -9,7 +9,7 @@ const orderController = require('./order.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission, enforceOutletScope, checkLicense } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema, applyDiscountSchema, updateNotesSchema, assignStaffSchema, voidItemSchema, addTipSchema } = require('./order.validation');
+const { createOrderSchema, addItemsSchema, processPaymentSchema, voidOrderSchema, cancelOrderSchema, refundOrderSchema, generateKOTSchema, updateOrderStatusSchema, generateBillSchema, transferTableSchema, mergeOrderSchema, syncOfflineOrdersSchema, applyDiscountSchema, updateNotesSchema, assignStaffSchema, voidItemSchema, addTipSchema, tenderSchema, splitPreviewSchema } = require('./order.validation');
 const { auditLog } = require('../../middleware/audit.middleware');
 const { sendSuccess, sendError } = require('../../utils/response');
 const taxService = require('./tax.service');
@@ -95,6 +95,10 @@ router.post('/:id/items', authenticate, checkLicense, hasPermission('MANAGE_ORDE
 router.post('/:id/kot', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(generateKOTSchema), auditLog('order'), orderController.generateKOT);
 router.patch('/:id/status', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(updateOrderStatusSchema), auditLog('order'), orderController.updateStatus);
 router.post('/:id/payment', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), assertOrderOwnership, validate(processPaymentSchema), auditLog('payment'), orderController.processPayment);
+// Split bill & multi-tender
+router.get('/:id/bill-summary', authenticate, assertOrderOwnership, orderController.getBillSummary);
+router.post('/:id/split-preview', authenticate, assertOrderOwnership, validate(splitPreviewSchema), orderController.splitPreview);
+router.post('/:id/tender', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), assertOrderOwnership, validate(tenderSchema), auditLog('payment'), orderController.recordTender);
 router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(generateBillSchema), auditLog('order'), orderController.generateBill);
 router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), auditLog('order'), orderController.voidOrder);

@@ -181,9 +181,31 @@ const syncOfflineOrdersSchema = Joi.object({
   })).min(1).required(),
 });
 
+// Split bill & multi-tender — record one tender against an order. Mirrors
+// processPaymentSchema's method/splits shape; the service decides partial vs close.
+const tenderSchema = Joi.object({
+  method: Joi.string().valid('cash', 'card', 'card_pine_labs', 'eftpos', 'upi', 'upi_razorpay', 'paytm', 'wallet', 'loyalty_points', 'split', 'online_prepaid', 'due').required(),
+  amount: Joi.number().precision(2).greater(0).required(),
+  transaction_id: Joi.string().max(100).allow('', null),
+  loyalty_points_redeem: Joi.number().integer().min(0).default(0),
+  splits: Joi.array().items(Joi.object({
+    method: Joi.string().required(),
+    amount: Joi.number().precision(2).min(0).required(),
+    transaction_id: Joi.string().allow('', null),
+  })),
+});
+
+const splitPreviewSchema = Joi.object({
+  mode: Joi.string().valid('equal', 'amount').default('equal'),
+  count: Joi.number().integer().min(2).max(50).when('mode', { is: 'equal', then: Joi.required() }),
+  amounts: Joi.array().items(Joi.number().precision(2).min(0)).min(2).when('mode', { is: 'amount', then: Joi.required() }),
+});
+
 module.exports = {
   createOrderSchema,
   addItemsSchema,
+  tenderSchema,
+  splitPreviewSchema,
   applyDiscountSchema,
   updateNotesSchema,
   addTipSchema,

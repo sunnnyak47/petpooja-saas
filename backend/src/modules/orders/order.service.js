@@ -836,6 +836,18 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
 
     const grandTotal = Number(order.grand_total);
 
+    // --- Prior partial tenders (split bill / multi-tender) --------------------
+    // An order may already carry one or more partial payments recorded via the
+    // multi-tender flow (order.split.service.recordTender). The closing payment
+    // only needs to cover the REMAINING balance, so reconcile against
+    // grand_total minus what has already been successfully tendered. With no
+    // prior payments alreadyPaid is 0 and behaviour is identical to before.
+    const priorAgg = await prisma.payment.aggregate({
+      where: { order_id: orderId, status: 'success', is_deleted: false },
+      _sum: { amount: true },
+    });
+    const alreadyPaid = round2(Number(priorAgg._sum.amount) || 0);
+
     // --- Loyalty redemption (H5) ---------------------------------------------
     // loyalty_points_redeem reduces the amount owed, but ONLY if we can actually
     // decrement the customer's balance inside the payment transaction below.
@@ -873,13 +885,14 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       }
     }
 
-    const amountOwed = round2(grandTotal - loyaltyDiscount);
+    const amountOwed = round2(grandTotal - loyaltyDiscount - alreadyPaid);
 
     if (Math.abs(Number(paymentData.amount) - amountOwed) > 1) {
+      const priorNote = alreadyPaid > 0 ? ` (already tendered ${alreadyPaid} of ${grandTotal})` : '';
       throw new BadRequestError(
         loyaltyDiscount > 0
-          ? `Payment amount ${paymentData.amount} does not match amount owed ${amountOwed} (order total ${grandTotal} less loyalty discount ${loyaltyDiscount})`
-          : `Payment amount ${paymentData.amount} does not match order total ${order.grand_total}`
+          ? `Payment amount ${paymentData.amount} does not match amount owed ${amountOwed} (order total ${grandTotal} less loyalty discount ${loyaltyDiscount}${alreadyPaid > 0 ? ` less already tendered ${alreadyPaid}` : ''})`
+          : `Payment amount ${paymentData.amount} does not match amount owed ${amountOwed}${priorNote}`
       );
     }
 

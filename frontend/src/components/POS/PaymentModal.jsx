@@ -79,6 +79,7 @@ export default function PaymentModal({
   const METHODS = isAU ? METHODS_AU : METHODS_IN;
   const [method, setMethod]           = useState('cash');
   const [partAmount, setPartAmount]   = useState('');
+  const [partMethod, setPartMethod]   = useState('cash'); // tender type for a part payment
   const [upiVpa, setUpiVpa]           = useState('');
   const [merchantName, setMerchantName] = useState('Restaurant');
   const [razorpayKey, setRazorpayKey] = useState('');
@@ -111,6 +112,7 @@ export default function PaymentModal({
     if (isOpen) {
       setMethod('cash');
       setPartAmount('');
+      setPartMethod('cash');
       setProcessing(false);
       setUpiPaid(false);
       setCopied(false);
@@ -295,7 +297,9 @@ export default function PaymentModal({
 
     setProcessing(true);
     try {
-      await onSuccess(method, effectiveAmount);
+      // For a part payment, surface the chosen tender type so the caller can
+      // record it as a real partial tender (multi-tender) rather than a placeholder.
+      await onSuccess(method, effectiveAmount, undefined, method === 'part' ? { partMethod } : undefined);
       onClose();
     } catch {
       // error handled by caller
@@ -460,10 +464,30 @@ export default function PaymentModal({
           </div>
         )}
 
-        {/* ── Part Payment Panel ── */}
+        {/* ── Part Payment Panel (multi-tender) ── */}
         {method === 'part' && (
           <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'var(--border)' }}>
-            <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Amount Collected Now</p>
+            <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Tender Type</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(isAU
+                ? [['cash', 'Cash'], ['eftpos', 'EFTPOS'], ['card', 'Card']]
+                : [['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card']]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setPartMethod(id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all"
+                  style={{
+                    borderColor: partMethod === id ? '#d97706' : 'var(--border)',
+                    background: partMethod === id ? '#d9770618' : 'transparent',
+                    color: partMethod === id ? '#d97706' : 'var(--text-secondary)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs font-bold pt-1" style={{ color: 'var(--text-secondary)' }}>Amount Collected Now</p>
             <input
               type="number"
               className="input text-2xl font-bold text-center py-3"

@@ -4,6 +4,7 @@
  */
 
 const orderService = require('./order.service');
+const splitService = require('./order.split.service');
 const { sendSuccess, sendCreated, sendPaginated, sendError } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const { calculateItemTax } = require('./tax.service');
@@ -148,6 +149,34 @@ async function processPayment(req, res, next) {
   try {
     const result = await orderService.processPayment(req.params.id, req.body, req.user.id);
     sendSuccess(res, result, 'Payment processed successfully');
+  } catch (error) { next(error); }
+}
+
+/** GET /api/orders/:id/bill-summary — total, tendered, balance, payments */
+async function getBillSummary(req, res, next) {
+  try {
+    const result = await splitService.getBillSummary(req.params.id, req.user.outlet_id || null);
+    sendSuccess(res, result, 'Bill summary');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/orders/:id/split-preview — compute equal/custom split portions */
+async function splitPreview(req, res, next) {
+  try {
+    const summary = await splitService.getBillSummary(req.params.id, req.user.outlet_id || null);
+    const result = splitService.computeSplit(summary.balance_due > 0 ? summary.balance_due : summary.grand_total, req.body);
+    sendSuccess(res, result, 'Split preview');
+  } catch (error) { next(error); }
+}
+
+/**
+ * POST /api/orders/:id/tender — record one tender (multi-tender / split bill).
+ * Records a partial payment, or finalises the order when the balance is covered.
+ */
+async function recordTender(req, res, next) {
+  try {
+    const result = await splitService.recordTender(req.params.id, req.body, req.user.id, req.user.outlet_id || null);
+    sendSuccess(res, result, result.closed ? 'Payment completed' : 'Partial payment recorded');
   } catch (error) { next(error); }
 }
 
@@ -472,6 +501,7 @@ async function assignStaff(req, res, next) {
 module.exports = {
   createOrder, listOrders, getOrder, addItems,
   generateKOT, generateBill, updateStatus, processPayment,
+  getBillSummary, splitPreview, recordTender,
   cancelOrder, voidOrder, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
   sendEBill, applyDiscount, updateNotes, assignStaff, voidItem, punchKOT, addTip,
 };

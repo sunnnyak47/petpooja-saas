@@ -112,6 +112,8 @@ export default function POSPage() {
   const [isBilled, setIsBilled] = useState(false);
   // Server-authoritative grand total — used for split/payment to avoid frontend vs backend rounding drift
   const [serverOrderTotal, setServerOrderTotal] = useState(null);
+  // Outstanding balance after partial tenders (multi-tender). null = full total due.
+  const [balanceDue, setBalanceDue] = useState(null);
 
   // ── v2 feature state ──────────────────────────────────────────────────────
   const [showVoidItem, setShowVoidItem]         = useState(false);
@@ -419,7 +421,7 @@ export default function POSPage() {
   // and applied loyalty redemption — which are computed client-side and are NOT yet persisted on a
   // fresh, not-yet-billed order — are included. The PAY button and the PaymentModal both read this
   // exact value, guaranteeing the customer is always charged precisely what the button shows.
-  const payableAmount = billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal;
+  const payableAmount = balanceDue ?? billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal;
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
@@ -843,6 +845,7 @@ export default function POSPage() {
       setIsBilled(false);
       setBilledOrder(null);
       setServerOrderTotal(null);
+      setBalanceDue(null);
       toast.success(`Table ${table.table_number} selected`);
     }
     setViewMode('menu');
@@ -1944,7 +1947,7 @@ export default function POSPage() {
         orderId={tempOrderId}
         orderNumber={billedOrder?.order_number}
         customer={selectedCustomer}
-        onSuccess={async (method, paidAmount, razorpayId) => {
+        onSuccess={async (method, paidAmount, razorpayId, meta) => {
           if (cart.length === 0 && !tempOrderId) throw new Error('Cart is empty');
           let orderId = tempOrderId;
           if (!orderId) {
@@ -1956,25 +1959,48 @@ export default function POSPage() {
               await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId }).catch(() => {});
             }
           }
-          const METHOD_MAP = { cash: 'cash', upi: 'upi_razorpay', card: 'card_pine_labs', part: 'split', due: 'due' };
-          if (IS_ELECTRON && !isOnline) {
-            await hybridAPI.processPayment(orderId, {
-              method: METHOD_MAP[method] || method,
+
+          // ── Part payment → multi-tender endpoint. Records one tender; the order
+          //    stays open until the balance is covered, then auto-finalises. ──
+          if (method === 'part') {
+            const res = await api.post(`/orders/${orderId}/tender`, {
+              method: meta?.partMethod || 'cash',
               amount: paidAmount,
             });
+            const data = res?.data || {};
+            if (data.closed) {
+              toast.success('Payment Completed ✓');
+            } else {
+              // Keep the order open; reflect the reduced balance for the next tender.
+              setTempOrderId(orderId);
+              setBalanceDue(Number(data.balance_due));
+              toast.success(`Partial recorded — ${symbol}${isAU ? Number(data.balance_due).toFixed(2) : Math.round(Number(data.balance_due))} remaining`);
+              queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+              return; // do NOT clear the cart/order — balance is still owed
+            }
           } else {
-            await api.post(`/orders/${orderId}/payment`, {
-              method: METHOD_MAP[method] || method,
-              amount: paidAmount,
-              razorpay_payment_id: razorpayId || undefined,
-            });
+            const METHOD_MAP = { cash: 'cash', upi: 'upi_razorpay', card: 'card_pine_labs', due: 'due' };
+            if (IS_ELECTRON && !isOnline) {
+              await hybridAPI.processPayment(orderId, {
+                method: METHOD_MAP[method] || method,
+                amount: paidAmount,
+              });
+            } else {
+              await api.post(`/orders/${orderId}/payment`, {
+                method: METHOD_MAP[method] || method,
+                amount: paidAmount,
+                razorpay_payment_id: razorpayId || undefined,
+              });
+            }
+            toast.success('Payment Completed ✓');
           }
-          toast.success(method === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
+
           dispatch(clearCart());
           setTempOrderId(null);
           setIsBilled(false);
           setBilledOrder(null);
           setServerOrderTotal(null);
+          setBalanceDue(null);
           setGratuity(0);
           setAppliedLoyaltyPoints(0);
           setAppliedLoyaltyDiscount(0);
