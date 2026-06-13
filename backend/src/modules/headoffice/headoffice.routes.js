@@ -214,10 +214,23 @@ router.patch('/my-branding', authenticate, hasRole('owner'), validate(myBranding
   const { primary_color, logo_url } = req.body;
   const prisma = require('../../config/database').getDbClient();
   try {
+    // Resolve the head office from the token, falling back to the owner's outlet so
+    // branding works even for owners whose user row has no head_office_id.
+    let hoId = req.user.head_office_id;
+    if (!hoId) {
+      const ur = await prisma.userRole.findFirst({ where: { user_id: req.user.id, outlet_id: { not: null } }, select: { outlet_id: true } });
+      if (ur?.outlet_id) {
+        const o = await prisma.outlet.findUnique({ where: { id: ur.outlet_id }, select: { head_office_id: true } });
+        hoId = o?.head_office_id || null;
+      }
+    }
+    if (!hoId) {
+      return res.status(400).json({ success: false, message: 'No head office linked to this account' });
+    }
     const data = {};
     if (primary_color) data.primary_color = primary_color;
     if (logo_url !== undefined) data.logo_url = logo_url || null;
-    const ho = await prisma.headOffice.update({ where: { id: req.user.head_office_id }, data });
+    const ho = await prisma.headOffice.update({ where: { id: hoId }, data });
     await prisma.outlet.updateMany({ where: { head_office_id: ho.id, is_deleted: false }, data });
     sendSuccess(res, { primary_color: ho.primary_color, logo_url: ho.logo_url }, 'Branding updated');
   } catch (error) { next(error); }
@@ -281,14 +294,27 @@ router.post('/onboarding-dismiss', authenticate, hasRole('owner', 'manager'), as
 async function assertOutletOwnership(req, outletId) {
   const { ForbiddenError } = require('../../utils/errors');
   if (req.user?.role === 'super_admin') return; // global access
-  const headOfficeId = req.user?.head_office_id;
-  if (!headOfficeId) throw new ForbiddenError('No head office linked to this account');
   const prisma = require('../../config/database').getDbClient();
-  const owned = await prisma.outlet.findFirst({
-    where: { id: outletId, head_office_id: headOfficeId },
-    select: { id: true },
-  });
-  if (!owned) throw new ForbiddenError('You do not have access to this outlet');
+  const headOfficeId = req.user?.head_office_id;
+
+  // Primary path: the outlet belongs to the caller's head office.
+  if (headOfficeId) {
+    const owned = await prisma.outlet.findFirst({
+      where: { id: outletId, head_office_id: headOfficeId },
+      select: { id: true },
+    });
+    if (owned) return;
+  }
+
+  // Fallback: the token carries no head office (legacy/owner created without one).
+  // Allow when the user is directly linked to this outlet via a role assignment or
+  // a staff profile — so Settings and other /ho endpoints keep working instead of
+  // failing with "No head office linked to this account".
+  const linked = (await prisma.userRole.findFirst({ where: { user_id: req.user.id, outlet_id: outletId }, select: { id: true } }))
+    || (await prisma.staffProfile.findFirst({ where: { user_id: req.user.id, outlet_id: outletId }, select: { id: true } }));
+  if (linked) return;
+
+  throw new ForbiddenError('You do not have access to this outlet');
 }
 
 /**

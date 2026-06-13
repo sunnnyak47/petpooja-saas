@@ -175,6 +175,15 @@ export default function SettingsPage() {
         outlet_name: savedSettings?.outlet_name || outletInfo?.name || prev.outlet_name,
         ...(savedSettings || {}),
       }));
+      // Hydrate Voice POS settings (voice_* keys) from the DB back into the
+      // localStorage the live mic reads, so they sync across devices.
+      if (savedSettings) {
+        const voice = {};
+        Object.entries(savedSettings).forEach(([k, val]) => {
+          if (k.startsWith('voice_')) voice[k.slice(6)] = val;
+        });
+        if (Object.keys(voice).length) { try { saveVoiceSettings(voice); } catch { /* optional */ } }
+      }
     }
   }, [savedSettings, outletInfo]);
 
@@ -190,6 +199,12 @@ export default function SettingsPage() {
       } else {
         delete apiSettings.accept_eftpos;
       }
+      // Voice POS settings live in localStorage for the live mic; mirror them to
+      // the DB (voice_* keys) so they sync across devices and survive a reinstall.
+      try {
+        const v = loadVoiceSettings();
+        Object.entries(v).forEach(([k, val]) => { apiSettings[`voice_${k}`] = val; });
+      } catch { /* voice settings optional */ }
       return api.put(`/ho/settings`, { outlet_id: outletId, settings: apiSettings });
     },
     onSuccess: () => {

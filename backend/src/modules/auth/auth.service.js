@@ -177,7 +177,7 @@ async function login(login, password, auditInfo = {}) {
                 },
               },
             },
-            outlet: { select: { id: true, name: true, code: true, primary_color: true, country: true, currency: true, timezone: true } },
+            outlet: { select: { id: true, name: true, code: true, primary_color: true, country: true, currency: true, timezone: true, head_office_id: true } },
           },
         },
         head_office: { select: { id: true, name: true, primary_color: true, logo_url: true, setup_completed: true, metadata: true, region: true, currency: true, timezone: true } }
@@ -225,6 +225,10 @@ async function login(login, password, auditInfo = {}) {
     const roleName = primaryRole?.role?.name || 'cashier';
     const outletId = primaryRole?.outlet_id || null;
     const permissions = primaryRole?.role?.role_permissions?.map((rp) => rp.permission.key) || [];
+    // Some owners were created without a head_office_id on the user row. Derive it
+    // from their outlet's head office so /ho/* tenant checks (settings, branding,
+    // etc.) work instead of failing with "No head office linked to this account".
+    const headOfficeId = user.head_office_id || primaryRole?.outlet?.head_office_id || null;
 
     const tokenPayload = {
       id: user.id,
@@ -232,7 +236,7 @@ async function login(login, password, auditInfo = {}) {
       phone: user.phone,
       role: roleName,
       outlet_id: outletId,
-      head_office_id: user.head_office_id,
+      head_office_id: headOfficeId,
       primary_color: primaryRole?.outlet?.primary_color || user.head_office?.primary_color || '#4F46E5',
       logo_url: user.head_office?.logo_url || null,
       permissions,
