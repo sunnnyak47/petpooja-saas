@@ -101,6 +101,20 @@ function generateBillHTML(order, outlet, options = {}) {
   const grandTotal = Number(order?.grand_total ?? 0);
   const payMethod  = order?.payment_method ?? order?.payments?.[0]?.method ?? '';
 
+  // Multi-tender breakdown — list each tender (and split sub-tenders) plus any
+  // outstanding balance, so a split-bill / part-paid receipt is self-explanatory.
+  const successfulPayments = (order?.payments || []).filter(p => (p.status ?? 'success') !== 'failed');
+  const tenderLines = [];
+  for (const p of successfulPayments) {
+    if (p.method === 'split' && Array.isArray(p.splits) && p.splits.length) {
+      for (const s of p.splits) tenderLines.push([String(s.method || 'split').toUpperCase(), Number(s.amount || 0)]);
+    } else {
+      tenderLines.push([String(p.method || '').toUpperCase(), Number(p.amount || 0)]);
+    }
+  }
+  const tenderedTotal = tenderLines.reduce((s, [, amt]) => s + amt, 0);
+  const balanceDue = Math.max(grandTotal - tenderedTotal, 0);
+
   const divider = `<div style="border-top:1px dashed #555;margin:6px 0;"></div>`;
 
   const itemRows = items.map((item) => {
@@ -202,8 +216,13 @@ function generateBillHTML(order, outlet, options = {}) {
 
   ${divider}
 
-  <!-- Payment method -->
-  ${payMethod ? `<div style="margin:4px 0;font-size:${fontSize};">Payment: <b>${payMethod}</b></div>` : ''}
+  <!-- Payment / tenders -->
+  ${tenderLines.length
+    ? `<table style="width:100%;font-size:${fontSize};border-collapse:collapse;">
+         ${tenderLines.map(([m, amt]) => `<tr><td colspan="2">${m}</td><td style="text-align:right;">${currency}${amt.toFixed(2)}</td></tr>`).join('')}
+         ${balanceDue > 0.009 ? `<tr style="font-weight:bold;color:#b91c1c;"><td colspan="2">BALANCE DUE</td><td style="text-align:right;">${currency}${balanceDue.toFixed(2)}</td></tr>` : ''}
+       </table>`
+    : payMethod ? `<div style="margin:4px 0;font-size:${fontSize};">Payment: <b>${payMethod}</b></div>` : ''}
   ${divider}
 
   <!-- Footer -->
@@ -395,9 +414,31 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
   append(buf, ESC, 0x45, 0);                  // ESC E 0 — bold off
   append(buf, ...encodeText(dividerStr), LF);
 
-  // Payment method
-  if (order?.payment_method) {
-    append(buf, ...encodeText(`Payment: ${order.payment_method}`), LF);
+  // Payment / tenders — itemise each tender (and split sub-tenders) + balance.
+  {
+    const successfulPayments = (order?.payments || []).filter(p => (p.status ?? 'success') !== 'failed');
+    const tenderLines = [];
+    for (const p of successfulPayments) {
+      if (p.method === 'split' && Array.isArray(p.splits) && p.splits.length) {
+        for (const s of p.splits) tenderLines.push([String(s.method || 'split').toUpperCase(), Number(s.amount || 0)]);
+      } else {
+        tenderLines.push([String(p.method || '').toUpperCase(), Number(p.amount || 0)]);
+      }
+    }
+    if (tenderLines.length) {
+      const tendered = tenderLines.reduce((s, [, amt]) => s + amt, 0);
+      const balanceDue = Math.max(grandTotal - tendered, 0);
+      for (const [m, amt] of tenderLines) {
+        append(buf, ...encodeText(alignColumns(m, `${currency} ${amt.toFixed(2)}`, lineWidth)), LF);
+      }
+      if (balanceDue > 0.009) {
+        append(buf, ESC, 0x45, 1);
+        append(buf, ...encodeText(alignColumns('BALANCE DUE', `${currency} ${balanceDue.toFixed(2)}`, lineWidth)), LF);
+        append(buf, ESC, 0x45, 0);
+      }
+    } else if (order?.payment_method) {
+      append(buf, ...encodeText(`Payment: ${order.payment_method}`), LF);
+    }
   }
 
   // ---- Footer ----

@@ -157,6 +157,13 @@ export default function EnhancedOrderCard({
   const isBilled = ['billed', 'paid'].includes(order.status);
   const isPaid = order.status === 'paid';
 
+  /* Multi-tender: how much has been tendered so far, and what's still owed. */
+  const paidAmount = payments
+    .filter(p => p.status === 'success')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const balanceDue = Math.max(Number(order.grand_total || 0) - paidAmount, 0);
+  const isPartiallyPaid = !isPaid && paidAmount > 0.01 && balanceDue > 0.01;
+
   const kotSentItems = items.filter(i => i.is_kot_sent);
   const readyItems   = kotSentItems.filter(i => i.status === 'ready');
   const kitchenPct   = kotSentItems.length > 0 ? (readyItems.length / kotSentItems.length) * 100 : 0;
@@ -211,6 +218,15 @@ export default function EnhancedOrderCard({
 
         {/* Amount */}
         <span className="font-mono text-xs text-white font-semibold flex-1 text-right">{format(order.grand_total)}</span>
+
+        {/* Partial-payment badge */}
+        {isPartiallyPaid && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap"
+            style={{ background: 'color-mix(in srgb, var(--warning) 16%, transparent)', color: 'var(--warning)' }}
+            title={`Paid ${format(paidAmount)} · Balance ${format(balanceDue)}`}>
+            Bal {format(balanceDue)}
+          </span>
+        )}
 
         {/* Timer */}
         <span className={`font-mono text-xs flex-shrink-0 ${agingMeta.tailwind} ${isUrgent ? 'eoc-pulse-txt' : ''}`}>
@@ -336,6 +352,15 @@ export default function EnhancedOrderCard({
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider ${STATUS_STYLES[order.status] || STATUS_STYLES.pending}`}>
             {order.status}
           </span>
+
+          {/* Partial-payment badge */}
+          {isPartiallyPaid && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap"
+              style={{ background: 'color-mix(in srgb, var(--warning) 16%, transparent)', color: 'var(--warning)' }}
+              title={`Paid ${format(paidAmount)} · Balance ${format(balanceDue)}`}>
+              Partial · Bal {format(balanceDue)}
+            </span>
+          )}
 
           {/* Elapsed timer */}
           <div
