@@ -353,12 +353,12 @@ export default function EnhancedOrderCard({
             {order.status}
           </span>
 
-          {/* Partial-payment badge */}
+          {/* Partial-payment badge — amber already signals "partial"; full detail in tooltip */}
           {isPartiallyPaid && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap"
               style={{ background: 'color-mix(in srgb, var(--warning) 16%, transparent)', color: 'var(--warning)' }}
-              title={`Paid ${format(paidAmount)} · Balance ${format(balanceDue)}`}>
-              Partial · Bal {format(balanceDue)}
+              title={`Partially paid — paid ${format(paidAmount)} · balance ${format(balanceDue)}`}>
+              Bal {format(balanceDue)}
             </span>
           )}
 
