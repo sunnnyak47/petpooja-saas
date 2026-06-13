@@ -348,6 +348,8 @@ app.use('/api/credit-notes', require('./modules/financial-docs/creditnote.routes
 app.use('/api/settlements', require('./modules/settlements/settlement.routes'));
 app.use('/api/aggregator-reconciliation', require('./modules/integrations/aggregator-reconciliation.routes'));
 app.use('/api/delivery', require('./modules/delivery/dispatch.routes'));
+app.use('/api/auto86', require('./modules/integrations/auto86.routes'));
+app.use('/api/channel-analytics', require('./modules/integrations/channel-analytics.routes'));
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);

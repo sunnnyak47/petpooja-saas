@@ -49,6 +49,8 @@ import CreditNotesPage from './pages/CreditNotesPage';
 import SettlementsPage from './pages/SettlementsPage';
 import AggregatorReconciliationPage from './pages/AggregatorReconciliationPage';
 import DeliveryDispatchPage from './pages/DeliveryDispatchPage';
+import Channel86Board from './pages/Channel86Board';
+import ChannelAnalyticsPage from './pages/ChannelAnalyticsPage';
 import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
@@ -271,6 +273,8 @@ export default function App() {
         <Route path="settlements"     element={<FeatureGate feature="payments"><SettlementsPage /></FeatureGate>} />
         <Route path="aggregator-reconciliation" element={<FeatureGate feature="payments"><AggregatorReconciliationPage /></FeatureGate>} />
         <Route path="delivery"        element={<FeatureGate feature="payments"><DeliveryDispatchPage /></FeatureGate>} />
+        <Route path="86-board"        element={<FeatureGate feature="menu"><Channel86Board /></FeatureGate>} />
+        <Route path="channel-analytics" element={<FeatureGate feature="reports"><ChannelAnalyticsPage /></FeatureGate>} />
         <Route path="discounts"       element={<FeatureGate feature="discounts"><DiscountsPage /></FeatureGate>} />
         <Route path="settings"        element={<SettingsPage />} />
         <Route path="integrations"    element={<FeatureGate feature="integrations"><IntegrationsPage /></FeatureGate>} />

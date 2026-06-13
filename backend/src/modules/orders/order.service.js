@@ -976,6 +976,19 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       return { payment, deductionAlerts };
     });
 
+    // Auto-86: re-evaluate availability for this order's items against the new
+    // (committed) stock, and pause/resume them across all delivery channels.
+    // Fire-and-forget — never affects the payment response.
+    (async () => {
+      try {
+        const items = await prisma.orderItem.findMany({
+          where: { order_id: orderId, is_deleted: false }, select: { menu_item_id: true },
+        });
+        const ids = [...new Set(items.map((i) => i.menu_item_id).filter(Boolean))];
+        if (ids.length) await require('../integrations/auto86.service').evaluateAvailability(order.outlet_id, ids);
+      } catch (_) { /* non-critical */ }
+    })();
+
     if (order.customer_id) {
       try {
         await customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total));

@@ -17,6 +17,7 @@ import {
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
   HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale, Truck, Wallet,
+  CircleSlash, PieChart,
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -106,6 +107,8 @@ const ownerNav = [
   { path: '/settlements',       label: 'Settlements',      icon: Scale, feature: 'payments' },
   { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
   { path: '/delivery',          label: 'Own Delivery',     icon: Truck, feature: 'payments' },
+  { path: '/86-board',          label: '86 Board',         icon: CircleSlash, feature: 'menu' },
+  { path: '/channel-analytics', label: 'Channel Analytics', icon: PieChart, feature: 'reports' },
   { path: '/chain-health',     label: 'Health Score',     icon: HeartPulse },
 
   // ── Settings: configuration & tools ──
@@ -158,6 +161,8 @@ const ownerNavAU = [
   { path: '/settlements',      label: 'Settlements',       icon: Scale,         feature: 'payments' },
   { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
   { path: '/delivery',         label: 'Own Delivery',      icon: Truck,         feature: 'payments' },
+  { path: '/86-board',         label: '86 Board',          icon: CircleSlash,   feature: 'menu' },
+  { path: '/channel-analytics', label: 'Channel Analytics', icon: PieChart,     feature: 'reports' },
   { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'reports', region: 'AU' },
   { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'reports', region: 'AU' },
