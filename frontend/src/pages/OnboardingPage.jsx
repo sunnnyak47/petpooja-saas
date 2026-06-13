@@ -46,30 +46,78 @@ const BUSINESS_TYPES = [
 
 const ROLES = ['Manager', 'Cashier', 'Captain', 'Chef', 'KOT Screen'];
 
-const VOICE_LANGUAGES = [
-  { label: 'English',            flag: '🇬🇧', code: 'en-IN' },
-  { label: 'Hindi',              flag: '🇮🇳', code: 'hi-IN' },
-  { label: 'Hinglish',           flag: '🇮🇳', code: 'hi-IN' },
-  { label: 'Tamil',              flag: '🇮🇳', code: 'ta-IN' },
-  { label: 'Telugu',             flag: '🇮🇳', code: 'te-IN' },
-  { label: 'Kannada',            flag: '🇮🇳', code: 'kn-IN' },
-  { label: 'Malayalam',          flag: '🇮🇳', code: 'ml-IN' },
-  { label: 'Bengali',            flag: '🇮🇳', code: 'bn-IN' },
-  { label: 'Gujarati',           flag: '🇮🇳', code: 'gu-IN' },
-  { label: 'Marathi',            flag: '🇮🇳', code: 'mr-IN' },
-  { label: 'Punjabi',            flag: '🇮🇳', code: 'pa-IN' },
-  { label: 'Australian English', flag: '🇦🇺', code: 'en-AU' },
-  { label: 'Arabic',             flag: '🇦🇪', code: 'ar' },
+// Voice-POS languages — Indian languages for IN, the common spoken languages of
+// AU hospitality for AU. English is always first.
+const VOICE_LANGUAGES_IN = [
+  { label: 'English',   code: 'en-IN' },
+  { label: 'Hindi',     code: 'hi-IN' },
+  { label: 'Hinglish',  code: 'hi-IN' },
+  { label: 'Tamil',     code: 'ta-IN' },
+  { label: 'Telugu',    code: 'te-IN' },
+  { label: 'Kannada',   code: 'kn-IN' },
+  { label: 'Malayalam', code: 'ml-IN' },
+  { label: 'Bengali',   code: 'bn-IN' },
+  { label: 'Gujarati',  code: 'gu-IN' },
+  { label: 'Marathi',   code: 'mr-IN' },
+  { label: 'Punjabi',   code: 'pa-IN' },
+];
+const VOICE_LANGUAGES_AU = [
+  { label: 'Australian English', code: 'en-AU' },
+  { label: 'English',            code: 'en-AU' },
+  { label: 'Mandarin',           code: 'zh-CN' },
+  { label: 'Arabic',             code: 'ar' },
+  { label: 'Vietnamese',         code: 'vi-VN' },
 ];
 
-const PAYMENT_MODES = [
-  { id: 'cash',      label: 'Cash',            emoji: '💵' },
-  { id: 'upi',       label: 'UPI',             emoji: '📱' },
-  { id: 'card',      label: 'Card',            emoji: '💳' },
-  { id: 'razorpay',  label: 'Razorpay Online', emoji: '🌐' },
-  { id: 'paytm',     label: 'Paytm',           emoji: '💙' },
-  { id: 'phonepe',   label: 'PhonePe',         emoji: '💜' },
+// Payment modes available per region. AU uses EFTPOS + card terminals (Tyro/Square)
+// and Stripe online; IN uses UPI + the local gateways.
+const PAYMENT_MODES_IN = [
+  { id: 'cash',     label: 'Cash' },
+  { id: 'upi',      label: 'UPI' },
+  { id: 'card',     label: 'Card' },
+  { id: 'razorpay', label: 'Razorpay Online' },
+  { id: 'paytm',    label: 'Paytm' },
+  { id: 'phonepe',  label: 'PhonePe' },
 ];
+const PAYMENT_MODES_AU = [
+  { id: 'cash',   label: 'Cash' },
+  { id: 'eftpos', label: 'EFTPOS' },
+  { id: 'card',   label: 'Card' },
+  { id: 'square', label: 'Square' },
+  { id: 'stripe', label: 'Stripe Online' },
+];
+
+// Delivery / messaging integrations per region.
+const INTEGRATIONS_IN = [
+  { id: 'swiggy_key',      label: 'Swiggy',            color: '#FC8019', letter: 'S', desc: 'Sync Swiggy orders',        placeholder: 'Swiggy API Key' },
+  { id: 'zomato_key',      label: 'Zomato',            color: '#E23744', letter: 'Z', desc: 'Sync Zomato orders',        placeholder: 'Zomato API Key' },
+  { id: 'whatsapp_number', label: 'WhatsApp Business', color: '#25D366', letter: 'W', desc: 'Order updates via WhatsApp', placeholder: '+91 98765 43210' },
+  { id: 'razorpay_key_id', label: 'Razorpay',          color: '#0c2451', letter: 'R', desc: 'Online payments',           placeholder: 'rzp_live_xxxxxxxxxx' },
+];
+const INTEGRATIONS_AU = [
+  { id: 'ubereats_key',    label: 'Uber Eats',         color: '#06C167', letter: 'U', desc: 'Sync Uber Eats orders',     placeholder: 'Uber Eats API Key' },
+  { id: 'doordash_key',    label: 'DoorDash',          color: '#FF3008', letter: 'D', desc: 'Sync DoorDash orders',      placeholder: 'DoorDash API Key' },
+  { id: 'menulog_key',     label: 'Menulog',           color: '#E8172B', letter: 'M', desc: 'Sync Menulog orders',       placeholder: 'Menulog API Key' },
+  { id: 'whatsapp_number', label: 'WhatsApp Business', color: '#25D366', letter: 'W', desc: 'Order updates via WhatsApp', placeholder: '+61 400 000 000' },
+  { id: 'stripe_key',      label: 'Stripe',            color: '#635BFF', letter: 'S', desc: 'Online card payments',       placeholder: 'sk_live_xxxxxxxx' },
+];
+
+// Region-specific defaults, labels and placeholders.
+const REGION = {
+  IN: {
+    currency: 'INR', symbol: '₹',
+    cityPh: 'Mumbai', addressPh: '123 Main Street, Bandra West', phonePh: '+91 98765 43210',
+    staffPhonePh: '+91 99999 00000',
+    voiceLanguages: VOICE_LANGUAGES_IN, paymentModes: PAYMENT_MODES_IN, integrations: INTEGRATIONS_IN,
+  },
+  AU: {
+    currency: 'AUD', symbol: 'A$',
+    cityPh: 'Sydney', addressPh: '123 George St, Sydney NSW 2000', phonePh: '+61 2 9000 0000',
+    staffPhonePh: '+61 400 000 000',
+    voiceLanguages: VOICE_LANGUAGES_AU, paymentModes: PAYMENT_MODES_AU, integrations: INTEGRATIONS_AU,
+  },
+};
+const regionCfg = (country) => REGION[country === 'AU' ? 'AU' : 'IN'];
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
@@ -88,7 +136,7 @@ function Step1({ data, onChange }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">🚀 Business Profile</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Business Profile</h2>
         <p className="text-gray-500 mt-1">Tell us about your restaurant so we can personalise your experience.</p>
       </div>
 
@@ -195,7 +243,8 @@ function Step1({ data, onChange }) {
 
 // ─── Step 2 ───────────────────────────────────────────────────────────────────
 
-function Step2({ data, onChange, restaurantName }) {
+function Step2({ data, onChange, restaurantName, country }) {
+  const rc = regionCfg(country);
   useEffect(() => {
     if (!data.outlet_name && restaurantName) onChange({ outlet_name: restaurantName });
   }, [restaurantName]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,20 +270,20 @@ function Step2({ data, onChange, restaurantName }) {
         </div>
         <div>
           <label className={labelCls}>City</label>
-          <input className={inputCls} placeholder="Mumbai" value={data.city}
+          <input className={inputCls} placeholder={rc.cityPh} value={data.city}
             onChange={e => onChange({ city: e.target.value })} />
         </div>
       </div>
 
       <div>
         <label className={labelCls}>Full Address</label>
-        <textarea className={inputCls} rows={2} placeholder="123 Main Street, Bandra West"
+        <textarea className={inputCls} rows={2} placeholder={rc.addressPh}
           value={data.address} onChange={e => onChange({ address: e.target.value })} />
       </div>
 
       <div>
         <label className={labelCls}>Outlet Phone</label>
-        <input className={inputCls} type="tel" placeholder="+91 98765 43210" value={data.phone}
+        <input className={inputCls} type="tel" placeholder={rc.phonePh} value={data.phone}
           onChange={e => onChange({ phone: e.target.value })} />
       </div>
 
@@ -288,6 +337,7 @@ function Step2({ data, onChange, restaurantName }) {
 
 function Step3({ data, onChange, country }) {
   const [parsing, setParsing] = useState(false);
+  const sym = regionCfg(country).symbol;
 
   const parseMenu = async () => {
     if (!data.menu_text.trim()) { toast.error('Paste some menu text first'); return; }
@@ -332,15 +382,15 @@ function Step3({ data, onChange, country }) {
   const FOOD_TYPE_COLORS = { veg: 'text-green-600', 'non-veg': 'text-red-600', egg: 'text-yellow-600' };
   const FOOD_TYPE_DOTS = { veg: 'bg-green-500', 'non-veg': 'bg-red-500', egg: 'bg-yellow-500' };
   const MODES = [
-    { id: 'ai_text',  label: '📝 Paste Menu Text' },
-    { id: 'scratch',  label: '✏️ Start from Scratch' },
-    { id: 'photo',    label: '📸 AI Photo Scan',    disabled: true },
+    { id: 'ai_text',  label: 'Paste Menu Text' },
+    { id: 'scratch',  label: 'Start from Scratch' },
+    { id: 'photo',    label: 'AI Photo Scan',    disabled: true },
   ];
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Build Your Menu with AI ✨</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Build Your Menu</h2>
         <p className="text-gray-500 mt-1">Import your existing menu in seconds.</p>
       </div>
 
@@ -369,7 +419,7 @@ function Step3({ data, onChange, country }) {
           <button type="button" onClick={parseMenu} disabled={parsing}
             className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-60">
             {parsing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            {parsing ? 'Parsing...' : 'Parse with AI ✨'}
+            {parsing ? 'Parsing…' : 'Parse Menu'}
           </button>
 
           {(data.approved_items || []).length > 0 && (
@@ -389,7 +439,7 @@ function Step3({ data, onChange, country }) {
                       <th className="text-left px-3 py-2 text-gray-500 font-medium">Type</th>
                       <th className="text-left px-3 py-2 text-gray-500 font-medium">Name</th>
                       <th className="text-left px-3 py-2 text-gray-500 font-medium">Category</th>
-                      <th className="text-left px-3 py-2 text-gray-500 font-medium">Price</th>
+                      <th className="text-left px-3 py-2 text-gray-500 font-medium">Price ({sym})</th>
                       <th className="px-3 py-2" />
                     </tr>
                   </thead>
@@ -414,8 +464,11 @@ function Step3({ data, onChange, country }) {
                             value={item.category} onChange={e => updateItem(idx, 'category', e.target.value)} placeholder="Category" />
                         </td>
                         <td className="px-3 py-1.5">
-                          <input className="w-20 border-0 bg-transparent outline-none text-gray-800 focus:ring-0 text-sm"
-                            type="number" value={item.price} onChange={e => updateItem(idx, 'price', parseFloat(e.target.value) || 0)} />
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-400 text-sm">{sym}</span>
+                            <input className="w-16 border-0 bg-transparent outline-none text-gray-800 focus:ring-0 text-sm"
+                              type="number" value={item.price} onChange={e => updateItem(idx, 'price', parseFloat(e.target.value) || 0)} />
+                          </div>
                         </td>
                         <td className="px-3 py-1.5 text-center">
                           <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 transition-colors">
@@ -448,8 +501,9 @@ function Step3({ data, onChange, country }) {
 
 // ─── Step 4 ───────────────────────────────────────────────────────────────────
 
-function Step4({ data, onChange }) {
+function Step4({ data, onChange, country }) {
   const [form, setForm] = useState({ name: '', phone: '', role: 'Cashier', pin: '' });
+  const staffPhonePh = regionCfg(country).staffPhonePh;
 
   const addMember = () => {
     if (!form.name.trim()) { toast.error('Enter staff name'); return; }
@@ -490,7 +544,7 @@ function Step4({ data, onChange }) {
           </div>
           <div>
             <label className={labelCls}>Phone</label>
-            <input className={inputCls} type="tel" placeholder="+91 99999 00000" value={form.phone}
+            <input className={inputCls} type="tel" placeholder={staffPhonePh} value={form.phone}
               onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
           </div>
           <div>
@@ -545,7 +599,8 @@ function Step4({ data, onChange }) {
 
 // ─── Step 5 ───────────────────────────────────────────────────────────────────
 
-function Step5({ data, onChange }) {
+function Step5({ data, onChange, country }) {
+  const rc = regionCfg(country);
   const togglePayment = (id) => {
     const modes = data.payment_modes || [];
     onChange({ payment_modes: modes.includes(id) ? modes.filter(m => m !== id) : [...modes, id] });
@@ -581,13 +636,13 @@ function Step5({ data, onChange }) {
       <div>
         <p className={sectionHeading}>Payment Modes</p>
         <div className="flex flex-wrap gap-2">
-          {PAYMENT_MODES.map(({ id, label, emoji }) => {
+          {rc.paymentModes.map(({ id, label }) => {
             const active = (data.payment_modes || []).includes(id);
             return (
               <button key={id} type="button" onClick={() => togglePayment(id)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all
+                className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all
                   ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
-                <span>{emoji}</span> {label}
+                {label}
               </button>
             );
           })}
@@ -604,21 +659,14 @@ function Step5({ data, onChange }) {
       <div>
         <p className={sectionHeading}>Voice POS Language</p>
         <div className="flex flex-wrap gap-2">
-          {VOICE_LANGUAGES.map(lang => {
-            const active = data.voice_language === lang.code && (
-              // handle Hinglish uniqueness by label
-              lang.label === 'Hinglish'
-                ? data.voice_language_label === 'Hinglish'
-                : data.voice_language_label !== 'Hinglish'
-            );
-            const isSelected = data.voice_language_label === lang.label ||
-              (!data.voice_language_label && data.voice_language === lang.code && lang.label === 'English');
+          {rc.voiceLanguages.map(lang => {
+            const isSelected = data.voice_language_label === lang.label;
             return (
               <button key={lang.label} type="button"
                 onClick={() => onChange({ voice_language: lang.code, voice_language_label: lang.label })}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all
                   ${isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
-                <span>{lang.flag}</span> {lang.label}
+                {lang.label}
               </button>
             );
           })}
@@ -630,15 +678,8 @@ function Step5({ data, onChange }) {
 
 // ─── Step 6 ───────────────────────────────────────────────────────────────────
 
-function Step6({ data, onChange, onSkip }) {
-  const INTEGRATIONS = [
-    { id: 'swiggy_key',      label: 'Swiggy',            color: 'bg-orange-500', letter: 'S', desc: 'Sync Swiggy orders', placeholder: 'Swiggy API Key' },
-    { id: 'zomato_key',      label: 'Zomato',            color: 'bg-red-500',    letter: 'Z', desc: 'Sync Zomato orders', placeholder: 'Zomato API Key' },
-    { id: 'ubereats_key',    label: 'UberEats',          color: 'bg-green-600',  letter: 'U', desc: 'Sync UberEats orders', placeholder: 'UberEats API Key' },
-    { id: 'menulog_key',     label: 'Menulog',           color: 'bg-orange-600', letter: 'M', desc: 'AU — Menulog orders', placeholder: 'Menulog API Key' },
-    { id: 'whatsapp_number', label: 'WhatsApp Business', color: 'bg-green-500',  letter: 'W', desc: 'Send order updates via WhatsApp', placeholder: '+91 98765 43210' },
-    { id: 'razorpay_key_id', label: 'Razorpay',          color: 'bg-indigo-600', letter: 'R', desc: 'Online payments', placeholder: 'rzp_live_xxxxxxxxxx' },
-  ];
+function Step6({ data, onChange, onSkip, country }) {
+  const INTEGRATIONS = regionCfg(country).integrations;
 
   return (
     <div className="space-y-5">
@@ -653,7 +694,8 @@ function Step6({ data, onChange, onSkip }) {
           return (
             <div key={id} className={`p-4 bg-white border-2 rounded-xl transition-all ${filled ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-9 h-9 ${color} rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                  style={{ background: color }}>
                   {letter}
                 </div>
                 <div className="flex-1">
@@ -778,10 +820,11 @@ function ProgressBar({ currentStep, completedSteps }) {
   return (
     <div className="px-8 pt-8 pb-6 border-b border-gray-100">
       <div className="relative flex items-center justify-between">
-        {/* connecting line */}
-        <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-200" />
-        <div className="absolute top-5 left-5 h-0.5 bg-indigo-500 transition-all duration-500"
-          style={{ width: `${((Math.max(currentStep, Math.max(0, ...completedSteps)) - 1) / (STEPS.length - 1)) * 100}%` }} />
+        {/* connecting line — fill is inset to match the track so it never overshoots */}
+        <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-200">
+          <div className="h-full bg-indigo-500 transition-all duration-500"
+            style={{ width: `${((Math.max(currentStep, Math.max(0, ...completedSteps)) - 1) / (STEPS.length - 1)) * 100}%` }} />
+        </div>
 
         {STEPS.map((step) => {
           const Icon = step.icon;
@@ -850,7 +893,20 @@ export default function OnboardingPage() {
     }));
   }, []);
 
+  // Block advancing past a step whose required fields are empty.
+  const validateStep = (step, d) => {
+    if (step === 1 && !String(d.step1.restaurant_name || '').trim()) {
+      toast.error('Restaurant name is required'); return false;
+    }
+    if (step === 2 && !String(d.step2.outlet_name || '').trim()) {
+      toast.error('Outlet name is required'); return false;
+    }
+    return true;
+  };
+
   const handleNext = async (stepData = {}) => {
+    const merged0 = { ...wizardData[`step${currentStep}`], ...stepData };
+    if (!validateStep(currentStep, { ...wizardData, [`step${currentStep}`]: merged0 })) return;
     setSaving(true);
     const merged = { ...wizardData[`step${currentStep}`], ...stepData };
     setWizardData(prev => ({ ...prev, [`step${currentStep}`]: merged }));
@@ -926,6 +982,7 @@ export default function OnboardingPage() {
                   data={wizardData.step2}
                   onChange={patch => updateStep('step2', patch)}
                   restaurantName={wizardData.step1.restaurant_name}
+                  country={wizardData.step1.country}
                 />
               )}
               {currentStep === 3 && (
@@ -939,12 +996,14 @@ export default function OnboardingPage() {
                 <Step4
                   data={wizardData.step4}
                   onChange={patch => updateStep('step4', patch)}
+                  country={wizardData.step1.country}
                 />
               )}
               {currentStep === 5 && (
                 <Step5
                   data={wizardData.step5}
                   onChange={patch => updateStep('step5', patch)}
+                  country={wizardData.step1.country}
                 />
               )}
               {currentStep === 6 && (
@@ -952,6 +1011,7 @@ export default function OnboardingPage() {
                   data={wizardData.step6}
                   onChange={patch => updateStep('step6', patch)}
                   onSkip={handleNext}
+                  country={wizardData.step1.country}
                 />
               )}
               {currentStep === 7 && (
