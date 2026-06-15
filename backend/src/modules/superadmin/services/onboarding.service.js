@@ -237,6 +237,60 @@ Object.assign(superadminService, {
   },
 
   /**
+   * Change the login email of a chain's owner account. Validates format and
+   * global uniqueness, then updates the owner user's email and audits the change.
+   * @param {string} head_office_id
+   * @param {string} newEmail
+   * @param {string} adminId   acting SuperAdmin id
+   * @param {string} adminEmail
+   * @returns {Promise<{old_email:string,new_email:string}>}
+   */
+  async changeOwnerEmail(head_office_id, newEmail, adminId, adminEmail) {
+    const email = String(newEmail || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestError('Please provide a valid email address');
+    }
+
+    const user =
+      (await prisma.user.findFirst({
+        where: {
+          head_office_id, is_deleted: false,
+          user_roles: { some: { is_deleted: false, role: { name: 'owner' } } },
+        },
+      })) ||
+      (await prisma.user.findFirst({ where: { head_office_id, is_deleted: false } }));
+
+    if (!user) throw new NotFoundError('No owner/user found for this chain');
+    if (user.email && user.email.toLowerCase() === email) {
+      throw new BadRequestError('That is already the owner’s email');
+    }
+
+    // Email is the login identifier — must be globally unique among live users.
+    const clash = await prisma.user.findFirst({
+      where: { email, is_deleted: false, NOT: { id: user.id } },
+      select: { id: true },
+    });
+    if (clash) throw new ConflictError('Another account already uses that email');
+
+    const oldEmail = user.email;
+    await prisma.user.update({ where: { id: user.id }, data: { email } });
+
+    await prisma.auditLog.create({
+      data: {
+        user_id: (adminId && adminId !== 'sa_root') ? adminId : null,
+        action: 'SUPERADMIN_CHANGE_OWNER_EMAIL',
+        entity_type: 'restaurant',
+        entity_id: head_office_id,
+        old_values: { email: oldEmail },
+        new_values: { email, by: adminEmail || 'super_admin' },
+      },
+    }).catch(() => null);
+
+    logger.info('SuperAdmin changed owner email', { head_office_id, from: oldEmail, to: email, by: adminEmail });
+    return { old_email: oldEmail, new_email: email };
+  },
+
+  /**
    * Platform-owner audit trail: recent SuperAdmin / chain-level actions (suspend,
    * activate, plan change, region switch, impersonation, owner-password reset),
    * newest first, with the acting user's email and the affected chain name.

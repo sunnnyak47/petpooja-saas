@@ -91,6 +91,14 @@ const superadminController = {
     } catch (err) { next(err); }
   },
 
+  /** PATCH /api/superadmin/chains/:id/owner-email — change the owner's login email */
+  async changeOwnerEmail(req, res, next) {
+    try {
+      const result = await superadminService.changeOwnerEmail(req.params.id, req.body.email, req.user?.id, req.user?.email);
+      sendSuccess(res, result, 'Owner email updated');
+    } catch (err) { next(err); }
+  },
+
   /**
    * Platform audit trail — recent SuperAdmin/chain actions.
    */

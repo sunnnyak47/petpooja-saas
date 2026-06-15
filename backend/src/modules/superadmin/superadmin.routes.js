@@ -32,6 +32,7 @@ const {
   updateStaffSchema,
   transferOwnershipSchema,
   softDeleteChainSchema,
+  changeOwnerEmailSchema,
 } = require('./superadmin.validation');
 
 /** Short alias — gate a route to platform staff holding a given permission. */
@@ -164,6 +165,9 @@ router.post('/chains/:id/reset-wizard', P('sa.chains.manage'), superadminControl
 
 /** POST /api/superadmin/chains/:id/reset-owner-password — reset + unlock the chain owner's login */
 router.post('/chains/:id/reset-owner-password', P('sa.chains.manage'), superadminController.resetOwnerPassword);
+
+/** PATCH /api/superadmin/chains/:id/owner-email — change the chain owner's login email */
+router.patch('/chains/:id/owner-email', P('sa.chains.manage'), validate(changeOwnerEmailSchema), superadminController.changeOwnerEmail);
 
 /** GET /api/superadmin/audit-log — platform-owner audit trail */
 router.get('/audit-log', P('sa.audit.view'), superadminController.getPlatformAuditLog);

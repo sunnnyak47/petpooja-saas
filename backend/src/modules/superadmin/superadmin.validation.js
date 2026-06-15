@@ -286,6 +286,11 @@ const softDeleteChainSchema = Joi.object({
   reason: Joi.string().max(500).allow(''),
 });
 
+/** Change a chain owner's login email. */
+const changeOwnerEmailSchema = Joi.object({
+  email: Joi.string().email().lowercase().trim().required(),
+});
+
 /** Create a platform staff member. */
 const createStaffSchema = Joi.object({
   full_name: Joi.string().trim().min(2).max(150).required(),
@@ -306,6 +311,7 @@ module.exports = {
   updateStaffSchema,
   transferOwnershipSchema,
   softDeleteChainSchema,
+  changeOwnerEmailSchema,
   onboardSchema,
   impersonateSchema,
   updateSubscriptionSchema,

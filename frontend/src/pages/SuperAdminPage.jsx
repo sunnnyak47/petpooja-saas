@@ -10,7 +10,7 @@ import {
   CheckCircle, X, RefreshCw, ArrowLeftRight, MapPin,
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
-  TrendingUp, BarChart3, Loader2, Rocket, Check, KeyRound, Copy,
+  TrendingUp, BarChart3, Loader2, Rocket, Check, KeyRound, Copy, AtSign,
   Trash2, RotateCcw,
 } from 'lucide-react';
 
@@ -67,6 +67,7 @@ export default function SuperAdminPage() {
   const [planDropdown, setPlanDropdown] = useState(null); // chain.id
   const [resetResult, setResetResult] = useState(null); // { owner_email, temp_password, chainName }
   const [resetConfirm, setResetConfirm] = useState(null); // chain pending reset confirmation
+  const [emailModal, setEmailModal] = useState(null); // { chain, email } — change owner login email
   const [activeTab, setActiveTab]       = useState('chains');
 
   const { data: chains = [], isLoading } = useQuery({
@@ -123,6 +124,17 @@ export default function SuperAdminPage() {
       setResetResult({ ...d, chainName });
     },
     onError: (e) => toast.error(e?.message || e?.response?.data?.message || 'Reset failed'),
+  });
+
+  const changeEmailMutation = useMutation({
+    mutationFn: ({ chainId, email }) => api.patch(`/superadmin/chains/${chainId}/owner-email`, { email }),
+    onSuccess: (res) => {
+      const d = res?.data || res || {};
+      toast.success(`Owner email changed to ${d.new_email || 'the new address'}`);
+      setEmailModal(null);
+      queryClient.invalidateQueries({ queryKey: ['admin-chains'] });
+    },
+    onError: (e) => toast.error(e?.message || e?.response?.data?.message || 'Could not change email'),
   });
 
   const impersonateMutation = useMutation({
@@ -596,6 +608,16 @@ export default function SuperAdminPage() {
                       Reset Login
                     </button>
 
+                    {/* Change owner login email */}
+                    <button
+                      onClick={() => setEmailModal({ chain, email: '' })}
+                      title="Change the chain owner's login email"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                      style={{ borderColor: '#0ea5e94d', background: '#0ea5e914', color: '#0ea5e9' }}>
+                      <AtSign className="w-3 h-3" />
+                      Change Email
+                    </button>
+
                     {/* Transfer ownership */}
                     <button
                       onClick={() => setTransferModal({ chain, mode: 'existing', user_id: '', full_name: '', email: '', phone: '' })}
@@ -854,6 +876,42 @@ export default function SuperAdminPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Change Owner Email ── */}
+      {emailModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <form
+            onSubmit={(e) => { e.preventDefault(); changeEmailMutation.mutate({ chainId: emailModal.chain.id, email: emailModal.email.trim() }); }}
+            className="rounded-xl w-full max-w-sm p-5 border" style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <AtSign className="w-5 h-5" style={{ color: '#0ea5e9' }} />
+              <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Change owner email</h3>
+            </div>
+            <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+              New login email for <b>{emailModal.chain.name}</b>'s owner. They'll sign in with this address from now on.
+            </p>
+            <input
+              type="email"
+              autoFocus
+              required
+              placeholder="new.owner@example.com"
+              value={emailModal.email}
+              onChange={(e) => setEmailModal((m) => ({ ...m, email: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg text-sm mb-4 outline-none"
+              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+            />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setEmailModal(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>Cancel</button>
+              <button type="submit"
+                disabled={changeEmailMutation.isPending || !emailModal.email.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#0ea5e9' }}>
+                {changeEmailMutation.isPending ? 'Saving…' : 'Change email'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
