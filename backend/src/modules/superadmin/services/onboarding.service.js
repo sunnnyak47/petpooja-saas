@@ -23,7 +23,8 @@ Object.assign(superadminService, {
     try {
       user = await prisma.user.findFirst({
         where: {
-          email: email.toLowerCase().trim(),
+          // Case-insensitive so login works regardless of stored email casing.
+          email: { equals: email.toLowerCase().trim(), mode: 'insensitive' },
           is_deleted: false,
           is_active: true,
         }

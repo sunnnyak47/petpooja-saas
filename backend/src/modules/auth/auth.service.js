@@ -162,7 +162,9 @@ async function login(login, password, auditInfo = {}) {
     const startDb = Date.now();
     const user = await prisma.user.findFirst({
       where: {
-        ...(isEmail ? { email: loginIdentifier } : { phone: loginIdentifier }),
+        // Email is matched case-insensitively so logins work regardless of the
+        // casing typed OR the casing stored at registration (e.g. "Owner@x.com").
+        ...(isEmail ? { email: { equals: loginIdentifier, mode: 'insensitive' } } : { phone: loginIdentifier }),
         is_deleted: false,
       },
       include: {
