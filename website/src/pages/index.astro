@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import CTA from '../components/CTA.astro';
+import Shot from '../components/Shot.astro';
 import { FEATURES, REGIONS } from '../data/site';
 const stats = [
   { v: '12+', l: 'Integrated modules' },
@@ -29,8 +30,7 @@ const stats = [
       </p>
     </div>
     <div class="card p-2 shadow-lift">
-      <img src="/screenshots/dashboard.png" alt="MSRM owner dashboard — live orders, tables, kitchen and revenue at a glance"
-        width="1440" height="900" loading="eager" class="rounded-xl border border-line w-full" />
+      <Shot name="dashboard.png" alt="MSRM owner dashboard — live orders, tables, kitchen and revenue at a glance" eager={true} />
     </div>
   </section>
 

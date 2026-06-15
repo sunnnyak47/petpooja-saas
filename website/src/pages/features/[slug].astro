@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import CTA from '../../components/CTA.astro';
+import Shot from '../../components/Shot.astro';
 import { FEATURES } from '../../data/site';
 
 export function getStaticPaths() {
@@ -67,7 +68,7 @@ const shots = SHOTS[feature.slug] || { hero: 'dashboard.png', blocks: ['dashboar
         <p class="lead mt-4 max-w-xl">{feature.blurb}</p>
         <div class="mt-6 flex gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/pricing" class="btn-outline">Pricing</a></div>
       </div>
-      <div class="card p-2"><img src={`/screenshots/${shots.hero}`} alt={`${feature.name} in MSRM`} width="1440" height="900" loading="eager" class="rounded-xl border border-line w-full" /></div>
+      <div class="card p-2"><Shot name={shots.hero} alt={`${feature.name} in MSRM`} eager={true} /></div>
     </div>
   </section>
 
@@ -81,7 +82,7 @@ const shots = SHOTS[feature.slug] || { hero: 'dashboard.png', blocks: ['dashboar
             {s.points.map((p) => <li class="flex gap-3 text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600 shrink-0" /><span>{p}</span></li>)}
           </ul>
         </div>
-        <div class="card p-2"><img src={`/screenshots/${shots.blocks[i % shots.blocks.length]}`} alt={`${feature.name} — ${s.title}`} width="1440" height="900" loading="lazy" class="rounded-xl border border-line w-full" /></div>
+        <div class="card p-2"><Shot name={shots.blocks[i % shots.blocks.length]} alt={`${feature.name} — ${s.title}`} /></div>
       </div>
     </section>
   ))}

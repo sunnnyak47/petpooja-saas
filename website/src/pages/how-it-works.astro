@@ -1,0 +1,121 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import Shot from '../components/Shot.astro';
+
+// Onboarding (mirrors the real in-app wizard) — get live fast.
+const onboarding = [
+  { t: 'Create your account', d: 'Tell us your restaurant + region (India or Australia).' },
+  { t: 'Add your menu', d: 'Paste it and let AI build it, or import — prices in ₹ or A$.' },
+  { t: 'Tables & team', d: 'Add tables and staff with PIN logins in minutes.' },
+  { t: 'Connect channels', d: 'Link aggregators, payments and your own QR ordering.' },
+  { t: 'Go live', d: 'Start taking orders on the POS — that same day.' },
+];
+
+// Day-in-the-life workflows — each runs end-to-end across modules automatically.
+const flows = [
+  { name: 'Dine-in order → close', tone: 'brand',
+    steps: ['Take order on POS', 'Fires to Kitchen (KDS)', 'Mark ready & serve', 'Split / multi-tender pay', 'Stock + books update'] },
+  { name: 'Online & aggregator order', tone: 'amber',
+    steps: ['Order from Swiggy / Uber Eats', 'Auto-accepted', 'Hits the kitchen screen', 'Status pushed back', 'Lands in channel analytics'] },
+  { name: 'Stock that runs itself', tone: 'green',
+    steps: ['Item sold on POS', 'Recipe auto-deducts stock', 'Low-stock alert', 'Raise purchase order', 'Auto-86 when out'] },
+];
+
+const why = [
+  ['One screen, no juggling', 'POS, kitchen, stock, delivery and books in a single login.'],
+  ['No training needed', 'If your team can use a phone, they can run the POS. Touch-first and obvious.'],
+  ['Works offline', 'Keep selling when the internet drops — it syncs the moment it’s back.'],
+  ['Built for your market', 'Right currency, taxes (GST/BAS) and aggregators for India and Australia.'],
+];
+---
+<Layout title="How it works" description="MSRM is up and running in a day. See the simple onboarding and the everyday workflows that run your whole restaurant automatically.">
+  <!-- Hero -->
+  <section class="container-x pt-16 pb-8 text-center max-w-3xl mx-auto">
+    <span class="eyebrow">How it works</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">Up and running in a day.<br/>Easy enough for any restaurant.</h1>
+    <p class="lead mt-4">No consultants, no week-long setup. Here’s how you go live — and how MSRM runs your restaurant once you do.</p>
+    <div class="mt-6 flex justify-center gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/features" class="btn-outline">Explore Features</a></div>
+  </section>
+
+  <!-- Onboarding steps -->
+  <section class="container-x py-12">
+    <h2 class="h2 text-2xl text-center">Go live in 5 simple steps</h2>
+    <ol class="mt-8 grid gap-4 md:grid-cols-5 relative">
+      {onboarding.map((s, i) => (
+        <li class="card relative">
+          <div class="grid h-9 w-9 place-items-center rounded-full bg-brand-600 text-white font-bold">{i + 1}</div>
+          <h3 class="mt-3 font-semibold">{s.t}</h3>
+          <p class="mt-1 text-sm text-ink-soft">{s.d}</p>
+        </li>
+      ))}
+    </ol>
+    <p class="text-center text-sm text-ink-mute mt-4">Most owners are taking orders the same afternoon. Switching from Petpooja/Square? <a href="/demo" class="text-brand-700 underline">We migrate you over.</a></p>
+  </section>
+
+  <!-- Day-in-the-life workflows -->
+  <section class="container-x py-8">
+    <div class="text-center max-w-2xl mx-auto">
+      <span class="eyebrow">Everyday workflows</span>
+      <h2 class="h2 mt-2">One action. The whole system reacts.</h2>
+      <p class="lead mt-3">A tap on the POS flows through the kitchen, stock and your books — no double entry.</p>
+    </div>
+    <div class="mt-10 space-y-6">
+      {flows.map((f) => (
+        <div class="card">
+          <h3 class="font-semibold text-lg mb-4">{f.name}</h3>
+          <div class="flex flex-col md:flex-row md:items-stretch gap-2">
+            {f.steps.map((st, i) => (
+              <>
+                <div class="flex-1 rounded-xl border border-line bg-surface-alt px-4 py-3 flex items-center gap-3">
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700 text-sm font-bold">{i + 1}</span>
+                  <span class="text-sm font-medium">{st}</span>
+                </div>
+                {i < f.steps.length - 1 && (
+                  <div class="hidden md:flex items-center text-brand-400"><Icon name="arrow" class="w-5 h-5" /></div>
+                )}
+              </>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Product showcase (region-aware) -->
+  <section class="container-x py-14 grid lg:grid-cols-2 gap-8 items-center">
+    <div>
+      <span class="eyebrow">See it live</span>
+      <h2 class="h2 mt-2">The POS your team will actually like.</h2>
+      <p class="lead mt-3">Touch-first menu, one-tap modifiers, split bills and offline mode. Switch 🇮🇳 / 🇦🇺 in the header to see your market.</p>
+      <a href="/features/pos" class="mt-4 inline-flex items-center gap-1 font-semibold text-brand-700">Explore the POS <Icon name="arrow" class="w-4 h-4" /></a>
+    </div>
+    <div class="card p-2 shadow-lift"><Shot name="pos.png" alt="MSRM POS terminal" /></div>
+  </section>
+  <section class="container-x pb-4 grid lg:grid-cols-2 gap-8 items-center">
+    <div class="card p-2 shadow-lift lg:order-1 order-2"><Shot name="channel-analytics.png" alt="Per-channel analytics" /></div>
+    <div class="order-1 lg:order-2">
+      <span class="eyebrow">Know your numbers</span>
+      <h2 class="h2 mt-2">Every channel, one clear picture.</h2>
+      <p class="lead mt-3">Dine-in, takeaway and each aggregator — orders, gross, commission and net, side by side. End-of-day in one click.</p>
+      <a href="/features/analytics" class="mt-4 inline-flex items-center gap-1 font-semibold text-brand-700">See analytics <Icon name="arrow" class="w-4 h-4" /></a>
+    </div>
+  </section>
+
+  <!-- Why it's easy -->
+  <section class="container-x py-14">
+    <h2 class="h2 text-2xl text-center">Why restaurants stick with it</h2>
+    <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {why.map(([t, d]) => (
+        <div class="card">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div>
+          <h3 class="mt-3 font-semibold">{t}</h3>
+          <p class="mt-1 text-sm text-ink-soft">{d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <CTA title="See your restaurant run on MSRM" />
+</Layout>
