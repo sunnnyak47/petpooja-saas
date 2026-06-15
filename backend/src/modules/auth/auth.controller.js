@@ -178,16 +178,30 @@ async function resetPasswordToken(req, res, next) {
   }
 }
 
-module.exports = { 
-  register, 
-  login, 
-  refreshToken, 
-  logout, 
-  forgotPassword, 
-  verifyOtp, 
-  resetPassword, 
+/**
+ * POST /api/auth/change-password — authenticated self-service password change.
+ */
+async function changePassword(req, res, next) {
+  try {
+    const { current_password, new_password } = req.body;
+    const result = await authService.changeOwnPassword(req.user.id, current_password, new_password);
+    sendSuccess(res, result, result.message);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  register,
+  login,
+  refreshToken,
+  logout,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
   getMe,
   getBranding,
   forgotPasswordEmail,
-  resetPasswordToken
+  resetPasswordToken,
+  changePassword
 };

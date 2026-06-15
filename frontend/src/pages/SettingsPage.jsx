@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import {
   Settings, Printer, Monitor, CreditCard, Palette, Bell,
   Save, RotateCcw, ChevronRight, CheckCircle2,
-  Store, Barcode, DollarSign, Mic, History, Trash2
+  Store, Barcode, DollarSign, Mic, History, Trash2, Lock
 } from 'lucide-react';
 import ThemeSelector from '../themes/ThemeSelector';
 import { useRegion } from '../hooks/useRegion';
@@ -67,6 +67,21 @@ export default function SettingsPage() {
     },
     onError: (e) => toast.error(e.message || 'Could not save branding'),
   });
+
+  // Self-service password change (owner) — verifies current password server-side.
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+  const changePasswordMutation = useMutation({
+    mutationFn: () => api.post('/auth/change-password', { current_password: pw.current, new_password: pw.next }),
+    onSuccess: () => { toast.success('Password changed successfully'); setPw({ current: '', next: '', confirm: '' }); },
+    onError: (e) => toast.error(e?.message || e?.response?.data?.message || 'Could not change password'),
+  });
+  const submitPasswordChange = (e) => {
+    e.preventDefault();
+    if (pw.next.length < 8) return toast.error('New password must be at least 8 characters');
+    if (pw.next !== pw.confirm) return toast.error('New password and confirmation do not match');
+    if (pw.next === pw.current) return toast.error('New password must be different from the current one');
+    changePasswordMutation.mutate();
+  };
   // ThemeSelector component handles theme switching via its own useTheme hook.
   // No theme state needed directly in this page.
 
@@ -564,6 +579,39 @@ export default function SettingsPage() {
             </div>
           </div>
         );
+      case 'security':
+        return (
+          <div className="space-y-5">
+            <SectionTitle title="Security" subtitle="Change the password you use to sign in" />
+            <form onSubmit={submitPasswordChange} className="space-y-4 max-w-md">
+              <Field label="Current Password">
+                <input type="password" autoComplete="current-password" className="input"
+                  value={pw.current} onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))}
+                  placeholder="Enter your current password" />
+              </Field>
+              <Field label="New Password">
+                <input type="password" autoComplete="new-password" className="input"
+                  value={pw.next} onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
+                  placeholder="At least 8 characters" />
+              </Field>
+              <Field label="Confirm New Password">
+                <input type="password" autoComplete="new-password" className="input"
+                  value={pw.confirm} onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+                  placeholder="Re-enter the new password" />
+              </Field>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Use 8–50 characters with upper &amp; lower case, a number and a special character.
+              </p>
+              <button type="submit"
+                disabled={changePasswordMutation.isPending || !pw.current || !pw.next || !pw.confirm}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: 'var(--accent)' }}>
+                <Lock className="w-4 h-4" />
+                {changePasswordMutation.isPending ? 'Changing…' : 'Change Password'}
+              </button>
+            </form>
+          </div>
+        );
       default:
         return null;
     }
@@ -580,7 +628,7 @@ export default function SettingsPage() {
         {/* Sidebar nav */}
         <div className="md:w-52 shrink-0">
           <nav className="card p-2 space-y-0.5">
-            {SECTIONS.map((s) => {
+            {[...SECTIONS, ...(user?.role === 'owner' ? [{ id: 'security', label: 'Security', icon: <Lock className="w-5 h-5" /> }] : [])].map((s) => {
               const isActive = activeSection === s.id;
               return (
                 <button

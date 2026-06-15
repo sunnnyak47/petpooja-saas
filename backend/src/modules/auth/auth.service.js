@@ -738,6 +738,39 @@ async function resetPasswordByToken(token, newPassword) {
   }
 }
 
+/**
+ * Authenticated self-service password change. Verifies the user's current
+ * password before setting a new one, then audits it.
+ * @param {string} userId
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<{message:string}>}
+ */
+async function changeOwnPassword(userId, currentPassword, newPassword) {
+  const prisma = getDbClient();
+  const user = await prisma.user.findFirst({ where: { id: userId, is_deleted: false } });
+  if (!user) throw new BadRequestError('Account not found');
+
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) throw new UnauthorizedError('Current password is incorrect');
+
+  const sameAsOld = await bcrypt.compare(newPassword, user.password_hash);
+  if (sameAsOld) throw new BadRequestError('New password must be different from the current one');
+
+  const password_hash = await bcrypt.hash(newPassword, appConfig.bcrypt.rounds);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password_hash, failed_login_attempts: 0, locked_until: null },
+  });
+
+  await prisma.auditLog.create({
+    data: { user_id: user.id, action: 'PASSWORD_CHANGED', entity_type: 'user', entity_id: user.id },
+  }).catch(() => null);
+
+  logger.info('User changed their own password', { userId: user.id });
+  return { message: 'Password changed successfully' };
+}
+
 module.exports = {
   register,
   login,
@@ -749,4 +782,5 @@ module.exports = {
   getCurrentUser,
   initiateEmailReset,
   resetPasswordByToken,
+  changeOwnPassword,
 };

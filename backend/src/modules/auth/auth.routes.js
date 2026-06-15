@@ -18,6 +18,7 @@ const {
   resetPasswordSchema,
   forgotPasswordEmailSchema,
   resetPasswordTokenSchema,
+  changePasswordSchema,
 } = require('./auth.validation');
 
 /**
@@ -85,5 +86,10 @@ router.post('/reset-password-token', authLimiter, validate(resetPasswordTokenSch
  * Requires authentication — returns current user profile
  */
 router.get('/me', authenticate, authController.getMe);
+
+/**
+ * Change own password (authenticated). Requires the current password.
+ */
+router.post('/change-password', authenticate, authLimiter, validate(changePasswordSchema), authController.changePassword);
 
 module.exports = router;

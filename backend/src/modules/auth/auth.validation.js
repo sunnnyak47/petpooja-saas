@@ -82,6 +82,15 @@ const resetPasswordTokenSchema = Joi.object({
     .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),
 });
 
+/**
+ * Schema for an authenticated self-service password change.
+ */
+const changePasswordSchema = Joi.object({
+  current_password: Joi.string().required(),
+  new_password: Joi.string().pattern(passwordRegex).required()
+    .messages({ 'string.pattern.base': 'Password must be 8-50 chars with uppercase, lowercase, number, and special character' }),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -91,4 +100,5 @@ module.exports = {
   resetPasswordSchema,
   forgotPasswordEmailSchema,
   resetPasswordTokenSchema,
+  changePasswordSchema,
 };
