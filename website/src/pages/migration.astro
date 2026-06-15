@@ -1,0 +1,108 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+
+// What we bring across from the old system.
+const moves = [
+  ['Full menu', 'Categories, items, variants, modifiers & prices — in ₹ or A$.'],
+  ['Tables & floor', 'Your table layout and QR codes, recreated.'],
+  ['Staff & roles', 'Team members with PIN logins and permissions.'],
+  ['Customers & loyalty', 'Customer list and loyalty balances where exportable.'],
+  ['Tax & settings', 'GST/BAS details, receipt format and POS preferences.'],
+  ['Aggregator links', 'Swiggy/Zomato or Uber Eats/DoorDash/Menulog kept running through the switch.'],
+];
+
+// The migration runs in parallel so there is no gap in service.
+const steps = [
+  { t: 'Discovery call', d: 'We review your current setup and outlets.' },
+  { t: 'Import your data', d: 'We bring your menu, tables and team into MSRM.' },
+  { t: 'Run in parallel', d: 'MSRM runs alongside your old system — nothing turns off.' },
+  { t: 'Cutover', d: 'Switch the POS and aggregators over, outlet by outlet.' },
+  { t: 'Go live + support', d: 'We’re on hand for the first shifts. Old system retired.' },
+];
+
+const faqs = [
+  ['Will my Swiggy / Zomato (or Uber Eats / DoorDash) orders stop?',
+   'No. We keep your aggregator links active during the move and switch them over only at cutover, so there’s no gap in online orders.'],
+  ['How long does it take?',
+   'A single outlet is typically live within a day or two; chains roll out outlet by outlet.'],
+  ['Do I lose my data?',
+   'No — we import your menu, tables, staff and exportable customer/loyalty data before cutover.'],
+  ['Is there downtime?',
+   'No. The parallel-run approach means the old system keeps working until MSRM is confirmed ready.'],
+  ['What does migration cost?',
+   'Standard migrations are included with onboarding. Large chains get a tailored plan — confirmed on your call.'],
+];
+---
+<Layout title="Migrate from Petpooja or Square" description="Switch to MSRM with zero downtime. We move your menu, tables, staff and settings — and keep your aggregators running through the cutover.">
+  <!-- Hero -->
+  <section class="container-x pt-16 pb-8 text-center max-w-3xl mx-auto">
+    <span class="eyebrow">Migration</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">
+      Switching from <span class="r-in">Petpooja</span><span class="r-au">Square</span>?<br/>We move you over — with zero downtime.
+    </h1>
+    <p class="lead mt-4">
+      We import your menu, tables, staff and settings, run MSRM alongside your current
+      system, and switch over only when it’s ready — so you never miss an order.
+    </p>
+    <div class="mt-6 flex justify-center gap-3"><a href="/demo" class="btn-primary">Book a migration call</a><a href="/how-it-works" class="btn-outline">How it works</a></div>
+  </section>
+
+  <!-- Reassurance band -->
+  <section class="container-x">
+    <div class="rounded-xl2 bg-surface-dark text-white px-6 py-7 grid sm:grid-cols-3 gap-4 text-center">
+      <div><div class="text-2xl font-extrabold">Zero downtime</div><p class="text-white/60 text-sm mt-1">Parallel run, then cutover</p></div>
+      <div><div class="text-2xl font-extrabold">Aggregators kept live</div><p class="text-white/60 text-sm mt-1"><span class="r-in">Swiggy &amp; Zomato</span><span class="r-au">Uber Eats, DoorDash &amp; Menulog</span> stay on</p></div>
+      <div><div class="text-2xl font-extrabold">Live in ~1–2 days</div><p class="text-white/60 text-sm mt-1">Per outlet</p></div>
+    </div>
+  </section>
+
+  <!-- What we move -->
+  <section class="container-x py-16">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">What we bring across</span><h2 class="h2 mt-2">Your setup, recreated in MSRM.</h2></div>
+    <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {moves.map(([t, d]) => (
+        <div class="card">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div>
+          <h3 class="mt-3 font-semibold">{t}</h3>
+          <p class="mt-1 text-sm text-ink-soft">{d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Process flow -->
+  <section class="container-x pb-8">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">The process</span><h2 class="h2 mt-2">Five steps, no gap in service.</h2></div>
+    <div class="card mt-8">
+      <div class="flex flex-col md:flex-row md:items-stretch gap-2">
+        {steps.map((s, i) => (
+          <>
+            <div class="flex-1 rounded-xl border border-line bg-surface-alt px-4 py-4">
+              <span class="grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-white text-sm font-bold">{i + 1}</span>
+              <h3 class="mt-2 font-semibold text-sm">{s.t}</h3>
+              <p class="mt-1 text-xs text-ink-soft">{s.d}</p>
+            </div>
+            {i < steps.length - 1 && <div class="hidden md:flex items-center text-brand-400"><Icon name="arrow" class="w-5 h-5" /></div>}
+          </>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="container-x py-12 max-w-3xl mx-auto">
+    <h2 class="h2 text-2xl text-center mb-6">Migration FAQ</h2>
+    <div class="space-y-3">
+      {faqs.map(([q, a]) => (
+        <details class="card group">
+          <summary class="cursor-pointer font-semibold flex items-center justify-between gap-4">{q}<span class="text-brand-600 group-open:rotate-45 transition shrink-0">+</span></summary>
+          <p class="mt-3 text-ink-soft">{a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <CTA title="Ready to switch without the risk?" sub="Book a migration call — we'll map your move and keep your orders flowing the whole way." />
+</Layout>
