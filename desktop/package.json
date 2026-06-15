@@ -1,6 +1,6 @@
 {
   "name": "petpooja-erp-desktop",
-  "version": "2.0.136",
+  "version": "2.0.137",
   "description": "MS-RM Restaurant Management System — Desktop App (Auto-Update Enabled)",
   "main": "src/main.js",
   "homepage": "./",
