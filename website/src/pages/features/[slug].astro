@@ -43,6 +43,18 @@ const DETAILS: Record<string, { title: string; points: string[] }[]> = {
 };
 const sections = DETAILS[feature.slug] || [];
 const related = FEATURES.filter((f) => f.slug !== feature.slug).slice(0, 3);
+
+// Real product screenshots per module: hero + one per capability block.
+const SHOTS: Record<string, { hero: string; blocks: string[] }> = {
+  pos:            { hero: 'pos.png',                blocks: ['pos.png', 'tables.png', 'kds.png'] },
+  kds:            { hero: 'kds.png',                blocks: ['kds.png', '86-board.png'] },
+  inventory:      { hero: 'inventory.png',          blocks: ['inventory.png', 'reports.png'] },
+  'online-orders':{ hero: 'aggregators.png',        blocks: ['aggregators.png', 'channel-analytics.png'] },
+  accounting:     { hero: 'gst.png',                blocks: ['gst.png', 'reports.png'] },
+  analytics:      { hero: 'analytics.png',          blocks: ['analytics.png', 'channel-analytics.png'] },
+  'multi-outlet': { hero: 'dashboard.png',          blocks: ['dashboard.png', 'reports.png'] },
+};
+const shots = SHOTS[feature.slug] || { hero: 'dashboard.png', blocks: ['dashboard.png'] };
 ---
 <Layout title={feature.name} description={feature.blurb}>
   <!-- Breadcrumb + sub-hero -->
@@ -55,7 +67,7 @@ const related = FEATURES.filter((f) => f.slug !== feature.slug).slice(0, 3);
         <p class="lead mt-4 max-w-xl">{feature.blurb}</p>
         <div class="mt-6 flex gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/pricing" class="btn-outline">Pricing</a></div>
       </div>
-      <div class="card p-3"><div class="rounded-xl bg-surface-alt border border-line aspect-[4/3] grid place-items-center text-ink-mute text-sm">(product screenshot)</div></div>
+      <div class="card p-2"><img src={`/screenshots/${shots.hero}`} alt={`${feature.name} in MSRM`} width="1440" height="900" loading="eager" class="rounded-xl border border-line w-full" /></div>
     </div>
   </section>
 
@@ -69,7 +81,7 @@ const related = FEATURES.filter((f) => f.slug !== feature.slug).slice(0, 3);
             {s.points.map((p) => <li class="flex gap-3 text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600 shrink-0" /><span>{p}</span></li>)}
           </ul>
         </div>
-        <div class="card p-3"><div class="rounded-xl bg-surface-alt border border-line aspect-[16/10] grid place-items-center text-ink-mute text-sm">(screenshot)</div></div>
+        <div class="card p-2"><img src={`/screenshots/${shots.blocks[i % shots.blocks.length]}`} alt={`${feature.name} — ${s.title}`} width="1440" height="900" loading="lazy" class="rounded-xl border border-line w-full" /></div>
       </div>
     </section>
   ))}
