@@ -1,0 +1,30 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CTA from '../../components/CTA.astro';
+import { POSTS } from '../../data/site';
+
+export function getStaticPaths() {
+  return POSTS.map((p) => ({ params: { slug: p.slug }, props: { post: p } }));
+}
+const { post } = Astro.props;
+const fmt = (d) => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+---
+<Layout title={post.title} description={post.excerpt}>
+  <article class="container-x py-14 max-w-2xl mx-auto">
+    <nav class="text-sm text-ink-mute"><a href="/blog" class="hover:text-brand-700">Blog</a> <span>›</span> <span class="text-ink-soft">{post.tag}</span></nav>
+    <h1 class="h1 text-3xl sm:text-4xl mt-4">{post.title}</h1>
+    <p class="text-sm text-ink-mute mt-2">{fmt(post.date)} · {post.tag}</p>
+    <div class="post-body mt-8 text-ink-soft leading-relaxed space-y-4" set:html={post.body} />
+    <div class="mt-10 pt-6 border-t border-line">
+      <a href="/blog" class="text-brand-700 font-semibold">← All posts</a>
+    </div>
+  </article>
+  <CTA />
+</Layout>
+
+<style is:global>
+  .post-body h2 { color: var(--ink, #0f172a); font-weight: 700; font-size: 1.25rem; margin-top: 1.75rem; margin-bottom: .25rem; }
+  .post-body p { margin-top: .75rem; }
+  .post-body strong { color: #0f172a; }
+  .post-body a { color: #1d4ed8; text-decoration: underline; }
+</style>

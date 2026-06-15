@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import { POSTS } from '../data/site';
+const posts = [...POSTS].sort((a, b) => (a.date < b.date ? 1 : -1));
+const fmt = (d) => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+---
+<Layout title="Blog" description="Practical advice for running a profitable restaurant — food cost, delivery commissions, POS migration and more.">
+  <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
+    <span class="eyebrow">Blog</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">Run a smarter restaurant.</h1>
+    <p class="lead mt-4">Practical, no-fluff guides on margins, delivery, operations and switching systems.</p>
+  </section>
+
+  <section class="container-x grid gap-6 md:grid-cols-3">
+    {posts.map((p) => (
+      <a href={`/blog/${p.slug}`} class="card hover:shadow-lift hover:border-brand-400 transition flex flex-col">
+        <span class="chip self-start">{p.tag}</span>
+        <h2 class="mt-3 font-semibold text-lg leading-snug">{p.title}</h2>
+        <p class="mt-2 text-ink-soft text-[15px] flex-1">{p.excerpt}</p>
+        <div class="mt-4 flex items-center justify-between text-sm">
+          <span class="text-ink-mute">{fmt(p.date)}</span>
+          <span class="inline-flex items-center gap-1 font-semibold text-brand-700">Read <Icon name="arrow" class="w-4 h-4" /></span>
+        </div>
+      </a>
+    ))}
+  </section>
+  <CTA />
+</Layout>

@@ -1,15 +1,16 @@
 ---
-import { SITE, FEATURES } from '../data/site';
+import { SITE, FEATURES, SOLUTIONS } from '../data/site';
 const cols = [
   { title: 'Product', links: FEATURES.slice(0, 5).map((f) => ({ label: f.name, href: `/features/${f.slug}` })) },
-  { title: 'Solutions', links: [
-    { label: 'QSR', href: '/solutions' }, { label: 'Fine Dine', href: '/solutions' },
-    { label: 'Cloud Kitchen', href: '/solutions' }, { label: 'India', href: '/solutions' }, { label: 'Australia', href: '/solutions' },
+  { title: 'Solutions', links: SOLUTIONS.map((s) => ({ label: s.name, href: `/solutions/${s.slug}` })) },
+  { title: 'Resources', links: [
+    { label: 'How it works', href: '/how-it-works' }, { label: 'Blog', href: '/blog' },
+    { label: 'Case Studies', href: '/case-studies' }, { label: 'Migration', href: '/migration' }, { label: 'Integrations', href: '/integrations' },
   ]},
   { title: 'Company', links: [
-    { label: 'About', href: '/about' }, { label: 'How it works', href: '/how-it-works' }, { label: 'Migration', href: '/migration' }, { label: 'Contact', href: '/demo' }, { label: 'Pricing', href: '/pricing' },
+    { label: 'About', href: '/about' }, { label: 'Pricing', href: '/pricing' }, { label: 'Contact', href: '/demo' },
+    { label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: '/terms' },
   ]},
-  { title: 'Legal', links: [{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: '/terms' }] },
 ];
 ---
 <footer class="mt-24 border-t border-line bg-surface-alt">

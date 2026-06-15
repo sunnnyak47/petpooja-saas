@@ -1,0 +1,51 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import CTA from '../../components/CTA.astro';
+import { SOLUTIONS, FEATURES } from '../../data/site';
+
+export function getStaticPaths() {
+  return SOLUTIONS.map((s) => ({ params: { slug: s.slug }, props: { sol: s } }));
+}
+const { sol } = Astro.props;
+const feats = sol.features.map((fs) => FEATURES.find((f) => f.slug === fs)).filter(Boolean);
+---
+<Layout title={sol.name} description={sol.intro}>
+  <section class="container-x pt-10">
+    <nav class="text-sm text-ink-mute"><a href="/solutions" class="hover:text-brand-700">Solutions</a> <span>›</span> <span class="text-ink-soft">{sol.name}</span></nav>
+    <div class="mt-6 max-w-3xl">
+      <span class="eyebrow">{sol.need}</span>
+      <h1 class="h1 text-4xl sm:text-5xl mt-3">MSRM for {sol.name}</h1>
+      <p class="lead mt-4">{sol.intro}</p>
+      <div class="mt-6 flex gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/pricing" class="btn-outline">Pricing</a></div>
+    </div>
+  </section>
+
+  <!-- Challenges -->
+  <section class="container-x py-12">
+    <h2 class="h2 text-2xl">The challenges you face</h2>
+    <div class="mt-5 grid gap-4 md:grid-cols-3">
+      {sol.challenges.map((c) => (
+        <div class="card"><p class="font-medium">{c}</p></div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Features that solve them -->
+  <section class="container-x pb-8">
+    <h2 class="h2 text-2xl">How MSRM solves it</h2>
+    <div class="mt-5 grid gap-5 sm:grid-cols-3">
+      {feats.map((f) => (
+        <a href={`/features/${f.slug}`} class="card hover:border-brand-400 transition">
+          <div class="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name={f.icon} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{f.name}</h3>
+          <p class="mt-2 text-ink-soft text-[15px]">{f.blurb}</p>
+          <span class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700">Learn more <Icon name="arrow" class="w-4 h-4" /></span>
+        </a>
+      ))}
+    </div>
+    <p class="mt-5 text-sm text-ink-mute">See it run end-to-end on the <a href="/how-it-works" class="text-brand-700 underline">How it works</a> page.</p>
+  </section>
+
+  <CTA title={`See MSRM for ${sol.name}`} />
+</Layout>
