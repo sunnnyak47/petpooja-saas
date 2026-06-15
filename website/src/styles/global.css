@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+
+html { scroll-behavior: smooth; }
+body { @apply bg-surface text-ink font-sans antialiased; }
+
+/* Region toggle: show/hide region-specific spans driven by data-region on <html>. */
+html[data-region='in'] .r-au { display: none; }
+html[data-region='au'] .r-in { display: none; }
+
+@layer components {
+  .container-x { @apply max-w-container mx-auto px-5 sm:px-6 lg:px-8; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-brand-400/50; }
+  .btn-primary { @apply btn bg-brand-600 text-white px-5 py-3 hover:bg-brand-700 shadow-card; }
+  .btn-ghost { @apply btn px-4 py-2.5 text-ink-soft hover:text-ink hover:bg-surface-alt; }
+  .btn-outline { @apply btn px-5 py-3 border border-line text-ink hover:border-brand-400 hover:text-brand-700; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-widest text-brand-600; }
+  .h1 { @apply text-4xl sm:text-5xl lg:text-[3.4rem] font-extrabold leading-[1.05] tracking-tight; }
+  .h2 { @apply text-3xl sm:text-4xl font-bold tracking-tight; }
+  .lead { @apply text-lg text-ink-soft leading-relaxed; }
+  .card { @apply rounded-xl2 border border-line bg-white p-6 shadow-card; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-alt px-3 py-1 text-xs font-medium text-ink-soft; }
+}

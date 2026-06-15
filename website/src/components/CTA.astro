@@ -1,0 +1,13 @@
+---
+const { title = 'Ready to run your restaurant on one platform?', sub = 'Book a 20-minute demo or start free. We migrate you over from Petpooja or Square.' } = Astro.props;
+---
+<section class="container-x my-20">
+  <div class="rounded-xl2 bg-surface-dark text-white px-8 py-14 text-center shadow-lift">
+    <h2 class="h2">{title}</h2>
+    <p class="lead text-white/70 mt-3 max-w-2xl mx-auto">{sub}</p>
+    <div class="mt-7 flex flex-wrap justify-center gap-3">
+      <a href="/demo" class="btn-primary">Book a Demo</a>
+      <a href="/pricing" class="btn-outline border-white/25 text-white hover:border-white hover:text-white">See Pricing</a>
+    </div>
+  </div>
+</section>

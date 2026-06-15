@@ -1,0 +1,117 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import { FEATURES, REGIONS } from '../data/site';
+const stats = [
+  { v: '12+', l: 'Integrated modules' },
+  { v: '<1s', l: 'POS load time' },
+  { v: '99.9%', l: 'Uptime' },
+  { v: '🇮🇳 🇦🇺', l: 'India & Australia' },
+];
+---
+<Layout>
+  <!-- 1. Hero -->
+  <section class="container-x pt-16 pb-12 lg:pt-24 grid lg:grid-cols-[1.1fr_1fr] gap-12 items-center">
+    <div>
+      <span class="eyebrow">Restaurant management platform</span>
+      <h1 class="h1 mt-3">Run your whole restaurant<br/>on <span class="text-brand-600">one platform</span>.</h1>
+      <p class="lead mt-5 max-w-xl">
+        POS, kitchen display, inventory, online orders and accounting — unified, real-time, and
+        built for <span class="r-in">India</span><span class="r-au">Australia</span>. Stop juggling apps and spreadsheets.
+      </p>
+      <div class="mt-7 flex flex-wrap gap-3">
+        <a href="/demo" class="btn-primary">Book a Demo</a>
+        <a href="/pricing" class="btn-outline">See Pricing</a>
+      </div>
+      <p class="mt-5 text-sm text-ink-mute">
+        Switching from <strong>Petpooja</strong> or <strong>Square</strong>? <a href="/demo" class="text-brand-700 underline">We move you over →</a>
+      </p>
+    </div>
+    <div class="card p-3 shadow-lift">
+      <div class="rounded-xl bg-surface-alt border border-line aspect-[4/3] grid place-items-center text-ink-mute">
+        <div class="text-center">
+          <Icon name="pos" class="w-10 h-10 mx-auto text-brand-600" />
+          <p class="mt-2 text-sm font-medium">Live POS · KDS · Orders</p>
+          <p class="text-xs">(product screenshot)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Trust band -->
+  <section class="border-y border-line bg-surface-alt">
+    <div class="container-x py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-ink-mute">
+      <span class="font-semibold text-ink-soft">Trusted by restaurants live in India &amp; Australia</span>
+      <span class="chip">QSR</span><span class="chip">Fine Dine</span><span class="chip">Cloud Kitchen</span><span class="chip">Café</span><span class="chip">Chains</span>
+    </div>
+  </section>
+
+  <!-- 3. Problem → solution -->
+  <section class="container-x py-16">
+    <div class="text-center max-w-2xl mx-auto">
+      <span class="eyebrow">Why MSRM</span>
+      <h2 class="h2 mt-2">Everything your restaurant needs, built in.</h2>
+      <p class="lead mt-3">No patchwork of third-party apps — one system from first order to end-of-day close.</p>
+    </div>
+    <div class="mt-10 grid gap-5 md:grid-cols-3">
+      {[
+        ['Stop juggling apps', 'POS, kitchen, inventory, delivery and books in one place — no more switching tabs or re-keying.'],
+        ['Real-time, everywhere', 'A sale on the POS updates stock, the kitchen screen, reports and end-of-day instantly.'],
+        ['Built for your market', 'GST/BAS, local payments and the right aggregators for India and Australia out of the box.'],
+      ].map(([t, d]) => (
+        <div class="card"><h3 class="font-semibold text-lg">{t}</h3><p class="mt-2 text-ink-soft">{d}</p></div>
+      ))}
+    </div>
+  </section>
+
+  <!-- 4. Core feature grid -->
+  <section class="container-x py-8">
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {FEATURES.map((f) => (
+        <a href={`/features/${f.slug}`} class="card hover:shadow-lift hover:border-brand-400 transition group">
+          <div class="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name={f.icon} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg flex items-center gap-1">{f.name}<Icon name="arrow" class="w-4 h-4 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition" /></h3>
+          <p class="mt-2 text-ink-soft text-[15px]">{f.blurb}</p>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- 5. Region band -->
+  <section class="container-x py-16">
+    <div class="rounded-xl2 border border-line overflow-hidden grid md:grid-cols-2">
+      {Object.values(REGIONS).map((r, i) => (
+        <div class={`p-8 ${i === 0 ? 'r-in' : 'r-au'} `} style={`display:block`}>
+          <div class="text-3xl">{r.flag}</div>
+          <h3 class="h2 text-2xl mt-2">Made for {r.label}</h3>
+          <ul class="mt-4 space-y-2 text-ink-soft">
+            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> {r.tax}</li>
+            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> Payments: {r.pay}</li>
+            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> Aggregators: {r.aggregators.join(', ')}</li>
+          </ul>
+        </div>
+      ))}
+    </div>
+    <p class="text-center text-xs text-ink-mute mt-3">Use the 🇮🇳 / 🇦🇺 switch in the header to see your region.</p>
+  </section>
+
+  <!-- 6. Stats -->
+  <section class="container-x">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {stats.map((s) => (
+        <div class="card text-center"><div class="text-3xl font-extrabold text-brand-600">{s.v}</div><div class="text-sm text-ink-mute mt-1">{s.l}</div></div>
+      ))}
+    </div>
+  </section>
+
+  <!-- 7. Testimonial teaser -->
+  <section class="container-x py-16">
+    <figure class="card max-w-3xl mx-auto text-center">
+      <blockquote class="text-xl font-medium leading-relaxed">“We replaced four tools with MSRM. Orders, kitchen, stock and our books finally talk to each other.”</blockquote>
+      <figcaption class="mt-4 text-sm text-ink-mute">— Owner, multi-outlet restaurant</figcaption>
+    </figure>
+  </section>
+
+  <CTA />
+</Layout>

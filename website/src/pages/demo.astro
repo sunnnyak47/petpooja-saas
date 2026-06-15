@@ -1,0 +1,52 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../data/site';
+const points = ['20-minute live walkthrough', 'Migration from Petpooja / Square', 'Pricing for your outlets & region', 'Your aggregators kept running'];
+---
+<Layout title="Book a Demo" description="Book a 20-minute MSRM demo. We tailor it to your restaurant and region, and handle migration from Petpooja or Square.">
+  <section class="container-x py-16 grid lg:grid-cols-2 gap-12 items-start">
+    <div>
+      <span class="eyebrow">Book a demo</span>
+      <h1 class="h1 text-4xl sm:text-5xl mt-3">See MSRM run your restaurant.</h1>
+      <p class="lead mt-4 max-w-md">Tell us a bit about your restaurant and we'll tailor the demo — and show exactly how we migrate you over with zero downtime.</p>
+      <ul class="mt-6 space-y-3">
+        {points.map((p) => <li class="flex gap-3 text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600" />{p}</li>)}
+      </ul>
+      <p class="mt-8 text-sm text-ink-mute">Prefer email? <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a></p>
+    </div>
+
+    <form class="card" id="demo-form" onsubmit="return false">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <label class="block"><span class="text-sm font-medium">Your name *</span>
+          <input required name="name" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Full name" /></label>
+        <label class="block"><span class="text-sm font-medium">Restaurant *</span>
+          <input required name="restaurant" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Restaurant name" /></label>
+        <label class="block"><span class="text-sm font-medium">Email *</span>
+          <input required type="email" name="email" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="you@restaurant.com" /></label>
+        <label class="block"><span class="text-sm font-medium">Phone</span>
+          <input name="phone" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="+91 / +61" /></label>
+        <label class="block"><span class="text-sm font-medium">Region</span>
+          <select name="region" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none"><option>India</option><option>Australia</option></select></label>
+        <label class="block"><span class="text-sm font-medium">Outlets</span>
+          <select name="outlets" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none"><option>1</option><option>2–5</option><option>6–20</option><option>20+</option></select></label>
+      </div>
+      <label class="block mt-4"><span class="text-sm font-medium">Current system</span>
+        <input name="current" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Petpooja, Square, none…" /></label>
+      <button class="btn-primary w-full mt-5" id="demo-submit">Request my demo</button>
+      <p class="mt-3 text-xs text-ink-mute text-center">By submitting you agree to our <a href="/privacy" class="underline">Privacy Policy</a>.</p>
+      <p id="demo-done" class="hidden mt-3 text-sm text-center text-brand-700 font-medium">Thanks! We'll be in touch within one business day.</p>
+    </form>
+  </section>
+
+  <script>
+    // MVP: front-end confirmation. Wire to your backend/CRM endpoint when ready.
+    document.getElementById('demo-form')?.addEventListener('submit', (e) => {
+      const f = e.target;
+      if (!f.checkValidity()) { f.reportValidity(); return; }
+      // TODO: POST to /api/leads or a CRM (HubSpot/airtable). For now, confirm.
+      document.getElementById('demo-done')?.classList.remove('hidden');
+      f.querySelectorAll('input,select,button').forEach((el) => el.setAttribute('disabled', 'true'));
+    });
+  </script>
+</Layout>

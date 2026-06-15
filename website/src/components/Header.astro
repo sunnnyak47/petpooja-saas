@@ -1,0 +1,45 @@
+---
+import { SITE, NAV } from '../data/site';
+---
+<header class="sticky top-0 z-50 border-b border-line bg-white/85 backdrop-blur">
+  <div class="container-x flex h-16 items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-2 font-extrabold text-lg tracking-tight">
+      <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">M</span>
+      {SITE.name}
+    </a>
+
+    <nav class="hidden md:flex items-center gap-1">
+      {NAV.map((n) => (
+        <a href={n.href} class="btn-ghost text-sm">{n.label}</a>
+      ))}
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <!-- Region toggle -->
+      <div class="hidden sm:flex items-center rounded-lg border border-line p-0.5 text-sm">
+        <button data-region-btn="in" class="rounded-md px-2.5 py-1 font-semibold">🇮🇳 IN</button>
+        <button data-region-btn="au" class="rounded-md px-2.5 py-1 font-semibold">🇦🇺 AU</button>
+      </div>
+      <a href={SITE.appUrl} class="btn-ghost text-sm hidden sm:inline-flex">Login</a>
+      <a href="/demo" class="btn-primary text-sm">Book a Demo</a>
+    </div>
+  </div>
+</header>
+
+<script>
+  // Region preference drives the .r-in / .r-au spans across the site.
+  const KEY = 'msrm_region';
+  const set = (r) => {
+    document.documentElement.dataset.region = r;
+    localStorage.setItem(KEY, r);
+    document.querySelectorAll('[data-region-btn]').forEach((b) => {
+      const on = b.getAttribute('data-region-btn') === r;
+      b.classList.toggle('bg-brand-600', on);
+      b.classList.toggle('text-white', on);
+    });
+  };
+  set(localStorage.getItem(KEY) || 'in');
+  document.querySelectorAll('[data-region-btn]').forEach((b) =>
+    b.addEventListener('click', () => set(b.getAttribute('data-region-btn')))
+  );
+</script>

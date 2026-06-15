@@ -1,0 +1,92 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import CTA from '../../components/CTA.astro';
+import { FEATURES } from '../../data/site';
+
+export function getStaticPaths() {
+  return FEATURES.map((f) => ({ params: { slug: f.slug }, props: { feature: f } }));
+}
+const { feature } = Astro.props;
+
+// Per-module capability bullets (the section-by-section detail).
+const DETAILS: Record<string, { title: string; points: string[] }[]> = {
+  pos: [
+    { title: 'Bill fast, even offline', points: ['Touch-optimised order entry', 'Full offline mode — syncs when back online', 'Modifiers, combos & special instructions'] },
+    { title: 'Flexible payments', points: ['Split bill by seat or amount', 'Multi-tender (cash + card on one bill)', 'Region payments: UPI/Razorpay or EFTPOS/Square/Stripe'] },
+    { title: 'Kitchen-ready', points: ['Auto KOT routing to the right station', 'Table floor plan & order transfer', 'Tips & gratuity'] },
+  ],
+  kds: [
+    { title: 'Never miss a ticket', points: ['Station routing & priority queues', 'Bump timers and cook-time SLAs', 'Colour alerts when orders age'] },
+    { title: 'Smart availability', points: ['Auto-86 items when stock hits zero', 'Pause/resume across all channels', 'Real-time sync with POS & online'] },
+  ],
+  inventory: [
+    { title: 'Stock that tracks itself', points: ['Recipe-based auto-deduction per sale', 'Low-stock & reorder alerts', 'Wastage & variance tracking'] },
+    { title: 'Purchasing & transfers', points: ['Purchase orders to suppliers', 'Central kitchen → outlet transfers', 'Cost & margin visibility'] },
+  ],
+  'online-orders': [
+    { title: 'All your channels, one screen', points: ['Swiggy, Zomato, Uber Eats, DoorDash, Menulog', 'Per-channel pricing & markup', 'Auto-accept → KDS injection'] },
+    { title: 'Own the relationship', points: ['Branded QR & online ordering (zero commission)', 'Item 86 synced to every platform', 'Per-channel analytics & payout reconciliation'] },
+  ],
+  accounting: [
+    { title: 'Compliance, sorted', points: ['India: GST & e-invoicing', 'Australia: GST, BAS & Xero sync', 'Tax-correct invoices automatically'] },
+    { title: 'Back-office', points: ['Payroll & staff costs (AU)', 'Settlements & credit notes', 'Double-entry ledger under the hood'] },
+  ],
+  analytics: [
+    { title: 'Know your numbers', points: ['Live sales & business health', 'Menu performance & best-sellers', 'Per-channel revenue & commission'] },
+    { title: 'Close the day in one click', points: ['Automated end-of-day report', 'Cash drawer reconciliation', 'Exportable reports'] },
+  ],
+  'multi-outlet': [
+    { title: 'Built for chains', points: ['Central menu with per-outlet pricing', 'Chain-wide reporting & comparisons', 'Granular staff roles & permissions'] },
+    { title: 'Scale cleanly', points: ['Onboard new outlets in minutes', 'Transfer ownership & manage access', 'Region mix (India + Australia) in one chain'] },
+  ],
+};
+const sections = DETAILS[feature.slug] || [];
+const related = FEATURES.filter((f) => f.slug !== feature.slug).slice(0, 3);
+---
+<Layout title={feature.name} description={feature.blurb}>
+  <!-- Breadcrumb + sub-hero -->
+  <section class="container-x pt-10">
+    <nav class="text-sm text-ink-mute"><a href="/features" class="hover:text-brand-700">Features</a> <span>›</span> <span class="text-ink-soft">{feature.name}</span></nav>
+    <div class="mt-6 grid lg:grid-cols-[1.1fr_1fr] gap-10 items-center">
+      <div>
+        <div class="grid h-12 w-12 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name={feature.icon} class="w-7 h-7" /></div>
+        <h1 class="h1 text-4xl sm:text-5xl mt-4">{feature.name}</h1>
+        <p class="lead mt-4 max-w-xl">{feature.blurb}</p>
+        <div class="mt-6 flex gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/pricing" class="btn-outline">Pricing</a></div>
+      </div>
+      <div class="card p-3"><div class="rounded-xl bg-surface-alt border border-line aspect-[4/3] grid place-items-center text-ink-mute text-sm">(product screenshot)</div></div>
+    </div>
+  </section>
+
+  <!-- Capabilities -->
+  {sections.map((s, i) => (
+    <section class="container-x py-10">
+      <div class={`grid lg:grid-cols-2 gap-10 items-center ${i % 2 ? 'lg:[&>div:first-child]:order-2' : ''}`}>
+        <div>
+          <h2 class="h2 text-2xl">{s.title}</h2>
+          <ul class="mt-4 space-y-3">
+            {s.points.map((p) => <li class="flex gap-3 text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600 shrink-0" /><span>{p}</span></li>)}
+          </ul>
+        </div>
+        <div class="card p-3"><div class="rounded-xl bg-surface-alt border border-line aspect-[16/10] grid place-items-center text-ink-mute text-sm">(screenshot)</div></div>
+      </div>
+    </section>
+  ))}
+
+  <!-- Works with (interlinks) -->
+  <section class="container-x py-8">
+    <h2 class="text-sm font-bold uppercase tracking-widest text-ink-mute mb-4">Works with</h2>
+    <div class="grid gap-5 sm:grid-cols-3">
+      {related.map((r) => (
+        <a href={`/features/${r.slug}`} class="card hover:border-brand-400 transition flex items-center gap-3">
+          <div class="grid h-10 w-10 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon name={r.icon} class="w-5 h-5" /></div>
+          <span class="font-semibold">{r.name}</span>
+        </a>
+      ))}
+    </div>
+    <p class="mt-4 text-sm text-ink-mute">Also see <a href="/integrations" class="text-brand-700 underline">Integrations</a> · included in all <a href="/pricing" class="text-brand-700 underline">plans</a>.</p>
+  </section>
+
+  <CTA title={`See ${feature.name} in action`} />
+</Layout>

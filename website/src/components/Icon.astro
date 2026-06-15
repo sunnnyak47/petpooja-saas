@@ -1,0 +1,19 @@
+---
+// Minimal inline SVG icon set (stroke style). Usage: <Icon name="pos" class="w-6 h-6" />
+const { name, class: cls = 'w-6 h-6' } = Astro.props;
+const paths: Record<string, string> = {
+  pos: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 9h18M8 21h8M12 17v4"/>',
+  kds: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M17 8.5l1.5 1.5L21 7"/>',
+  box: '<path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/>',
+  bag: '<path d="M6 7h12l1 13H5L6 7zM9 7a3 3 0 0 1 6 0"/>',
+  ledger: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  spark: '<path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/>',
+};
+const d = paths[name] || paths.spark;
+---
+<svg class={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" set:html={d} />

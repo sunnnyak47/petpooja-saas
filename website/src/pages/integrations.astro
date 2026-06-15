@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CTA from '../components/CTA.astro';
+const cats = [
+  { title: 'Aggregators', to: '/features/online-orders', items: ['Swiggy', 'Zomato', 'ONDC', 'Uber Eats', 'DoorDash', 'Menulog'] },
+  { title: 'Payments', to: '/features/pos', items: ['UPI', 'Razorpay', 'Square', 'Stripe', 'EFTPOS / Tyro', 'Cards'] },
+  { title: 'Accounting', to: '/features/accounting', items: ['Xero', 'Tally', 'GST / BAS'] },
+  { title: 'Own delivery', to: '/features/online-orders', items: ['Uber Direct', 'DoorDash Drive'] },
+  { title: 'Messaging', to: '/features/online-orders', items: ['WhatsApp Business'] },
+];
+---
+<Layout title="Integrations" description="MSRM connects to the aggregators, payment gateways, accounting tools and delivery networks your restaurant already uses.">
+  <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
+    <span class="eyebrow">Integrations</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">Plays well with your stack.</h1>
+    <p class="lead mt-4">Connect the platforms you already run on — orders, payments and books flow into MSRM automatically.</p>
+  </section>
+  <section class="container-x grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    {cats.map((c) => (
+      <a href={c.to} class="card hover:border-brand-400 transition">
+        <h3 class="font-semibold text-lg">{c.title}</h3>
+        <div class="mt-3 flex flex-wrap gap-2">{c.items.map((i) => <span class="chip">{i}</span>)}</div>
+      </a>
+    ))}
+  </section>
+  <p class="container-x mt-6 text-sm text-ink-mute">Note: Swiggy/Zomato &amp; some platforms connect via certified partner/middleware integrations — we set this up during onboarding.</p>
+  <CTA />
+</Layout>

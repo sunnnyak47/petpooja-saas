@@ -22,6 +22,14 @@
       "runtimeArgs": ["expo", "start", "--web", "--port", "19006"],
       "port": 19006,
       "cwd": "mobile"
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 4321,
+      "autoPort": true,
+      "cwd": "website"
     }
   ]
 }

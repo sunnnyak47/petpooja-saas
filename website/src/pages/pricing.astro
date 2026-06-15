@@ -1,0 +1,72 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import { PLANS, FEATURES } from '../data/site';
+const faqs = [
+  ['Is there a free trial?', 'Yes — start free, no card required. Book a demo and we set you up.'],
+  ['Do you charge per outlet?', 'Pricing is per outlet, per month. Add outlets anytime; chains get custom pricing.'],
+  ['Can you migrate me from Petpooja or Square?', 'Yes. We move your menu, tables and staff over and keep your aggregators running during the switch.'],
+  ['Are aggregators (Swiggy/Zomato/Uber Eats) included?', 'Online ordering & aggregator management are in the Growth plan and up.'],
+];
+---
+<Layout title="Pricing" description="Simple per-outlet pricing for MSRM. Starter, Growth and Chain plans for India and Australia.">
+  <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
+    <span class="eyebrow">Pricing</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">Simple, per-outlet pricing.</h1>
+    <p class="lead mt-4">Switch region in the header to see <span class="r-in">₹ INR</span><span class="r-au">A$ AUD</span> pricing.</p>
+  </section>
+
+  <section class="container-x">
+    <div class="grid gap-6 lg:grid-cols-3 items-start">
+      {PLANS.map((p) => (
+        <div class={`card relative ${p.popular ? 'ring-2 ring-brand-500 shadow-lift' : ''}`}>
+          {p.popular && <span class="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 text-white text-xs font-bold px-3 py-1">Most popular</span>}
+          <h3 class="text-lg font-bold">{p.name}</h3>
+          <p class="text-sm text-ink-mute">{p.tag}</p>
+          <div class="mt-4 flex items-end gap-1">
+            {p.custom ? <span class="text-3xl font-extrabold">Custom</span> : (
+              <>
+                <span class="text-4xl font-extrabold"><span class="r-in">₹{p.inr.toLocaleString('en-IN')}</span><span class="r-au">A${p.aud}</span></span>
+                <span class="text-ink-mute mb-1 text-sm">/outlet / mo</span>
+              </>
+            )}
+          </div>
+          <a href="/demo" class={`mt-5 w-full ${p.popular ? 'btn-primary' : 'btn-outline'}`}>{p.custom ? 'Talk to sales' : 'Start free'}</a>
+          <ul class="mt-6 space-y-2.5">
+            {p.features.map((f) => <li class="flex gap-2.5 text-[15px] text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600 shrink-0" />{f}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+    <p class="text-center text-xs text-ink-mute mt-4">Prices indicative — final pricing confirmed on your demo. Hardware &amp; aggregator-hub fees billed separately.</p>
+  </section>
+
+  <!-- Feature rows link to feature pages -->
+  <section class="container-x py-16">
+    <h2 class="h2 text-2xl text-center">What's included</h2>
+    <div class="mt-6 max-w-3xl mx-auto divide-y divide-line border border-line rounded-xl2 overflow-hidden bg-white">
+      {FEATURES.map((f) => (
+        <a href={`/features/${f.slug}`} class="flex items-center justify-between gap-4 px-5 py-4 hover:bg-surface-alt">
+          <span class="font-medium">{f.name}</span>
+          <Icon name="arrow" class="w-4 h-4 text-ink-mute" />
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="container-x py-8 max-w-3xl mx-auto">
+    <h2 class="h2 text-2xl text-center mb-6">Pricing FAQ</h2>
+    <div class="space-y-3">
+      {faqs.map(([q, a]) => (
+        <details class="card group">
+          <summary class="cursor-pointer font-semibold flex items-center justify-between">{q}<span class="text-brand-600 group-open:rotate-45 transition">+</span></summary>
+          <p class="mt-3 text-ink-soft">{a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <CTA title="Get your exact price" sub="Book a quick demo — we'll confirm pricing for your outlets and region." />
+</Layout>
