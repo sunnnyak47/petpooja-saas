@@ -90,7 +90,21 @@ function handleLogout() {
 api.interceptors.response.use(
   (response) => response.data,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+
+    // ── Cold-start recovery ──────────────────────────────────────────────────
+    // Free-tier Render spins the backend down after ~15 min idle; the first
+    // request then aborts (~20s timeout) while the dyno takes ~50s to wake. Wake
+    // it via /health (up to 60s) and retry the original request once with a long
+    // timeout — turning "first request errors out" into "first request is slow".
+    // Skip for the warmup ping itself to avoid recursion.
+    const reqUrl = typeof originalRequest.url === 'string' ? originalRequest.url : '';
+    if (!originalRequest._coldRetry && !reqUrl.includes('/health') && isColdStartError(error)) {
+      originalRequest._coldRetry = true;
+      await warmupBackend();
+      originalRequest.timeout = 60000;
+      return api(originalRequest);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
