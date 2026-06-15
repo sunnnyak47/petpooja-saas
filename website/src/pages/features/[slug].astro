@@ -47,15 +47,15 @@ const related = FEATURES.filter((f) => f.slug !== feature.slug).slice(0, 3);
 
 // Real product screenshots per module: hero + one per capability block.
 const SHOTS: Record<string, { hero: string; blocks: string[] }> = {
-  pos:            { hero: 'pos.png',                blocks: ['pos.png', 'tables.png', 'kds.png'] },
-  kds:            { hero: 'kds.png',                blocks: ['kds.png', '86-board.png'] },
-  inventory:      { hero: 'inventory.png',          blocks: ['inventory.png', 'reports.png'] },
-  'online-orders':{ hero: 'aggregators.png',        blocks: ['aggregators.png', 'channel-analytics.png'] },
-  accounting:     { hero: 'gst.png',                blocks: ['gst.png', 'reports.png'] },
-  analytics:      { hero: 'analytics.png',          blocks: ['analytics.png', 'channel-analytics.png'] },
-  'multi-outlet': { hero: 'dashboard.png',          blocks: ['dashboard.png', 'reports.png'] },
+  pos:            { hero: 'pos.webp',                blocks: ['pos.webp', 'tables.webp', 'kds.webp'] },
+  kds:            { hero: 'kds.webp',                blocks: ['kds.webp', '86-board.webp'] },
+  inventory:      { hero: 'inventory.webp',          blocks: ['inventory.webp', 'reports.webp'] },
+  'online-orders':{ hero: 'aggregators.webp',        blocks: ['aggregators.webp', 'channel-analytics.webp'] },
+  accounting:     { hero: 'gst.webp',                blocks: ['gst.webp', 'reports.webp'] },
+  analytics:      { hero: 'analytics.webp',          blocks: ['analytics.webp', 'channel-analytics.webp'] },
+  'multi-outlet': { hero: 'dashboard.webp',          blocks: ['dashboard.webp', 'reports.webp'] },
 };
-const shots = SHOTS[feature.slug] || { hero: 'dashboard.png', blocks: ['dashboard.png'] };
+const shots = SHOTS[feature.slug] || { hero: 'dashboard.webp', blocks: ['dashboard.webp'] };
 ---
 <Layout title={feature.name} description={feature.blurb}>
   <!-- Breadcrumb + sub-hero -->
