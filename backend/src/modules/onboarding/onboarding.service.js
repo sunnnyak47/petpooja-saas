@@ -121,6 +121,15 @@ async function saveWizardStep(headOfficeId, outletId, step, data) {
  * Use Groq (llama-3.3-70b-versatile) to parse raw menu text into structured items.
  * Falls back to sample items when the API key is missing or the call fails.
  */
+// Coerce any veg/non-veg variant (hyphen, space, casing) to the canonical
+// enum the DB + menu validation expect: 'veg' | 'non_veg' | 'egg'.
+function normalizeFoodType(v) {
+  const s = String(v || '').toLowerCase().replace(/[\s-]+/g, '_');
+  if (s === 'egg') return 'egg';
+  if (s === 'non_veg' || s === 'nonveg' || s === 'non_vegetarian') return 'non_veg';
+  return 'veg';
+}
+
 async function parseMenuWithAI(menuText, currency = 'INR') {
   const fallback = [
     {
@@ -135,7 +144,7 @@ async function parseMenuWithAI(menuText, currency = 'INR') {
       name: 'Chicken Biryani',
       price: 280,
       category: 'Rice',
-      food_type: 'non-veg',
+      food_type: 'non_veg',
       variants: [
         { name: 'Half', price: 180 },
         { name: 'Full', price: 280 },
@@ -160,7 +169,7 @@ async function parseMenuWithAI(menuText, currency = 'INR') {
     }
 
     const systemPrompt =
-      'You are a restaurant menu parser. Parse the given menu text and return a JSON object with key "items" containing an array. Each item: { "name": string, "price": number, "category": string, "food_type": "veg"|"non-veg"|"egg", "variants": [{"name":string,"price":number}], "description": string }. Extract ALL items. If price is not found use 0. Guess food_type from name.';
+      'You are a restaurant menu parser. Parse the given menu text and return a JSON object with key "items" containing an array. Each item: { "name": string, "price": number, "category": string, "food_type": "veg"|"non_veg"|"egg", "variants": [{"name":string,"price":number}], "description": string }. Extract ALL items. If price is not found use 0. Guess food_type from name.';
     const userMessage = `Parse this menu (currency: ${currency}):\n\n${menuText}`;
 
     const body = JSON.stringify({
@@ -317,7 +326,7 @@ async function provisionFromWizard(prisma, headOfficeId, outletId) {
           data: {
             outlet_id: outletId, category_id: catId, name: name.slice(0, 200),
             base_price: Number(it.price) || 0,
-            food_type: ['veg', 'non-veg', 'egg'].includes(it.food_type) ? it.food_type : 'veg',
+            food_type: normalizeFoodType(it.food_type),
             display_order: order++,
           },
         });

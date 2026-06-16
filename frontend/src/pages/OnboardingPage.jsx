@@ -449,8 +449,8 @@ function Step3({ data, onChange, country }) {
     onChange({ approved_items: items });
   };
 
-  const FOOD_TYPE_COLORS = { veg: 'text-green-600', 'non-veg': 'text-red-600', egg: 'text-yellow-600' };
-  const FOOD_TYPE_DOTS = { veg: 'bg-green-500', 'non-veg': 'bg-red-500', egg: 'bg-yellow-500' };
+  const FOOD_TYPE_COLORS = { veg: 'text-green-600', non_veg: 'text-red-600', egg: 'text-yellow-600' };
+  const FOOD_TYPE_DOTS = { veg: 'bg-green-500', non_veg: 'bg-red-500', egg: 'bg-yellow-500' };
   const MODES = [
     { id: 'ai_text',  label: 'Paste Menu Text' },
     { id: 'scratch',  label: 'Start from Scratch' },
@@ -521,7 +521,7 @@ function Step3({ data, onChange, country }) {
                             onChange={e => updateItem(idx, 'food_type', e.target.value)}
                             className={`text-xs font-semibold border-0 bg-transparent outline-none ${FOOD_TYPE_COLORS[item.food_type]}`}>
                             <option value="veg">🟢 Veg</option>
-                            <option value="non-veg">🔴 Non-Veg</option>
+                            <option value="non_veg">🔴 Non-Veg</option>
                             <option value="egg">🟡 Egg</option>
                           </select>
                         </td>

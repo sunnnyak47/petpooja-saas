@@ -18,6 +18,16 @@ import {
 import { useState, useMemo } from 'react';
 import AIMenuSyncModal from '../components/Menu/AIMenuSyncModal';
 
+// Coerce any legacy/variant value (e.g. 'non-veg', 'Non Veg') to the canonical
+// enum the backend expects: 'veg' | 'non_veg' | 'egg'. Lets old onboarding data
+// display correctly and self-heal on the next save.
+const normalizeFoodType = (v) => {
+  const s = String(v || '').toLowerCase().replace(/[\s-]+/g, '_');
+  if (s === 'egg') return 'egg';
+  if (s === 'non_veg' || s === 'nonveg' || s === 'non_vegetarian') return 'non_veg';
+  return 'veg';
+};
+
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const FOOD_COLORS = { veg: 'text-green-500', non_veg: 'text-red-500', egg: 'text-yellow-500' };
 const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
@@ -293,7 +303,7 @@ export default function MenuPage() {
     setItemForm({
       id: item.id, name: item.name || '', short_code: item.short_code || '', description: item.description || '',
       base_price: item.base_price || '', category_id: item.category_id || '',
-      food_type: item.food_type || 'veg', kitchen_station: item.kitchen_station || 'KITCHEN',
+      food_type: normalizeFoodType(item.food_type), kitchen_station: item.kitchen_station || 'KITCHEN',
       gst_rate: item.gst_rate ?? (isAU ? 10 : 5), is_available: item.is_available ?? true,
       image_url: item.image_url || '',
       tags: Array.isArray(item.tags) ? item.tags : [],
