@@ -1679,12 +1679,11 @@ async function punchKOT(data, staffId) {
   });
   if (!outlet) throw new NotFoundError('Outlet not found or inactive');
 
-  const hoCountry = outlet.head_office?.country_code;
-  const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
-  const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
-  const gstInclusive = outlet.head_office?.gst_inclusive ?? (isAU ? true : false);
-  const defaultGstRate = countryCode === 'AU' ? 10 : 5;
-  const outletTaxConfig = { country_code: countryCode, gst_inclusive: gstInclusive, state: outlet.state || '', default_gst_rate: defaultGstRate };
+  // Use the shared resolver (forces AU = GST-inclusive). punchKOT previously had its own
+  // inline copy with the gst_inclusive ?? bug, so the PUNCH KOT path billed AU orders
+  // GST-on-top even after createOrder/resolveOutletTaxConfig were fixed.
+  const outletTaxConfig = resolveOutletTaxConfig(outlet);
+  const countryCode = outletTaxConfig.country_code;
 
   // ── 2. Fetch menu items & compute pricing (parallel with table check) ────
   const [menuItems, todayOrderCount, tableRow, requireTableSetting] = await Promise.all([
