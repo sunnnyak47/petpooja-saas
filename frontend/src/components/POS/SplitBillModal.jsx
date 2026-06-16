@@ -24,7 +24,7 @@ function clampSplitCount(v) {
   return n;
 }
 
-export default function SplitBillModal({ isOpen, onClose, orderTotal, orderId }) {
+export default function SplitBillModal({ isOpen, onClose, orderTotal, orderId, ensureOrder }) {
   const userRegion = useRegion();
   const isAU = userRegion === 'AU';
   const { symbol } = useCurrency();
@@ -114,23 +114,24 @@ export default function SplitBillModal({ isOpen, onClose, orderTotal, orderId })
 
   // ── Submit ──
   const processSplitPayment = async () => {
-    if (!orderId) {
-      toast.error('No active order found');
-      return;
-    }
-    const splits = splitMode === 'equal' ? equalSplits : customSplits.map(s => ({
-      method: s.method,
-      amount: parseFloat(s.amount) || 0,
-    }));
-
     if (splitMode === 'custom' && !customValid) {
       toast.error(`Amounts don't add up — ${customRemaining > 0 ? `${symbol}${customRemaining.toFixed(2)} remaining` : `${symbol}${Math.abs(customRemaining).toFixed(2)} over`}`);
       return;
     }
 
+    const splits = splitMode === 'equal' ? equalSplits : customSplits.map(s => ({
+      method: s.method,
+      amount: parseFloat(s.amount) || 0,
+    }));
+
     setIsProcessing(true);
     try {
-      await api.post(`/orders/${orderId}/payment`, {
+      // The order is created ONLY now, when the split is confirmed — so opening and
+      // cancelling the split never leaves a stray order in Live Orders.
+      let id = orderId;
+      if (!id && ensureOrder) id = await ensureOrder();
+      if (!id) { toast.error('No active order found'); setIsProcessing(false); return; }
+      await api.post(`/orders/${id}/payment`, {
         method: 'split',
         amount: total,
         splits: splits.map(s => ({ method: s.method, amount: s.amount })),

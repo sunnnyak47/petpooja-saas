@@ -1937,16 +1937,11 @@ export default function POSPage() {
         orderNumber={billedOrder?.order_number}
         customer={selectedCustomer}
         canSplit={!isBilled && cart.length > 0}
-        onSplit={async () => {
-          // Commit the order now (only when the owner is paying) and switch to Split.
-          try {
-            if (!tempOrderId) {
-              const o = await handleCreateOrderCore('created');
-              if (o?.id) setTempOrderId(o.id);
-            }
-            setShowPayment(false);
-            setShowSplitBill(true);
-          } catch { toast.error('Could not start split'); }
+        onSplit={() => {
+          // Just open the split UI. The order is NOT created here — only when the split
+          // is actually processed (ensureOrder below). So cancelling split creates nothing.
+          setShowPayment(false);
+          setShowSplitBill(true);
         }}
         onSuccess={async (method, paidAmount, razorpayId, meta) => {
           if (cart.length === 0 && !tempOrderId) throw new Error('Cart is empty');
@@ -2009,7 +2004,14 @@ export default function POSPage() {
         }}
       />
 
-      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={payableAmount} orderId={tempOrderId} />}
+      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={payableAmount} orderId={tempOrderId}
+        ensureOrder={async () => {
+          // Create/commit the order ONLY when the split is actually processed.
+          if (tempOrderId) return tempOrderId;
+          const o = await handleCreateOrderCore('created');
+          if (o?.id) { setTempOrderId(o.id); return o.id; }
+          return null;
+        }} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
       {showCancelOrder && (
         <CancelOrderModal 
