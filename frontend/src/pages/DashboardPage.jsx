@@ -16,6 +16,7 @@ import PaymentBreakdown from '../components/Dashboard/PaymentBreakdown';
 import PeakHoursChart from '../components/Dashboard/PeakHoursChart';
 import AgingOrdersAlert from '../components/Dashboard/AgingOrdersAlert';
 import CancellationRate from '../components/Dashboard/CancellationRate';
+import OrderStateAlert from '../components/Dashboard/OrderStateAlert';
 
 /* ── Confidence badge colours ─────────────────────────────── */
 const CONFIDENCE_META = {
@@ -448,6 +449,9 @@ export default function DashboardPage() {
           <CancellationRate orders={recentOrders} outletId={outletId} />
         </div>
       </div>
+
+      {/* ── Order pipeline — Confirmed → Ready → Served → Paid with stuck alerts ── */}
+      <OrderStateAlert />
 
       {/* ── Middle row — AI Forecast (replaces Health Score) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

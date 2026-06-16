@@ -15,4 +15,7 @@ router.get('/summary', authenticate, checkLicense, enforceOutletScope, dashboard
 /** GET /api/dashboard/live — real-time stats (polled every 30s) */
 router.get('/live', authenticate, enforceOutletScope, dashboardController.getLive);
 
+/** GET /api/dashboard/order-pipeline — Confirmed→Ready→Served→Paid stages + stuck alerts */
+router.get('/order-pipeline', authenticate, enforceOutletScope, dashboardController.getOrderPipeline);
+
 module.exports = router;

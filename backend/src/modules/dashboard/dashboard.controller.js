@@ -296,4 +296,89 @@ async function getLive(req, res, next) {
   }
 }
 
-module.exports = { getSummary, getLive };
+// ── Order pipeline (Confirmed → Ready → Served → Paid) ──────────────────────
+// Minutes an order may sit in a stage before it's flagged as "stuck".
+const STAGE_THRESHOLDS = { confirmed: 20, ready: 10, served: 15 };
+
+/**
+ * Derive which pipeline stage an order is in. "Served" is not an order status —
+ * it's derived from the order's KOTs (kitchen marks each KOT served on pickup).
+ * @param {{status:string, is_paid:boolean, kots?:{status:string}[]}} order
+ * @returns {'confirmed'|'ready'|'served'|'paid'|null} null = not shown in the pipeline
+ */
+function deriveStage(order) {
+  if (order.is_paid) return 'paid';
+  if (order.status === 'cancelled' || order.status === 'voided') return null;
+  const kots = order.kots || [];
+  if (order.status === 'confirmed' || (order.status === 'created' && kots.length > 0)) return 'confirmed';
+  if (order.status === 'ready' || order.status === 'billed') {
+    if (kots.length > 0 && kots.every((k) => k.status === 'served' || k.status === 'completed')) return 'served';
+    return 'ready';
+  }
+  return null; // 'created' with no KOT, 'held' → not part of the 4-stage view
+}
+
+/** GET /api/dashboard/order-pipeline — today's open orders bucketed by stage + stuck alerts */
+async function getOrderPipeline(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const prisma = getDbClient();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        outlet_id: outletId, is_deleted: false,
+        created_at: { gte: todayStart, lte: todayEnd },
+        status: { notIn: ['cancelled', 'voided'] },
+      },
+      select: {
+        id: true, order_number: true, grand_total: true, status: true, is_paid: true, created_at: true,
+        table: { select: { table_number: true } },
+        kots: { where: { is_deleted: false }, select: { status: true, completed_at: true } },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+
+    const now = Date.now();
+    const stages = {
+      confirmed: { count: 0, orders: [] },
+      ready: { count: 0, orders: [] },
+      served: { count: 0, orders: [] },
+      paid: { count: 0, orders: [] },
+    };
+
+    for (const o of orders) {
+      const stage = deriveStage(o);
+      if (!stage) continue;
+      stages[stage].count += 1;
+      if (stage === 'paid') continue; // count only — no per-order alerts for paid
+
+      // since = when the order entered this stage: latest KOT completed_at (ready/served)
+      // when available, else the order's created_at.
+      let since = new Date(o.created_at);
+      if (stage === 'ready' || stage === 'served') {
+        const times = (o.kots || []).map((k) => k.completed_at).filter(Boolean).map((t) => new Date(t).getTime());
+        if (times.length) since = new Date(Math.max(...times));
+      }
+      const stuckMins = Math.max(0, Math.round((now - since.getTime()) / 60000));
+      stages[stage].orders.push({
+        id: o.id,
+        order_number: o.order_number,
+        table_number: o.table?.table_number || null,
+        grand_total: Number(o.grand_total),
+        created_at: o.created_at,
+        stuck_mins: stuckMins,
+        alert: stuckMins > (STAGE_THRESHOLDS[stage] ?? Infinity),
+      });
+    }
+    // Most-stuck first so the UI can surface the worst order per stage.
+    for (const k of ['confirmed', 'ready', 'served']) stages[k].orders.sort((a, b) => b.stuck_mins - a.stuck_mins);
+
+    sendSuccess(res, { stages, thresholds: STAGE_THRESHOLDS, generated_at: new Date().toISOString() }, 'Order pipeline retrieved');
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { getSummary, getLive, getOrderPipeline, deriveStage };
