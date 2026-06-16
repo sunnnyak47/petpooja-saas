@@ -106,9 +106,11 @@ export function TransferTableModal({ isOpen, onClose, order, outletId, onSuccess
 
   const { data: tablesData, isLoading: tablesLoading } = useQuery({
     queryKey: ['tables-available', outletId],
-    queryFn: () => api.get(`/tables?outlet_id=${outletId}&status=available`),
+    // Correct route is /kitchen/tables (what TablesPage/POS use); bare /tables 404s -> empty
+    // list. listTables honors ?status=available, so this returns only the free tables.
+    queryFn: () => api.get(`/kitchen/tables?outlet_id=${outletId}&status=available`),
     enabled: isOpen && !!outletId,
-    select: (res) => res?.data?.tables || res?.tables || res?.data || [],
+    select: (res) => (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : (res?.data?.tables || res?.tables || []))),
   });
 
   const tables = Array.isArray(tablesData) ? tablesData : [];
@@ -141,7 +143,7 @@ export function TransferTableModal({ isOpen, onClose, order, outletId, onSuccess
       {/* Subtitle */}
       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-          Current: Table {order?.table?.table_number || '—'}
+          Current: Table {order?.table?.table_number || order?.table_number || '—'}
         </span>
         {' '}· Select a new table below
       </p>
