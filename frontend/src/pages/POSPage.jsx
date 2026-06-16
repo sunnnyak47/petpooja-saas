@@ -307,12 +307,12 @@ export default function POSPage() {
     enabled: !!outletId && isOnline,
     staleTime: 60_000,
   });
-  const requireTableForDineIn = outletSettings?.require_table_for_dine_in === true;
-
-  // Returns true if the order may proceed; otherwise shows a toast and returns false.
+  // Dine-in orders always require a table before they can be punched or billed.
+  // Returns true if the order may proceed; otherwise prompts + opens the table picker.
   const ensureTableSelected = () => {
-    if (requireTableForDineIn && orderType === 'dine_in' && !selectedTable?.id) {
-      toast.error('Please select a table before placing this dine-in order.');
+    if (orderType === 'dine_in' && !selectedTable?.id) {
+      toast.error('Select a table first for dine-in orders.');
+      setTableSelectMode('select'); // open the table picker so they can pick one now
       return false;
     }
     return true;
@@ -353,7 +353,14 @@ export default function POSPage() {
   const filteredItems = useMemo(() => {
     let filtered = items;
     if (search) filtered = filtered.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
-    if (shortCodeSearch) filtered = filtered.filter((i) => i.short_code?.toLowerCase().includes(shortCodeSearch.toLowerCase()));
+    if (shortCodeSearch) {
+      // Support a comma-separated list (e.g. "DM, KP") — preview every matching item.
+      const codes = shortCodeSearch.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
+      filtered = filtered.filter((i) => {
+        const sc = i.short_code?.toLowerCase();
+        return sc && codes.some((c) => sc === c || sc.includes(c));
+      });
+    }
     return filtered;
   }, [items, search, shortCodeSearch]);
 
@@ -513,6 +520,44 @@ export default function POSPage() {
       addons: []
     }));
     toast.success(`${item.name} added`, { duration: 1000 });
+  };
+
+  // Add an item straight to the cart (no modifier modal) using its default variant.
+  // Used by the short-code bulk-add, where we can't pop a modal per item.
+  const addItemDirect = (item) => {
+    if (item.is_available === false) return false;
+    if (!Number(item.base_price) || Number(item.base_price) <= 0) return false;
+    const variant = item.variants?.find((v) => v.is_default) || item.variants?.[0] || null;
+    dispatch(addToCart({
+      menu_item_id: item.id,
+      name: item.name,
+      base_price: Number(item.base_price),
+      gst_rate: Number.isFinite(Number(item.gst_rate)) ? Number(item.gst_rate) : (isAU ? 10 : 5),
+      food_type: item.food_type,
+      kitchen_station: item.kitchen_station,
+      variant_id: variant?.id || null,
+      variant_name: variant?.name || null,
+      variant_price: variant ? Number(variant.price_addition || 0) : 0,
+      addons: [],
+    }));
+    return true;
+  };
+
+  // Short-code box: accepts one or many comma-separated codes (e.g. "DM, KP") and adds
+  // every matching item at once. Exact short_code match (case-insensitive).
+  const handleAddByShortCodes = () => {
+    const codes = shortCodeSearch.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
+    if (!codes.length) { toast.error('Enter one or more short codes'); return; }
+    const added = [], failed = [];
+    codes.forEach((code) => {
+      const item = items.find((i) => i.short_code?.toLowerCase() === code);
+      if (!item) { failed.push(code.toUpperCase()); return; }
+      if (addItemDirect(item)) added.push(item.name);
+      else failed.push((item.short_code || code).toUpperCase());
+    });
+    if (added.length) toast.success(`Added ${added.length} item${added.length > 1 ? 's' : ''}: ${added.join(', ')}`, { duration: 1800 });
+    if (failed.length) toast.error(`Not found / unavailable: ${failed.join(', ')}`, { duration: 3000 });
+    if (added.length) setShortCodeSearch('');
   };
 
   const handleCreateOrderCore = async (status) => {
@@ -1117,12 +1162,23 @@ export default function POSPage() {
             <input
               className="w-32 px-3 py-2.5 rounded-xl text-sm border outline-none"
               style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-              placeholder="Short code…"
+              placeholder="Codes e.g. DM, KP"
+              title="Enter one or more short codes separated by commas, then Add"
               value={shortCodeSearch}
               onChange={(e) => setShortCodeSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddByShortCodes(); } }}
               autoComplete="off"
               name="pos-shortcode"
             />
+            <button
+              type="button"
+              onClick={handleAddByShortCodes}
+              disabled={!shortCodeSearch.trim()}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+              style={{ background: 'var(--accent)' }}
+              title="Add all items for the entered short codes">
+              Add
+            </button>
             <button
               onClick={() => {
                 // In Electron (desktop app) speech recognition isn't available —
@@ -1698,7 +1754,7 @@ export default function POSPage() {
                )}
             </div>
 
-            <button onClick={() => setShowPayment(true)} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
+            <button onClick={() => { if (ensureTableSelected()) setShowPayment(true); }} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
               {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? payableAmount.toFixed(2) : Math.round(payableAmount)}`}
             </button>
             {/* Refund button — visible only for paid orders */}
