@@ -19,7 +19,7 @@ import {
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
   Leaf, Drumstick, Egg, Star, X, ClipboardList, Users, Pause, UserPlus,
-  SplitSquareHorizontal, Gift, Percent, FileText, Combine,
+  Gift, Percent, FileText, Combine,
   LayoutGrid, Utensils, Mic, Printer, AlertCircle, Package, Bike, UtensilsCrossed,
   Phone, ChevronDown, Keyboard, Globe,
 } from 'lucide-react';
@@ -1568,23 +1568,8 @@ export default function POSPage() {
                    <Trash2 className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Void</span>
                  </button>
                )}
-               <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
-                 if (!tempOrderId) {
-                   const o = await handleCreateOrderCore('created');
-                   if (o?.id) setTempOrderId(o.id);
-                   // grand_total already captured inside handleCreateOrderCore
-                 } else if (serverOrderTotal == null) {
-                   // Order exists but we don't have the server total yet — fetch it
-                   try {
-                     const res = await api.get(`/orders/${tempOrderId}`);
-                     const ord = res.data?.data ?? res.data;
-                     if (ord?.grand_total != null) setServerOrderTotal(Number(ord.grand_total));
-                   } catch { /* fall back to cartTotals */ }
-                 }
-                 setShowSplitBill(true);
-               })} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-surface-600 text-surface-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  <SplitSquareHorizontal className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Split</span>
-               </button>
+               {/* Split bill moved into the Payment popup (PAY → "Split bill"), so it no
+                   longer pre-creates a running order before the owner pays. */}
                <button
                  disabled={actionBusy}
                  onClick={() => runDraftAction(async () => {
@@ -1951,6 +1936,18 @@ export default function POSPage() {
         orderId={tempOrderId}
         orderNumber={billedOrder?.order_number}
         customer={selectedCustomer}
+        canSplit={!isBilled && cart.length > 0}
+        onSplit={async () => {
+          // Commit the order now (only when the owner is paying) and switch to Split.
+          try {
+            if (!tempOrderId) {
+              const o = await handleCreateOrderCore('created');
+              if (o?.id) setTempOrderId(o.id);
+            }
+            setShowPayment(false);
+            setShowSplitBill(true);
+          } catch { toast.error('Could not start split'); }
+        }}
         onSuccess={async (method, paidAmount, razorpayId, meta) => {
           if (cart.length === 0 && !tempOrderId) throw new Error('Cart is empty');
           let orderId = tempOrderId;

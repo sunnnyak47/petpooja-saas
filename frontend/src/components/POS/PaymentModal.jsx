@@ -72,6 +72,8 @@ export default function PaymentModal({
   orderNumber,
   customer,
   onSuccess,         // (method, paidAmount) => void
+  canSplit,          // bool — show the "Split bill" entry
+  onSplit,           // () => void — hand off to the split flow
 }) {
   const { format, symbol, locale } = useCurrency();
   const userRegion = useRegion();
@@ -322,6 +324,15 @@ export default function PaymentModal({
           </p>
           {orderNumber && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Order #{orderNumber}</p>}
         </div>
+
+        {/* Split bill — only before the bill is settled. Hands off to the split flow. */}
+        {canSplit && onSplit && (
+          <button type="button" onClick={onSplit}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold border flex items-center justify-center gap-2 transition-colors"
+            style={{ borderColor: 'var(--border)', color: 'var(--accent)', background: 'var(--bg-card)' }}>
+            <SplitSquareHorizontal className="w-4 h-4" /> Split this bill between guests
+          </button>
+        )}
 
         {/* Method selector */}
         <div className="grid grid-cols-5 gap-2">
