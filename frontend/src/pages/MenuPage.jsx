@@ -52,7 +52,50 @@ const EMPTY_ITEM_BASE = {
   food_type: 'veg', kitchen_station: 'KITCHEN',
   is_available: true, image_url: '',
   tags: [], allergen_info: '',
+  // Pricing UX: 'single' = one price (optional label); 'multiple' = named variants.
+  price_mode: 'single', single_price: '', single_name: '',
   variants: [], addons: [], menu_schedules: []
+};
+
+// The form collects ABSOLUTE prices, but the schema stores base_price + per-variant
+// price_addition (a delta). These two helpers map between them so the backend, POS and
+// pricing engine keep working unchanged (unit = base_price + price_addition).
+//   single   -> base_price = price; optional single named variant (delta 0)
+//   multiple -> base_price = first variant's price; each variant stores price - base
+const buildPricing = (form) => {
+  if (form.price_mode === 'multiple') {
+    const rows = (form.variants || []).filter(v => String(v.price ?? '') !== '' || (v.name || '').trim() !== '');
+    const base = Number(rows[0]?.price) || 0;
+    return {
+      base_price: base,
+      variants: rows.map((v, i) => ({
+        name: (v.name || '').trim() || `Option ${i + 1}`,
+        price_addition: (Number(v.price) || 0) - base,
+        is_default: i === 0,
+      })),
+    };
+  }
+  const price = Number(form.single_price) || 0;
+  const name = (form.single_name || '').trim();
+  return {
+    base_price: price,
+    variants: name ? [{ name, price_addition: 0, is_default: true }] : [],
+  };
+};
+
+const toFormPricing = (item) => {
+  const vars = (Array.isArray(item.variants) ? item.variants : []).filter(v => !v.is_deleted);
+  const abs = (v) => String(Number(item.base_price || 0) + Number(v.price_addition || 0));
+  if (vars.length >= 2) {
+    return { price_mode: 'multiple', single_price: '', single_name: '',
+      variants: vars.map(v => ({ name: v.name || '', price: abs(v) })) };
+  }
+  if (vars.length === 1) {
+    return { price_mode: 'single', single_price: abs(vars[0]), single_name: vars[0].name || '', variants: [] };
+  }
+  return { price_mode: 'single',
+    single_price: (item.base_price === '' || item.base_price == null) ? '' : String(item.base_price),
+    single_name: '', variants: [] };
 };
 
 export default function MenuPage() {
@@ -312,13 +355,14 @@ export default function MenuPage() {
   const openEdit = (item) => {
     setItemForm({
       id: item.id, name: item.name || '', short_code: item.short_code || '', description: item.description || '',
-      base_price: item.base_price || '', category_id: item.category_id || '',
+      category_id: item.category_id || '',
+      ...toFormPricing(item),
       food_type: normalizeFoodType(item.food_type), kitchen_station: item.kitchen_station || 'KITCHEN',
       gst_rate: item.gst_rate ?? (isAU ? 10 : 5), is_available: item.is_available ?? true,
       image_url: item.image_url || '',
       tags: Array.isArray(item.tags) ? item.tags : [],
       allergen_info: item.allergen_info || '',
-      variants: item.variants || [], addons: item.addons || [],
+      addons: item.addons || [],
       menu_schedules: Array.isArray(item.menu_schedules)
         ? item.menu_schedules.map(s => ({
             day_of_week: s.day_of_week ?? 1,
@@ -555,7 +599,13 @@ export default function MenuPage() {
 
       {/* ADD/EDIT ITEM MODAL */}
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={itemForm.id ? "Edit Menu Item" : "Add New Menu Item"} size="xl">
-         <form onSubmit={(e) => { e.preventDefault(); saveItemMutation.mutate({...itemForm, outlet_id: outletId, base_price: Number(itemForm.base_price), variants: itemForm.variants.map(v => ({...v, price_addition: Number(v.price_addition) || 0})), menu_schedules: (itemForm.menu_schedules || []).filter(s => s.start_time && s.end_time) }); }} className="mt-4">
+         <form onSubmit={(e) => {
+            e.preventDefault();
+            const pricing = buildPricing(itemForm);
+            if (itemForm.price_mode === 'multiple' && pricing.variants.length === 0) { toast.error('Add at least one variant with a price'); return; }
+            if (!(pricing.base_price > 0)) { toast.error('Enter a price greater than 0'); return; }
+            saveItemMutation.mutate({ ...itemForm, outlet_id: outletId, ...pricing, menu_schedules: (itemForm.menu_schedules || []).filter(s => s.start_time && s.end_time) });
+         }} className="mt-4">
             <div className="grid grid-cols-3 gap-6">
                {/* Left Col - Basics */}
                <div className="col-span-2 space-y-4">
@@ -625,9 +675,25 @@ export default function MenuPage() {
 
                {/* Right Col - Pricing & Image */}
                <div className="space-y-4">
-                  <div className="bg-surface-800 p-4 rounded-xl border border-surface-700 text-center">
-                     <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2">Base Price ({symbol}) *</label>
-                     <input required type="number" min="0" step="1" className="input w-full text-center text-3xl font-black text-brand-400 p-2" value={itemForm.base_price} onChange={e=>setItemForm({...itemForm, base_price: e.target.value})} />
+                  <div className="bg-surface-800 p-4 rounded-xl border border-surface-700">
+                     <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-2 text-center">Pricing *</label>
+                     <div className="grid grid-cols-2 gap-2 mb-3">
+                        <button type="button" onClick={() => setItemForm({ ...itemForm, price_mode: 'single' })}
+                           className={`py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-colors ${itemForm.price_mode !== 'multiple' ? 'bg-brand-500 text-white' : 'bg-surface-900 text-surface-400 hover:bg-surface-700'}`}>Single Price</button>
+                        <button type="button" onClick={() => setItemForm({ ...itemForm, price_mode: 'multiple', variants: itemForm.variants.length ? itemForm.variants : [{ name: '', price: '' }] })}
+                           className={`py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-colors ${itemForm.price_mode === 'multiple' ? 'bg-brand-500 text-white' : 'bg-surface-900 text-surface-400 hover:bg-surface-700'}`}>Multiple Variants</button>
+                     </div>
+                     {itemForm.price_mode !== 'multiple' ? (
+                        <>
+                           <div className="flex items-center justify-center gap-1">
+                              <span className="text-surface-500 text-lg font-bold">{symbol}</span>
+                              <input required type="number" min="0" step="any" placeholder="0" className="input w-full text-center text-3xl font-black text-brand-400 p-2" value={itemForm.single_price} onChange={e=>setItemForm({...itemForm, single_price: e.target.value})} />
+                           </div>
+                           <input type="text" maxLength={50} className="input w-full mt-2 text-sm text-center" placeholder="Label (optional) — e.g. Regular" value={itemForm.single_name} onChange={e=>setItemForm({...itemForm, single_name: e.target.value})} />
+                        </>
+                     ) : (
+                        <p className="text-[11px] text-surface-400 text-center py-2 leading-relaxed">Set a price for each option in the <span className="text-brand-400 font-bold">Variants</span> section below.</p>
+                     )}
                   </div>
                   <div>
                      <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">GST Category *</label>
@@ -681,34 +747,35 @@ export default function MenuPage() {
             {/* Advanced Sections (Variants / Addons / Schedules) */}
             <div className="mt-8 border-t border-surface-800 pt-6 space-y-8">
                
-               {/* VARIANTS */}
+               {/* VARIANTS — only in multiple-price mode. Each row is an ABSOLUTE price. */}
+               {itemForm.price_mode === 'multiple' && (
                <div className="bg-surface-800/30 rounded-2xl p-5 border border-surface-700/50">
                   <div className="flex justify-between items-center mb-4">
                      <div>
                         <h4 className="font-black text-sm text-white tracking-widest uppercase">Variants</h4>
-                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">E.g. S / M / L or Half / Full</p>
+                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">E.g. S / M / L or Half / Full — enter each price</p>
                      </div>
                      <button type="button" onClick={() => setItemForm({
                         ...itemForm,
-                        variants: [...itemForm.variants, { name: '', price_addition: '', is_default: false }]
+                        variants: [...itemForm.variants, { name: '', price: '' }]
                      })} className="btn-surface py-1.5 px-3 text-xs border-brand-500/20 text-brand-400">
                         <Plus className="w-3.5 h-3.5 mr-1"/> Add Variant
                      </button>
                   </div>
-                  
+
                   <div className="space-y-3">
                      {itemForm.variants.map((v, idx) => (
                         <div key={idx} className="flex gap-3 items-center bg-surface-900/50 p-2 rounded-xl border border-surface-800 animate-slide-in">
                            <input placeholder="Name (e.g. Large)" className="input flex-1 text-sm py-1.5 bg-surface-950" value={v.name} onChange={e => {
                               const next = [...itemForm.variants];
-                              next[idx].name = e.target.value;
+                              next[idx] = { ...next[idx], name: e.target.value };
                               setItemForm({ ...itemForm, variants: next });
                            }} />
-                           <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800" title="Change vs base price — use a negative value for sizes cheaper than the base">
+                           <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800" title="Full price for this variant">
                               <span className="text-surface-500 text-xs font-bold">{symbol}</span>
-                              <input type="number" step="any" placeholder="0" className="bg-transparent border-none outline-none w-20 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
+                              <input type="number" min="0" step="any" placeholder="0" className="bg-transparent border-none outline-none w-20 text-sm font-bold text-brand-400" value={v.price ?? ''} onChange={e => {
                                  const next = [...itemForm.variants];
-                                 next[idx].price_addition = e.target.value;
+                                 next[idx] = { ...next[idx], price: e.target.value };
                                  setItemForm({ ...itemForm, variants: next });
                               }} />
                            </div>
@@ -718,9 +785,10 @@ export default function MenuPage() {
                            }} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="w-4 h-4"/></button>
                         </div>
                      ))}
-                     {itemForm.variants.length === 0 && <p className="text-center py-4 text-xs text-surface-600 font-medium bg-surface-900/30 rounded-xl border border-dashed border-surface-800">No variants defined (Base price only)</p>}
+                     {itemForm.variants.length === 0 && <p className="text-center py-4 text-xs text-surface-600 font-medium bg-surface-900/30 rounded-xl border border-dashed border-surface-800">Add at least one variant with a price</p>}
                   </div>
                </div>
+               )}
 
                {/* ADDONS */}
                <div className="bg-surface-800/30 rounded-2xl p-5 border border-surface-700/50">
