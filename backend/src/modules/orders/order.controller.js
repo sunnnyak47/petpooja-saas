@@ -370,17 +370,15 @@ async function voidItem(req, res, next) {
       return sendError(res, 422, `Cannot void item on an order with status '${order.status}'`);
     }
 
-    // 2. Verify manager PIN via StaffProfile (same pattern as voidOrder service)
-    const manager = await prisma.staffProfile.findFirst({
-      where: { manager_pin, is_deleted: false },
-      include: { user: { include: { user_roles: { include: { role: true } } } } },
-    });
-    if (!manager) return sendError(res, 403, 'Invalid manager PIN');
-
-    const hasManagerRole = manager.user.user_roles.some(
-      (ur) => ['super_admin', 'owner', 'manager'].includes(ur.role.name)
-    );
-    if (!hasManagerRole) return sendError(res, 403, 'PIN does not belong to an authorized manager');
+    // 2. Verify manager PIN scoped to THIS order's outlet (shared with voidOrder/refund).
+    // PINs aren't unique across outlets, so an unscoped lookup was non-deterministic —
+    // the same PIN could pass for comp and fail for void.
+    let manager;
+    try {
+      manager = await orderService.authorizeManagerPin(prisma, manager_pin, order.outlet_id);
+    } catch (e) {
+      return sendError(res, 403, e.message || 'PIN does not belong to an authorized manager');
+    }
 
     // 3. Find the OrderItem — must belong to this order and not already deleted
     const orderItem = order.order_items.find((i) => i.id === item_id);

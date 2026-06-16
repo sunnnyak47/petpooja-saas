@@ -1278,6 +1278,34 @@ async function cancelOrder(orderId, reason, staffId) {
   }
 }
 
+const MANAGER_ROLES = ['super_admin', 'owner', 'manager'];
+
+/**
+ * Resolve a manager PIN to an authorized staff member AT a specific outlet.
+ *
+ * Scoping by outlet_id is required: manager_pin is NOT unique across outlets, so an
+ * unscoped findFirst can resolve to the wrong staff row — and its ordering is not
+ * deterministic, which made manager-PIN auth flaky (e.g. comp succeeded but void
+ * failed with the same PIN). We fetch every matching staff at the outlet and accept
+ * the PIN if any of them holds a manager role, so a duplicate non-manager row can't
+ * shadow the real manager.
+ *
+ * @returns {Promise<object>} the authorized staff profile
+ * @throws {ForbiddenError} if the PIN is unknown at the outlet or holds no manager role
+ */
+async function authorizeManagerPin(prisma, managerPin, outletId) {
+  const staff = await prisma.staffProfile.findMany({
+    where: { manager_pin: managerPin, outlet_id: outletId, is_deleted: false },
+    include: { user: { include: { user_roles: { include: { role: true } } } } },
+  });
+  if (!staff.length) throw new ForbiddenError('Invalid manager PIN');
+  const manager = staff.find((s) =>
+    s.user.user_roles.some((ur) => MANAGER_ROLES.includes(ur.role.name))
+  );
+  if (!manager) throw new ForbiddenError('PIN does not belong to an authorized manager');
+  return manager;
+}
+
 /**
  * Voids an order (requires manager PIN verification).
  * @param {string} orderId - Order UUID
@@ -1289,23 +1317,13 @@ async function cancelOrder(orderId, reason, staffId) {
 async function voidOrder(orderId, managerPin, reason, staffId) {
   const prisma = getDbClient();
   try {
-    const manager = await prisma.staffProfile.findFirst({
-      where: { manager_pin: managerPin, is_deleted: false },
-      include: { user: { include: { user_roles: { include: { role: true } } } } },
-    });
-
-    if (!manager) throw new ForbiddenError('Invalid manager PIN');
-
-    const hasManagerRole = manager.user.user_roles.some(
-      (ur) => ['super_admin', 'owner', 'manager'].includes(ur.role.name)
-    );
-    if (!hasManagerRole) throw new ForbiddenError('PIN does not belong to an authorized manager');
-
     const order = await prisma.order.findFirst({ where: { id: orderId, is_deleted: false } });
     if (!order) throw new NotFoundError('Order not found');
     if (['paid', 'cancelled', 'voided'].includes(order.status)) {
       throw new BadRequestError(`Cannot void a ${order.status} order`);
     }
+
+    const manager = await authorizeManagerPin(prisma, managerPin, order.outlet_id);
 
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -1401,21 +1419,14 @@ async function updateOrderStatus(orderId, newStatus, staffId, outletId = null) {
 async function refundOrder(orderId, data, userId) {
   const prisma = getDbClient();
 
-  // Verify the manager PIN before authorizing a refund — same gate as voidOrder.
-  // Without this, any PIN (or a forged one) could authorize a refund.
-  const manager = await prisma.staffProfile.findFirst({
-    where: { manager_pin: data.manager_pin, is_deleted: false },
-    include: { user: { include: { user_roles: { include: { role: true } } } } },
-  });
-  if (!manager) throw new ForbiddenError('Invalid manager PIN');
-  const hasManagerRole = manager.user.user_roles.some(
-    (ur) => ['super_admin', 'owner', 'manager'].includes(ur.role.name)
-  );
-  if (!hasManagerRole) throw new ForbiddenError('PIN does not belong to an authorized manager');
-
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { payments: true } });
   if (!order) throw new NotFoundError('Order not found');
   if (order.status !== 'paid') throw new BadRequestError('Can only refund paid orders');
+
+  // Verify the manager PIN before authorizing a refund — same gate as voidOrder.
+  // Without this, any PIN (or a forged one) could authorize a refund. Scoped to the
+  // order's outlet so a duplicate PIN at another outlet can't authorize here.
+  await authorizeManagerPin(prisma, data.manager_pin, order.outlet_id);
 
   // processPayment writes payments with status 'success' (not 'completed'); accept
   // both for legacy rows and require a positive amount so we don't pick a prior refund.
@@ -1940,5 +1951,5 @@ module.exports = {
   createOrder, getOrderById, listOrders, addItemsToOrder,
   generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
   generateInvoiceNumber, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
-  sendEBill, punchKOT, addTip,
+  sendEBill, punchKOT, addTip, authorizeManagerPin,
 };
