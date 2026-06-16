@@ -4,11 +4,14 @@
  */
 
 const Joi = require('joi');
-const { phoneRequired, emailRequired } = require('../../utils/validators');
+const { phoneRequired, emailRequired, emailOptional } = require('../../utils/validators');
 
 const createStaffSchema = Joi.object({
   full_name: Joi.string().max(150).required(),
-  email: emailRequired,
+  // Email is optional — most floor staff don't have one (User.email is nullable). Phone
+  // is the required unique identifier. Requiring email forced owners to invent/duplicate
+  // addresses, which hit the unique constraint and silently failed the create.
+  email: emailOptional,
   phone: phoneRequired,
   password: Joi.string().min(6).max(100),
   employee_code: Joi.string().max(20),

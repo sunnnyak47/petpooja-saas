@@ -315,7 +315,9 @@ async function createStaffWithUser(outletId, data) {
     const user = await tx.user.create({
       data: {
         full_name: data.full_name,
-        email: data.email,
+        // Blank email -> null so multiple PIN-only staff don't collide on the unique
+        // index (Postgres allows many NULLs, but not many '').
+        email: data.email ? data.email : null,
         phone: data.phone,
         password_hash: passwordHash,
       }

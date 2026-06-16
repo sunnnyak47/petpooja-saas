@@ -1875,7 +1875,7 @@ export default function POSPage() {
               <input
                 type="password"
                 value={managerPin}
-                onChange={e => setManagerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onChange={e => setManagerPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 onKeyDown={e => { if (e.key === 'Enter') processManagerAction(); }}
                 className="input w-full text-center font-mono"
                 style={{
@@ -1885,7 +1885,7 @@ export default function POSPage() {
                   height: 64,
                 }}
                 placeholder="••••"
-                maxLength={4}
+                maxLength={6}
                 autoFocus
                 inputMode="numeric"
               />
@@ -1909,7 +1909,7 @@ export default function POSPage() {
 
             <button
               onClick={processManagerAction}
-              disabled={!managerPin || managerPin.length !== 4 || (managerAction === 'complimentary' && !compReason.trim())}
+              disabled={!managerPin || managerPin.length < 4 || managerPin.length > 6 || (managerAction === 'complimentary' && !compReason.trim())}
               className="btn-primary w-full py-3 mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
               Authorize
             </button>

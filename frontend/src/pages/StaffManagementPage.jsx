@@ -707,7 +707,8 @@ export default function StaffManagementPage() {
 
   const addStaffMut = useMutation({
     mutationFn: () => {
-      const payload = { full_name: addForm.full_name.trim(), email: addForm.email.trim(), phone: addForm.phone.trim(), role: addForm.role, outlet_id: outletId };
+      const payload = { full_name: addForm.full_name.trim(), phone: addForm.phone.trim(), role: addForm.role, outlet_id: outletId };
+      if (addForm.email.trim()) payload.email = addForm.email.trim();
       if (addForm.manager_pin) payload.manager_pin = addForm.manager_pin;
       if (addForm.password) payload.password = addForm.password;
       return api.post('/staff', payload);
@@ -725,7 +726,7 @@ export default function StaffManagementPage() {
   const handleAddStaff = () => {
     if (!addForm.full_name.trim()) return toast.error('Enter the staff member’s name');
     if (!isValidPhone(addForm.phone)) return toast.error('Enter a valid phone number');
-    if (!addForm.email.trim()) return toast.error('Enter an email');
+    if (addForm.email.trim() && !isValidEmail(addForm.email)) return toast.error('Enter a valid email or leave it blank');
     if (addForm.manager_pin && !/^[0-9]{4,6}$/.test(addForm.manager_pin)) return toast.error('Manager PIN must be 4–6 digits');
     addStaffMut.mutate();
   };
@@ -879,7 +880,7 @@ export default function StaffManagementPage() {
         <div className="space-y-3 pt-1">
           <Input label="Full Name *" name="full_name" value={addForm.full_name} onChange={onAddChange} placeholder="e.g. Sunny Kumar" />
           <Input label="Phone *" name="phone" value={addForm.phone} onChange={onAddChange} placeholder="e.g. +61 4xx xxx xxx" />
-          <Input label="Email *" name="email" type="email" value={addForm.email} onChange={onAddChange} placeholder="staff@restaurant.com" />
+          <Input label="Email (optional)" name="email" type="email" value={addForm.email} onChange={onAddChange} placeholder="staff@restaurant.com" />
           <Input label="Role" name="role" value={addForm.role} onChange={onAddChange}
             options={[
               { value: 'waiter', label: 'Waiter / Server' },
