@@ -28,6 +28,16 @@ const normalizeFoodType = (v) => {
   return 'veg';
 };
 
+// Schedule times are stored as DateTime @db.Time and come back as ISO strings
+// (e.g. "1970-01-01T08:00:00.000Z"). An <input type="time"> only accepts "HH:MM",
+// so normalize on load or existing slots render blank when editing. Extract the
+// HH:MM substring (not new Date()) to avoid timezone shifting the value.
+const toHHMM = (t) => {
+  if (!t) return '';
+  const m = String(t).match(/T(\d{2}:\d{2})/) || String(t).match(/^(\d{2}:\d{2})/);
+  return m ? m[1] : '';
+};
+
 const FOOD_ICONS = { veg: Leaf, non_veg: Drumstick, egg: Egg };
 const FOOD_COLORS = { veg: 'text-green-500', non_veg: 'text-red-500', egg: 'text-yellow-500' };
 const BORDER_COLORS = { veg: 'border-l-green-500', non_veg: 'border-l-red-500', egg: 'border-l-yellow-500' };
@@ -309,7 +319,13 @@ export default function MenuPage() {
       tags: Array.isArray(item.tags) ? item.tags : [],
       allergen_info: item.allergen_info || '',
       variants: item.variants || [], addons: item.addons || [],
-      menu_schedules: item.menu_schedules || []
+      menu_schedules: Array.isArray(item.menu_schedules)
+        ? item.menu_schedules.map(s => ({
+            day_of_week: s.day_of_week ?? 1,
+            start_time: toHHMM(s.start_time),
+            end_time: toHHMM(s.end_time),
+          }))
+        : []
     });
     setIsItemModalOpen(true);
   };
@@ -539,7 +555,7 @@ export default function MenuPage() {
 
       {/* ADD/EDIT ITEM MODAL */}
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={itemForm.id ? "Edit Menu Item" : "Add New Menu Item"} size="xl">
-         <form onSubmit={(e) => { e.preventDefault(); saveItemMutation.mutate({...itemForm, outlet_id: outletId, base_price: Number(itemForm.base_price), variants: itemForm.variants.map(v => ({...v, price_addition: Number(v.price_addition) || 0})) }); }} className="mt-4">
+         <form onSubmit={(e) => { e.preventDefault(); saveItemMutation.mutate({...itemForm, outlet_id: outletId, base_price: Number(itemForm.base_price), variants: itemForm.variants.map(v => ({...v, price_addition: Number(v.price_addition) || 0})), menu_schedules: (itemForm.menu_schedules || []).filter(s => s.start_time && s.end_time) }); }} className="mt-4">
             <div className="grid grid-cols-3 gap-6">
                {/* Left Col - Basics */}
                <div className="col-span-2 space-y-4">
