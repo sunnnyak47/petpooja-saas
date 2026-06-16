@@ -351,7 +351,11 @@ async function getDashboard(outletId) {
           ? Math.round((todayRevenue / todayPaid.length) * 100) / 100
           : 0,
         paid_orders: todayPaid.length,
-        running_orders: todayOrders.filter((o) => !o.is_paid && o.status !== 'cancelled').length,
+        // Match the Live Orders page exactly (status in created/confirmed/held/billed).
+        // The old "!is_paid && status !== 'cancelled'" also counted voided orders (voided
+        // is not 'cancelled') and online 'pending' tickets, so the dashboard read one (or
+        // more) higher than the Live Orders list.
+        running_orders: todayOrders.filter((o) => ['created', 'confirmed', 'held', 'billed'].includes(o.status)).length,
         // New fields — explain the "orders > 0 but revenue = 0" case clearly:
         open_tabs_value: Math.round(todayOpenTabsValue * 100) / 100,
         gross_revenue:   Math.round(todayGrossRevenue * 100) / 100,

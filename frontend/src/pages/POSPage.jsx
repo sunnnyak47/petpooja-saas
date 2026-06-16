@@ -2012,7 +2012,7 @@ export default function POSPage() {
         }}
       />
 
-      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={serverOrderTotal ?? cartTotals.total} orderId={tempOrderId} />}
+      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={payableAmount} orderId={tempOrderId} />}
       {showEbill && <EBillModal isOpen={showEbill} onClose={() => setShowEbill(false)} orderId={tempOrderId} customer={selectedCustomer} />}
       {showCancelOrder && (
         <CancelOrderModal 
