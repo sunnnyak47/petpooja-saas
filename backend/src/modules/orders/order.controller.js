@@ -480,9 +480,11 @@ async function assignStaff(req, res, next) {
     if (!order) return sendError(res, 404, 'Order not found');
 
     if (staff_id !== null) {
-      const staff = await prisma.user.findFirst({
-        where: { id: staff_id, outlet_id: order.outlet_id, is_deleted: false },
-        select: { id: true },
+      // staff_id is a User id (order.staff_id FK -> User). Users have no outlet_id column;
+      // outlet membership lives on StaffProfile, so scope the check through that.
+      const staff = await prisma.staffProfile.findFirst({
+        where: { user_id: staff_id, outlet_id: order.outlet_id, is_deleted: false },
+        select: { user_id: true },
       });
       if (!staff) return sendError(res, 404, 'Staff member not found in this outlet');
     }

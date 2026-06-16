@@ -56,7 +56,19 @@ export default function StaffAssignSelector({ outletId, orderId, assignedStaff, 
     queryFn: async () => {
       const res = await api.get('/staff', { params: { outlet_id: outletId, limit: 50 } });
       // Backend may return { data: [...] } or a plain array
-      return Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+      const rows = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+      // listStaff returns StaffProfile rows — the name/id live under .user. Normalize to a
+      // flat shape ({ id: user id, full_name, role }) so search/display work and the
+      // assign endpoint (which expects a User id) gets the right id.
+      return rows.map((s) => {
+        const u = s.user ?? s;
+        const roleObj = u.user_roles?.[0]?.role;
+        return {
+          id: u.id ?? s.user_id ?? s.id,
+          full_name: u.full_name ?? s.full_name ?? 'Unnamed',
+          role: roleObj?.display_name || roleObj?.name || s.designation || null,
+        };
+      });
     },
     enabled: !!outletId && open,
     staleTime: 60_000,
@@ -126,7 +138,7 @@ export default function StaffAssignSelector({ outletId, orderId, assignedStaff, 
         ) : (
           <User className="w-4 h-4 text-surface-400 flex-shrink-0" />
         )}
-        <span className={assignedStaff ? 'text-white max-w-[100px] truncate' : 'text-surface-400'}>
+        <span style={assignedStaff ? { color: 'var(--text-primary)' } : undefined} className={assignedStaff ? 'max-w-[100px] truncate' : 'text-surface-400'}>
           {assignedStaff ? assignedStaff.full_name : 'Assign Staff'}
         </span>
         <ChevronDown
@@ -146,7 +158,8 @@ export default function StaffAssignSelector({ outletId, orderId, assignedStaff, 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search staff…"
-                className="flex-1 bg-transparent text-white text-xs placeholder-surface-500 outline-none"
+                style={{ color: 'var(--text-primary)' }}
+                className="flex-1 bg-transparent text-xs placeholder-surface-500 outline-none"
                 autoFocus
               />
               {search && (
@@ -185,7 +198,7 @@ export default function StaffAssignSelector({ outletId, orderId, assignedStaff, 
                       {initials}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs font-medium truncate">{staff.full_name}</p>
+                      <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{staff.full_name}</p>
                       {staff.role && (
                         <p className="text-surface-500 text-[10px] truncate capitalize">
                           {staff.role.replace(/_/g, ' ').toLowerCase()}
