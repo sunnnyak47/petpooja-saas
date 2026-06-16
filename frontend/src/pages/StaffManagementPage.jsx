@@ -602,6 +602,12 @@ export default function StaffManagementPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
 
+  // ── Create-staff form ──
+  const EMPTY_ADD = { full_name: '', phone: '', email: '', role: 'waiter', manager_pin: '', password: '' };
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD);
+  const onAddChange = (e) => setAddForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
   // Load staff list — sendPaginated wraps array in { success, data: [], meta: {} }
   const { data: staffData, isLoading: loadingList, isError: listError, refetch: refetchList } = useQuery({
     queryKey: ['staff-mgmt-list', outletId],
@@ -699,14 +705,46 @@ export default function StaffManagementPage() {
     saveMut.mutate();
   };
 
+  const addStaffMut = useMutation({
+    mutationFn: () => {
+      const payload = { full_name: addForm.full_name.trim(), email: addForm.email.trim(), phone: addForm.phone.trim(), role: addForm.role, outlet_id: outletId };
+      if (addForm.manager_pin) payload.manager_pin = addForm.manager_pin;
+      if (addForm.password) payload.password = addForm.password;
+      return api.post('/staff', payload);
+    },
+    onSuccess: () => {
+      toast.success('Staff member created');
+      setShowAdd(false);
+      setAddForm(EMPTY_ADD);
+      queryClient.invalidateQueries({ queryKey: ['staff-mgmt-list'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-list'] }); // POS assign selector
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || 'Could not create staff'),
+  });
+
+  const handleAddStaff = () => {
+    if (!addForm.full_name.trim()) return toast.error('Enter the staff member’s name');
+    if (!isValidPhone(addForm.phone)) return toast.error('Enter a valid phone number');
+    if (!addForm.email.trim()) return toast.error('Enter an email');
+    if (addForm.manager_pin && !/^[0-9]{4,6}$/.test(addForm.manager_pin)) return toast.error('Manager PIN must be 4–6 digits');
+    addStaffMut.mutate();
+  };
+
   return (
     <div className="flex h-full" style={{ minHeight: '100vh' }}>
       {/* ── Left sidebar: staff list ── */}
       <div className="w-64 flex-shrink-0 flex flex-col" style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
         <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h1 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Users size={18} style={{ color: 'var(--accent)' }} /> Staff Management
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Users size={18} style={{ color: 'var(--accent)' }} /> Staff Management
+            </h1>
+            <button onClick={() => { setAddForm(EMPTY_ADD); setShowAdd(true); }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white"
+              style={{ background: 'var(--accent)' }} title="Add a staff member">
+              <Plus size={14} /> Add
+            </button>
+          </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             {loadingList ? 'Loading…' : `${staffList.length} staff member${staffList.length !== 1 ? 's' : ''}`}
           </p>
@@ -835,6 +873,33 @@ export default function StaffManagementPage() {
           </>
         )}
       </div>
+
+      {/* ── Add Staff modal ── */}
+      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add Staff Member" size="sm">
+        <div className="space-y-3 pt-1">
+          <Input label="Full Name *" name="full_name" value={addForm.full_name} onChange={onAddChange} placeholder="e.g. Sunny Kumar" />
+          <Input label="Phone *" name="phone" value={addForm.phone} onChange={onAddChange} placeholder="e.g. +61 4xx xxx xxx" />
+          <Input label="Email *" name="email" type="email" value={addForm.email} onChange={onAddChange} placeholder="staff@restaurant.com" />
+          <Input label="Role" name="role" value={addForm.role} onChange={onAddChange}
+            options={[
+              { value: 'waiter', label: 'Waiter / Server' },
+              { value: 'cashier', label: 'Cashier' },
+              { value: 'chef', label: 'Chef / Kitchen' },
+              { value: 'manager', label: 'Manager' },
+              { value: 'delivery', label: 'Delivery' },
+            ]} />
+          <Input label="Manager PIN (optional, 4–6 digits)" name="manager_pin" value={addForm.manager_pin} onChange={onAddChange} maxLength={6} placeholder="Needed for void/comp/refund approval" />
+          <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            A temporary password (Staff@123) is set if you leave it blank — the staff member can change it on first login.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowAdd(false)} className="flex-1 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)' }}>Cancel</button>
+            <button onClick={handleAddStaff} disabled={addStaffMut.isPending} className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'var(--accent)' }}>
+              {addStaffMut.isPending ? 'Creating…' : 'Create Staff'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -19,7 +19,7 @@ import {
 import {
   Search, Minus, Plus, Trash2, ShoppingCart, Send, CreditCard,
   Leaf, Drumstick, Egg, Star, X, ClipboardList, Users, Pause, UserPlus,
-  SplitSquareHorizontal, Gift, Percent, FileText, ArrowRightLeft, Combine,
+  SplitSquareHorizontal, Gift, Percent, FileText, Combine,
   LayoutGrid, Utensils, Mic, Printer, AlertCircle, Package, Bike, UtensilsCrossed,
   Phone, ChevronDown, Keyboard, Globe,
 } from 'lucide-react';
@@ -1404,13 +1404,8 @@ export default function POSPage() {
              <div className="flex items-center gap-1">
                {selectedTable && (
                  <>
-                   <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
-                     if (!tempOrderId) {
-                       const o = await handleCreateOrderCore('created');
-                       if (o?.id) setTempOrderId(o.id);
-                     }
-                     setTableSelectMode('transfer');
-                   })} className="p-1.5 hover:text-white text-surface-400 disabled:opacity-50 disabled:cursor-not-allowed" title="Transfer"><ArrowRightLeft className="w-4 h-4"/></button>
+                   {/* Table transfer lives in Live Orders (Running Orders) now — it was
+                       error-prone here next to the table picker. Merge stays. */}
                    <button disabled={actionBusy} onClick={() => runDraftAction(async () => {
                      if (!tempOrderId) {
                        const o = await handleCreateOrderCore('created');
