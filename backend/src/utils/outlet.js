@@ -19,11 +19,18 @@
  * @returns {{ country_code: string, gst_inclusive: boolean, default_gst_rate: number, state: string }}
  */
 function resolveOutletTaxConfig(outlet) {
-  const hoCountry = outlet.head_office?.country_code;
-  const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
+  const ho = outlet.head_office;
+  // Detect AU from EVERY available signal — must match the frontend (useRegion) so the
+  // stored total equals the inclusive price shown at the POS. Self-signup set region but
+  // left country_code null, so region/currency must be considered too.
+  const hoCountry = ho?.country_code;
+  const isAU = hoCountry === 'AU' || ho?.region === 'AU'
+    || outlet.currency === 'AUD' || ho?.currency === 'AUD' || outlet.country === 'Australia';
   const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
-  // AU GST is inclusive by law — default true when head_office is missing
-  const gstInclusive = outlet.head_office?.gst_inclusive ?? (isAU ? true : false);
+  // AU GST is inclusive by law — ALWAYS true for AU, even if the DB column was left false
+  // (self-signup defaulted gst_inclusive=false). ?? would keep that false, so use an
+  // explicit ternary. Non-AU honours the stored flag (defaults false).
+  const gstInclusive = isAU ? true : (ho?.gst_inclusive ?? false);
   // Default GST rate to apply when a menu item has no gst_rate configured (0 or null)
   const defaultGstRate = countryCode === 'AU' ? 10 : 5;
 

@@ -220,7 +220,7 @@ async function createOrder(data, staffId) {
   try {
     const outlet = await prisma.outlet.findFirst({
       where: { id: data.outlet_id, is_deleted: false, is_active: true },
-      include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+      include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } },
     });
     if (!outlet) throw new NotFoundError('Outlet not found or inactive');
 
@@ -1675,7 +1675,7 @@ async function punchKOT(data, staffId) {
   // ── 1. Fetch outlet & validate ────────────────────────────────────────────
   const outlet = await prisma.outlet.findFirst({
     where: { id: data.outlet_id, is_deleted: false, is_active: true },
-    include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+    include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } },
   });
   if (!outlet) throw new NotFoundError('Outlet not found or inactive');
 
@@ -1911,7 +1911,7 @@ async function addTip(orderId, tipAmount, recomputeBase) {
       where: { id: orderId, is_deleted: false },
       include: {
         outlet: {
-          include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+          include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } },
         },
       },
     });

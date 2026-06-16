@@ -261,7 +261,7 @@ async function applyDiscount(req, res, next) {
 
     const order = await prisma.order.findFirst({
       where: { id, is_deleted: false },
-      include: { outlet: { include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } } } },
+      include: { outlet: { include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } } } },
     });
     if (!order) return sendError(res, 404, 'Order not found');
 
@@ -360,7 +360,7 @@ async function voidItem(req, res, next) {
       where: { id, is_deleted: false },
       include: {
         order_items: { where: { is_deleted: false } },
-        outlet: { include: { head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } } },
+        outlet: { include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } } },
       },
     });
     if (!order) return sendError(res, 404, 'Order not found');
