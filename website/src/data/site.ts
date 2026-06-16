@@ -12,6 +12,7 @@ export const SITE = {
 
 export const NAV = [
   { label: 'Features', href: '/features' },
+  { label: 'Why MSRM', href: '/why-msrm' },
   { label: 'How it works', href: '/how-it-works' },
   { label: 'Solutions', href: '/solutions' },
   { label: 'Pricing', href: '/pricing' },

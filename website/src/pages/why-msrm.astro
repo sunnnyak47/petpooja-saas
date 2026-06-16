@@ -1,0 +1,164 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+
+// Capability comparison — categories, not named brands (avoids misleading-conduct risk).
+const COLS = ['MSRM', 'Typical cloud POS', 'Legacy hospitality POS'];
+const ROWS = [
+  ['All-in-one — one price', 'yes', 'addon', 'module'],
+  ['Delivery apps built in (Uber Eats · DoorDash · Menulog)', 'yes', 'middleware', 'addon'],
+  ['Net margin per channel (commission reconciliation)', 'yes', 'no', 'limited'],
+  ['Auto-86 across every channel', 'yes', 'no', 'limited'],
+  ['Offline mode (keep selling without internet)', 'yes', 'limited', 'yes'],
+  ['GST, BAS & Xero', 'yes', 'addon', 'addon'],
+  ['Payroll', 'yes', 'no', 'addon'],
+  ['Split bill & multi-tender', 'yes', 'limited', 'yes'],
+  ['Own QR ordering (zero commission)', 'yes', 'addon', 'limited'],
+  ['Multi-outlet central control', 'yes', 'limited', 'yes'],
+  ['Live in a day', 'yes', 'yes', 'weeks'],
+  ['Zero-downtime migration', 'yes', 'na', 'na'],
+];
+const CELL = {
+  yes:        { t: '✓',           c: '#16a34a', w: 700 },
+  no:         { t: '—',           c: '#94a3b8', w: 400 },
+  limited:    { t: 'Limited',     c: '#f59e0b', w: 500 },
+  addon:      { t: 'Paid add-on', c: '#f59e0b', w: 500 },
+  middleware: { t: 'Via middleware', c: '#f59e0b', w: 500 },
+  module:     { t: 'Module-by-module', c: '#f59e0b', w: 500 },
+  weeks:      { t: 'Weeks',       c: '#94a3b8', w: 400 },
+  na:         { t: '—',           c: '#94a3b8', w: 400 },
+};
+
+const pains = [
+  ['Add-on creep', 'You pay for the POS — then again for delivery, accounting, loyalty and payroll. The bill balloons.'],
+  ['Aggregator tablet chaos', 'A separate tablet per delivery app, re-keyed into the till. Mistakes and missed orders.'],
+  ['No real margin view', 'You see gross delivery sales, never the net after 20–30% commission. So you can’t tell what actually pays.'],
+];
+
+const chapters = [
+  { n: 1, title: 'Go live in a day', text: 'Add your menu, tables and team — and you’re taking orders the same afternoon. No consultants.', video: 'ch1.webm', poster: 'au/dashboard.webp', audio: 'ch1-onboard.mp3' },
+  { n: 2, title: 'Take an order', text: 'Touch POS, split the bill, part cash and part card, and fire it straight to the kitchen.', video: 'ch2.webm', poster: 'au/pos.webp', audio: 'ch2-pos.mp3' },
+  { n: 3, title: 'All your delivery apps, one screen', text: 'Uber Eats, DoorDash and Menulog land beside your dine-in orders — no more juggling tablets.', video: 'ch3.webm', poster: 'au/aggregators.webp', audio: 'ch3-channels.mp3' },
+  { n: 4, title: 'Know your real margin', text: 'Every channel side by side: gross sales, commission, and the net that actually hits your account.', video: 'ch4.webm', poster: 'au/channel-analytics.webp', audio: 'ch4-margin.mp3' },
+  { n: 5, title: 'Close the day in one click', text: 'Sales, payments and GST reconciled and ready for BAS and Xero — in one click.', video: 'ch5.webm', poster: 'au/analytics.webp', audio: 'ch5-eod.mp3' },
+];
+
+const whyAU = [
+  ['Commission clarity', 'Net-after-commission per channel + payout reconciliation. Know which app actually pays.'],
+  ['BAS & Xero, sorted', 'GST, BAS and Xero sync built in — your books keep themselves.'],
+  ['Surcharge ready', 'Weekend and public-holiday surcharge, applied automatically and shown on the receipt.'],
+  ['Never stops selling', 'Offline-first POS keeps trading when the internet drops, then syncs.'],
+];
+---
+<Layout title="Why MSRM vs other POS (Australia)" description="Why Australian restaurants choose MSRM over a typical cloud POS or a legacy hospitality system — one platform, delivery apps built in, real margin clarity, BAS & Xero.">
+  <!-- Hero -->
+  <section class="container-x pt-16 pb-8 text-center max-w-3xl mx-auto">
+    <span class="eyebrow">Why MSRM · Australia 🇦🇺</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">The all-in-one POS Australian restaurants switch to.</h1>
+    <p class="lead mt-4">POS, kitchen, delivery apps, stock and your BAS — one platform, one price. Not a POS plus a stack of paid add-ons.</p>
+    <div class="mt-6 flex justify-center gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="#see-it" class="btn-outline">Watch how it works</a></div>
+  </section>
+
+  <!-- Pain -->
+  <section class="container-x py-12">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">The hidden cost of a typical POS</span><h2 class="h2 mt-2">Three things that quietly cost you.</h2></div>
+    <div class="mt-8 grid gap-5 md:grid-cols-3">
+      {pains.map(([t, d]) => (<div class="card"><h3 class="font-semibold text-lg">{t}</h3><p class="mt-2 text-ink-soft">{d}</p></div>))}
+    </div>
+  </section>
+
+  <!-- Comparison table -->
+  <section class="container-x py-8">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">Honest comparison</span><h2 class="h2 mt-2">MSRM vs the rest.</h2></div>
+    <div class="mt-8 overflow-x-auto rounded-xl2 border border-line">
+      <table class="w-full text-sm bg-white min-w-[640px]">
+        <thead>
+          <tr class="border-b border-line">
+            <th class="text-left p-4 font-semibold w-[44%]">Capability</th>
+            {COLS.map((c, i) => (
+              <th class="p-4 text-center font-bold" style={i === 0 ? 'color:#2563eb' : 'color:var(--ink-mute,#64748b)'}>{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map((r) => (
+            <tr class="border-b border-line last:border-0">
+              <td class="p-4 text-ink-soft">{r[0]}</td>
+              {r.slice(1).map((v) => { const c = CELL[v]; return (
+                <td class="p-4 text-center" style={`color:${c.c};font-weight:${c.w}`}>{c.t}</td>
+              ); })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-ink-mute mt-3">Compared by capability category, not specific brands. Some systems offer some of these as paid add-ons or third-party integrations.</p>
+  </section>
+
+  <!-- ★ Visualisation section -->
+  <section id="see-it" class="container-x py-16">
+    <div class="text-center max-w-2xl mx-auto">
+      <span class="eyebrow">See exactly how it works</span>
+      <h2 class="h2 mt-2">A 5-step look at a day on MSRM.</h2>
+      <p class="lead mt-3">Real screens. Tap <span class="font-semibold text-brand-700">🔊 Listen</span> on any step for the voiceover.</p>
+    </div>
+    <div class="mt-10 space-y-10">
+      {chapters.map((ch, i) => (
+        <div class={`grid lg:grid-cols-2 gap-8 items-center ${i % 2 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="grid h-9 w-9 place-items-center rounded-full bg-brand-600 text-white font-bold">{ch.n}</span>
+              <h3 class="font-bold text-xl">{ch.title}</h3>
+            </div>
+            <p class="lead mt-3">{ch.text}</p>
+            <button type="button" class="vo-btn mt-4 inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-brand-700 hover:border-brand-400"
+              data-audio={`/audio/${ch.audio}`}>
+              <span class="vo-ico">🔊</span> <span class="vo-label">Listen</span>
+            </button>
+          </div>
+          <div class="card p-2 shadow-lift">
+            <video class="rounded-xl w-full border border-line" autoplay muted loop playsinline preload="metadata" poster={`/screenshots/${ch.poster}`}>
+              <source src={`/video/${ch.video}`} type="video/webm" />
+            </video>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Why AU -->
+  <section class="container-x py-12">
+    <h2 class="h2 text-2xl text-center">Built for Australian restaurants</h2>
+    <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {whyAU.map(([t, d]) => (
+        <div class="card"><div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div><h3 class="mt-3 font-semibold">{t}</h3><p class="mt-1 text-sm text-ink-soft">{d}</p></div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Migration + pricing -->
+  <section class="container-x pb-8 grid md:grid-cols-2 gap-5">
+    <a href="/migration" class="card hover:border-brand-400 transition"><h3 class="font-semibold text-lg">Switch without the risk →</h3><p class="mt-2 text-ink-soft">Move from your current POS with zero downtime. Your delivery apps stay live through the cutover.</p></a>
+    <a href="/pricing" class="card hover:border-brand-400 transition"><h3 class="font-semibold text-lg">One simple price →</h3><p class="mt-2 text-ink-soft">Per-outlet pricing with everything included — no add-on surprises.</p></a>
+  </section>
+
+  <CTA title="See why AU restaurants switch to MSRM" />
+
+  <script>
+    // One audio element, reused. Tapping a Listen button plays that chapter's VO.
+    let current = null, btnEl = null;
+    const reset = (b) => { if (b) { b.querySelector('.vo-ico').textContent = '🔊'; b.querySelector('.vo-label').textContent = 'Listen'; } };
+    document.querySelectorAll('.vo-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const src = btn.getAttribute('data-audio');
+        if (current && btnEl === btn && !current.paused) { current.pause(); reset(btn); return; }
+        if (current) { current.pause(); reset(btnEl); }
+        current = new Audio(src); btnEl = btn;
+        btn.querySelector('.vo-ico').textContent = '⏸'; btn.querySelector('.vo-label').textContent = 'Pause';
+        current.play().catch(() => {});
+        current.onended = () => reset(btn);
+      });
+    });
+  </script>
+</Layout>
