@@ -94,7 +94,10 @@ function buildOrderItems(items, menuItemMap, taxConfig) {
       }
     }
 
-    const itemTotal = (unitPrice + variantPrice + addonsTotal) * item.quantity;
+    // variantPrice may be negative (smaller size below base). Floor the effective
+    // per-unit price at 0 so a variant can never produce a negative charge.
+    const effectiveUnit = Math.max(0, unitPrice + variantPrice + addonsTotal);
+    const itemTotal = effectiveUnit * item.quantity;
     subtotal += itemTotal;
 
     orderItemsData.push({

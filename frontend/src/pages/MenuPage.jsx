@@ -704,9 +704,9 @@ export default function MenuPage() {
                               next[idx].name = e.target.value;
                               setItemForm({ ...itemForm, variants: next });
                            }} />
-                           <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800">
-                              <span className="text-surface-500 text-xs font-bold">+ {symbol}</span>
-                              <input type="number" min="0" placeholder="0" className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
+                           <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800" title="Change vs base price — use a negative value for sizes cheaper than the base">
+                              <span className="text-surface-500 text-xs font-bold">{symbol}</span>
+                              <input type="number" step="any" placeholder="0" className="bg-transparent border-none outline-none w-20 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
                                  const next = [...itemForm.variants];
                                  next[idx].price_addition = e.target.value;
                                  setItemForm({ ...itemForm, variants: next });

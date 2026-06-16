@@ -39,7 +39,9 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
   const basePrice = Number(item.base_price) || 0;
   const variantAdd = Number(selectedVariant?.price_addition || 0);
   const addonsTotal = selectedAddons.reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
-  const unitPrice = basePrice + variantAdd + addonsTotal;
+  // variantAdd may be negative (a smaller size below base). Floor at 0 — mirrors the
+  // server's pricing clamp so a variant can never produce a negative charge.
+  const unitPrice = Math.max(0, basePrice + variantAdd + addonsTotal);
   const totalPrice = unitPrice * quantity;
 
   const handleAdd = () => {
@@ -141,8 +143,8 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {item.variants.map(v => {
                   const active = selectedVariant?.id === v.id;
-                  const variantTotal = basePrice + Number(v.price_addition || 0);
                   const delta = Number(v.price_addition || 0);
+                  const variantTotal = Math.max(0, basePrice + delta);
                   return (
                     <button
                       key={v.id}

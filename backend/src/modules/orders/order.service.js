@@ -585,7 +585,9 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
           }
         }
 
-        const itemTotal = (unitPrice + variantPrice + addonsTotal) * item.quantity;
+        // variantPrice may be negative (smaller size below base); floor effective unit at 0.
+        const effectiveUnit = Math.max(0, unitPrice + variantPrice + addonsTotal);
+        const itemTotal = effectiveUnit * item.quantity;
         addedSubtotal += itemTotal;
 
         const createdItem = await tx.orderItem.create({

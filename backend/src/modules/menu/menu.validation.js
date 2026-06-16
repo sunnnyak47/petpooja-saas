@@ -50,7 +50,10 @@ const createMenuItemSchema = Joi.object({
   variants: Joi.array().items(Joi.object({
     id: Joi.string().uuid().allow(null),
     name: Joi.string().required(),
-    price_addition: Joi.number().min(0).required(),
+    // May be negative: when the base price is the largest size (e.g. Full / Large),
+    // smaller variants (Half / Medium) subtract from it. The effective unit price is
+    // clamped to >= 0 at pricing time.
+    price_addition: Joi.number().required(),
     is_default: Joi.boolean().default(false),
     is_active: Joi.boolean().default(true),
   })).default([]),
@@ -92,7 +95,7 @@ const updateMenuItemSchema = Joi.object({
   variants: Joi.array().items(Joi.object({
     id: Joi.string().uuid().allow(null, ""),
     name: Joi.string(),
-    price_addition: Joi.number().min(0),
+    price_addition: Joi.number(),
     is_default: Joi.boolean(),
     is_active: Joi.boolean(),
   })),
@@ -110,7 +113,7 @@ const updateMenuItemSchema = Joi.object({
 
 const createVariantSchema = Joi.object({
   name: Joi.string().trim().min(1).max(100).required(),
-  price_addition: Joi.number().precision(2).min(0).default(0),
+  price_addition: Joi.number().precision(2).default(0),
   is_default: Joi.boolean().default(false),
   is_active: Joi.boolean().default(true),
   display_order: Joi.number().integer().min(0).default(0),
