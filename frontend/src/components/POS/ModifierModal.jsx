@@ -366,12 +366,13 @@ export default function ModifierModal({ isOpen, onClose, item, onAdd }) {
               onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 18px -6px rgba(99,102,241,0.5)'; }}>
               <span className="flex items-center gap-2 text-sm font-bold">
                 <ShoppingCart className="w-4 h-4" />
-                {itemNotes.trim() ? (
-                  <>
-                    Add with notes
-                    <span className="text-[10px] font-normal opacity-75">· note added</span>
-                  </>
-                ) : 'Add to Cart'}
+                Add to Cart
+                {itemNotes.trim() && (
+                  <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none"
+                    style={{ background: 'rgba(255,255,255,0.2)' }}>
+                    <StickyNote className="w-3 h-3" /> Note
+                  </span>
+                )}
               </span>
               <span className="text-base font-black" style={{ letterSpacing: '-0.01em', fontFeatureSettings: '"tnum"' }}>
                 {format(totalPrice)}
