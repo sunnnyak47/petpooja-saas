@@ -37,7 +37,8 @@ async function getOutletTaxConfig(prismaClient, outletId) {
   // exclusive and add GST on top, while the UI showed inclusive prices. Any AU signal wins.
   const hoCountry = outlet.head_office?.country_code;
   const isAU = hoCountry === 'AU' || outlet.head_office?.region === 'AU'
-    || outlet.currency === 'AUD' || outlet.country === 'Australia';
+    || outlet.currency === 'AUD' || outlet.head_office?.currency === 'AUD'
+    || outlet.country === 'Australia';
   const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
   // AU GST is inclusive by law — always true for AU regardless of DB default
   // (Prisma defaults gst_inclusive to false; ?? won't override false, only null/undefined)
