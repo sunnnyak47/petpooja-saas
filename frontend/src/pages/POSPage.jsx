@@ -415,15 +415,22 @@ export default function POSPage() {
     };
   }, [cart, isCompMode, isAU, discount, gratuity, appliedLoyaltyDiscount]);
 
-  // Single source of truth for the amount we DISPLAY and CHARGE.
-  // Priority: a generated bill's authoritative total > server-recorded order total > local cart total.
-  // cartTotals.grandTotal (NOT cartTotals.total) is used as the fallback so that gratuity (tip)
-  // and applied loyalty redemption — which are computed client-side and are NOT yet persisted on a
-  // fresh, not-yet-billed order — are included. The PAY button and the PaymentModal both read this
-  // exact value, guaranteeing the customer is always charged precisely what the button shows.
-  // Comp waives the whole bill — force 0 so the PAY button matches the "0 to pay" the
-  // breakdown shows (otherwise it fell through to the stale server total).
-  const payableAmount = isCompMode ? 0 : (balanceDue ?? billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal);
+  // Single source of truth for the amount we DISPLAY and CHARGE. The PAY button and the
+  // PaymentModal both read this, so it must always equal the total shown above the button.
+  // - Comp waives the whole bill -> 0.
+  // - A partial-tender balance (balanceDue) or a finalized bill (billedOrder) is
+  //   authoritative when present.
+  // - While the order is still editable (not billed) and the cart has items, the LIVE cart
+  //   total wins. Previously serverOrderTotal sat above cartTotals here, so it went stale
+  //   when you +/- items (PAY showed an old amount) and lingered after a split when you
+  //   returned to the screen.
+  // - Only when the cart is empty (e.g. items already punched) do we fall back to the
+  //   server-recorded total.
+  const payableAmount = isCompMode
+    ? 0
+    : (balanceDue
+        ?? billedOrder?.grand_total
+        ?? ((!isBilled && cart.length > 0) ? cartTotals.grandTotal : (serverOrderTotal ?? cartTotals.grandTotal)));
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
