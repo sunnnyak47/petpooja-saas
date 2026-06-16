@@ -8,6 +8,7 @@ export function useRegion() {
   const { user } = useSelector((s) => s.auth);
   const region =
     user?.head_office?.region ||
+    (user?.head_office?.country_code === 'AU' ? 'AU' : null) ||
     (user?.outlet?.currency === 'AUD' ? 'AU' : null) ||
     (user?.outlet?.country === 'Australia' ? 'AU' : null) ||
     'IN';

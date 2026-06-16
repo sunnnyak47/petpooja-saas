@@ -387,9 +387,14 @@ async function registerRestaurant(data) {
           contact_email: data.email,
           contact_phone: data.phone,
           legal_name: data.name,
-          region:   regionDefaults.region,
-          currency: regionDefaults.currency,
-          timezone: regionDefaults.timezone,
+          region:        regionDefaults.region,
+          currency:      regionDefaults.currency,
+          timezone:      regionDefaults.timezone,
+          // Persist these too — the order tax engine keys off country_code/gst_inclusive.
+          // Omitting them left AU chains with country_code=null + gst_inclusive=false, so
+          // the POS billed GST on top of already-inclusive AU prices.
+          country_code:  regionDefaults.country_code,
+          gst_inclusive: regionDefaults.region === 'AU',
           ...(data.abn ? { abn: data.abn } : {}),
           ...(data.acn ? { acn: data.acn } : {}),
         }

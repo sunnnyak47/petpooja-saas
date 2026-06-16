@@ -27,13 +27,17 @@ const autoFreeService = require('./autofree.service');
 async function getOutletTaxConfig(prismaClient, outletId) {
   const outlet = await prismaClient.outlet.findFirst({
     where: { id: outletId, is_deleted: false },
-    select: { state: true, country: true, currency: true, head_office: { select: { country_code: true, gst_inclusive: true, currency: true } } },
+    select: { state: true, country: true, currency: true, head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } },
   });
   if (!outlet) return { country_code: 'IN', gst_inclusive: false, state: '', currency: 'INR', default_gst_rate: 5 };
 
-  // Detect country code from multiple signals (head_office > outlet.currency > outlet.country)
+  // Detect country from EVERY available signal so the backend never disagrees with the
+  // frontend (which keys off head_office.region). Self-signup historically set region but
+  // left country_code null — without region here the backend would treat an AU outlet as
+  // exclusive and add GST on top, while the UI showed inclusive prices. Any AU signal wins.
   const hoCountry = outlet.head_office?.country_code;
-  const isAU = hoCountry === 'AU' || outlet.currency === 'AUD' || outlet.country === 'Australia';
+  const isAU = hoCountry === 'AU' || outlet.head_office?.region === 'AU'
+    || outlet.currency === 'AUD' || outlet.country === 'Australia';
   const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
   // AU GST is inclusive by law — always true for AU regardless of DB default
   // (Prisma defaults gst_inclusive to false; ?? won't override false, only null/undefined)

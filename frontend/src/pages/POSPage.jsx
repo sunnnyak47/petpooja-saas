@@ -421,7 +421,9 @@ export default function POSPage() {
   // and applied loyalty redemption — which are computed client-side and are NOT yet persisted on a
   // fresh, not-yet-billed order — are included. The PAY button and the PaymentModal both read this
   // exact value, guaranteeing the customer is always charged precisely what the button shows.
-  const payableAmount = balanceDue ?? billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal;
+  // Comp waives the whole bill — force 0 so the PAY button matches the "0 to pay" the
+  // breakdown shows (otherwise it fell through to the stale server total).
+  const payableAmount = isCompMode ? 0 : (balanceDue ?? billedOrder?.grand_total ?? serverOrderTotal ?? cartTotals.grandTotal);
 
   // Sync menu + tables to local SQLite when online (Electron only)
   useEffect(() => {
@@ -1547,8 +1549,8 @@ export default function POSPage() {
             style={{ background: 'var(--bg-card)' }}>
             {/* Quick Action Bar (Agent 2) */}
             <div className="grid grid-cols-4 gap-2 mb-3">
-               <button onClick={() => { setManagerAction('complimentary'); setShowManagerPin(true); }} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${isCompMode ? 'bg-success-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>
-                  <Gift className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Comp</span>
+               <button onClick={() => { if (isCompMode) { setIsCompMode(false); setCompReason(''); } else { setManagerAction('complimentary'); setShowManagerPin(true); } }} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${isCompMode ? 'bg-success-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>
+                  <Gift className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">{isCompMode ? 'Undo Comp' : 'Comp'}</span>
                </button>
                <button onClick={() => setShowDiscount(true)} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${discount?.type ? 'bg-brand-500 text-white' : 'bg-surface-700 hover:bg-surface-600 text-surface-300'}`}>
                   <Percent className="w-4 h-4"/> <span className="text-[10px] uppercase font-bold">Discount</span>
