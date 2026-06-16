@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import { SITE } from '../data/site';
 const points = ['20-minute live walkthrough', 'Migration from Petpooja / Square', 'Pricing for your outlets & region', 'Your aggregators kept running'];
+const LEADS_ENDPOINT = SITE.leadsEndpoint;
 ---
 <Layout title="Book a Demo" description="Book a 20-minute MSRM demo. We tailor it to your restaurant and region, and handle migration from Petpooja or Square.">
   <section class="container-x py-16 grid lg:grid-cols-2 gap-12 items-start">
@@ -36,17 +37,36 @@ const points = ['20-minute live walkthrough', 'Migration from Petpooja / Square'
       <button class="btn-primary w-full mt-5" id="demo-submit">Request my demo</button>
       <p class="mt-3 text-xs text-ink-mute text-center">By submitting you agree to our <a href="/privacy" class="underline">Privacy Policy</a>.</p>
       <p id="demo-done" class="hidden mt-3 text-sm text-center text-brand-700 font-medium">Thanks! We'll be in touch within one business day.</p>
+      <p id="demo-error" class="hidden mt-3 text-sm text-center font-medium" style="color:#ef4444">Something went wrong — please email us instead.</p>
     </form>
   </section>
 
-  <script>
-    // MVP: front-end confirmation. Wire to your backend/CRM endpoint when ready.
-    document.getElementById('demo-form')?.addEventListener('submit', (e) => {
+  <script define:vars={{ LEADS_ENDPOINT }}>
+    document.getElementById('demo-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
       const f = e.target;
       if (!f.checkValidity()) { f.reportValidity(); return; }
-      // TODO: POST to /api/leads or a CRM (HubSpot/airtable). For now, confirm.
-      document.getElementById('demo-done')?.classList.remove('hidden');
-      f.querySelectorAll('input,select,button').forEach((el) => el.setAttribute('disabled', 'true'));
+      const btn = document.getElementById('demo-submit');
+      const fd = new FormData(f);
+      const payload = {
+        name: fd.get('name'), restaurant: fd.get('restaurant'), email: fd.get('email'),
+        phone: fd.get('phone'), region: fd.get('region'), outlets: fd.get('outlets'),
+        current_system: fd.get('current'), source: 'website-demo',
+      };
+      btn.setAttribute('disabled', 'true'); btn.textContent = 'Sending…';
+      document.getElementById('demo-error')?.classList.add('hidden');
+      try {
+        const res = await fetch(LEADS_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('bad status ' + res.status);
+        document.getElementById('demo-done')?.classList.remove('hidden');
+        f.querySelectorAll('input,select').forEach((el) => el.setAttribute('disabled', 'true'));
+        btn.textContent = 'Requested ✓';
+      } catch (err) {
+        document.getElementById('demo-error')?.classList.remove('hidden');
+        btn.removeAttribute('disabled'); btn.textContent = 'Request my demo';
+      }
     });
   </script>
 </Layout>

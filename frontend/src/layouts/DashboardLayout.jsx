@@ -17,7 +17,7 @@ import {
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
   HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale, Truck, Wallet,
-  CircleSlash, PieChart,
+  CircleSlash, PieChart, Inbox,
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -34,6 +34,7 @@ const superAdminNav = [
   { path: '/',                    label: 'Analytics',          icon: BarChart3,      perm: 'sa.dashboard.view' },
   { path: '/super-admin',         label: 'Restaurant Chains',  icon: ShieldCheck,    perm: 'sa.chains.view' },
   { path: '/all-users',           label: 'All Users',          icon: Users,          perm: 'sa.chains.view' },
+  { path: '/leads',               label: 'Demo Leads',         icon: Inbox,          perm: 'sa.chains.view' },
   { path: '/feature-access',      label: 'Feature Access',     icon: ToggleLeft,     perm: 'sa.chains.manage' },
   { path: '/announcements',       label: 'Announcements',      icon: Megaphone,      perm: 'sa.support.manage' },
   { path: '/broadcasts',          label: 'Broadcast Center',   icon: Radio,          perm: 'sa.support.manage' },

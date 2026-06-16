@@ -5,6 +5,9 @@ export const SITE = {
   tagline: 'Run your whole restaurant on one platform',
   appUrl: 'https://petpooja-admin.vercel.app', // → app login / signup
   email: 'hello@getmsrm.com',
+  // Where the demo form POSTs leads. Override per-env with PUBLIC_LEADS_ENDPOINT
+  // (e.g. http://localhost:5001/api/leads for local dev).
+  leadsEndpoint: import.meta.env.PUBLIC_LEADS_ENDPOINT || 'https://petpooja-saas.onrender.com/api/leads',
 };
 
 export const NAV = [

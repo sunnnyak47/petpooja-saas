@@ -328,6 +328,7 @@ app.use('/api/ondc', ondcRoutes);
 app.use('/api/voice-pos', voicePosRoutes);
 const onboardingRoutes = require('./modules/onboarding/onboarding.routes');
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/leads', require('./modules/leads/leads.routes'));
 app.use('/api/pricing',   pricingRoutes);
 app.use('/api/festival',  festivalRoutes);
 app.use('/api/fraud',     fraudRoutes);

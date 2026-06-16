@@ -38,6 +38,7 @@ import PlatformSettingsPage from './pages/PlatformSettingsPage';
 import SupportTicketsPage from './pages/SupportTicketsPage';
 import BroadcastPage from './pages/BroadcastPage';
 import AllUsersPage from './pages/AllUsersPage';
+import LeadsPage from './pages/LeadsPage';
 import PromoCodesPage from './pages/PromoCodesPage';
 import BillingPage from './pages/BillingPage';
 import FeatureAccessPage from './pages/FeatureAccessPage';
@@ -299,6 +300,7 @@ export default function App() {
         <Route path="support-tickets" element={<RoleGuard allowed={['super_admin']}><SupportTicketsPage /></RoleGuard>} />
         <Route path="broadcasts" element={<RoleGuard allowed={['super_admin']}><BroadcastPage /></RoleGuard>} />
         <Route path="all-users" element={<RoleGuard allowed={['super_admin']}><AllUsersPage /></RoleGuard>} />
+        <Route path="leads" element={<RoleGuard allowed={['super_admin', 'platform_admin', 'platform_support', 'platform_billing', 'platform_readonly']}><LeadsPage /></RoleGuard>} />
         <Route path="promo-codes" element={<RoleGuard allowed={['super_admin']}><PromoCodesPage /></RoleGuard>} />
 
         {/* P3 Routes */}
