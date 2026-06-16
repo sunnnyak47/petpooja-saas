@@ -1749,7 +1749,7 @@ export default function POSPage() {
                {isBilled ? (
                  <button onClick={() => {
                    if (billedOrder) {
-                     PrintService.printBill(billedOrder, { name: user?.outlet_name || 'Restaurant', gstin: user?.gstin }).catch(() => setShowBillPreview(true));
+                     PrintService.printBill(billedOrder, { name: user?.outlet_name || 'Restaurant', gstin: user?.gstin, region: isAU ? 'AU' : 'IN' }).catch(() => setShowBillPreview(true));
                    } else {
                      setShowBillPreview(true);
                    }

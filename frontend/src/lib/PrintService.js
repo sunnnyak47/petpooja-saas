@@ -76,9 +76,14 @@ function append(buf, ...bytes) {
  * @returns {string} HTML string ready for window.open + document.write
  */
 function generateBillHTML(order, outlet, options = {}) {
+  // Region resolution order: explicit option/outlet.region → the order's outlet currency
+  // (AUD) → IN. Falling back to the order's currency means even a caller that forgets to
+  // pass region still prints the right symbol.
+  const resolvedRegion = outlet?.region
+    ?? ((order?.outlet?.currency || order?.currency) === 'AUD' ? 'AU' : 'IN');
   const {
     paperWidth = 58,
-    region = outlet?.region ?? 'IN',
+    region = resolvedRegion,
     currency = region === 'AU' ? 'A$' : '₹',
   } = options;
 
@@ -323,7 +328,9 @@ function generateKOTHTML(order, kotItems, kitchenStation, outlet) {
 function encodeBillESCPOS(order, outlet, paperWidth = 58) {
   const lineWidth  = paperWidth === 80 ? 48 : 32;
   const dividerStr = '-'.repeat(lineWidth);
-  const currency   = outlet?.region === 'AU' ? 'A$' : 'Rs';
+  // Same region resolution as the HTML bill: outlet.region → order's AUD currency → IN.
+  const auRegion   = outlet?.region === 'AU' || (order?.outlet?.currency || order?.currency) === 'AUD';
+  const currency   = auRegion ? 'A$' : 'Rs';
 
   const outletName  = (outlet?.name ?? order?.outlet?.name ?? 'Restaurant').toUpperCase();
   const outletAddr  = outlet?.address ?? order?.outlet?.address ?? '';
@@ -387,7 +394,7 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
   const sgst       = Number(order?.sgst       ?? 0);
   const igst       = Number(order?.igst       ?? order?.gst ?? 0);
   const grandTotal = Number(order?.grand_total ?? 0);
-  const isAU       = outlet?.region === 'AU';
+  const isAU       = auRegion;
 
   append(buf, ...encodeText(alignColumns('Subtotal', `${currency} ${subtotal.toFixed(2)}`, lineWidth)), LF);
 

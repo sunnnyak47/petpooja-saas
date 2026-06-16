@@ -442,7 +442,7 @@ async function getOrderById(orderId, outletId = null) {
     const order = await prisma.order.findFirst({
       where,
       include: {
-        outlet: { select: { id: true, name: true, code: true, gstin: true } },
+        outlet: { select: { id: true, name: true, code: true, gstin: true, currency: true } },
         table: { select: { id: true, table_number: true } },
         customer: { select: { id: true, full_name: true, phone: true } },
         staff: { select: { id: true, full_name: true } },
