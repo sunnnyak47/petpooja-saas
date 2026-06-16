@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
@@ -8,7 +9,7 @@ import {
   ArrowUpRight, ArrowDownRight, ShoppingCart,
   BarChart3, UtensilsCrossed, Clock, CheckCircle2,
   AlertCircle, Loader2, Sparkles, ChevronRight,
-  Package, ClipboardList, Receipt, ChefHat,
+  Package, ClipboardList, Receipt, ChefHat, CreditCard,
 } from 'lucide-react';
 import { useRegion } from '../hooks/useRegion';
 import GetStartedChecklist from '../components/onboarding/GetStartedChecklist';
@@ -17,6 +18,7 @@ import PeakHoursChart from '../components/Dashboard/PeakHoursChart';
 import AgingOrdersAlert from '../components/Dashboard/AgingOrdersAlert';
 import CancellationRate from '../components/Dashboard/CancellationRate';
 import OrderStateAlert from '../components/Dashboard/OrderStateAlert';
+import CollectPaymentsModal from '../components/Dashboard/CollectPaymentsModal';
 
 /* ── Confidence badge colours ─────────────────────────────── */
 const CONFIDENCE_META = {
@@ -72,6 +74,7 @@ function timeAgo(dateStr) {
 
 export default function DashboardPage() {
   const navigate  = useNavigate();
+  const [collectOpen, setCollectOpen] = useState(false);
   const { user }  = useSelector((s) => s.auth);
   const outletId  = user?.outlet_id;
   const { from, to } = todayRange();
@@ -351,6 +354,14 @@ export default function DashboardPage() {
               accent: '#f59e0b',
             },
             {
+              label: 'Collect Pay',
+              action: () => setCollectOpen(true),
+              icon:  CreditCard,
+              metric: `${d.live?.active_tables || 0}`,
+              metricLabel: 'to bill',
+              accent: '#2563eb',
+            },
+            {
               label: 'Reports',
               path:  '/reports',
               icon:  BarChart3,
@@ -358,10 +369,10 @@ export default function DashboardPage() {
               metricLabel: 'today',
               accent: '#8b5cf6',
             },
-          ].map(({ label, path, icon: Icon, metric, metricLabel, accent }) => (
+          ].map(({ label, path, action, icon: Icon, metric, metricLabel, accent }) => (
             <button
               key={label}
-              onClick={() => navigate(path)}
+              onClick={() => (action ? action() : navigate(path))}
               className="group relative text-left rounded-xl p-4 transition-all overflow-hidden"
               style={{
                 background: 'var(--bg-card)',
@@ -787,6 +798,8 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <CollectPaymentsModal isOpen={collectOpen} onClose={() => setCollectOpen(false)} outletId={outletId} />
     </div>
   );
 }
