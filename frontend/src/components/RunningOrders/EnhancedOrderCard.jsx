@@ -242,15 +242,9 @@ export default function EnhancedOrderCard({
           >
             <ChefHat size={14} />
           </button>
-          {!isBilled ? (
-            <button
-              className="p-1 rounded text-cyan-400 hover:bg-cyan-500/15 transition-all duration-200"
-              title="Generate Bill"
-              onClick={() => act('generate_bill')}
-            >
-              <Receipt size={14} />
-            </button>
-          ) : (
+          {/* Bill generation moved to Tables (Dashboard -> Tables -> table -> Generate Bill),
+              since served orders leave this list. Print stays for already-billed orders. */}
+          {isBilled && (
             <button
               className="p-1 rounded text-blue-400 hover:bg-blue-500/15 transition-all duration-200"
               title="Print Bill"
@@ -567,15 +561,7 @@ export default function EnhancedOrderCard({
           KOT
         </button>
 
-        {!isBilled ? (
-          <button
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/25 hover:text-white transition-all duration-200"
-            onClick={() => act('generate_bill')}
-          >
-            <Receipt size={13} />
-            Bill
-          </button>
-        ) : (
+        {isBilled && (
           <button
             className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-semibold hover:bg-blue-500/25 hover:text-white transition-all duration-200"
             onClick={() => act('view_bill')}

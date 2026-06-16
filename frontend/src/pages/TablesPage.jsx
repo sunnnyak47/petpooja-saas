@@ -8,9 +8,10 @@ import {
   Users, Plus, Trash2, Loader2, Edit3, Save, X, Move,
   Square, Circle, RectangleHorizontal, RotateCw, Layers,
   Eye, EyeOff, Ban, Palette, ChevronDown, Grid3X3,
-  Maximize2, Minimize2, ZoomIn, ZoomOut, Check, ListChecks,
+  Maximize2, Minimize2, ZoomIn, ZoomOut, Check, ListChecks, Receipt,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useCurrency } from '../hooks/useCurrency';
 
@@ -59,6 +60,7 @@ export default function TablesPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { symbol } = useCurrency();
 
   /* ── server data ── */
@@ -218,6 +220,18 @@ export default function TablesPage() {
       setDetailOpen(false);
     },
     onError: (e) => toast.error(e.message || 'Failed'),
+  });
+
+  // Generate the bill for a table's active order, then jump to the POS payment screen
+  // for that order. (Served/ready orders leave Live Orders, so billing happens here.)
+  const billMut = useMutation({
+    mutationFn: (orderId) => api.post(`/orders/${orderId}/bill`, { outlet_id: outletId }),
+    onSuccess: (_data, orderId) => {
+      toast.success('Bill generated');
+      setDetailOpen(false);
+      navigate(`/pos?order_id=${orderId}&pay=true`);
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || 'Could not generate bill'),
   });
 
   /* ── multi-select: tick tables → bulk mark free / change status ── */
@@ -416,11 +430,14 @@ export default function TablesPage() {
   };
 
   /* ── stats ── */
+  // A table has a pending bill when it has an active order that isn't paid yet.
+  const hasPendingBill = (t) => !!(t.orders?.[0] && !t.orders[0].is_paid);
   const counts = {
     total:     tables.length,
     available: tables.filter(t => t.status === 'available').length,
     occupied:  tables.filter(t => t.status === 'occupied').length,
     held:      tables.filter(t => t.status === 'held').length,
+    pendingBill: tables.filter(hasPendingBill).length,
   };
 
   /* ── selected item refs ── */
@@ -588,11 +605,12 @@ export default function TablesPage() {
           <div className="flex items-center gap-1 flex-wrap p-1 rounded-lg"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             {[
-              { id: 'all',       label: 'All',       n: counts.total,     dot: '#94a3b8' },
-              { id: 'available', label: 'Free',      n: counts.available, dot: '#10b981' },
-              { id: 'occupied',  label: 'Busy',      n: counts.occupied,  dot: '#3b82f6' },
-              { id: 'reserved',  label: 'Reserved',  n: tables.filter(t=>t.status==='reserved').length, dot: '#6366f1' },
-              { id: 'held',      label: 'Held',      n: counts.held,      dot: '#f59e0b' },
+              { id: 'all',          label: 'All',           n: counts.total,     dot: '#94a3b8' },
+              { id: 'pending_bill', label: 'Pending Bills', n: counts.pendingBill, dot: '#f97316' },
+              { id: 'available',    label: 'Free',          n: counts.available, dot: '#10b981' },
+              { id: 'occupied',     label: 'Busy',          n: counts.occupied,  dot: '#3b82f6' },
+              { id: 'reserved',     label: 'Reserved',      n: tables.filter(t=>t.status==='reserved').length, dot: '#6366f1' },
+              { id: 'held',         label: 'Held',          n: counts.held,      dot: '#f59e0b' },
             ].map(f => {
               const active = statusFilter === f.id;
               return (
@@ -688,7 +706,8 @@ export default function TablesPage() {
       {!editMode && (() => {
         // filter
         const filtered = tables.filter(t => {
-          if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+          if (statusFilter === 'pending_bill') { if (!hasPendingBill(t)) return false; }
+          else if (statusFilter !== 'all' && t.status !== statusFilter) return false;
           if (searchQ.trim()) {
             const q = searchQ.toLowerCase();
             const num = String(t.table_number || '').toLowerCase();
@@ -1463,6 +1482,13 @@ export default function TablesPage() {
                 </div>
                 <p className="text-xs text-surface-500 mt-1"><ElapsedTimer timestamp={focusTable.orders[0].created_at} /> elapsed</p>
               </div>
+            )}
+
+            {focusTable.orders?.[0] && !focusTable.orders[0].is_paid && (
+              <button onClick={() => billMut.mutate(focusTable.orders[0].id)} disabled={billMut.isPending}
+                className="w-full py-3 rounded-xl bg-brand-500 text-white font-bold flex items-center justify-center gap-2 hover:bg-brand-600 transition-colors text-sm disabled:opacity-60">
+                <Receipt className="w-4 h-4" /> {billMut.isPending ? 'Generating…' : `Generate Bill & Collect · ${symbol}${Number(focusTable.orders[0].grand_total || 0).toFixed(2)}`}
+              </button>
             )}
 
             {focusTable.orders?.[0] && (
