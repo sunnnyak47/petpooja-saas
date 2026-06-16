@@ -560,6 +560,30 @@ export default function POSPage() {
     if (added.length) setShortCodeSearch('');
   };
 
+  // The "Type order…" box is the AI natural-language parser, but people also paste short
+  // codes there (e.g. "dm,kp,vb"). Detect a comma-list of short tokens (or a single token
+  // that exactly matches a code) and add directly — only real phrases reach the LLM.
+  // Returns true if it handled the input (so the caller skips the LLM).
+  const tryShortCodeAdd = (text) => {
+    const raw = (text || '').trim();
+    if (!raw) return false;
+    const codeOf = (t) => items.find((i) => i.short_code && i.short_code.toLowerCase() === t.toLowerCase());
+    const tokens = raw.split(',').map((t) => t.trim()).filter(Boolean);
+    const isCodeToken = (t) => /^[a-z0-9]{1,6}$/i.test(t);
+    const looksLikeCodeList = raw.includes(',') && tokens.every(isCodeToken);
+    const singleCode = !raw.includes(',') && tokens.length === 1 && isCodeToken(tokens[0]) && !!codeOf(tokens[0]);
+    if (!looksLikeCodeList && !singleCode) return false; // let the LLM handle real phrases
+    const added = [], failed = [];
+    tokens.forEach((t) => {
+      const item = codeOf(t);
+      if (item && addItemDirect(item)) added.push(item.name);
+      else failed.push(t.toUpperCase());
+    });
+    if (added.length) toast.success(`Added ${added.length} item${added.length > 1 ? 's' : ''}: ${added.join(', ')}`, { duration: 1800 });
+    if (failed.length) toast.error(`No item for code: ${failed.join(', ')}`, { duration: 3000 });
+    return true;
+  };
+
   const handleCreateOrderCore = async (status) => {
     const orderPayload = {
       outlet_id: outletId,
@@ -1264,6 +1288,7 @@ export default function POSPage() {
                   onChange={(e) => setVoiceText(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && voiceText.trim() && !voice.isThinking) {
+                      if (tryShortCodeAdd(voiceText.trim())) { setVoiceText(''); return; }
                       voice.sendToLLM(voiceText.trim());
                       setVoiceText('');
                     }
@@ -1273,7 +1298,7 @@ export default function POSPage() {
                 />
               </div>
               <button
-                onClick={() => { if (voiceText.trim()) { voice.sendToLLM(voiceText.trim()); setVoiceText(''); } }}
+                onClick={() => { if (voiceText.trim()) { if (tryShortCodeAdd(voiceText.trim())) { setVoiceText(''); return; } voice.sendToLLM(voiceText.trim()); setVoiceText(''); } }}
                 disabled={!voiceText.trim() || voice.isThinking}
                 className="px-4 py-2.5 rounded-xl text-sm font-bold shrink-0 transition-all flex items-center gap-1.5"
                 style={{
