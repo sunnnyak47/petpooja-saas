@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "cd frontend && npm install --include=dev && npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && npm install",
+  "installCommand": "cd frontend && npm install --include=dev",
   "framework": null,
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://petpooja-saas.onrender.com/api/:path*" },
