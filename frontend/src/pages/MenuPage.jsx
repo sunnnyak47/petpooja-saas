@@ -539,7 +539,7 @@ export default function MenuPage() {
 
       {/* ADD/EDIT ITEM MODAL */}
       <Modal isOpen={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} title={itemForm.id ? "Edit Menu Item" : "Add New Menu Item"} size="xl">
-         <form onSubmit={(e) => { e.preventDefault(); saveItemMutation.mutate({...itemForm, outlet_id: outletId, base_price: Number(itemForm.base_price)}); }} className="mt-4">
+         <form onSubmit={(e) => { e.preventDefault(); saveItemMutation.mutate({...itemForm, outlet_id: outletId, base_price: Number(itemForm.base_price), variants: itemForm.variants.map(v => ({...v, price_addition: Number(v.price_addition) || 0})) }); }} className="mt-4">
             <div className="grid grid-cols-3 gap-6">
                {/* Left Col - Basics */}
                <div className="col-span-2 space-y-4">
@@ -674,7 +674,7 @@ export default function MenuPage() {
                      </div>
                      <button type="button" onClick={() => setItemForm({
                         ...itemForm,
-                        variants: [...itemForm.variants, { name: '', price_addition: 0, is_default: false }]
+                        variants: [...itemForm.variants, { name: '', price_addition: '', is_default: false }]
                      })} className="btn-surface py-1.5 px-3 text-xs border-brand-500/20 text-brand-400">
                         <Plus className="w-3.5 h-3.5 mr-1"/> Add Variant
                      </button>
@@ -690,9 +690,9 @@ export default function MenuPage() {
                            }} />
                            <div className="flex items-center gap-2 bg-surface-950 px-3 py-1.5 rounded-lg border border-surface-800">
                               <span className="text-surface-500 text-xs font-bold">+ {symbol}</span>
-                              <input type="number" placeholder="0" className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
+                              <input type="number" min="0" placeholder="0" className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400" value={v.price_addition} onChange={e => {
                                  const next = [...itemForm.variants];
-                                 next[idx].price_addition = Number(e.target.value);
+                                 next[idx].price_addition = e.target.value;
                                  setItemForm({ ...itemForm, variants: next });
                               }} />
                            </div>
