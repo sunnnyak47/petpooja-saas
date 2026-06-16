@@ -13,6 +13,7 @@ const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const { updateKOTStatusSchema, markItemReadySchema } = require('./kot.validation');
 const { sendSuccess } = require('../../utils/response');
+const { pushStatusForKot } = require('../integrations/aggregator.status.service');
 
 /* ══════════════════════════════════════════════════════
    KOT ENDPOINTS — used by Kitchen Display System (KDS)
@@ -70,7 +71,7 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
 
     // Push the new status back to the delivery aggregator (if this is an
     // aggregator order). Fire-and-forget — never blocks/fails the KDS update.
-    require('../../integrations/aggregator.status.service').pushStatusForKot(kotId, status).catch(() => {});
+    Promise.resolve().then(() => pushStatusForKot(kotId, status)).catch(() => {});
 
     sendSuccess(res, updated, 'KOT status updated');
   } catch (error) { next(error); }
