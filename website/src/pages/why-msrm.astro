@@ -36,12 +36,14 @@ const pains = [
   ['No real margin view', 'You see gross delivery sales, never the net after 20–30% commission. So you can’t tell what actually pays.'],
 ];
 
+// One narrated walkthrough (public/video/tour.mp4). `at` = start second of each
+// chapter inside the single video — used to seek when a step is clicked.
 const chapters = [
-  { n: 1, title: 'Go live in a day', text: 'Add your menu, tables and team — and you’re taking orders the same afternoon. No consultants.', video: 'ch1.webm', poster: 'au/dashboard.webp', audio: 'ch1-onboard.mp3' },
-  { n: 2, title: 'Take an order', text: 'Touch POS, split the bill, part cash and part card, and fire it straight to the kitchen.', video: 'ch2.webm', poster: 'au/pos.webp', audio: 'ch2-pos.mp3' },
-  { n: 3, title: 'All your delivery apps, one screen', text: 'Uber Eats, DoorDash and Menulog land beside your dine-in orders — no more juggling tablets.', video: 'ch3.webm', poster: 'au/aggregators.webp', audio: 'ch3-channels.mp3' },
-  { n: 4, title: 'Know your real margin', text: 'Every channel side by side: gross sales, commission, and the net that actually hits your account.', video: 'ch4.webm', poster: 'au/channel-analytics.webp', audio: 'ch4-margin.mp3' },
-  { n: 5, title: 'Close the day in one click', text: 'Sales, payments and GST reconciled and ready for BAS and Xero — in one click.', video: 'ch5.webm', poster: 'au/analytics.webp', audio: 'ch5-eod.mp3' },
+  { n: 1, at: 0,    title: 'Go live in a day', text: 'Add your menu, tables and team — and you’re taking orders the same afternoon. No consultants.' },
+  { n: 2, at: 7.9,  title: 'Take an order', text: 'Touch POS, split the bill, part cash and part card, and fire it straight to the kitchen.' },
+  { n: 3, at: 16.5, title: 'All your delivery apps, one screen', text: 'Uber Eats, DoorDash and Menulog land beside your dine-in orders — no more juggling tablets.' },
+  { n: 4, at: 25.4, title: 'Know your real margin', text: 'Every channel side by side: gross sales, commission, and the net that actually hits your account.' },
+  { n: 5, at: 33.0, title: 'Close the day in one click', text: 'Sales, payments and GST reconciled and ready for BAS and Xero — in one click.' },
 ];
 
 const whyAU = [
@@ -96,34 +98,33 @@ const whyAU = [
     <p class="text-xs text-ink-mute mt-3">Compared by capability category, not specific brands. Some systems offer some of these as paid add-ons or third-party integrations.</p>
   </section>
 
-  <!-- ★ Visualisation section -->
+  <!-- ★ Visualisation section — one narrated walkthrough -->
   <section id="see-it" class="container-x py-16">
     <div class="text-center max-w-2xl mx-auto">
       <span class="eyebrow">See exactly how it works</span>
-      <h2 class="h2 mt-2">A 5-step look at a day on MSRM.</h2>
-      <p class="lead mt-3">Real screens. Tap <span class="font-semibold text-brand-700">🔊 Listen</span> on any step for the voiceover.</p>
+      <h2 class="h2 mt-2">One restaurant, one platform — in 40 seconds.</h2>
+      <p class="lead mt-3">A narrated walkthrough of a full day on MSRM, from go-live to end-of-day. <span class="font-semibold text-brand-700">Sound on 🔊</span> — or jump to any step.</p>
     </div>
-    <div class="mt-10 space-y-10">
-      {chapters.map((ch, i) => (
-        <div class={`grid lg:grid-cols-2 gap-8 items-center ${i % 2 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
-          <div>
-            <div class="flex items-center gap-3">
-              <span class="grid h-9 w-9 place-items-center rounded-full bg-brand-600 text-white font-bold">{ch.n}</span>
-              <h3 class="font-bold text-xl">{ch.title}</h3>
-            </div>
-            <p class="lead mt-3">{ch.text}</p>
-            <button type="button" class="vo-btn mt-4 inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-brand-700 hover:border-brand-400"
-              data-audio={`/audio/${ch.audio}`}>
-              <span class="vo-ico">🔊</span> <span class="vo-label">Listen</span>
+    <div class="mt-10 grid lg:grid-cols-3 gap-8 items-start">
+      <div class="lg:col-span-2 card p-2 shadow-lift">
+        <video id="tour" class="rounded-xl w-full border border-line bg-black" controls playsinline preload="metadata" poster="/screenshots/au/dashboard.webp">
+          <source src="/video/tour.mp4" type="video/mp4" />
+          Your browser doesn’t support video — <a href="/video/tour.mp4" class="underline">download the walkthrough</a>.
+        </video>
+      </div>
+      <ol class="space-y-2">
+        {chapters.map((ch) => (
+          <li>
+            <button type="button" class="chapter-btn w-full text-left flex gap-3 rounded-xl border border-line p-3 hover:border-brand-400 transition" data-at={ch.at}>
+              <span class="chapter-n grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700 text-sm font-bold">{ch.n}</span>
+              <span>
+                <span class="block font-semibold leading-tight">{ch.title}</span>
+                <span class="block text-sm text-ink-soft mt-0.5">{ch.text}</span>
+              </span>
             </button>
-          </div>
-          <div class="card p-2 shadow-lift">
-            <video class="rounded-xl w-full border border-line" autoplay muted loop playsinline preload="metadata" poster={`/screenshots/${ch.poster}`}>
-              <source src={`/video/${ch.video}`} type="video/webm" />
-            </video>
-          </div>
-        </div>
-      ))}
+          </li>
+        ))}
+      </ol>
     </div>
   </section>
 
@@ -146,19 +147,28 @@ const whyAU = [
   <CTA title="See why AU restaurants switch to MSRM" />
 
   <script>
-    // One audio element, reused. Tapping a Listen button plays that chapter's VO.
-    let current = null, btnEl = null;
-    const reset = (b) => { if (b) { b.querySelector('.vo-ico').textContent = '🔊'; b.querySelector('.vo-label').textContent = 'Listen'; } };
-    document.querySelectorAll('.vo-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const src = btn.getAttribute('data-audio');
-        if (current && btnEl === btn && !current.paused) { current.pause(); reset(btn); return; }
-        if (current) { current.pause(); reset(btnEl); }
-        current = new Audio(src); btnEl = btn;
-        btn.querySelector('.vo-ico').textContent = '⏸'; btn.querySelector('.vo-label').textContent = 'Pause';
-        current.play().catch(() => {});
-        current.onended = () => reset(btn);
-      });
+    // Click a step → seek the single walkthrough video to that chapter and play.
+    const video = document.getElementById('tour');
+    const btns = Array.from(document.querySelectorAll('.chapter-btn'));
+    const marks = btns.map((b) => parseFloat(b.getAttribute('data-at')));
+    const highlight = (i) => btns.forEach((b, j) => {
+      b.classList.toggle('border-brand-400', j === i);
+      b.querySelector('.chapter-n').classList.toggle('bg-brand-600', j === i);
+      b.querySelector('.chapter-n').classList.toggle('text-white', j === i);
+      b.querySelector('.chapter-n').classList.toggle('bg-brand-50', j !== i);
+      b.querySelector('.chapter-n').classList.toggle('text-brand-700', j !== i);
+    });
+    btns.forEach((btn, i) => btn.addEventListener('click', () => {
+      if (!video) return;
+      video.currentTime = marks[i];
+      highlight(i);
+      video.play().catch(() => {});
+    }));
+    // Keep the active step highlighted as the video plays.
+    video?.addEventListener('timeupdate', () => {
+      let i = 0;
+      for (let k = 0; k < marks.length; k++) if (video.currentTime >= marks[k] - 0.3) i = k;
+      highlight(i);
     });
   </script>
 </Layout>
