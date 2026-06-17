@@ -1,12 +1,13 @@
 /**
- * @fileoverview Collect Payments popup — lists occupied tables with an open bill,
- * searchable, with a one-tap Collect that bills the order and opens POS payment.
- * Avoids the detour through the Tables floor view.
+ * @fileoverview Collect Payments popup — lists every open (unpaid, running) order —
+ * dine-in, takeaway and delivery — searchable, with a one-tap Collect that bills the
+ * order and opens POS payment. Avoids the detour through the Tables floor view, and
+ * (unlike a table-only list) covers takeaway/delivery orders that have no table.
  */
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, CreditCard, Clock } from 'lucide-react';
+import { Search, CreditCard, Clock, Utensils, ShoppingBag, Bike } from 'lucide-react';
 import Modal from '../Modal';
 import api from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -19,14 +20,22 @@ const minsAgo = (iso) => {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 };
 
+// Per order-type display: badge label, short tag for the avatar, icon, colour.
+const TYPE_META = {
+  dine_in:  { tag: 'T',   Icon: Utensils,    color: '#2563eb' },
+  takeaway: { tag: 'TA',  Icon: ShoppingBag, color: '#d97706' },
+  delivery: { tag: 'DL',  Icon: Bike,        color: '#8b5cf6' },
+};
+
 export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
   const navigate = useNavigate();
   const { format, symbol } = useCurrency();
   const [search, setSearch] = useState('');
 
-  const { data: tables = [], isLoading } = useQuery({
-    queryKey: ['collect-tables', outletId],
-    queryFn: () => api.get(`/kitchen/tables?outlet_id=${outletId}&status=occupied`),
+  // Every running, unpaid order (these statuses are all pre-payment), any type.
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['collect-orders', outletId],
+    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`),
     enabled: isOpen && !!outletId,
     refetchInterval: 15_000,
     select: (res) => (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])),
@@ -38,14 +47,19 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
     onError: (e) => toast.error(e?.response?.data?.message || 'Could not start payment'),
   });
 
-  // Only tables with an active (unpaid) order, matched against the search box.
+  const label = (o) => {
+    if (o.order_type === 'dine_in') return o.table?.table_number ? `Table ${o.table.table_number}` : 'Dine-in';
+    if (o.order_type === 'takeaway') return 'Takeaway';
+    if (o.order_type === 'delivery') return 'Delivery';
+    return o.order_type || 'Order';
+  };
+
   const q = search.trim().toLowerCase();
-  const rows = tables
-    .filter((t) => t.orders?.[0])
-    .filter((t) => {
+  const rows = orders
+    .filter((o) => !o.is_paid)
+    .filter((o) => {
       if (!q) return true;
-      const o = t.orders[0];
-      return [t.table_number, o.order_number, t.area?.name, String(o.grand_total)]
+      return [o.order_number, o.table?.table_number, o.customer?.full_name, o.order_type, String(o.grand_total), label(o)]
         .some((v) => String(v ?? '').toLowerCase().includes(q));
     });
 
@@ -57,7 +71,7 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search table, order #, area or amount…"
+            placeholder="Search order #, table, customer, type or amount…"
             autoFocus
             className="flex-1 bg-transparent text-sm outline-none"
             style={{ color: 'var(--text-primary)' }}
@@ -65,28 +79,30 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
         </div>
 
         {isLoading ? (
-          <div className="py-10 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Loading occupied tables…</div>
+          <div className="py-10 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Loading open orders…</div>
         ) : rows.length === 0 ? (
           <div className="py-10 text-center">
             <CreditCard className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-secondary)', opacity: 0.4 }} />
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {search ? 'No tables match your search' : 'No occupied tables with open bills'}
+              {search ? 'No orders match your search' : 'No open orders awaiting payment'}
             </p>
           </div>
         ) : (
           <div className="max-h-[55vh] overflow-y-auto space-y-2 pr-1">
-            {rows.map((t) => {
-              const o = t.orders[0];
+            {rows.map((o) => {
+              const meta = TYPE_META[o.order_type] || TYPE_META.dine_in;
+              const avatar = o.order_type === 'dine_in' && o.table?.table_number ? `T${o.table.table_number}` : meta.tag;
               return (
-                <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm shrink-0"
-                    style={{ background: 'var(--accent)18', color: 'var(--accent)' }}>
-                    T{t.table_number}
+                <div key={o.id} className="flex items-center gap-3 p-3 rounded-xl border" style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs shrink-0"
+                    style={{ background: meta.color + '18', color: meta.color }}>
+                    {avatar}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
                       #{(o.order_number || '').split('-').pop() || o.order_number}
-                      {t.area?.name && <span className="ml-2 text-[11px] font-normal" style={{ color: 'var(--text-secondary)' }}>{t.area.name}</span>}
+                      <span className="ml-2 text-[11px] font-medium" style={{ color: meta.color }}>{label(o)}</span>
+                      {o.customer?.full_name && <span className="ml-2 text-[11px] font-normal" style={{ color: 'var(--text-secondary)' }}>{o.customer.full_name}</span>}
                     </p>
                     <p className="text-[11px] flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
                       <Clock className="w-3 h-3" /> {minsAgo(o.created_at)} · {o.status}
@@ -106,7 +122,7 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
           </div>
         )}
         <p className="text-[11px] text-center" style={{ color: 'var(--text-secondary)' }}>
-          {rows.length} table{rows.length === 1 ? '' : 's'} awaiting payment · amounts shown in {symbol}
+          {rows.length} order{rows.length === 1 ? '' : 's'} awaiting payment · amounts in {symbol}
         </p>
       </div>
     </Modal>
