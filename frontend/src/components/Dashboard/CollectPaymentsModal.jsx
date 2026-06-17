@@ -4,12 +4,13 @@
  * order and opens POS payment. Avoids the detour through the Tables floor view, and
  * (unlike a table-only list) covers takeaway/delivery orders that have no table.
  */
-import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { Search, CreditCard, Clock, Utensils, ShoppingBag, Bike } from 'lucide-react';
 import Modal from '../Modal';
-import api from '../../lib/api';
+import api, { SOCKET_URL } from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import toast from 'react-hot-toast';
 
@@ -30,6 +31,7 @@ const TYPE_META = {
 export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
   const navigate = useNavigate();
   const { format, symbol } = useCurrency();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
   // Every running, unpaid order (these statuses are all pre-payment), any type.
@@ -37,9 +39,29 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
     queryKey: ['collect-orders', outletId],
     queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`),
     enabled: isOpen && !!outletId,
-    refetchInterval: 15_000,
+    refetchInterval: 15_000,        // poll fallback
+    refetchOnMount: 'always',       // always re-fetch when the popup opens (no stale cache)
+    staleTime: 0,
     select: (res) => (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])),
   });
+
+  // Realtime: refresh the list the instant any order is created, paid, billed or
+  // cancelled in this outlet — so a takeaway order drops off as soon as it's paid and
+  // new ones appear without waiting for the 15s poll.
+  useEffect(() => {
+    if (!isOpen || !outletId) return;
+    const socket = io(`${SOCKET_URL}/orders`, {
+      auth: { token: localStorage.getItem('accessToken') },
+      transports: ['websocket'],
+      withCredentials: true,
+    });
+    socket.on('connect', () => socket.emit('join_outlet', outletId));
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ['collect-orders', outletId] });
+    socket.on('order_status_change', refresh);
+    socket.on('order_complete', refresh);
+    socket.on('new_order', refresh);
+    return () => socket.disconnect();
+  }, [isOpen, outletId, queryClient]);
 
   const collectMut = useMutation({
     mutationFn: (orderId) => api.post(`/orders/${orderId}/bill`, { outlet_id: outletId }),
