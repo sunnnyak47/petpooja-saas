@@ -1184,58 +1184,39 @@ async function cancelOrder(orderId, reason, staffId) {
           },
         });
       } else {
-        // CASE B: No bill generated -> SOFT DELETE FULLY (as per constitution)
-        // 1. Soft Delete KOT Items
+        // CASE B: No bill generated. Keep the order as a VISIBLE 'cancelled' record so it
+        // shows in Order History and the audit trail (previously it was fully soft-deleted
+        // and disappeared everywhere). We still clear its tickets from the live kitchen and
+        // free the table. The order + items stay queryable; reports already exclude
+        // cancelled orders by status, so this doesn't affect revenue/running counts.
         const kotIds = order.kots.map(k => k.id);
         if (kotIds.length > 0) {
-          await tx.kOTItem.updateMany({ 
-            where: { kot_id: { in: kotIds } },
-            data: { is_deleted: true }
-          });
+          await tx.kOTItem.updateMany({ where: { kot_id: { in: kotIds } }, data: { is_deleted: true } });
         }
-        
-        // 2. Soft Delete KOTs
-        await tx.kOT.updateMany({ 
-          where: { order_id: orderId },
-          data: { is_deleted: true }
-        });
+        await tx.kOT.updateMany({ where: { order_id: orderId }, data: { is_deleted: true } });
 
-        // 3. Soft Delete Order Item Addons
-        const orderItemIds = order.order_items.map(oi => oi.id);
-        if (orderItemIds.length > 0) {
-          await tx.orderItemAddon.updateMany({ 
-            where: { order_item_id: { in: orderItemIds } },
-            data: { is_deleted: true }
-          });
-        }
-
-        // 4. Soft Delete Order Items
-        await tx.orderItem.updateMany({ 
-          where: { order_id: orderId },
-          data: { is_deleted: true }
-        });
-
-        // 5. Soft Delete Status History
-        await tx.orderStatusHistory.updateMany({ 
-          where: { order_id: orderId },
-          data: { is_deleted: true }
-        });
-
-        // 6. Soft Delete Loyalty Transactions
-        await tx.loyaltyTransaction.updateMany({
-          where: { order_id: orderId },
-          data: { is_deleted: true }
-        });
-
-        // 7. Soft Delete the Order itself
         await tx.order.update({
           where: { id: orderId },
           data: {
             status: 'cancelled',
-            is_deleted: true,
             cancelled_at: new Date(),
             cancelled_by: staffId,
             cancel_reason: reason,
+          },
+        });
+
+        await tx.orderStatusHistory.create({
+          data: { order_id: orderId, from_status: order.status, to_status: 'cancelled', changed_by: staffId, reason },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            user_id: staffId,
+            outlet_id: order.outlet_id,
+            action: 'ORDER_CANCELLED',
+            entity_type: 'order',
+            entity_id: orderId,
+            metadata: { reason, billed: false },
           },
         });
       }
