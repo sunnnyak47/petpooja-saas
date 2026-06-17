@@ -802,22 +802,41 @@ export default function POSPage() {
     } catch (err) { toast.error(err.message); }
   };
 
+  // Reset the whole POS to an empty state (used by Cancel Order + after payment).
+  const resetPOS = () => {
+    dispatch(clearCart());
+    dispatch(setDiscount({ type: null, value: 0, reason: '' }));
+    if (selectedTable) dispatch(setSelectedTable(null));
+    setTempOrderId(null);
+    setIsBilled(false);
+    setBilledOrder(null);
+    setServerOrderTotal(null);
+    setBalanceDue(null);
+    setIsCompMode(false);
+    setGratuity(0);
+    setAppliedLoyaltyPoints(0);
+    setAppliedLoyaltyDiscount(0);
+  };
+
   const handleCancelOrder = async (reason) => {
-    if (!tempOrderId) return;
     try {
-      if (IS_ELECTRON && !isOnline) {
-        await window.electron.invoke('db-update-order-status', tempOrderId, 'cancelled', { cancel_reason: reason });
+      // Only orders that were actually created on the server need a cancel call; a
+      // not-yet-punched cart is just cleared locally. Either way the cart empties.
+      if (tempOrderId) {
+        if (IS_ELECTRON && !isOnline) {
+          await window.electron.invoke('db-update-order-status', tempOrderId, 'cancelled', { cancel_reason: reason });
+        } else {
+          await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+        }
+        toast.success('Order cancelled');
       } else {
-        await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+        toast.success('Order cleared');
       }
-      toast.success('Order Cancelled');
-      dispatch(clearCart());
-      setTempOrderId(null);
-      setIsBilled(false);
-      if (selectedTable) {
-        dispatch(setSelectedTable(null));
-      }
-    } catch (err) { toast.error(err.message); }
+      resetPOS();
+      setShowCancelOrder(false);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Could not cancel order');
+    }
   };
 
   const handleBogo = () => {
