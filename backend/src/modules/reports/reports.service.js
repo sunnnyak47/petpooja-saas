@@ -355,7 +355,7 @@ async function getDashboard(outletId) {
         // The old "!is_paid && status !== 'cancelled'" also counted voided orders (voided
         // is not 'cancelled') and online 'pending' tickets, so the dashboard read one (or
         // more) higher than the Live Orders list.
-        running_orders: todayOrders.filter((o) => ['created', 'confirmed', 'held', 'billed'].includes(o.status)).length,
+        running_orders: todayOrders.filter((o) => ['created', 'confirmed', 'held', 'billed', 'ready'].includes(o.status)).length,
         // New fields — explain the "orders > 0 but revenue = 0" case clearly:
         open_tabs_value: Math.round(todayOpenTabsValue * 100) / 100,
         gross_revenue:   Math.round(todayGrossRevenue * 100) / 100,

@@ -37,7 +37,7 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
   // Every running, unpaid order (these statuses are all pre-payment), any type.
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['collect-orders', outletId],
-    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`),
+    queryFn: () => api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed,ready&limit=200`),
     enabled: isOpen && !!outletId,
     refetchInterval: 15_000,        // poll fallback
     refetchOnMount: 'always',       // always re-fetch when the popup opens (no stale cache)

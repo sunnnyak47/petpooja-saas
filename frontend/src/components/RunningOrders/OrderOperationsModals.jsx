@@ -254,7 +254,7 @@ export function MergeOrdersModal({ isOpen, onClose, order, outletId, onSuccess }
     queryKey: ['active-orders-merge', outletId],
     queryFn: () =>
       api.get(
-        `/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=50`
+        `/orders?outlet_id=${outletId}&status=created,confirmed,held,billed,ready&limit=50`
       ),
     enabled: isOpen && !!outletId,
     select: (res) => res?.data?.orders || res?.orders || res?.data || [],

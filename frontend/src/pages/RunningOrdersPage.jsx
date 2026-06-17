@@ -324,9 +324,9 @@ export default function RunningOrdersPage() {
     queryKey: ['running-orders', outletId, isOnline],
     queryFn: async () => {
       if (IS_ELECTRON && !isOnline) {
-        return hybridAPI.getOrders(outletId, { status: 'created,confirmed,held,billed' });
+        return hybridAPI.getOrders(outletId, { status: 'created,confirmed,held,billed,ready' });
       }
-      return api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed&limit=200`).then(r => r.data);
+      return api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed,ready&limit=200`).then(r => r.data);
     },
     enabled: !!outletId,
     refetchInterval: isLive && isOnline ? 8000 : false,

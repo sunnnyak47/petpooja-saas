@@ -17,7 +17,7 @@ const BUCKETS = {
   watch:    { min: 20,  max: 30,       label: 'Watch',    color: '#f59e0b', bg: '#f59e0b18' },
 };
 
-const ACTIVE_STATUSES = new Set(['created', 'confirmed', 'held', 'billed']);
+const ACTIVE_STATUSES = new Set(['created', 'confirmed', 'held', 'billed', 'ready']);
 
 function getBucket(ageMinutes) {
   if (ageMinutes >= BUCKETS.critical.min) return 'critical';
