@@ -1,8 +1,8 @@
 {
-  "buildCommand": "npm install && npm run build",
-  "installCommand": "npm install",
+  "buildCommand": "npm install --include=dev && npm run build",
+  "installCommand": "npm install --include=dev",
   "outputDirectory": "dist",
-  "framework": "vite",
+  "framework": null,
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://petpooja-saas.onrender.com/api/:path*" },
     { "source": "/socket.io/:path*", "destination": "https://petpooja-saas.onrender.com/socket.io/:path*" },
