@@ -50,10 +50,11 @@ export function StatsStrip({
   const statusCounts = orders.reduce(
     (acc, o) => {
       const s = o.status?.toLowerCase();
-      if (s in acc) acc[s] += 1;
+      if (s in acc && s !== 'paid') acc[s] += 1;
+      if (o.is_paid) acc.paid += 1;   // 'Prepaid' = is_paid (matches the clickable filter chip)
       return acc;
     },
-    { created: 0, confirmed: 0, held: 0, billed: 0 }
+    { created: 0, confirmed: 0, held: 0, ready: 0, billed: 0, paid: 0 }
   );
 
   const statusPills = [
