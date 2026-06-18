@@ -146,18 +146,29 @@ async function completeKOT(kotId, outletId = null) {
     });
     const allCompleted = allKots.every((k) => k.status === 'completed' || k.id === kotId);
 
+    // Advance the order to 'ready' only if it's still in the kitchen stage (created/confirmed).
+    // Never downgrade an already paid/billed/ready/terminal order — e.g. a prepaid order that
+    // was paid before the kitchen finished would otherwise be clobbered back to 'ready'.
+    // updateMany with a status filter is atomic, so a concurrent payment can't be overwritten.
+    let rolledUp = false;
     if (allCompleted) {
-      await prisma.order.update({ where: { id: kot.order_id }, data: { status: 'ready' } });
-      await prisma.orderStatusHistory.create({
-        data: { order_id: kot.order_id, from_status: kot.order.status, to_status: 'ready' },
+      const res = await prisma.order.updateMany({
+        where: { id: kot.order_id, status: { in: ['created', 'confirmed'] } },
+        data: { status: 'ready' },
       });
+      rolledUp = res.count > 0;
+      if (rolledUp) {
+        await prisma.orderStatusHistory.create({
+          data: { order_id: kot.order_id, from_status: kot.order.status, to_status: 'ready' },
+        });
+      }
     }
 
     const io = getIO();
     if (io) {
       io.of('/kitchen').to(`outlet:${kot.outlet_id}`).emit('kot_complete', { kot_id: kotId });
       io.of('/orders').to(`outlet:${kot.outlet_id}`).emit('order_status_change', {
-        order_id: kot.order_id, status: allCompleted ? 'ready' : kot.order.status,
+        order_id: kot.order_id, status: rolledUp ? 'ready' : kot.order.status,
       });
     }
 

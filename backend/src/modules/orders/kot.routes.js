@@ -52,12 +52,20 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
       },
     });
 
-    // If all KOTs for this order are ready/served → update order status
+    // If all KOTs for this order are ready/served → advance the order to 'ready'.
+    // Guard: only advance an order still in the kitchen stage (created/confirmed). Never
+    // downgrade an order that has already moved on — a prepaid takeaway/dine-in is 'paid'
+    // before the kitchen finishes, and an unconditional set would clobber it back to
+    // 'ready' (is_paid stays true, so it looked paid in totals but showed "Ready" in lists).
+    // updateMany with a status filter makes this atomic and race-safe.
     if (status === 'ready') {
       const allKots = await prisma.kOT.findMany({ where: { order_id: kot.order_id, is_deleted: false } });
       const allReady = allKots.every(k => k.id === kotId ? true : ['ready', 'served', 'completed'].includes(k.status));
       if (allReady) {
-        await prisma.order.update({ where: { id: kot.order_id }, data: { status: 'ready' } });
+        await prisma.order.updateMany({
+          where: { id: kot.order_id, status: { in: ['created', 'confirmed'] } },
+          data: { status: 'ready' },
+        });
       }
     }
 
