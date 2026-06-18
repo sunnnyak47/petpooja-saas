@@ -60,7 +60,9 @@ export function StatsStrip({
     { key: 'created',   label: 'Pending' },
     { key: 'confirmed', label: 'Confirmed' },
     { key: 'held',      label: 'On Hold' },
+    { key: 'ready',     label: 'Ready' },
     { key: 'billed',    label: 'Billed' },
+    { key: 'paid',      label: 'Prepaid' },
   ];
 
   return (
@@ -201,7 +203,9 @@ const STATUS_OPTIONS = [
   { value: 'created',   label: 'Pending',   countKey: 'created' },
   { value: 'confirmed', label: 'Confirmed', countKey: 'confirmed' },
   { value: 'held',      label: 'On Hold',   countKey: 'held' },
+  { value: 'ready',     label: 'Ready',     countKey: 'ready' },
   { value: 'billed',    label: 'Billed',    countKey: 'billed' },
+  { value: 'paid',      label: 'Prepaid',   countKey: 'paid' },
 ];
 
 const TYPE_OPTIONS = [

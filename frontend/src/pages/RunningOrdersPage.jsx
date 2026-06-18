@@ -442,6 +442,8 @@ export default function RunningOrdersPage() {
     confirmed: allOrders.filter(o => o.status === 'confirmed').length,
     held: allOrders.filter(o => o.status === 'held').length,
     billed: allOrders.filter(o => o.status === 'billed').length,
+    ready: allOrders.filter(o => o.status === 'ready').length,
+    paid: allOrders.filter(o => o.is_paid).length,   // prepaid, still in the kitchen/pickup
     dine_in: allOrders.filter(o => o.order_type === 'dine_in').length,
     takeaway: allOrders.filter(o => o.order_type === 'takeaway').length,
     delivery: allOrders.filter(o => o.order_type === 'delivery').length,
