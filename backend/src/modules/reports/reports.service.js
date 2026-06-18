@@ -324,12 +324,13 @@ async function getDashboard(outletId) {
       }),
       // All ACTIVE orders (matches the Live Orders screen). Keep this in sync with the
       // running=true rule in orders/order.service.js listOrders:
+      //   • terminal states (completed/refunded/cancelled/voided) are excluded up front
       //   • takeaway/delivery → active until the kitchen serves/picks up (payment-independent)
       //   • dine-in & other   → active until paid AND kitchen-served
       prisma.order.count({
         where: {
           outlet_id: outletId, is_deleted: false,
-          status: { notIn: ['cancelled', 'voided'] },
+          status: { notIn: ['cancelled', 'voided', 'completed', 'refunded'] },
           OR: [
             {
               order_type: { in: ['takeaway', 'delivery'] },

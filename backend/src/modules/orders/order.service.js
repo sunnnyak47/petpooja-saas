@@ -495,7 +495,9 @@ async function listOrders(outletId, query = {}) {
     //   • Dine-in (and anything else) → the table/tab stays active until it's BOTH settled
     //     (paid) AND the kitchen work is finished, so a served-but-unpaid table doesn't vanish.
     if (query.running === 'true' || query.running === true) {
-      where.status = { notIn: ['cancelled', 'voided'] };
+      // 'completed' and 'refunded' are TERMINAL (order finished / closed). Exclude them up
+      // front so a finished-but-unpaid order can't leak back in via the is_paid:false leg below.
+      where.status = { notIn: ['cancelled', 'voided', 'completed', 'refunded'] };
       const kitchenStillWorking = { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } };
       where.OR = [
         {
@@ -545,7 +547,11 @@ async function listOrders(outletId, query = {}) {
           staff: { select: { full_name: true } },
           customer: { select: { full_name: true, phone: true } },
           payments: { where: { is_deleted: false }, select: { id: true, method: true, amount: true, status: true, processed_at: true } },
-          _count: { select: { order_items: true } },
+          // The card (EnhancedOrderCard) renders the item list and the item/KOT counts, so
+          // each list row must carry the live items array AND a kots count — not just an
+          // order_items count. Without this the cards showed "0 ITEMS / 0 KOTS" beside a real total.
+          order_items: { where: { is_deleted: false }, orderBy: { created_at: 'asc' } },
+          _count: { select: { order_items: true, kots: true } },
         },
       }),
       prisma.order.count({ where }),
