@@ -1047,12 +1047,13 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       } catch (_) { /* non-critical */ }
     })();
 
+    // Loyalty accrual is a non-critical side-effect — defer it so the payment response
+    // isn't blocked on the extra DB round-trips (matters most on a cross-region DB).
     if (order.customer_id) {
-      try {
-        await customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total));
-      } catch (loyaltyErr) {
-        logger.warn('Loyalty points failed (non-critical):', loyaltyErr.message);
-      }
+      setImmediate(() => {
+        customerService.earnPoints(order.customer_id, order.outlet_id, order.id, Number(order.grand_total))
+          .catch((loyaltyErr) => logger.warn('Loyalty points failed (non-critical):', loyaltyErr.message));
+      });
     }
 
     const io = getIO();
@@ -1066,7 +1067,13 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
     }
 
     // Billed now — if the kitchen has already served, schedule the auto-free.
-    if (deferTableFree) await autoFreeService.scheduleAutoFreeIfReady(orderId);
+    // Fire-and-forget so the payment response doesn't wait on it.
+    if (deferTableFree) {
+      setImmediate(() => {
+        autoFreeService.scheduleAutoFreeIfReady(orderId)
+          .catch((e) => logger.warn('Auto-free schedule failed (non-critical):', e.message));
+      });
+    }
 
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
 
@@ -1080,31 +1087,43 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
       }
     }
 
-    const fullOrder = await getOrderById(orderId);
+    // Defer the full-order re-fetch (a 7-relation join) + accounting + usage metering
+    // OFF the response path. The payment is already durably committed; these only need
+    // the full order, which we fetch in the background.
+    setImmediate(async () => {
+      try {
+        const fullOrder = await getOrderById(orderId);
+        if (fullOrder?.is_paid) {
+          try {
+            require('../accounting/accounting.posting.service')
+              .postOrderPaid(fullOrder)
+              .catch((e) => logger.warn('Ledger postOrderPaid failed', { error: e.message }));
+          } catch (e) { logger.warn('Ledger hook error', { error: e.message }); }
+          try {
+            require('../headoffice/billing.metering.service')
+              .recordOrderUsage(fullOrder)
+              .catch((e) => logger.warn('Usage metering failed', { error: e.message }));
+          } catch (e) { logger.warn('Metering hook error', { error: e.message }); }
+        }
+      } catch (e) { logger.warn('processPayment post-commit re-fetch failed', { error: e.message }); }
+    });
 
-    // Post a double-entry journal to the native ledger when the order is paid.
-    // Fire-and-forget — never let accounting break the payment flow.
-    if (fullOrder?.is_paid) {
-      setImmediate(() => {
-        try {
-          require('../accounting/accounting.posting.service')
-            .postOrderPaid(fullOrder)
-            .catch((e) => logger.warn('Ledger postOrderPaid failed', { error: e.message }));
-        } catch (e) { logger.warn('Ledger hook error', { error: e.message }); }
-      });
-
-      // Meter the transaction for usage-based SaaS billing. Idempotent and
-      // fire-and-forget — must never affect the payment outcome.
-      setImmediate(() => {
-        try {
-          require('../headoffice/billing.metering.service')
-            .recordOrderUsage(fullOrder)
-            .catch((e) => logger.warn('Usage metering failed', { error: e.message }));
-        } catch (e) { logger.warn('Metering hook error', { error: e.message }); }
-      });
-    }
-
-    return { payment: result.payment, order: fullOrder };
+    // Slim, immediate response built from data already in hand — the committed
+    // transaction is the source of truth, and no caller consumes the full order object
+    // from the payment response (only `payment` and `order.is_paid` are read).
+    return {
+      payment: result.payment,
+      order: {
+        id: orderId,
+        order_number: order.order_number,
+        status: 'paid',
+        is_paid: true,
+        grand_total: order.grand_total,
+        invoice_number: order.invoice_number,
+        outlet_id: order.outlet_id,
+        table_id: order.table_id,
+      },
+    };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof BadRequestError) throw error;
     throw error;
