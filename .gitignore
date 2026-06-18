@@ -24,3 +24,6 @@ backups/
 backend/backups/
 *.dump
 .DS_Store
+
+# Claude Code agent worktrees (embedded git repos — never commit)
+.claude/worktrees/
