@@ -485,6 +485,17 @@ async function listOrders(outletId, query = {}) {
         where.status = query.status;
       }
     }
+    // "Active" orders for the Live Orders screen: every order still in play — dine-in,
+    // takeaway or delivery, paid or not — that isn't fully done. An order leaves the list
+    // only once it's paid AND its kitchen work is finished (all KOTs served/completed), so
+    // a prepaid takeaway/delivery stays visible until the kitchen hands it over.
+    if (query.running === 'true' || query.running === true) {
+      where.status = { notIn: ['cancelled', 'voided'] };
+      where.OR = [
+        { is_paid: false },
+        { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+      ];
+    }
     if (query.order_type) where.order_type = query.order_type;
     if (query.source) where.source = query.source;
     if (query.from && query.to) {

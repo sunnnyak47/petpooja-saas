@@ -357,7 +357,7 @@ export default function DashboardPage() {
               label: 'Collect Pay',
               action: () => setCollectOpen(true),
               icon:  CreditCard,
-              metric: `${d.today?.running_orders || 0}`,
+              metric: `${d.today?.open_bills ?? d.today?.running_orders ?? 0}`,
               metricLabel: 'open bills',
               accent: '#2563eb',
             },

@@ -301,7 +301,7 @@ async function getDashboard(outletId) {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    const [todayOrders, yesterdayOrders, activeTables, pendingKots] = await Promise.all([
+    const [todayOrders, yesterdayOrders, activeTables, pendingKots, runningActive, openBills] = await Promise.all([
       prisma.order.findMany({
         where: {
           outlet_id: outletId, is_deleted: false,
@@ -321,6 +321,25 @@ async function getDashboard(outletId) {
       }),
       prisma.kOT.count({
         where: { outlet_id: outletId, status: { in: ['pending', 'preparing'] }, is_deleted: false },
+      }),
+      // All ACTIVE orders (matches the Live Orders screen): any type, paid or not, that
+      // isn't fully done (paid AND all KOTs served/completed).
+      prisma.order.count({
+        where: {
+          outlet_id: outletId, is_deleted: false,
+          status: { notIn: ['cancelled', 'voided'] },
+          OR: [
+            { is_paid: false },
+            { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+          ],
+        },
+      }),
+      // UNPAID open bills (matches the Collect Payments popup) — what's collectable.
+      prisma.order.count({
+        where: {
+          outlet_id: outletId, is_deleted: false, is_paid: false,
+          status: { in: ['created', 'confirmed', 'held', 'billed', 'ready'] },
+        },
       }),
     ]);
 
@@ -355,7 +374,8 @@ async function getDashboard(outletId) {
         // The old "!is_paid && status !== 'cancelled'" also counted voided orders (voided
         // is not 'cancelled') and online 'pending' tickets, so the dashboard read one (or
         // more) higher than the Live Orders list.
-        running_orders: todayOrders.filter((o) => ['created', 'confirmed', 'held', 'billed', 'ready'].includes(o.status)).length,
+        running_orders: runningActive,   // Live Orders count (active, any type/payment)
+        open_bills: openBills,            // Collect Payments count (unpaid, collectable)
         // New fields — explain the "orders > 0 but revenue = 0" case clearly:
         open_tabs_value: Math.round(todayOpenTabsValue * 100) / 100,
         gross_revenue:   Math.round(todayGrossRevenue * 100) / 100,

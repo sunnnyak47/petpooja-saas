@@ -326,7 +326,9 @@ export default function RunningOrdersPage() {
       if (IS_ELECTRON && !isOnline) {
         return hybridAPI.getOrders(outletId, { status: 'created,confirmed,held,billed,ready' });
       }
-      return api.get(`/orders?outlet_id=${outletId}&status=created,confirmed,held,billed,ready&limit=200`).then(r => r.data);
+      // running=true → every active order (dine-in/takeaway/delivery, paid or not) that
+      // isn't fully done yet, so prepaid takeaway/delivery show here until kitchen-served.
+      return api.get(`/orders?outlet_id=${outletId}&running=true&limit=200`).then(r => r.data);
     },
     enabled: !!outletId,
     refetchInterval: isLive && isOnline ? 8000 : false,
