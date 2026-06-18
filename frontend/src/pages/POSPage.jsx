@@ -818,6 +818,27 @@ export default function POSPage() {
     setAppliedLoyaltyDiscount(0);
   };
 
+  // Switching the order type starts a NEW order. A dine-in punch keeps tempOrderId set so
+  // extra rounds go to the same table — but that held order must NOT absorb the next punch
+  // of a different type. Without this, selecting Takeaway/Delivery after a dine-in punch and
+  // punching again hit the "add items to existing order" path and merged into the dine-in
+  // order (its items + total grew in Live Orders). Reset the order identity on a real type
+  // change; keep the cart the operator may have started for the new order. Same type (e.g.
+  // punching another dine-in round) is a no-op, so the add-a-round flow is preserved.
+  const handleOrderTypeChange = (id) => {
+    if (id === orderType) return;
+    if (tempOrderId) {
+      setTempOrderId(null);
+      setCurrentOrder(null);
+      setIsBilled(false);
+      setBilledOrder(null);
+      setServerOrderTotal(null);
+      setBalanceDue(null);
+    }
+    if (id !== 'dine_in' && selectedTable) dispatch(setSelectedTable(null));
+    dispatch(setOrderType(id));
+  };
+
   const handleCancelOrder = async (reason) => {
     try {
       // Only orders that were actually created on the server need a cancel call; a
@@ -1340,7 +1361,7 @@ export default function POSPage() {
             ].map(({ id, label, Icon }) => (
               <button
                 key={id}
-                onClick={() => dispatch(setOrderType(id))}
+                onClick={() => handleOrderTypeChange(id)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all"
                 style={{
                   background: orderType === id ? 'var(--accent)' : 'var(--bg-secondary)',
