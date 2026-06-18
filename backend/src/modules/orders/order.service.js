@@ -486,14 +486,35 @@ async function listOrders(outletId, query = {}) {
       }
     }
     // "Active" orders for the Live Orders screen: every order still in play — dine-in,
-    // takeaway or delivery, paid or not — that isn't fully done. An order leaves the list
-    // only once it's paid AND its kitchen work is finished (all KOTs served/completed), so
-    // a prepaid takeaway/delivery stays visible until the kitchen hands it over.
+    // takeaway or delivery, paid or not — that isn't fully done. The trigger that removes
+    // an order from this list depends on the order type:
+    //   • Takeaway / delivery → leaves when the KITCHEN hands it over (all KOTs
+    //     served/completed), regardless of payment. Collecting payment must NOT clear it;
+    //     money owed is tracked separately in Collect Payments / open bills. A prepaid
+    //     takeaway therefore stays here until the kitchen serves/pickup is done.
+    //   • Dine-in (and anything else) → the table/tab stays active until it's BOTH settled
+    //     (paid) AND the kitchen work is finished, so a served-but-unpaid table doesn't vanish.
     if (query.running === 'true' || query.running === true) {
       where.status = { notIn: ['cancelled', 'voided'] };
+      const kitchenStillWorking = { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } };
       where.OR = [
-        { is_paid: false },
-        { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+        {
+          // Takeaway / delivery: payment-independent. Stays while the kitchen still has work,
+          // or while it's an open draft not yet sent to the kitchen (no live KOTs, unpaid).
+          order_type: { in: ['takeaway', 'delivery'] },
+          OR: [
+            kitchenStillWorking,
+            { AND: [{ is_paid: false }, { kots: { none: { is_deleted: false } } }] },
+          ],
+        },
+        {
+          // Dine-in and any other type: stays until paid AND kitchen-served.
+          order_type: { notIn: ['takeaway', 'delivery'] },
+          OR: [
+            { is_paid: false },
+            kitchenStillWorking,
+          ],
+        },
       ];
     }
     if (query.order_type) where.order_type = query.order_type;

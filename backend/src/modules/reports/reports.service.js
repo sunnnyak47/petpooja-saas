@@ -322,15 +322,29 @@ async function getDashboard(outletId) {
       prisma.kOT.count({
         where: { outlet_id: outletId, status: { in: ['pending', 'preparing'] }, is_deleted: false },
       }),
-      // All ACTIVE orders (matches the Live Orders screen): any type, paid or not, that
-      // isn't fully done (paid AND all KOTs served/completed).
+      // All ACTIVE orders (matches the Live Orders screen). Keep this in sync with the
+      // running=true rule in orders/order.service.js listOrders:
+      //   • takeaway/delivery → active until the kitchen serves/picks up (payment-independent)
+      //   • dine-in & other   → active until paid AND kitchen-served
       prisma.order.count({
         where: {
           outlet_id: outletId, is_deleted: false,
           status: { notIn: ['cancelled', 'voided'] },
           OR: [
-            { is_paid: false },
-            { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+            {
+              order_type: { in: ['takeaway', 'delivery'] },
+              OR: [
+                { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+                { AND: [{ is_paid: false }, { kots: { none: { is_deleted: false } } }] },
+              ],
+            },
+            {
+              order_type: { notIn: ['takeaway', 'delivery'] },
+              OR: [
+                { is_paid: false },
+                { kots: { some: { is_deleted: false, status: { notIn: ['served', 'completed'] } } } },
+              ],
+            },
           ],
         },
       }),
