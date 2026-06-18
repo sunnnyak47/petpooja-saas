@@ -38,6 +38,11 @@ export function useMenuItems(outletId, options = {}) {
   const {
     enabled = true,
     staleTime = 60_000,
+    // Keep the menu cached for an hour after the last screen using it unmounts, so
+    // re-entering POS (or Menu / Add-KOT) shows items INSTANTLY from cache instead of a
+    // cold refetch. Default React Query gcTime is only 5 min, which is why leaving POS
+    // for a few minutes made it go blank-then-pop on return.
+    gcTime = 1000 * 60 * 60,
     queryFn,
     queryKey,
     ...rest
@@ -50,6 +55,7 @@ export function useMenuItems(outletId, options = {}) {
       (() => api.get(`/menu/items?outlet_id=${outletId}&limit=5000`).then((r) => r.data)),
     enabled: !!outletId && enabled,
     staleTime,
+    gcTime,
     ...rest,
   });
 }

@@ -224,7 +224,7 @@ export default function POSPage() {
   }, [orderIdParam, autoPayParam, dispatch]);
 
   // ── Hybrid menu/table queries: local SQLite when offline, cloud when online ──
-  const { data: hybridMenuData } = useQuery({
+  const { data: hybridMenuData, isLoading: hybridMenuLoading } = useQuery({
     queryKey: ['hybridMenu', outletId, isOnline],
     queryFn: () => hybridAPI.getMenu(outletId),
     enabled: !!outletId && IS_ELECTRON,
@@ -238,6 +238,8 @@ export default function POSPage() {
     queryKey: ['categories', outletId],
     queryFn: () => api.get(`/menu/categories?outlet_id=${outletId}`).then((r) => r.data),
     enabled: !!outletId && !IS_ELECTRON,
+    staleTime: 60_000,
+    gcTime: 1000 * 60 * 60,   // cache categories across navigation like the menu
   });
 
   // Always fetch the full menu in one shot. With the backend pagination
@@ -245,10 +247,14 @@ export default function POSPage() {
   // a single response. Cache it forever within the session — categories
   // tab filtering happens client-side so we never refetch on tab change.
   // Shared via useMenuItems so POS / Menu / RunningOrders reuse one cache entry.
-  const { data: cloudMenuData } = useMenuItems(outletId, {
+  const { data: cloudMenuData, isLoading: cloudMenuLoading } = useMenuItems(outletId, {
     enabled: !IS_ELECTRON,
     staleTime: 60_000,
   });
+
+  // True only on a cold load with nothing cached — used to show skeleton tiles instead
+  // of a blank grid (a warm cache renders instantly, so this stays false).
+  const menuLoading = IS_ELECTRON ? hybridMenuLoading : cloudMenuLoading;
 
   // Merge: Electron uses hybridMenuData, browser uses cloud
   const categories = IS_ELECTRON
@@ -1449,6 +1455,19 @@ export default function POSPage() {
 
             {/* Menu Grid */}
             <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 content-start">
+              {menuLoading && filteredItems.length === 0 &&
+                Array.from({ length: 12 }).map((_, i) => (
+                  <div key={`sk-${i}`} className="card p-3 pt-2 pl-3 border-l-4 border-l-surface-600 animate-pulse" style={{ minHeight: 76 }}>
+                    <div className="h-2 w-1/2 rounded mb-3" style={{ background: 'var(--bg-hover)' }} />
+                    <div className="h-3 w-3/4 rounded mb-2" style={{ background: 'var(--bg-hover)' }} />
+                    <div className="h-4 w-1/3 rounded" style={{ background: 'var(--bg-hover)' }} />
+                  </div>
+                ))}
+              {!menuLoading && filteredItems.length === 0 && (
+                <div className="col-span-full py-12 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  {activeCategory ? 'No items in this category' : 'No menu items found'}
+                </div>
+              )}
               {filteredItems.map((item) => {
                 const hasNoPrice = !Number(item.base_price) || Number(item.base_price) <= 0;
                 const isOOS = item.is_available === false || (item.track_inventory && item.stock_quantity !== undefined && item.stock_quantity <= 0);
