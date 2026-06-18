@@ -142,9 +142,11 @@ export default function DashboardPage() {
   const openTabsValue = openTabsValueFromBackend || openTabsValueClientside;
 
   const paidCount    = Number(d.today?.paid_orders    ?? 0);
-  const runningCount = Number(d.today?.running_orders ?? 0);
+  const runningCount = Number(d.today?.running_orders ?? 0);   // active in Live Orders (paid-cooking + unpaid)
+  const openBills    = Number(d.today?.open_bills     ?? 0);   // unpaid, awaiting collection
   const ordersTotal  = Number(d.today?.orders         ?? 0);
-  const hasOpenTabs  = runningCount > 0;
+  const unpaidToday  = Math.max(0, ordersTotal - paidCount);  // today's orders not yet paid (mutually exclusive w/ paid)
+  const hasOpenTabs  = openBills > 0;
 
   const statCards = [
     {
@@ -154,7 +156,7 @@ export default function DashboardPage() {
       icon:   CurrencyIcon,
       accent: 'var(--accent)',
       sub:    hasOpenTabs
-        ? `${format(openTabsValue)} pending in ${runningCount} open tab${runningCount > 1 ? 's' : ''}`
+        ? `${format(openTabsValue)} pending in ${openBills} open bill${openBills !== 1 ? 's' : ''}`
         : (paidCount > 0 ? `from ${paidCount} settled order${paidCount > 1 ? 's' : ''}` : null),
     },
     {
@@ -165,7 +167,7 @@ export default function DashboardPage() {
         : 0,
       icon:   ShoppingBag,
       accent: 'var(--accent)',
-      sub:    ordersTotal > 0 ? `${paidCount} paid · ${runningCount} open` : null,
+      sub:    ordersTotal > 0 ? `${paidCount} paid · ${unpaidToday} unpaid` : null,
     },
     {
       label:  'Avg Order Value',
@@ -299,7 +301,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-3 gap-5 flex-1 min-w-0">
                 {[
                   { label: 'Avg ticket today',  value: format(d.today?.avg_order_value || 0) },
-                  { label: 'Pending orders',     value: `${d.today?.running_orders || 0}` },
+                  { label: 'Live orders',        value: `${d.today?.running_orders || 0}` },
                   { label: 'Tables occupied',    value: `${d.live?.active_tables || 0}/${d.live?.total_tables || 0}` },
                 ].map(m => (
                   <div key={m.label} className="min-w-0">
