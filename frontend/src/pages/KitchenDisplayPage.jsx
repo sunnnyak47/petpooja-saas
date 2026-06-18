@@ -465,15 +465,43 @@ export default function KitchenDisplayPage() {
 
   /* ── mutations ── */
   const apiStatus = s => s === 'served' ? 'completed' : s;
+  // Optimistic bump: the ticket jumps to its new column INSTANTLY (column placement is a
+  // pure function of kot.status), then we reconcile with the server in the background — no
+  // waiting on the PUT round-trip + a full refetch. Roll back to the snapshot on error.
+  // Write the UI value ('preparing'|'ready'|'served') into the cache; the board buckets
+  // 'served' and coalesces server 'completed'->'served', so this lands in the right column.
   const bumpMut = useMutation({
     mutationFn: ({ kotId, status }) => api.put(`/kitchen/kots/${kotId}/status`, { status: apiStatus(status), outlet_id: outletId }),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
-    onError:    e  => toast.error(e.message || 'Failed'),
+    onMutate: async ({ kotId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
+      const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });   // snapshot every station/filter variant
+      queryClient.setQueriesData({ queryKey: ['kds-kots'] }, (old) =>
+        Array.isArray(old) ? old.map(k => (k.id === kotId ? { ...k, status } : k)) : old
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error(e.message || 'Failed');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
   });
   const itemReadyMut = useMutation({
     mutationFn: ({ kotId, itemId }) => api.put(`/kitchen/kots/${kotId}/items/${itemId}/ready`, { outlet_id: outletId }),
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
-    onError:    e  => toast.error(e.message),
+    onMutate: async ({ kotId, itemId }) => {
+      await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
+      const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
+      const markReady = (arr) => (Array.isArray(arr) ? arr.map(i => (i.id === itemId ? { ...i, status: 'ready', is_ready: true } : i)) : arr);
+      queryClient.setQueriesData({ queryKey: ['kds-kots'] }, (old) =>
+        Array.isArray(old) ? old.map(k => (k.id === kotId ? { ...k, items: markReady(k.items), kot_items: markReady(k.kot_items) } : k)) : old
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error(e.message);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
   });
   const clearMut = useMutation({
     mutationFn: async ({ type, kots }) => {

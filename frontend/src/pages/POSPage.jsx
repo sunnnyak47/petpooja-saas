@@ -82,6 +82,7 @@ export default function POSPage() {
   // True while a Punch-KOT request is in flight — keeps the cart intact until the
   // server confirms so a failed order can never merge into the cashier's next cart.
   const [punching, setPunching] = useState(false);
+  const [billing, setBilling] = useState(false);
 
   // Manager Auth for Void/Comp/Discount
   const [showManagerPin, setShowManagerPin] = useState(false);
@@ -665,6 +666,10 @@ export default function POSPage() {
     if (!tempOrderId && !(IS_ELECTRON && !isOnline)) {
       if (punching) return; // guard against double-tap
       setPunching(true);
+      // Instant feedback: the loading toast appears the moment the button is pressed and
+      // swaps to success/error (same toast id) when the server responds. The cart is still
+      // cleared only AFTER success (merge-corruption guard above stays intact).
+      const sendingToast = toast.loading('Sending to Kitchen…');
 
       const payload = {
         outlet_id: outletId,
@@ -694,7 +699,7 @@ export default function POSPage() {
         const orderId = data?.order?.id;
 
         // Success — NOW clear the cart and reset extras.
-        toast.success('🚀 Sent to Kitchen!', { duration: 2000 });
+        toast.success('🚀 Sent to Kitchen!', { id: sendingToast, duration: 2000 });
         dispatch(clearCart());
         setGratuity(0);
         setAppliedLoyaltyPoints(0);
@@ -709,7 +714,7 @@ export default function POSPage() {
       } catch (err) {
         // Failure — cart is untouched, staff can simply retry.
         const msg = err.response?.data?.message || err.message || 'KOT failed';
-        toast.error(`⚠️ ${msg} — cart kept, please retry`, { duration: 5000 });
+        toast.error(`⚠️ ${msg} — cart kept, please retry`, { id: sendingToast, duration: 5000 });
       } finally {
         setPunching(false);
       }
@@ -776,6 +781,7 @@ export default function POSPage() {
   };
 
   const handleGenerateBill = async () => {
+    if (billing) return; // guard against double-tap (duplicate bill)
     let orderId = tempOrderId;
     if (!orderId && cart.length > 0) {
       const order = await handleCreateOrderCore('created');
@@ -786,6 +792,8 @@ export default function POSPage() {
     if (!orderId || typeof orderId !== 'string' || orderId.length < 5)
       return toast.error('No active order to bill. Please punch KOT first.');
 
+    setBilling(true);
+    const billingToast = toast.loading('Generating bill…');
     try {
       let billData;
       if (IS_ELECTRON && !isOnline) {
@@ -798,8 +806,9 @@ export default function POSPage() {
       if (billData?.grand_total != null) setServerOrderTotal(Number(billData.grand_total));
       setIsBilled(true);
       setShowBillPreview(true);
-      toast.success('Bill Generated!');
-    } catch (err) { toast.error(err.message); }
+      toast.success('Bill Generated!', { id: billingToast });
+    } catch (err) { toast.error(err.message, { id: billingToast }); }
+    finally { setBilling(false); }
   };
 
   // Reset the whole POS to an empty state (used by Cancel Order + after payment).
@@ -1819,7 +1828,7 @@ export default function POSPage() {
                )}
             </div>
 
-            <button onClick={() => { if (ensureTableSelected()) setShowPayment(true); }} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide">
+            <button onClick={() => { if (ensureTableSelected()) setShowPayment(true); }} disabled={billing} className="btn-success w-full py-4 rounded-xl text-lg shadow-lg shadow-success-500/20 active:scale-[0.99] transition-transform font-bold tracking-wide disabled:opacity-60 disabled:cursor-not-allowed">
               {isBilled ? 'PAY BILL' : `PAY ${symbol}${isAU ? payableAmount.toFixed(2) : Math.round(payableAmount)}`}
             </button>
             {/* Refund button — visible only for paid orders */}
@@ -1841,9 +1850,9 @@ export default function POSPage() {
         {/* Show GENERATE BILL only after KOT is punched (cart empty, real order exists) */}
         {!isBilled && cart.length === 0 && tempOrderId && typeof tempOrderId === 'string' && tempOrderId.length > 10 && (
           <div className="p-3" style={{ background: 'var(--bg-card)' }}>
-            <button onClick={handleGenerateBill} className="w-full py-3 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all text-white"
+            <button onClick={handleGenerateBill} disabled={billing} className="w-full py-3 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 transition-all text-white disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-               <FileText className="w-4 h-4" /> GENERATE BILL
+               <FileText className="w-4 h-4" /> {billing ? 'Generating…' : 'GENERATE BILL'}
             </button>
           </div>
         )}
