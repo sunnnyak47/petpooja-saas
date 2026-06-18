@@ -52,21 +52,15 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
       },
     });
 
-    // If all KOTs for this order are ready/served → advance the order to 'ready'.
-    // Guard: only advance an order still in the kitchen stage (created/confirmed). Never
-    // downgrade an order that has already moved on — a prepaid takeaway/dine-in is 'paid'
-    // before the kitchen finishes, and an unconditional set would clobber it back to
-    // 'ready' (is_paid stays true, so it looked paid in totals but showed "Ready" in lists).
-    // updateMany with a status filter makes this atomic and race-safe.
-    if (status === 'ready') {
-      const allKots = await prisma.kOT.findMany({ where: { order_id: kot.order_id, is_deleted: false } });
-      const allReady = allKots.every(k => k.id === kotId ? true : ['ready', 'served', 'completed'].includes(k.status));
-      if (allReady) {
-        await prisma.order.updateMany({
-          where: { id: kot.order_id, status: { in: ['created', 'confirmed'] } },
-          data: { status: 'ready' },
-        });
-      }
+    // Whenever this KOT reaches a done state (ready/served/completed) — even when
+    // the KDS bumps it straight to 'served'/'completed', skipping 'ready' — roll
+    // the parent order up to 'ready', record the transition, and trigger auto-free.
+    // Shared with completeKOT so both paths behave identically. The helper only
+    // advances an order still in the kitchen stage (created/confirmed), so a
+    // prepaid/paid order is never clobbered back to 'ready'.
+    let rolledUp = false;
+    if (['ready', 'served', 'completed'].includes(status)) {
+      rolledUp = await kotService.rollUpOrderIfKitchenDone(prisma, kot.order_id, kotId, kot.order.status);
     }
 
     const { getIO } = require('../../socket/index');
@@ -74,7 +68,9 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
     if (io) {
       const outId = outlet_id || kot.outlet_id;
       io.of('/kitchen').to(`outlet:${outId}`).emit('kot_complete', { kot_id: kotId, status });
-      io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', { order_id: kot.order_id, status });
+      io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', {
+        order_id: kot.order_id, status: rolledUp ? 'ready' : kot.order.status,
+      });
     }
 
     // Push the new status back to the delivery aggregator (if this is an

@@ -9,6 +9,56 @@ const logger = require('../../config/logger');
 const { NotFoundError } = require('../../utils/errors');
 const { scheduleAutoFreeIfReady } = require('./autofree.service');
 
+// A KOT counts as "kitchen-done" once it reaches any of these. The parent order
+// rolls up to 'ready' when every non-deleted KOT is in one of these states.
+const KOT_DONE_STATUSES = ['ready', 'served', 'completed'];
+
+/**
+ * Shared parent-order roll-up for the KDS flows.
+ *
+ * Call this AFTER a KOT has been transitioned into a ready/served/completed
+ * state (the row must already reflect its new status in the DB). If every
+ * non-deleted KOT for the order is now done, advance the order to 'ready',
+ * record the transition in OrderStatusHistory, and fire the table auto-free
+ * path. Used by both the KDS bump route and completeKOT so a KOT bumped
+ * straight to 'served'/'completed' rolls the order up exactly like one that
+ * passed through 'ready'.
+ *
+ * The order is only advanced from a kitchen stage (created/confirmed) via an
+ * atomic, status-filtered updateMany — a prepaid/paid order that was billed
+ * before the kitchen finished is never clobbered back to 'ready'.
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma - DB client
+ * @param {string} orderId - Parent order UUID
+ * @param {string} kotId - The KOT just updated; treated as done even if a
+ *   read-after-write returns a stale row
+ * @param {string} priorStatus - Order status before this roll-up, recorded as
+ *   OrderStatusHistory.from_status
+ * @returns {Promise<boolean>} true if the order was advanced to 'ready'
+ */
+async function rollUpOrderIfKitchenDone(prisma, orderId, kotId, priorStatus) {
+  const allKots = await prisma.kOT.findMany({ where: { order_id: orderId, is_deleted: false } });
+  const kitchenDone = allKots.every((k) => k.id === kotId || KOT_DONE_STATUSES.includes(k.status));
+  if (!kitchenDone) return false;
+
+  const res = await prisma.order.updateMany({
+    where: { id: orderId, status: { in: ['created', 'confirmed'] } },
+    data: { status: 'ready' },
+  });
+  const rolledUp = res.count > 0;
+  if (rolledUp) {
+    await prisma.orderStatusHistory.create({
+      data: { order_id: orderId, from_status: priorStatus, to_status: 'ready' },
+    });
+  }
+
+  // Kitchen is done — if the order is already billed, schedule the table
+  // auto-free. Safe to call even when the order wasn't advanced here (e.g. a
+  // prepaid order): the helper no-ops unless it's a paid, served dine-in.
+  await scheduleAutoFreeIfReady(orderId);
+  return rolledUp;
+}
+
 /**
  * Lists pending KOTs for a kitchen station.
  * @param {string} outletId - Outlet UUID
@@ -141,28 +191,9 @@ async function completeKOT(kotId, outletId = null) {
       }
     });
 
-    const allKots = await prisma.kOT.findMany({
-      where: { order_id: kot.order_id, is_deleted: false },
-    });
-    const allCompleted = allKots.every((k) => k.status === 'completed' || k.id === kotId);
-
-    // Advance the order to 'ready' only if it's still in the kitchen stage (created/confirmed).
-    // Never downgrade an already paid/billed/ready/terminal order — e.g. a prepaid order that
-    // was paid before the kitchen finished would otherwise be clobbered back to 'ready'.
-    // updateMany with a status filter is atomic, so a concurrent payment can't be overwritten.
-    let rolledUp = false;
-    if (allCompleted) {
-      const res = await prisma.order.updateMany({
-        where: { id: kot.order_id, status: { in: ['created', 'confirmed'] } },
-        data: { status: 'ready' },
-      });
-      rolledUp = res.count > 0;
-      if (rolledUp) {
-        await prisma.orderStatusHistory.create({
-          data: { order_id: kot.order_id, from_status: kot.order.status, to_status: 'ready' },
-        });
-      }
-    }
+    // Roll the parent order up to 'ready' (+ history + auto-free) if every KOT
+    // is now done. Shared with the KDS bump route so both paths behave identically.
+    const rolledUp = await rollUpOrderIfKitchenDone(prisma, kot.order_id, kotId, kot.order.status);
 
     const io = getIO();
     if (io) {
@@ -172,9 +203,6 @@ async function completeKOT(kotId, outletId = null) {
       });
     }
 
-    // Kitchen just served — if the order is already billed, schedule auto-free.
-    if (allCompleted) await scheduleAutoFreeIfReady(kot.order_id);
-
     return kot;
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
@@ -182,4 +210,4 @@ async function completeKOT(kotId, outletId = null) {
   }
 }
 
-module.exports = { listPendingKOTs, markItemReady, completeKOT };
+module.exports = { listPendingKOTs, markItemReady, completeKOT, rollUpOrderIfKitchenDone };
