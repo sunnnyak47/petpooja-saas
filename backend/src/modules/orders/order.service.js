@@ -1402,6 +1402,18 @@ async function updateOrderStatus(orderId, newStatus, staffId, outletId = null) {
     });
     if (!order) throw new NotFoundError('Order not found');
 
+    // 'completed' is a terminal/closed state. Revenue, head-office, accounting and
+    // payment-reconciliation queries all key settlement on is_paid (never on
+    // status='completed'), so marking an UNPAID order completed would create a
+    // finished-but-uncollected order that's invisible to revenue yet no longer
+    // surfaces as an open/live bill — money that's never reconciled. Block it and
+    // require payment first (processPayment / POS). Prepaid orders (online/Razorpay,
+    // Swiggy/Zomato) already carry is_paid=true, so this only blocks the never-settled
+    // case and leaves the legitimate "complete an already-paid order" path untouched.
+    if (newStatus === 'completed' && !order.is_paid) {
+      throw new BadRequestError('Cannot mark an unpaid order as completed — collect payment first');
+    }
+
     await prisma.$transaction(async (tx) => {
       // If transitioning to 'paid' via status update, also set is_paid + paid_at
       // so revenue calculations stay consistent with processPayment flow.
