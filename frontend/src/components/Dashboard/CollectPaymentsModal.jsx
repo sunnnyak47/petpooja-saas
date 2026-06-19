@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { Search, CreditCard, Clock, Utensils, ShoppingBag, Bike, Banknote, Smartphone, ChevronDown, Loader2, ExternalLink } from 'lucide-react';
 import Modal from '../Modal';
+import BillPreviewModal from '../POS/BillPreviewModal';
+import { PrintService } from '../../lib/PrintService';
 import api, { SOCKET_URL } from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import toast from 'react-hot-toast';
@@ -35,6 +37,7 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);  // order whose quick-pay panel is open
+  const [receiptOrder, setReceiptOrder] = useState(null);  // paid order to show/print a receipt for
 
   // Quick-settle methods offered inline. These record the tender directly (full amount) —
   // for split / partial / card-terminal / loyalty the operator uses "Pay in POS".
@@ -71,19 +74,43 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
     return () => socket.disconnect();
   }, [isOpen, outletId, queryClient]);
 
+  // Compose a single-line outlet address from its parts (the receipt template reads
+  // outlet.address) so both the preview and the printed/thermal copy show it.
+  const withComposedOutlet = (o) => {
+    if (!o?.outlet || o.outlet.address) return o;
+    const ot = o.outlet;
+    const address = [ot.address_line1, ot.address_line2, ot.city, ot.state, ot.pincode].filter(Boolean).join(', ');
+    return { ...o, outlet: { ...ot, address } };
+  };
+
+  const doPrintReceipt = (order) => {
+    if (!order) return;
+    try {
+      PrintService.printBill(order, { ...(order.outlet || {}), region: isAU ? 'AU' : 'IN' }, { paperWidth: 80, region: isAU ? 'AU' : 'IN' });
+    } catch {
+      toast.error('Print failed — check the printer or allow pop-ups for this site');
+    }
+  };
+
   // Inline quick settle: bill (if not already billed) then take full payment. One tap.
+  // After it settles we re-fetch the now-paid order (with the recorded tender +
+  // invoice number + full outlet header) and surface a receipt preview to print.
   const quickPay = useMutation({
     mutationFn: async ({ orderId, method, status, amount }) => {
       if (status !== 'billed') {
         await api.post(`/orders/${orderId}/bill`, { outlet_id: outletId });
       }
       await api.post(`/orders/${orderId}/payment`, { method, amount });
+      const res = await api.get(`/orders/${orderId}`);
+      return res?.data ?? res;   // full paid order for the receipt
     },
-    onSuccess: () => {
+    onSuccess: (paidOrder) => {
       toast.success('Payment collected ✓');
       setExpandedId(null);
       queryClient.invalidateQueries({ queryKey: ['collect-orders', outletId] });
       queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      // Generate the bill receipt for any tender source (cash/card/eftpos/upi).
+      if (paidOrder?.id) setReceiptOrder(withComposedOutlet(paidOrder));
     },
     onError: (e) => toast.error(e?.response?.data?.message || 'Could not collect payment'),
   });
@@ -118,6 +145,7 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
     });
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title="Collect Payments" size="lg">
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -237,5 +265,14 @@ export default function CollectPaymentsModal({ isOpen, onClose, outletId }) {
         </p>
       </div>
     </Modal>
+
+    {/* Receipt preview shown after a successful collect (any tender source). */}
+    <BillPreviewModal
+      isOpen={!!receiptOrder}
+      order={receiptOrder}
+      onClose={() => setReceiptOrder(null)}
+      onPrint={() => doPrintReceipt(receiptOrder)}
+    />
+    </>
   );
 }
