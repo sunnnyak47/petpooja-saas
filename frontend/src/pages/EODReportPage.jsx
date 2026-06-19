@@ -241,7 +241,11 @@ function PrintPreview({ report, snap, outletName, user, fmt, upiLabel = 'UPI' })
 
 export default function EODReportPage() {
   const { user } = useSelector(s => s.auth);
-  const outletId  = user?.outlet_id;
+  // Multi-outlet owners (and the seeded super_admin) carry outlet_id=null on their
+  // JWT, so fall back to their first bound outlet — same pattern used by OrdersPage,
+  // AccountingPage, etc. Without this the EOD queries stayed disabled (enabled:!!outletId)
+  // and the refresh button fetched with outlet_id=undefined.
+  const outletId  = user?.outlet_id || user?.outlets?.[0]?.id;
   const navigate  = useNavigate();
   const qc        = useQueryClient();
   const { format, symbol, locale, isAU } = useCurrency();
@@ -262,12 +266,21 @@ export default function EODReportPage() {
   const [discReason,   setDiscReason]   = useState('');
 
   /* ── Live snapshot ── */
-  const { data: snap, isLoading: snapLoading, refetch: refetchSnap } = useQuery({
+  // isFetching (not isLoading) drives the refresh spinner: isLoading is only true on
+  // the FIRST load (no cached data), so a manual refetch of an already-loaded report
+  // left isLoading=false and the button gave no feedback — it looked broken.
+  const { data: snap, isLoading: snapLoading, isFetching: snapFetching, refetch: refetchSnap } = useQuery({
     queryKey: ['eod-snapshot', outletId, selectedDate],
     queryFn:  () => api.get(`/reports/eod/preview?outlet_id=${outletId}&date=${selectedDate}`).then(r => r.data?.data || r.data),
     enabled:  !!outletId,
     staleTime: 30_000,
   });
+
+  /* Refresh everything the report is built from — snapshot AND any saved draft. */
+  function refreshAll() {
+    refetchSnap();
+    refetchSaved();
+  }
 
   /* ── Saved report for selected date ── */
   const { data: savedReport, refetch: refetchSaved } = useQuery({
@@ -308,8 +321,12 @@ export default function EODReportPage() {
     mutationFn: (payload) => api.post('/reports/eod/save', payload),
     onSuccess: (res) => {
       toast.success('Draft saved successfully');
-      qc.invalidateQueries(['eod-report', outletId, selectedDate]);
-      qc.invalidateQueries(['eod-history', outletId]);
+      // v5 requires the { queryKey } object form — the old positional-array form
+      // (qc.invalidateQueries([...])) silently no-ops in @tanstack/react-query v5,
+      // so saved report / history never refreshed after a save.
+      qc.invalidateQueries({ queryKey: ['eod-report', outletId, selectedDate] });
+      qc.invalidateQueries({ queryKey: ['eod-snapshot', outletId, selectedDate] });
+      qc.invalidateQueries({ queryKey: ['eod-history', outletId] });
     },
     onError: (e) => toast.error(e.message || 'Save failed'),
   });
@@ -319,8 +336,9 @@ export default function EODReportPage() {
     mutationFn: (reportId) => api.post('/reports/eod/lock', { outlet_id: outletId, report_id: reportId }),
     onSuccess: () => {
       toast.success('EOD Report locked & finalised!');
-      qc.invalidateQueries(['eod-report', outletId, selectedDate]);
-      qc.invalidateQueries(['eod-history', outletId]);
+      qc.invalidateQueries({ queryKey: ['eod-report', outletId, selectedDate] });
+      qc.invalidateQueries({ queryKey: ['eod-snapshot', outletId, selectedDate] });
+      qc.invalidateQueries({ queryKey: ['eod-history', outletId] });
     },
     onError: (e) => toast.error(e.message || 'Lock failed'),
   });
@@ -457,8 +475,9 @@ export default function EODReportPage() {
               <div className="card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold flex items-center gap-2"><ClipboardList size={16}/> Sales Summary</h2>
-                  <button onClick={() => refetchSnap()} className="p-1.5 rounded hover:bg-surface transition-colors" title="Refresh">
-                    <RefreshCw size={14} className={snapLoading ? 'animate-spin' : ''}/>
+                  <button onClick={refreshAll} disabled={snapFetching}
+                    className="p-1.5 rounded hover:bg-surface transition-colors disabled:opacity-60" title="Refresh">
+                    <RefreshCw size={14} className={snapFetching ? 'animate-spin' : ''}/>
                   </button>
                 </div>
                 {snapLoading ? (
