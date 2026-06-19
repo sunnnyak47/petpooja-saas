@@ -707,31 +707,44 @@ export default function POSPage() {
         const data = res.data?.data ?? res.data;
         const orderId = data?.order?.id;
 
-        // Success — NOW clear the cart and reset extras.
+        // Success — clear cart and reset extras.
         toast.success('🚀 Sent to Kitchen!', { id: sendingToast, duration: 2000 });
         dispatch(clearCart());
         setGratuity(0);
         setAppliedLoyaltyPoints(0);
         setAppliedLoyaltyDiscount(0);
+
+        // ── Auto-release the terminal back to a clean state after a dine-in punch ──
+        // The order is now live in Running Orders. The seized table belongs to that
+        // order until it's paid + auto-freed. Holding it on the POS screen as the
+        // "currently selected table" created two real problems:
+        //   1. The picker's "show selected table even if not available" clause
+        //      kept the just-seized table visible, so the operator could re-tap it.
+        //   2. There was no obvious way to start the next order without reloading.
+        // Clearing selectedTable + tempOrderId here makes the seized table vanish
+        // from the picker (it's now plain "occupied"), the cart resets to empty,
+        // and the operator can immediately punch a brand-new order. To add items
+        // to the previous order, they recall it from Running Orders / Tables.
         if (selectedTable && orderId) {
-          setTempOrderId(orderId);
-          // Optimistically flip this table to occupied in the local cache so the
-          // very next "select table" picker treats it as in-use. Without this,
-          // the seized table can briefly reappear in the available list (cache
-          // stale + socket arrives microseconds later), letting the operator
-          // re-select it — which the backend would now reject as a Conflict.
           const seizedTableId = selectedTable.id;
+          // Optimistically flip the seized table to 'occupied' in the local cache
+          // BEFORE clearing selectedTable, so the picker has zero frames to show
+          // it as still-available between the two state writes.
           queryClient.setQueryData(['tables', outletId], (old) =>
             Array.isArray(old)
               ? old.map(t => t.id === seizedTableId ? { ...t, status: 'occupied', current_order_id: orderId } : t)
               : old
           );
+          dispatch(setSelectedTable(null));
+          setTempOrderId(null);
+          setCurrentOrder(null);
+          setIsCompMode(false);
         } else {
           setTempOrderId(null);
           setCurrentOrder(null);
         }
         queryClient.invalidateQueries({ queryKey: ['running-orders'] });
-        // Re-sync from server in the background — clean up the optimistic write.
+        // Re-sync from server in the background — confirms the optimistic write.
         queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
       } catch (err) {
         // Failure — cart is untouched, staff can simply retry.
