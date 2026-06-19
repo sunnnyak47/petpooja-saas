@@ -262,12 +262,13 @@ async function listItemPresets(outletId, query = {}) {
 
   const count = await prisma.itemPreset.count({ where: { outlet_id: outletId, is_deleted: false } });
   if (count === 0) {
-    // Seed region-appropriate defaults based on the outlet's country
+    // Seed region-appropriate defaults based on the outlet's country.
+    // country_code/currency live on head_offices, not outlets — query via relation.
     const outlet = await prisma.outlet.findFirst({
       where: { id: outletId },
-      select: { country_code: true, currency: true },
+      select: { head_office: { select: { country_code: true, currency: true } } },
     });
-    const isAU = outlet?.country_code === 'AU' || outlet?.currency === 'AUD';
+    const isAU = outlet?.head_office?.country_code === 'AU' || outlet?.head_office?.currency === 'AUD';
     const seeds = isAU ? AU_DEFAULT_PRESETS : DEFAULT_PRESETS;
     await prisma.itemPreset.createMany({
       data: seeds.map(p => ({ outlet_id: outletId, ...p })),
