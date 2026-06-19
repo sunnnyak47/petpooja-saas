@@ -516,6 +516,77 @@ async function startApp() {
       }
     }
 
+    // ── Create procurement tables if missing ────────────────────────────────
+    // item_presets, whatsapp_send_logs, goods_received_notes, grn_items were added
+    // after the initial prisma db push so they may be absent in older prod DBs.
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS item_presets (
+          id                    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id             UUID          NOT NULL,
+          name                  VARCHAR(200)  NOT NULL,
+          category              VARCHAR(50)   NOT NULL,
+          default_quantity      DECIMAL(10,3) NOT NULL DEFAULT 1,
+          unit                  VARCHAR(20)   NOT NULL DEFAULT 'kg',
+          default_rate          DECIMAL(10,2) NOT NULL DEFAULT 0,
+          sku                   VARCHAR(50),
+          hsn_code              VARCHAR(20),
+          tax_rate              DECIMAL(5,2)  NOT NULL DEFAULT 0,
+          preferred_supplier_id UUID,
+          notes                 TEXT,
+          use_count             INTEGER       NOT NULL DEFAULT 0,
+          is_active             BOOLEAN       NOT NULL DEFAULT true,
+          is_deleted            BOOLEAN       NOT NULL DEFAULT false,
+          created_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
+          updated_at            TIMESTAMPTZ   NOT NULL DEFAULT now()
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_item_presets_outlet_category ON item_presets(outlet_id, category)`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_item_presets_outlet_use ON item_presets(outlet_id, use_count DESC)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS whatsapp_send_logs (
+          id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id     UUID        NOT NULL,
+          po_id         UUID,
+          phone         VARCHAR(20) NOT NULL,
+          message       TEXT,
+          status        VARCHAR(20) NOT NULL DEFAULT 'sent',
+          wa_message_id VARCHAR(100),
+          error         TEXT,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`);
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_whatsapp_send_logs_outlet ON whatsapp_send_logs(outlet_id, created_at DESC)`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS goods_received_notes (
+          id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          outlet_id         UUID        NOT NULL,
+          purchase_order_id UUID        NOT NULL,
+          grn_number        VARCHAR(30) NOT NULL,
+          received_by       UUID,
+          received_date     DATE        NOT NULL DEFAULT CURRENT_DATE,
+          notes             TEXT,
+          created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          is_deleted        BOOLEAN     NOT NULL DEFAULT false,
+          CONSTRAINT goods_received_notes_grn_number_key UNIQUE (grn_number)
+        )`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS grn_items (
+          id                UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+          grn_id            UUID          NOT NULL,
+          inventory_item_id UUID          NOT NULL,
+          po_item_id        UUID,
+          received_quantity DECIMAL(12,3) NOT NULL,
+          unit_cost         DECIMAL(10,2),
+          quality_status    VARCHAR(20)   NOT NULL DEFAULT 'accepted',
+          created_at        TIMESTAMPTZ   NOT NULL DEFAULT now(),
+          is_deleted        BOOLEAN       NOT NULL DEFAULT false,
+          updated_at        TIMESTAMPTZ   NOT NULL DEFAULT now()
+        )`);
+      logger.info('Procurement tables ensured.');
+    } catch (e) {
+      logger.warn('Procurement table creation skipped (non-fatal):', { error: e.message });
+    }
+
     // ── Create native accounting ledger tables if missing ───────────────────
     try {
       await prisma.$executeRawUnsafe(`

@@ -3,6 +3,7 @@
  * PDF download, and WhatsApp send.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Plus, Trash2, Search, FileText, Send, Check,
@@ -56,6 +57,8 @@ export default function PurchaseOrderPage() {
   const region = useRegion();
   const isAU = region === 'AU';
   const navigate = useNavigate();
+  const { user } = useSelector(s => s.auth);
+  const outletId = user?.outlet_id;
 
   // view states: 'list' | 'create' | 'detail'
   const [view, setView] = useState('list');
@@ -76,19 +79,20 @@ export default function PurchaseOrderPage() {
   /* ── load data ── */
   const loadAll = useCallback(async () => {
     setLoading(true);
+    const q = outletId ? `?outlet_id=${outletId}` : '';
     try {
       const [poRes, supRes, preRes] = await Promise.all([
-        api.get('/purchase-orders'),
-        api.get('/suppliers'),
-        api.get('/presets'),
+        api.get(`/purchase-orders${q}`),
+        api.get(`/suppliers${q}`),
+        api.get(`/presets${q}`),
       ]);
       setOrders(poRes.data?.items ?? poRes.data ?? []);
       setSuppliers(supRes.data ?? []);
       setPresets(preRes.data ?? []);
     } catch (e) {
-      toast.error('Failed to load data');
+      toast.error(e.message || 'Failed to load purchase orders data');
     } finally { setLoading(false); }
-  }, []);
+  }, [outletId]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
