@@ -1749,8 +1749,11 @@ async function punchKOT(data, staffId) {
   ]);
 
   if (data.table_id && !tableRow) throw new NotFoundError('Table not found');
-  if (tableRow?.status === 'occupied' && tableRow?.current_order_id) {
-    throw new BadRequestError('Table is already occupied. Use add items to existing order.');
+  // Fast-fail check (the authoritative atomic seize happens inside the tx below).
+  // A table is "in use" if it's flagged occupied OR has any non-terminal order id
+  // attached — both states must clear (i.e. payment + auto-free) before reuse.
+  if (tableRow && (tableRow.status === 'occupied' || tableRow.current_order_id)) {
+    throw new ConflictError('Table is already occupied. Use "Add items to existing order" or pick another table.');
   }
   // Table mandatory for dine-in when the outlet enables the setting.
   if (requireTableSetting?.setting_value === 'true') {
@@ -1850,9 +1853,18 @@ async function punchKOT(data, staffId) {
       data: { order_id: createdOrder.id, from_status: null, to_status: 'confirmed', changed_by: staffId },
     });
 
-    // Table update
+    // Atomic table seize — only succeeds if the table is still free at commit
+    // time. Mirrors createOrder so two concurrent punches can't quietly merge
+    // into one occupied row (which previously let a stale "available" cache
+    // re-select an in-use table and silently overwrite current_order_id).
     if (data.table_id) {
-      await tx.table.update({ where: { id: data.table_id }, data: { status: 'occupied', current_order_id: createdOrder.id } });
+      const seized = await tx.table.updateMany({
+        where: { id: data.table_id, current_order_id: null, status: { not: 'occupied' } },
+        data: { status: 'occupied', current_order_id: createdOrder.id },
+      });
+      if (seized.count === 0) {
+        throw new ConflictError('Table is already occupied. Use "Add items to existing order" or pick another table.');
+      }
     }
 
     // Create KOTs

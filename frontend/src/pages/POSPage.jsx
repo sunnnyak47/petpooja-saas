@@ -296,7 +296,10 @@ export default function POSPage() {
       return res.data?.data || res.data || [];
     },
     enabled: !!outletId,
-    staleTime: isOnline ? 30_000 : Infinity,
+    // Was 30s — too long. After a punch the seized table could still appear
+    // "available" in the picker for up to 30s if the socket event was missed.
+    // 5s keeps the picker fresh while still cheap enough to avoid refetch storms.
+    staleTime: isOnline ? 5_000 : Infinity,
     gcTime: 1000 * 60 * 60,
     retry: isOnline ? 1 : false,
   });
@@ -712,11 +715,24 @@ export default function POSPage() {
         setAppliedLoyaltyDiscount(0);
         if (selectedTable && orderId) {
           setTempOrderId(orderId);
+          // Optimistically flip this table to occupied in the local cache so the
+          // very next "select table" picker treats it as in-use. Without this,
+          // the seized table can briefly reappear in the available list (cache
+          // stale + socket arrives microseconds later), letting the operator
+          // re-select it — which the backend would now reject as a Conflict.
+          const seizedTableId = selectedTable.id;
+          queryClient.setQueryData(['tables', outletId], (old) =>
+            Array.isArray(old)
+              ? old.map(t => t.id === seizedTableId ? { ...t, status: 'occupied', current_order_id: orderId } : t)
+              : old
+          );
         } else {
           setTempOrderId(null);
           setCurrentOrder(null);
         }
         queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+        // Re-sync from server in the background — clean up the optimistic write.
+        queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
       } catch (err) {
         // Failure — cart is untouched, staff can simply retry.
         const msg = err.response?.data?.message || err.message || 'KOT failed';
