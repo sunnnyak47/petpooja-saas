@@ -38,8 +38,13 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
             {isAU
               ? order.outlet?.abn && <p className="text-[10px]">ABN: {order.outlet.abn}</p>
               : order.outlet?.gstin && <p className="text-[10px]">GSTIN: {order.outlet.gstin}</p>}
+            {order.outlet?.fssai_number && !isAU && <p className="text-[10px]">FSSAI: {order.outlet.fssai_number}</p>}
+            {order.outlet?.phone && <p className="text-[10px]">Ph: {order.outlet.phone}</p>}
             <div className="border-t border-dashed border-gray-300 my-4"></div>
-            <h3 className="font-bold underline decoration-double">PROFORMA INVOICE</h3>
+            {/* A settled order is a final tax invoice; an unpaid one is only a proforma. */}
+            <h3 className="font-bold underline decoration-double">
+              {(order.is_paid || order.status === 'paid') ? 'TAX INVOICE' : 'PROFORMA INVOICE'}
+            </h3>
           </div>
 
           <div className="flex justify-between mb-1">

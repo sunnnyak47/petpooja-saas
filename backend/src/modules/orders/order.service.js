@@ -442,7 +442,15 @@ async function getOrderById(orderId, outletId = null) {
     const order = await prisma.order.findFirst({
       where,
       include: {
-        outlet: { select: { id: true, name: true, code: true, gstin: true, currency: true } },
+        // Full header fields so a receipt/bill rendered from this order carries the
+        // outlet's address, contact and tax IDs (GSTIN for IN, ABN for AU) — not just
+        // the name. Used by the Order History "Print Receipt" flow and POS bill print.
+        outlet: { select: {
+          id: true, name: true, code: true, gstin: true, currency: true,
+          address_line1: true, address_line2: true, city: true, state: true, pincode: true,
+          phone: true, email: true, fssai_number: true, abn: true, acn: true,
+          bill_header: true, bill_footer: true,
+        } },
         table: { select: { id: true, table_number: true } },
         customer: { select: { id: true, full_name: true, phone: true } },
         staff: { select: { id: true, full_name: true } },

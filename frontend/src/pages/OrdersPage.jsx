@@ -8,6 +8,8 @@ import { useRegion } from '../hooks/useRegion';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import BillPreviewModal from '../components/POS/BillPreviewModal';
+import { PrintService } from '../lib/PrintService';
 import { Clock, Eye, Ban, Loader, ShoppingBag, IndianRupee, Receipt, RefreshCw, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
@@ -97,6 +99,8 @@ export default function OrdersPage() {
   const [managerPin, setManagerPin] = useState('');
   const [voidReason, setVoidReason] = useState('Voided from dashboard');
   const [voidError, setVoidError] = useState('');
+  // Receipt/bill: holds the full order being previewed for print (any channel).
+  const [receiptOrder, setReceiptOrder] = useState(null);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -197,6 +201,44 @@ export default function OrdersPage() {
     },
     enabled: !!selectedOrder?.id && isDetailOpen,
   });
+
+  // Compose a single-line outlet address from its parts (the receipt template reads
+  // outlet.address) so both the in-app preview and the printed/thermal copy show it.
+  const withComposedOutlet = (o) => {
+    if (!o?.outlet || o.outlet.address) return o;
+    const ot = o.outlet;
+    const address = [ot.address_line1, ot.address_line2, ot.city, ot.state, ot.pincode].filter(Boolean).join(', ');
+    return { ...o, outlet: { ...ot, address } };
+  };
+
+  // Open the bill receipt for ANY order (dine-in / takeaway / delivery, any status).
+  // List rows lack payments + full outlet header, so fetch the complete order first
+  // (reuse the already-loaded detail when it's the same order).
+  const openReceipt = async (order) => {
+    if (!order?.id) return;
+    if (orderDetail?.id === order.id) { setReceiptOrder(withComposedOutlet({ ...orderDetail })); return; }
+    const t = toast.loading('Loading receipt…');
+    try {
+      const full = (IS_ELECTRON && !isOnline)
+        ? await hybridAPI.getOrder(order.id)
+        : await api.get(`/orders/${order.id}`).then(r => r.data);
+      setReceiptOrder(withComposedOutlet({ ...(full || order) }));
+      toast.dismiss(t);
+    } catch (e) {
+      toast.error(e.message || 'Could not load receipt', { id: t });
+    }
+  };
+
+  // Route the print through the shared PrintService (Electron thermal → Web-USB
+  // ESC/POS → browser print, which also lets the OS "Save as PDF").
+  const doPrintReceipt = (order) => {
+    if (!order) return;
+    try {
+      PrintService.printBill(order, { ...(order.outlet || {}), region: isAU ? 'AU' : 'IN' }, { paperWidth: 80, region: isAU ? 'AU' : 'IN' });
+    } catch {
+      toast.error('Print failed — check the printer or allow pop-ups for this site');
+    }
+  };
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/orders/${id}/status`, { status }),
@@ -471,6 +513,8 @@ export default function OrdersPage() {
                     <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleReorder(order); }}
                         className="p-1.5 rounded-lg btn-secondary" title="Reorder"><RefreshCw className="w-4 h-4" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); openReceipt(order); }}
+                        className="p-1.5 rounded-lg btn-secondary" title="Print Receipt"><Receipt className="w-4 h-4" /></button>
                       <button onClick={() => { setSelectedOrder(order); setIsDetailOpen(true); }}
                         className="p-1.5 rounded-lg btn-secondary" title="View Order"><Eye className="w-4 h-4" /></button>
                       <button onClick={() => { setSelectedOrder(order); setIsVoidOpen(true); }}
@@ -516,6 +560,9 @@ export default function OrdersPage() {
                 {selectedOrder.table?.table_number && <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Table: <span style={{ color: 'var(--text-primary)' }}>T{selectedOrder.table.table_number}</span></p>}
               </div>
               <div className="flex gap-2">
+                <button onClick={() => openReceipt(orderDetail || selectedOrder)} className="btn-secondary py-1.5 px-3 h-auto text-xs flex items-center gap-1.5">
+                  <Receipt className="w-3 h-3"/> Print Receipt
+                </button>
                 <button onClick={() => handleReorder(orderDetail || selectedOrder)} className="btn-success py-1.5 px-3 h-auto text-xs flex items-center gap-1.5">
                   <RefreshCw className="w-3 h-3"/> Reorder Items
                 </button>
@@ -585,6 +632,14 @@ export default function OrdersPage() {
           </div>
         )}
       </Modal>
+
+      {/* Bill receipt preview — reachable for any order/channel from the row action or detail modal */}
+      <BillPreviewModal
+        isOpen={!!receiptOrder}
+        order={receiptOrder}
+        onClose={() => setReceiptOrder(null)}
+        onPrint={() => doPrintReceipt(receiptOrder)}
+      />
 
       {/* Void Confirm */}
       <Modal isOpen={isVoidOpen} onClose={() => setIsVoidOpen(false)} title="Void Order Verification" size="sm">
