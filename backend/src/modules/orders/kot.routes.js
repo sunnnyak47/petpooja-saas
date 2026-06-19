@@ -94,6 +94,14 @@ router.put('/kots/:kotId/items/:itemId/ready', authenticate, async (req, res, ne
   } catch (error) { next(error); }
 });
 
+// PUT /api/kitchen/orders/:orderId/serve  ← expo "serve whole order" (all ready station tickets at once)
+router.put('/orders/:orderId/serve', authenticate, async (req, res, next) => {
+  try {
+    const result = await kotService.serveOrder(req.params.orderId, scopedOutlet(req));
+    sendSuccess(res, result, 'Order served');
+  } catch (error) { next(error); }
+});
+
 // Legacy routes (kept for backwards compat)
 router.patch('/kot/:id/item-ready', authenticate, validate(markItemReadySchema), async (req, res, next) => {
   try {

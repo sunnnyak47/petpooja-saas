@@ -6,7 +6,7 @@
 const { getDbClient } = require('../../config/database');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
-const { NotFoundError } = require('../../utils/errors');
+const { NotFoundError, BadRequestError } = require('../../utils/errors');
 const { scheduleAutoFreeIfReady } = require('./autofree.service');
 
 // A KOT counts as "kitchen-done" once it reaches any of these. The parent order
@@ -140,25 +140,55 @@ async function markItemReady(kotId, kotItemId, outletId = null) {
       data: { status: 'ready' },
     });
 
-    // Track started_at on first item marked ready (cooking has started)
-    const kotCheck = await prisma.kOT.findFirst({ where: { id: kotId } });
-    if (kotCheck && !kotCheck.started_at) {
-      await prisma.kOT.update({ where: { id: kotId }, data: { started_at: new Date(), status: 'preparing' } });
+    // Decide the ticket's new status in a single write:
+    //   • every item now ready → AUTO-ADVANCE the whole ticket to 'ready' so the
+    //     cook doesn't have to tap "Mark Ready" after checking the last item
+    //     (Phase 1 — per-item readiness drives the ticket).
+    //   • otherwise, if cooking just began (no started_at) → 'preparing'.
+    const kotBefore = await prisma.kOT.findFirst({ where: { id: kotId }, include: { order: true } });
+    const siblings  = await prisma.kOTItem.findMany({ where: { kot_id: kotId }, select: { status: true } });
+    const allReady  = siblings.length > 0 && siblings.every(i => i.status === 'ready');
+
+    let autoReady = false;
+    if (kotBefore) {
+      if (allReady && ['pending', 'preparing'].includes(kotBefore.status)) {
+        await prisma.kOT.update({
+          where: { id: kotId },
+          data: { status: 'ready', started_at: kotBefore.started_at || new Date() },
+        });
+        autoReady = true;
+      } else if (!kotBefore.started_at) {
+        // First item ticked — mark that cooking has started.
+        await prisma.kOT.update({ where: { id: kotId }, data: { started_at: new Date(), status: 'preparing' } });
+      }
     }
 
-    const kot = await prisma.kOT.findFirst({ where: { id: kotId }, include: { order: true } });
+    // When the ticket auto-advanced to 'ready', roll the parent order up exactly
+    // like the manual "Mark Ready" bump (all-KOTs-done check + history + auto-free).
+    let rolledUp = false;
+    if (autoReady && kotBefore) {
+      rolledUp = await rollUpOrderIfKitchenDone(prisma, kotBefore.order_id, kotId, kotBefore.order.status);
+    }
 
     const io = getIO();
-    if (io && kot) {
-      const payload = { kot_id: kotId, item_id: kotItemId, outlet_id: kot.outlet_id };
+    if (io && kotBefore) {
+      const outId = kotBefore.outlet_id;
+      const payload = { kot_id: kotId, item_id: kotItemId, outlet_id: outId };
       // KDS screens subscribe on the /kitchen namespace (KitchenDisplayPage),
       // so the live per-item sync event must be emitted there. Keep emitting on
       // /orders too for any listeners that track order-item progress.
-      io.of('/kitchen').to(`outlet:${kot.outlet_id}`).emit('kot_item_ready', payload);
-      io.of('/orders').to(`outlet:${kot.outlet_id}`).emit('kot_item_ready', payload);
+      io.of('/kitchen').to(`outlet:${outId}`).emit('kot_item_ready', payload);
+      io.of('/orders').to(`outlet:${outId}`).emit('kot_item_ready', payload);
+      if (autoReady) {
+        // Move the ticket on every KDS screen + update Running Orders/Order History.
+        io.of('/kitchen').to(`outlet:${outId}`).emit('kot_complete', { kot_id: kotId, status: 'ready' });
+        io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', {
+          order_id: kotBefore.order_id, status: rolledUp ? 'ready' : kotBefore.order.status,
+        });
+      }
     }
 
-    return updated;
+    return { ...updated, kot_status: autoReady ? 'ready' : (kotBefore?.status || null), kot_auto_ready: autoReady };
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
     throw error;
@@ -210,4 +240,51 @@ async function completeKOT(kotId, outletId = null) {
   }
 }
 
-module.exports = { listPendingKOTs, markItemReady, completeKOT, rollUpOrderIfKitchenDone };
+/**
+ * Expo "serve whole order" — serves ALL of an order's READY station tickets in a
+ * single action (Phase 2). Behaviour is order-type aware:
+ *   • takeaway / delivery → the WHOLE order must be ready first; you can't hand a
+ *     customer a partial bag, so this throws if any station is still cooking.
+ *   • dine-in (and others) → fires the stations that are ready and leaves any that
+ *     are still cooking (coursing-friendly).
+ * Rolls the parent order up to 'ready' once every station is done.
+ *
+ * @param {string} orderId
+ * @param {string|null} outletId - tenant scope (null for super_admin/owner)
+ * @returns {Promise<{served:number, total:number}>}
+ */
+async function serveOrder(orderId, outletId = null) {
+  const prisma = getDbClient();
+  const where = { order_id: orderId, is_deleted: false, ...(outletId ? { outlet_id: outletId } : {}) };
+  const kots = await prisma.kOT.findMany({ where, include: { order: true } });
+  if (!kots.length) throw new NotFoundError('No tickets found for this order');
+
+  const order = kots[0].order;
+  const isTakeawayLike = ['takeaway', 'delivery'].includes(order.order_type);
+  const notDone = kots.filter(k => !KOT_DONE_STATUSES.includes(k.status));
+  if (isTakeawayLike && notDone.length > 0) {
+    throw new BadRequestError('All items must be ready before pickup — some stations are still preparing.');
+  }
+
+  // Only the tickets actually ready can be handed off; still-cooking dine-in
+  // stations are left untouched so they can be fired later.
+  const ids = kots.filter(k => k.status === 'ready').map(k => k.id);
+  if (ids.length) {
+    await prisma.kOT.updateMany({ where: { id: { in: ids } }, data: { status: 'served', completed_at: new Date() } });
+  }
+
+  const rolledUp = await rollUpOrderIfKitchenDone(prisma, orderId, null, order.status);
+
+  const io = getIO();
+  if (io) {
+    const outId = kots[0].outlet_id;
+    io.of('/kitchen').to(`outlet:${outId}`).emit('kot_complete', { order_id: orderId, status: 'served' });
+    io.of('/orders').to(`outlet:${outId}`).emit('order_status_change', {
+      order_id: orderId, status: rolledUp ? 'ready' : order.status,
+    });
+  }
+
+  return { served: ids.length, total: kots.length };
+}
+
+module.exports = { listPendingKOTs, markItemReady, completeKOT, serveOrder, rollUpOrderIfKitchenDone };

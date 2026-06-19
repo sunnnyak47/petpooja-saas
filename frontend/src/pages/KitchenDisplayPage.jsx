@@ -79,7 +79,7 @@ function fmtTime(s) {
 }
 
 /* ─── KOT card ─── */
-function KOTCard({ kot, col, onBump, onItemReady, loading }) {
+function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
   const secs    = useElapsed(kot.created_at);
   const mins    = Math.floor(secs / 60);
   const urgent  = mins >= 15;
@@ -286,7 +286,9 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
         )}
       </div>
 
-      {/* ── Action button ── */}
+      {/* ── Action button (suppressed when this card is inside an order group,
+             which renders one shared "Serve order" control instead) ── */}
+      {!hideAction && (
       <div style={{ padding: '10px 12px', borderTop: `1px solid ${P.border}` }}>
         {kot.status === 'pending' && (
           <button
@@ -350,6 +352,87 @@ function KOTCard({ kot, col, onBump, onItemReady, loading }) {
             Completed
           </div>
         )}
+      </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── order-group card (READY column, multi-station orders) ───
+   Groups every station ticket of one order under a single header with ONE serve
+   control. For takeaway/delivery the control is disabled until every station is
+   ready (no partial bag); for dine-in it fires whatever is ready. */
+function OrderGroupCard({ group, meta, onItemReady, onServeOrder, loading }) {
+  const READY_COL   = COLUMNS.find(c => c.status === 'ready');
+  const first       = group[0];
+  const orderId     = first.order_id || first.order?.id;
+  const orderNo     = first.order?.order_number;
+  const type        = first.order?.order_type;
+  const tableNum    = first.order?.table?.table_number;
+  const isTakeaway  = ['takeaway', 'delivery'].includes(type);
+  const total       = meta?.total ?? group.length;       // total active stations for this order
+  const cooking     = meta?.cooking ?? 0;                // stations not yet ready
+  const readyHere   = group.length;                      // ready stations shown here
+  const canServe    = !isTakeaway || cooking === 0;
+  const label       = type === 'takeaway' ? 'Takeaway' : type === 'delivery' ? 'Delivery'
+                    : tableNum ? `Table ${tableNum}` : 'Dine In';
+
+  return (
+    <div style={{
+      border: `1px solid ${P.readyBdr}`, borderRadius: 14, marginBottom: 12,
+      background: P.readyBg, overflow: 'hidden',
+    }}>
+      {/* group header */}
+      <div style={{
+        padding: '9px 13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 8, borderBottom: `1px solid ${P.readyBdr}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+          <Package size={13} color={P.ready} strokeWidth={2.5} />
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: P.text, letterSpacing: '0.03em' }}>
+            {label}{orderNo ? ` · #${orderNo}` : ''}
+          </span>
+        </div>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: cooking > 0 ? P.warn : P.ready, letterSpacing: '0.04em' }}>
+          {readyHere}/{total} STATIONS READY
+        </span>
+      </div>
+
+      {/* station tickets (no per-card serve button) */}
+      <div style={{ padding: '10px 10px 4px' }}>
+        {group.map(kot => (
+          <KOTCard key={kot.id} kot={kot} col={READY_COL} onItemReady={onItemReady} loading={false} hideAction />
+        ))}
+      </div>
+
+      {/* one shared serve control */}
+      <div style={{ padding: '4px 12px 12px' }}>
+        <button
+          onClick={() => canServe && onServeOrder(orderId)}
+          disabled={!canServe || loading}
+          style={{
+            width: '100%', padding: '12px 0', borderRadius: 9, border: 'none',
+            background: canServe ? P.ready : 'var(--bg-hover)',
+            color: canServe ? '#fff' : P.muted,
+            fontWeight: 800, fontSize: 13, letterSpacing: '0.04em',
+            cursor: canServe ? 'pointer' : 'not-allowed', opacity: loading ? 0.6 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          }}
+        >
+          {canServe ? (
+            <>
+              <ArrowRight size={15} strokeWidth={2.5} />
+              {cooking > 0
+                ? `SERVE READY (${readyHere} STATION${readyHere > 1 ? 'S' : ''})`
+                : `SERVE ENTIRE ORDER · ${total} STATION${total > 1 ? 'S' : ''}`}
+            </>
+          ) : (
+            <>
+              <Clock size={14} strokeWidth={2.5} />
+              {`WAITING ON ${cooking} STATION${cooking > 1 ? 'S' : ''}…`}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -493,13 +576,43 @@ export default function KitchenDisplayPage() {
       const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
       const markReady = (arr) => (Array.isArray(arr) ? arr.map(i => (i.id === itemId ? { ...i, status: 'ready', is_ready: true } : i)) : arr);
       queryClient.setQueriesData({ queryKey: ['kds-kots'] }, (old) =>
-        Array.isArray(old) ? old.map(k => (k.id === kotId ? { ...k, items: markReady(k.items), kot_items: markReady(k.kot_items) } : k)) : old
+        Array.isArray(old) ? old.map(k => {
+          if (k.id !== kotId) return k;
+          const items  = markReady(k.items);
+          const kitems = markReady(k.kot_items);
+          // Phase 1: when the LAST item is ticked, auto-advance the whole ticket to
+          // 'ready' instantly (mirrors the backend) so it jumps to the READY column
+          // without a separate "Mark Ready" tap. Mirror of kot.service.markItemReady.
+          const ref = (kitems && kitems.length ? kitems : items) || [];
+          const allReady = ref.length > 0 && ref.every(i => (i.is_ready ?? i.status === 'ready'));
+          const status = (allReady && ['pending', 'preparing'].includes(k.status)) ? 'ready' : k.status;
+          return { ...k, items, kot_items: kitems, status };
+        }) : old
       );
       return { prev };
     },
     onError: (e, _vars, ctx) => {
       ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
       toast.error(e.message);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
+  });
+  // Phase 2: serve every READY station ticket of one order in a single tap.
+  const serveOrderMut = useMutation({
+    mutationFn: ({ orderId }) => api.put(`/kitchen/orders/${orderId}/serve`, { outlet_id: outletId }),
+    onMutate: async ({ orderId }) => {
+      await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
+      const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
+      queryClient.setQueriesData({ queryKey: ['kds-kots'] }, (old) =>
+        Array.isArray(old) ? old.map(k => (
+          (k.order_id || k.order?.id) === orderId && k.status === 'ready' ? { ...k, status: 'served' } : k
+        )) : old
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error(e.message || 'Could not serve order');
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
   });
@@ -537,6 +650,7 @@ export default function KitchenDisplayPage() {
 
   const handleBump      = useCallback((kotId, status) => bumpMut.mutate({ kotId, status }), [bumpMut]);
   const handleItemReady = useCallback((kotId, itemId) => itemReadyMut.mutate({ kotId, itemId }), [itemReadyMut]);
+  const handleServeOrder = useCallback((orderId) => serveOrderMut.mutate({ orderId }), [serveOrderMut]);
 
   const allKots = kots ?? [];
   const filteredKots = useMemo(() =>
@@ -558,6 +672,49 @@ export default function KitchenDisplayPage() {
     });
     return map;
   }, [filteredKots]);
+
+  // Per-order station census (Phase 2): how many active station tickets each
+  // order has and how many are still cooking. Drives the order-group rendering
+  // and the takeaway/delivery "no partial bag" gate. Built from every loaded
+  // ticket (across columns), so on the 'ALL' expo view we can see siblings that
+  // are still on the line even though they're not in the READY column.
+  const orderKotIndex = useMemo(() => {
+    const m = new Map();
+    allKots.forEach(k => {
+      if (k.status === 'served' || k.status === 'completed') return; // ignore done tickets
+      const id = k.order_id || k.order?.id;
+      if (!id) return;
+      const e = m.get(id) || { total: 0, ready: 0, cooking: 0, type: k.order?.order_type };
+      e.total += 1;
+      if (k.status === 'ready') e.ready += 1; else e.cooking += 1;
+      m.set(id, e);
+    });
+    return m;
+  }, [allKots]);
+
+  // READY column: group an order's multiple station tickets into one OrderGroupCard
+  // (with a single serve control); single-station orders render as a plain KOTCard.
+  const renderReadyColumn = (colKots, col) => {
+    const groups = [];
+    const seen = new Map();
+    colKots.forEach(k => {
+      const id = k.order_id || k.order?.id || k.id;
+      if (!seen.has(id)) { seen.set(id, groups.length); groups.push({ orderId: id, kots: [] }); }
+      groups[seen.get(id)].kots.push(k);
+    });
+    return groups.map(g => {
+      const meta = orderKotIndex.get(g.orderId);
+      const isMulti = meta ? meta.total > 1 : g.kots.length > 1;
+      if (!isMulti) {
+        const kot = g.kots[0];
+        return <KOTCard key={kot.id} kot={kot} col={col} onBump={handleBump} onItemReady={handleItemReady} loading={bumpMut.isPending} />;
+      }
+      return (
+        <OrderGroupCard key={g.orderId} group={g.kots} meta={meta}
+          onItemReady={handleItemReady} onServeOrder={handleServeOrder} loading={serveOrderMut.isPending} />
+      );
+    });
+  };
 
   const totalActive = stats.pending + stats.preparing + stats.ready;
   const timeStr = clock.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
@@ -830,16 +987,18 @@ export default function KitchenDisplayPage() {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 28px' }}>
                   {colKots.length === 0
                     ? <EmptyColumn col={col} />
-                    : colKots.map(kot => (
-                      <KOTCard
-                        key={kot.id}
-                        kot={kot}
-                        col={col}
-                        onBump={handleBump}
-                        onItemReady={handleItemReady}
-                        loading={bumpMut.isPending}
-                      />
-                    ))
+                    : col.status === 'ready'
+                      ? renderReadyColumn(colKots, col)
+                      : colKots.map(kot => (
+                        <KOTCard
+                          key={kot.id}
+                          kot={kot}
+                          col={col}
+                          onBump={handleBump}
+                          onItemReady={handleItemReady}
+                          loading={bumpMut.isPending}
+                        />
+                      ))
                   }
                 </div>
               </div>
