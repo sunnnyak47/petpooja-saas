@@ -29,10 +29,21 @@ function formatOrderNo(num) {
 const STATUS_STYLES = {
   pending: 'badge-info', created: 'badge-info', confirmed: 'badge-info',
   preparing: 'badge-warning', ready: 'badge-success', served: 'badge-success',
+  picked_up: 'badge-success',
   delivered: 'badge-success', completed: 'badge-success', paid: 'badge-success',
   billed: 'badge-info', cancelled: 'badge-danger', voided: 'badge-danger',
   refunded: 'badge-danger',
 };
+
+// What to actually show on the badge. The backend's order.status has no "served"
+// value (served is a KOT-level status), so a fully-served-but-unpaid order would
+// otherwise display as "Ready" until payment lands. The list endpoint augments
+// each order with `kitchen_stage` ('served' / 'picked_up' / 'ready' / 'paid' / …)
+// which is the canonical display label — fall back to order.status if the field
+// is missing (older API response or a not-yet-deployed backend).
+const displayStatus = (order) => order?.kitchen_stage || order?.status;
+const STATUS_LABEL = { picked_up: 'Picked Up', served: 'Served' };
+const labelFor = (s) => STATUS_LABEL[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 // The ONLY status values the backend accepts on PATCH /orders/:id/status
 // (updateOrderStatusSchema). Sending anything else (created/confirmed/paid/
@@ -432,22 +443,25 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{format(order.grand_total || 0)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {(() => {
+                      const shown = displayStatus(order);
                       const targets = nextStatusTargets(order.status);
                       // Terminal / no valid transition → read-only badge (never blank).
                       if (targets.length === 0) {
-                        return <span className={STATUS_STYLES[order.status] || 'badge-neutral'}>{titleCase(order.status)}</span>;
+                        return <span className={STATUS_STYLES[shown] || 'badge-neutral'}>{labelFor(shown)}</span>;
                       }
                       // Current status is always the (disabled) selected option, so the
                       // control renders correctly even for legacy statuses; the user can
-                      // only pick a backend-accepted next state.
+                      // only pick a backend-accepted next state. The DROPDOWN value stays
+                      // bound to the real order.status (the only thing PATCH accepts);
+                      // only the visible label uses the derived kitchen_stage.
                       return (
                         <select
-                          className={`${STATUS_STYLES[order.status] || 'badge-neutral'} bg-transparent border-0 font-medium cursor-pointer focus:ring-0 appearance-none text-sm`}
+                          className={`${STATUS_STYLES[shown] || 'badge-neutral'} bg-transparent border-0 font-medium cursor-pointer focus:ring-0 appearance-none text-sm`}
                           value={order.status}
                           onChange={e => { if (e.target.value !== order.status) updateStatusMutation.mutate({ id: order.id, status: e.target.value }); }}
                         >
-                          <option value={order.status} disabled>{titleCase(order.status)}</option>
-                          {targets.map(s => <option key={s} value={s}>{titleCase(s)}</option>)}
+                          <option value={order.status} disabled>{labelFor(shown)}</option>
+                          {targets.map(s => <option key={s} value={s}>{labelFor(s)}</option>)}
                         </select>
                       );
                     })()}
@@ -505,7 +519,7 @@ export default function OrdersPage() {
                 <button onClick={() => handleReorder(orderDetail || selectedOrder)} className="btn-success py-1.5 px-3 h-auto text-xs flex items-center gap-1.5">
                   <RefreshCw className="w-3 h-3"/> Reorder Items
                 </button>
-                <span className={STATUS_STYLES[selectedOrder.status] || 'badge-neutral'}>{titleCase(selectedOrder.status)}</span>
+                <span className={STATUS_STYLES[displayStatus(selectedOrder)] || 'badge-neutral'}>{labelFor(displayStatus(selectedOrder))}</span>
               </div>
             </div>
 
@@ -558,12 +572,12 @@ export default function OrdersPage() {
               <div>
                 <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Quick Status Update</p>
                 <div className="flex gap-2 flex-wrap">
-                  <span className={`${STATUS_STYLES[selectedOrder.status] || 'badge-neutral'} self-center`}>{titleCase(selectedOrder.status)}</span>
+                  <span className={`${STATUS_STYLES[displayStatus(selectedOrder)] || 'badge-neutral'} self-center`}>{labelFor(displayStatus(selectedOrder))}</span>
                   {nextStatusTargets(selectedOrder.status).map(s => (
                     <button key={s} disabled={updateStatusMutation.isPending}
                       onClick={() => updateStatusMutation.mutate({ id: selectedOrder.id, status: s })}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all tab-btn"
-                    >{titleCase(s)}</button>
+                    >{labelFor(s)}</button>
                   ))}
                 </div>
               </div>

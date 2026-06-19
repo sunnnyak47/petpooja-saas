@@ -551,13 +551,47 @@ async function listOrders(outletId, query = {}) {
           // each list row must carry the live items array AND a kots count — not just an
           // order_items count. Without this the cards showed "0 ITEMS / 0 KOTS" beside a real total.
           order_items: { where: { is_deleted: false }, orderBy: { created_at: 'asc' } },
+          // Lightweight kot slice (status only) so we can derive `kitchen_stage` below
+          // without bloating the response with kot_items / station / printed_at, etc.
+          kots: { where: { is_deleted: false }, select: { status: true } },
           _count: { select: { order_items: true, kots: true } },
         },
       }),
       prisma.order.count({ where }),
     ]);
 
-    return { orders, total, page, limit };
+    // ── Augment each order with a derived `kitchen_stage` ────────────────────
+    // The order.status enum is created → confirmed → ready → billed → paid and
+    // has no "served" value (served is a KOT-level status). Without a derived
+    // field the Order History jumps from "Ready" straight to "Paid" because
+    // we never persist the intermediate "all-KOTs-served" moment.
+    // kitchen_stage gives the UI a stable label for that moment:
+    //   • paid          → terminal money state wins
+    //   • cancelled/voided/refunded → terminal failure states win
+    //   • status in (ready, billed) AND every KOT is served/completed
+    //                   → 'served' (or 'picked_up' for takeaway/delivery)
+    //   • status in (ready, billed) but some KOTs still in flight
+    //                   → 'ready'  (kitchen done from cook's view, customer not yet handed)
+    //   • status in (confirmed, created)
+    //                   → 'confirmed'
+    //   • everything else → null (let the UI fall back to order.status)
+    const augmented = orders.map(o => {
+      const kots = o.kots || [];
+      const allKotsServed = kots.length > 0 && kots.every(k => k.status === 'served' || k.status === 'completed');
+      let kitchen_stage = null;
+      if (o.is_paid) kitchen_stage = 'paid';
+      else if (['cancelled', 'voided', 'refunded'].includes(o.status)) kitchen_stage = o.status;
+      else if (['ready', 'billed'].includes(o.status)) {
+        kitchen_stage = allKotsServed
+          ? (['takeaway', 'delivery'].includes(o.order_type) ? 'picked_up' : 'served')
+          : 'ready';
+      } else if (['confirmed', 'created'].includes(o.status)) {
+        kitchen_stage = kots.length > 0 ? 'confirmed' : 'created';
+      }
+      return { ...o, kitchen_stage };
+    });
+
+    return { orders: augmented, total, page, limit };
   } catch (error) {
     logger.error('List orders failed', { error: error.message });
     throw error;
