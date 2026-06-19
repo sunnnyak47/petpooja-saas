@@ -697,7 +697,7 @@ export default function StaffManagementPage() {
       queryClient.invalidateQueries({ queryKey: ['staff-profile', selectedId] });
       queryClient.invalidateQueries({ queryKey: ['staff-mgmt-list'] });
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Save failed'),
+    onError: (e) => toast.error(e?.message || 'Save failed'),
   });
 
   const handleSave = () => {
@@ -720,7 +720,7 @@ export default function StaffManagementPage() {
       queryClient.invalidateQueries({ queryKey: ['staff-mgmt-list'] });
       queryClient.invalidateQueries({ queryKey: ['staff-list'] }); // POS assign selector
     },
-    onError: (e) => toast.error(e?.response?.data?.message || 'Could not create staff'),
+    onError: (e) => toast.error(e?.message || 'Could not create staff'),
   });
 
   const handleAddStaff = () => {
@@ -728,6 +728,7 @@ export default function StaffManagementPage() {
     if (!isValidPhone(addForm.phone)) return toast.error('Enter a valid phone number');
     if (addForm.email.trim() && !isValidEmail(addForm.email)) return toast.error('Enter a valid email or leave it blank');
     if (addForm.manager_pin && !/^[0-9]{4,6}$/.test(addForm.manager_pin)) return toast.error('Manager PIN must be 4–6 digits');
+    if (!outletId) return toast.error('No outlet selected — reload and try again');
     addStaffMut.mutate();
   };
 

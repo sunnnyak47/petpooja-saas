@@ -150,7 +150,15 @@ api.interceptors.response.use(
     }
 
     const message = error.response?.data?.message || error.message || 'Something went wrong';
-    return Promise.reject(new Error(message));
+    // Preserve the HTTP context on the rejected error so callers can surface the real
+    // backend message/status. Previously a bare `new Error(message)` stripped `.response`,
+    // so any caller reading `e.response.data.message` got undefined and fell back to a
+    // generic toast — hiding clean 409/400/404 messages (e.g. "phone already exists").
+    const err = new Error(message);
+    err.status = error.response?.status;
+    err.data = error.response?.data;
+    err.response = error.response;
+    return Promise.reject(err);
   }
 );
 

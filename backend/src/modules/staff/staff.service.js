@@ -7,7 +7,7 @@
 
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
-const { NotFoundError } = require('../../utils/errors');
+const { NotFoundError, ConflictError, BadRequestError } = require('../../utils/errors');
 const { parsePagination } = require('../../utils/helpers');
 const { notDeleted } = require('../../utils/prismaHelpers');
 
@@ -158,6 +158,13 @@ function buildDateOrNull(val) {
   return new Date(val);
 }
 
+// Prisma's Decimal columns reject '' — coerce blank/absent numeric inputs to null so a
+// staff member can be saved with empty pay fields.
+function buildNumberOrNull(val) {
+  if (val === null || val === '' || val === undefined) return null;
+  return Number(val);
+}
+
 async function upsertStaffProfile(userId, outletId, data) {
   const prisma = getDbClient();
   try {
@@ -170,8 +177,8 @@ async function upsertStaffProfile(userId, outletId, data) {
       join_date: buildDateOrNull(data.join_date),
       end_date: buildDateOrNull(data.end_date),
       contract_end_date: buildDateOrNull(data.contract_end_date),
-      hourly_rate: data.hourly_rate,
-      monthly_salary: data.monthly_salary,
+      hourly_rate: buildNumberOrNull(data.hourly_rate),
+      monthly_salary: buildNumberOrNull(data.monthly_salary),
       // Personal details
       date_of_birth: buildDateOrNull(data.date_of_birth),
       gender: data.gender,
@@ -306,45 +313,72 @@ async function verifyManagerPIN(outletId, pin) {
 /**
  * Complex: Creates a new User AND their Staff Profile in one go.
  */
+// Floor/kitchen tenant roles (waiter/chef/delivery) aren't seeded with their own
+// permission set yet, so map them to 'cashier' (which has POS access) — mirroring
+// onboarding.service.js. manager/cashier resolve directly. This guarantees every new
+// staff member gets a real, permissioned role instead of being silently skipped.
+const STAFF_ROLE_MAP = {
+  manager: 'manager', cashier: 'cashier',
+  waiter: 'cashier', chef: 'cashier', delivery: 'cashier', captain: 'cashier',
+};
+
 async function createStaffWithUser(outletId, data) {
   const prisma = getDbClient();
   const bcrypt = require('bcryptjs');
   const passwordHash = await bcrypt.hash(data.password || 'Staff@123', 12);
 
-  return await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        full_name: data.full_name,
-        // Blank email -> null so multiple PIN-only staff don't collide on the unique
-        // index (Postgres allows many NULLs, but not many '').
-        email: data.email ? data.email : null,
-        phone: data.phone,
-        password_hash: passwordHash,
-      }
-    });
-
-    const profile = await tx.staffProfile.create({
-      data: {
-        user_id: user.id,
-        outlet_id: outletId,
-        employee_code: data.employee_code,
-        department: data.department,
-        designation: data.designation,
-        manager_pin: data.manager_pin,
-        join_date: data.join_date ? new Date(data.join_date) : new Date(),
-      }
-    });
-
-    // Assign Role
-    const role = await tx.role.findFirst({ where: { name: data.role || 'staff' } });
-    if (role) {
-      await tx.userRole.create({
-        data: { user_id: user.id, role_id: role.id, outlet_id: outletId, is_primary: true }
-      });
-    }
-
-    return { ...profile, user };
+  // Stamp the outlet's head office so the new staff member shows up in tenant-scoped reads.
+  const outlet = await prisma.outlet.findUnique({
+    where: { id: outletId }, select: { head_office_id: true },
   });
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          full_name: data.full_name,
+          // Blank email -> null so multiple PIN-only staff don't collide on the unique
+          // index (Postgres allows many NULLs, but not many '').
+          email: data.email ? data.email : null,
+          phone: data.phone,
+          password_hash: passwordHash,
+          head_office_id: outlet?.head_office_id ?? null,
+        }
+      });
+
+      const profile = await tx.staffProfile.create({
+        data: {
+          user_id: user.id,
+          outlet_id: outletId,
+          employee_code: data.employee_code,
+          department: data.department,
+          designation: data.designation,
+          manager_pin: data.manager_pin,
+          join_date: data.join_date ? new Date(data.join_date) : new Date(),
+        }
+      });
+
+      // Resolve to a seeded role; never silently leave the staff member role-less.
+      const roleName = STAFF_ROLE_MAP[data.role] || data.role || 'cashier';
+      const role = await tx.role.findFirst({ where: { name: roleName } });
+      if (role) {
+        await tx.userRole.create({
+          data: { user_id: user.id, role_id: role.id, outlet_id: outletId, is_primary: true }
+        });
+      }
+
+      return { ...profile, user };
+    });
+  } catch (error) {
+    // Translate known Prisma failures into clean, specific messages — never a bare 500.
+    if (error.code === 'P2002') {
+      const target = error.meta?.target;
+      const field = Array.isArray(target) ? (target.includes('phone') ? 'phone' : target.includes('email') ? 'email' : 'value') : 'value';
+      throw new ConflictError(`A staff member with this ${field} already exists`);
+    }
+    if (error.code === 'P2003') throw new BadRequestError('Invalid outlet for this staff member');
+    throw error;
+  }
 }
 
 /**

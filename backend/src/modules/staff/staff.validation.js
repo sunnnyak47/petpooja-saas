@@ -36,14 +36,14 @@ const updateStaffSchema = Joi.object({
   manager_pin: Joi.string().pattern(/^[0-9]{4,6}$/).allow('', null)
     .messages({ 'string.pattern.base': 'Manager PIN must be 4 to 6 digits' }),
   employment_type: Joi.string().valid('full_time', 'part_time', 'casual', 'contract').allow('', null),
-  join_date: Joi.date().allow(null),
-  end_date: Joi.date().allow(null),
-  contract_end_date: Joi.date().allow(null),
+  join_date: Joi.date().allow(null, ''),
+  end_date: Joi.date().allow(null, ''),
+  contract_end_date: Joi.date().allow(null, ''),
   // Pay
-  hourly_rate: Joi.number().min(0).allow(null),
-  monthly_salary: Joi.number().min(0).allow(null),
+  hourly_rate: Joi.number().min(0).allow(null, ''),
+  monthly_salary: Joi.number().min(0).allow(null, ''),
   // Personal details
-  date_of_birth: Joi.date().allow(null),
+  date_of_birth: Joi.date().allow(null, ''),
   gender: Joi.string().max(20).allow('', null),
   nationality: Joi.string().max(60).allow('', null),
   address: Joi.string().max(500).allow('', null),
@@ -62,17 +62,17 @@ const updateStaffSchema = Joi.object({
   // Compliance & working rights
   right_to_work_checked: Joi.boolean().allow(null),
   visa_type: Joi.string().max(50).allow('', null),
-  visa_expiry: Joi.date().allow(null),
+  visa_expiry: Joi.date().allow(null, ''),
   induction_completed: Joi.boolean().allow(null),
-  induction_date: Joi.date().allow(null),
+  induction_date: Joi.date().allow(null, ''),
   wwcc_number: Joi.string().max(50).allow('', null),
-  wwcc_expiry: Joi.date().allow(null),
+  wwcc_expiry: Joi.date().allow(null, ''),
   rsa_number: Joi.string().max(50).allow('', null),
-  rsa_expiry: Joi.date().allow(null),
+  rsa_expiry: Joi.date().allow(null, ''),
   food_safety_cert: Joi.string().max(50).allow('', null),
-  food_safety_expiry: Joi.date().allow(null),
-  police_check_date: Joi.date().allow(null),
-  police_check_expiry: Joi.date().allow(null),
+  food_safety_expiry: Joi.date().allow(null, ''),
+  police_check_date: Joi.date().allow(null, ''),
+  police_check_expiry: Joi.date().allow(null, ''),
   // Notes
   notes: Joi.string().allow('', null),
   is_deleted: Joi.boolean(),
@@ -126,7 +126,7 @@ const bulkCalculateSalarySchema = Joi.object({
 });
 
 const markSalaryPaidSchema = Joi.object({
-  bonus: Joi.number().min(0).allow(null),
+  bonus: Joi.number().min(0).allow(null, ''),
 });
 
 const addCertificationSchema = Joi.object({
