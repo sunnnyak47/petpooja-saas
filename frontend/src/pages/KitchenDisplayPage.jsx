@@ -10,8 +10,12 @@ import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
   Volume2, VolumeX, Maximize2, Utensils, Coffee,
   IceCream, Package, Eye, AlertCircle, X, Trash2,
-  Loader2, Clock, ArrowRight, Bike, ShoppingBag,
+  Loader2, Clock, ArrowRight, Bike, ShoppingBag, HandPlatter,
 } from 'lucide-react';
+
+// Distinct hue for the READY-column "hand off / served" affordance, so a server
+// never mistakes the green "cooked" check for "handed to the customer".
+const SERVE = '#8b5cf6';
 
 /* ─── palette — uses CSS vars so light/dark theme is respected ─── */
 const P = {
@@ -79,15 +83,21 @@ function fmtTime(s) {
 }
 
 /* ─── KOT card ─── */
-function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
+function KOTCard({ kot, col, onBump, onItemReady, onServeItem, onMarkAllReady, onServeAll, loading, hideAction }) {
   const secs    = useElapsed(kot.created_at);
   const mins    = Math.floor(secs / 60);
   const urgent  = mins >= 15;
   const warn    = mins >= 8 && !urgent;
 
   const items   = kot.items ?? kot.kot_items ?? [];
-  // Per-item ready is tracked on KOTItem.status === 'ready' (no is_ready column).
-  const allDone = items.length > 0 && items.every(i => i.is_ready ?? i.status === 'ready');
+  // Item stage lives on KOTItem.status: cooking → 'ready' (cooked) → 'served' (handed off).
+  const isCooked = (i) => i.is_ready ?? (i.status === 'ready' || i.status === 'served');
+  const isServed = (i) => i.status === 'served';
+  const inReady  = col.status === 'ready';
+  const isTakeawayLike = ['takeaway', 'delivery'].includes(kot.order?.order_type);
+  const allDone = items.length > 0 && items.every(isCooked);
+  const notCookedCount = items.filter((i) => !isCooked(i)).length; // still on the line
+  const notServedCount = items.filter((i) => !isServed(i)).length; // not yet handed out
 
   const tableNum  = kot.order?.table?.table_number;
   const orderType = kot.order?.order_type === 'takeaway' ? 'Takeaway'
@@ -189,7 +199,14 @@ function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
           const name    = item.name ?? item.order_item?.name ?? item.item_name ?? `Item ${idx + 1}`;
           const variant = item.variant_name ?? item.order_item?.variant_name;
           const qty     = item.quantity ?? item.order_item?.quantity ?? item.qty ?? 1;
-          const done    = item.is_ready ?? item.status === 'ready';
+          const cooked  = isCooked(item);
+          const served  = isServed(item);
+          // "done" = finished for THIS column's purpose (greys the row + strikes the name):
+          //  • cooking column → cooked
+          //  • ready column, dine-in → served (per-item hand-off)
+          //  • ready column, takeaway/delivery → cooked (handed over whole-bag, no per-item serve),
+          //    so the row matches its static green control instead of looking still-active.
+          const done    = inReady ? (isTakeawayLike ? cooked : served) : cooked;
           const addons  = item.addons ?? item.order_item?.addons ?? [];
           const note    = item.special_note ?? item.order_item?.notes;
 
@@ -201,21 +218,53 @@ function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
               border: `1px solid ${done ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`,
               transition: 'background 0.2s',
             }}>
-              {/* Checkbox — once ready it's irreversible (no un-ready endpoint), so no-op */}
-              <button
-                onClick={() => { if (!done) onItemReady?.(kot.id, item.id); }}
-                disabled={done}
-                aria-pressed={done}
-                style={{
-                  width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
-                  border: `2px solid ${done ? P.ready : 'var(--border)'}`,
-                  background: done ? P.ready : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: done ? 'default' : 'pointer', padding: 0, transition: 'all 0.15s',
-                }}
-              >
-                {done && <CheckCircle2 size={13} color="#fff" strokeWidth={3} />}
-              </button>
+              {/* Per-item control — stage-aware. Ticking is irreversible (no un-tick endpoint).
+                  • Cooking/New  → green cook-check (mark this dish ready)
+                  • Ready, dine-in → purple HAND-OFF check (mark this dish served/picked)
+                  • Ready, takeaway/delivery → static cooked dot (handed over as a whole bag) */}
+              {inReady ? (
+                isTakeawayLike ? (
+                  <div title="Handed over as a whole bag" style={{
+                    width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                    border: `2px solid ${P.ready}`, background: P.ready,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <CheckCircle2 size={13} color="#fff" strokeWidth={3} />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { if (!served) onServeItem?.(kot.id, item.id); }}
+                    disabled={served}
+                    aria-pressed={served}
+                    title={served ? 'Served' : 'Mark this item served / handed out'}
+                    style={{
+                      width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                      border: `2px solid ${SERVE}`,
+                      background: served ? SERVE : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: served ? 'default' : 'pointer', padding: 0, transition: 'all 0.15s',
+                    }}
+                  >
+                    <HandPlatter size={13} color={served ? '#fff' : SERVE} strokeWidth={2.5} />
+                  </button>
+                )
+              ) : (
+                <button
+                  onClick={() => { if (!cooked) onItemReady?.(kot.id, item.id); }}
+                  disabled={cooked}
+                  aria-pressed={cooked}
+                  title={cooked ? 'Ready' : 'Mark this item ready'}
+                  style={{
+                    width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                    border: `2px solid ${cooked ? P.ready : 'var(--border)'}`,
+                    background: cooked ? P.ready : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: cooked ? 'default' : 'pointer', padding: 0, transition: 'all 0.15s',
+                  }}
+                >
+                  {cooked && <CheckCircle2 size={13} color="#fff" strokeWidth={3} />}
+                </button>
+              )}
 
               {/* Item info */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -310,8 +359,11 @@ function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
           </button>
         )}
         {kot.status === 'preparing' && (
+          // Batch convenience — does NOT stamp the ticket. It ticks each still-cooking
+          // item via the per-item endpoint, so un-ticked items only advance because they
+          // were really marked. The ticket auto-advances to READY when the last one is ticked.
           <button
-            onClick={() => onBump(kot.id, 'ready')}
+            onClick={() => onMarkAllReady?.(kot)}
             disabled={loading}
             style={{
               width: '100%', padding: '11px 0', borderRadius: 8, border: 'none',
@@ -325,27 +377,48 @@ function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <CheckCircle2 size={14} strokeWidth={2.5} /> MARK READY
+            <CheckCircle2 size={14} strokeWidth={2.5} /> {notCookedCount > 0 ? `MARK ALL READY (${notCookedCount} LEFT)` : 'MARK READY'}
           </button>
         )}
         {kot.status === 'ready' && (
-          <button
-            onClick={() => onBump(kot.id, 'served')}
-            disabled={loading}
-            style={{
-              width: '100%', padding: '11px 0', borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-hover)',
-              color: P.sub, fontWeight: 600, fontSize: 13,
-              letterSpacing: '0.03em', cursor: 'pointer', opacity: loading ? 0.5 : 1,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              transition: 'opacity 0.15s, background 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-          >
-            <ArrowRight size={14} strokeWidth={2} /> SERVED / PICKED UP
-          </button>
+          isTakeawayLike ? (
+            // Takeaway/delivery: handed over as one bag (no partial hand-off).
+            <button
+              onClick={() => onBump(kot.id, 'served')}
+              disabled={loading}
+              style={{
+                width: '100%', padding: '11px 0', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--bg-hover)',
+                color: P.sub, fontWeight: 600, fontSize: 13,
+                letterSpacing: '0.03em', cursor: 'pointer', opacity: loading ? 0.5 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                transition: 'opacity 0.15s, background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+            >
+              <ArrowRight size={14} strokeWidth={2} /> PICKED UP / SERVED
+            </button>
+          ) : (
+            // Dine-in: batch hand-off — ticks each not-yet-served item via the per-item
+            // serve endpoint; the ticket auto-advances to SERVED when the last is handed out.
+            <button
+              onClick={() => onServeAll?.(kot)}
+              disabled={loading}
+              style={{
+                width: '100%', padding: '11px 0', borderRadius: 8, border: 'none',
+                background: SERVE,
+                color: '#fff', fontWeight: 700, fontSize: 13,
+                letterSpacing: '0.04em', cursor: 'pointer', opacity: loading ? 0.5 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                transition: 'opacity 0.15s, transform 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <HandPlatter size={14} strokeWidth={2.5} /> {notServedCount > 0 ? `SERVE ALL (${notServedCount} LEFT)` : 'SERVE'}
+            </button>
+          )
         )}
         {(kot.status === 'served' || kot.status === 'completed') && (
           <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: P.muted, padding: '2px 0' }}>
@@ -362,7 +435,7 @@ function KOTCard({ kot, col, onBump, onItemReady, loading, hideAction }) {
    Groups every station ticket of one order under a single header with ONE serve
    control. For takeaway/delivery the control is disabled until every station is
    ready (no partial bag); for dine-in it fires whatever is ready. */
-function OrderGroupCard({ group, meta, onItemReady, onServeOrder, loading }) {
+function OrderGroupCard({ group, meta, onItemReady, onServeItem, onServeOrder, loading }) {
   const READY_COL   = COLUMNS.find(c => c.status === 'ready');
   const first       = group[0];
   const orderId     = first.order_id || first.order?.id;
@@ -401,7 +474,7 @@ function OrderGroupCard({ group, meta, onItemReady, onServeOrder, loading }) {
       {/* station tickets (no per-card serve button) */}
       <div style={{ padding: '10px 10px 4px' }}>
         {group.map(kot => (
-          <KOTCard key={kot.id} kot={kot} col={READY_COL} onItemReady={onItemReady} loading={false} hideAction />
+          <KOTCard key={kot.id} kot={kot} col={READY_COL} onItemReady={onItemReady} onServeItem={onServeItem} loading={false} hideAction />
         ))}
       </div>
 
@@ -527,8 +600,9 @@ export default function KitchenDisplayPage() {
       refresh();
       if (soundRef.current) { try { new Audio('/notification.mp3').play().catch(() => {}); } catch {} }
     });
-    socket.on('kot_item_ready', refresh);
-    socket.on('kot_complete',   refresh);
+    socket.on('kot_item_ready',  refresh);
+    socket.on('kot_item_served', refresh);  // partial hand-offs sync across screens (not just on final-item kot_complete)
+    socket.on('kot_complete',    refresh);
     socket.on('order_cancelled', (data) => {
       refresh();
       toast((t) => (
@@ -597,6 +671,34 @@ export default function KitchenDisplayPage() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
   });
+  // Per-item hand-off (READY → SERVED). Mirrors itemReadyMut one stage later:
+  // optimistically flip ONLY this item to 'served', and when every item is served
+  // advance the whole ticket to 'served' so it leaves the board instantly.
+  const serveItemMut = useMutation({
+    mutationFn: ({ kotId, itemId }) => api.put(`/kitchen/kots/${kotId}/items/${itemId}/serve`, { outlet_id: outletId }),
+    onMutate: async ({ kotId, itemId }) => {
+      await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
+      const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
+      const markServed = (arr) => (Array.isArray(arr) ? arr.map(i => (i.id === itemId ? { ...i, status: 'served' } : i)) : arr);
+      queryClient.setQueriesData({ queryKey: ['kds-kots'] }, (old) =>
+        Array.isArray(old) ? old.map(k => {
+          if (k.id !== kotId) return k;
+          const items  = markServed(k.items);
+          const kitems = markServed(k.kot_items);
+          const ref = (kitems && kitems.length ? kitems : items) || [];
+          const allServed = ref.length > 0 && ref.every(i => i.status === 'served');
+          const status = (allServed && k.status === 'ready') ? 'served' : k.status;
+          return { ...k, items, kot_items: kitems, status };
+        }) : old
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error(e.message || 'Failed');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
+  });
   // Phase 2: serve every READY station ticket of one order in a single tap.
   const serveOrderMut = useMutation({
     mutationFn: ({ orderId }) => api.put(`/kitchen/orders/${orderId}/serve`, { outlet_id: outletId }),
@@ -650,7 +752,19 @@ export default function KitchenDisplayPage() {
 
   const handleBump      = useCallback((kotId, status) => bumpMut.mutate({ kotId, status }), [bumpMut]);
   const handleItemReady = useCallback((kotId, itemId) => itemReadyMut.mutate({ kotId, itemId }), [itemReadyMut]);
+  const handleServeItem = useCallback((kotId, itemId) => serveItemMut.mutate({ kotId, itemId }), [serveItemMut]);
   const handleServeOrder = useCallback((orderId) => serveOrderMut.mutate({ orderId }), [serveOrderMut]);
+  // Batch helpers loop the per-item endpoints (never stamp the KOT), so isolation holds.
+  const handleMarkAllReady = useCallback((kot) => {
+    const its = kot.items ?? kot.kot_items ?? [];
+    its.filter((i) => !(i.is_ready ?? (i.status === 'ready' || i.status === 'served')))
+      .forEach((i) => itemReadyMut.mutate({ kotId: kot.id, itemId: i.id }));
+  }, [itemReadyMut]);
+  const handleServeAll = useCallback((kot) => {
+    const its = kot.items ?? kot.kot_items ?? [];
+    its.filter((i) => i.status !== 'served')
+      .forEach((i) => serveItemMut.mutate({ kotId: kot.id, itemId: i.id }));
+  }, [serveItemMut]);
 
   const allKots = kots ?? [];
   const filteredKots = useMemo(() =>
@@ -707,11 +821,15 @@ export default function KitchenDisplayPage() {
       const isMulti = meta ? meta.total > 1 : g.kots.length > 1;
       if (!isMulti) {
         const kot = g.kots[0];
-        return <KOTCard key={kot.id} kot={kot} col={col} onBump={handleBump} onItemReady={handleItemReady} loading={bumpMut.isPending} />;
+        return <KOTCard key={kot.id} kot={kot} col={col} onBump={handleBump}
+          onItemReady={handleItemReady} onServeItem={handleServeItem}
+          onMarkAllReady={handleMarkAllReady} onServeAll={handleServeAll}
+          loading={bumpMut.isPending} />;
       }
       return (
         <OrderGroupCard key={g.orderId} group={g.kots} meta={meta}
-          onItemReady={handleItemReady} onServeOrder={handleServeOrder} loading={serveOrderMut.isPending} />
+          onItemReady={handleItemReady} onServeItem={handleServeItem}
+          onServeOrder={handleServeOrder} loading={serveOrderMut.isPending} />
       );
     });
   };
@@ -996,6 +1114,9 @@ export default function KitchenDisplayPage() {
                           col={col}
                           onBump={handleBump}
                           onItemReady={handleItemReady}
+                          onServeItem={handleServeItem}
+                          onMarkAllReady={handleMarkAllReady}
+                          onServeAll={handleServeAll}
                           loading={bumpMut.isPending}
                         />
                       ))

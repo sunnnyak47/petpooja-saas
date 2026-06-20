@@ -52,6 +52,19 @@ router.put('/kots/:id/status', authenticate, enforceOutletScope, validate(update
       },
     });
 
+    // When a ticket is force-bumped straight to served/completed (e.g. "Clear all"),
+    // settle its item rows too so the per-item KDS view never shows stale 'ready'
+    // items under a served ticket. KOTItem carries the served stage; OrderItem keeps
+    // 'ready' as its order-level "done" signal.
+    if (status === 'served' || status === 'completed') {
+      await prisma.kOTItem.updateMany({ where: { kot_id: kotId, status: { not: 'served' } }, data: { status: 'served' } });
+      const kis = await prisma.kOTItem.findMany({ where: { kot_id: kotId }, select: { order_item_id: true } });
+      const oiIds = kis.map((k) => k.order_item_id).filter(Boolean);
+      if (oiIds.length) {
+        await prisma.orderItem.updateMany({ where: { id: { in: oiIds }, status: { notIn: ['ready'] } }, data: { status: 'ready' } });
+      }
+    }
+
     // Whenever this KOT reaches a done state (ready/served/completed) — even when
     // the KDS bumps it straight to 'served'/'completed', skipping 'ready' — roll
     // the parent order up to 'ready', record the transition, and trigger auto-free.
@@ -99,6 +112,14 @@ router.put('/orders/:orderId/serve', authenticate, async (req, res, next) => {
   try {
     const result = await kotService.serveOrder(req.params.orderId, scopedOutlet(req));
     sendSuccess(res, result, 'Order served');
+  } catch (error) { next(error); }
+});
+
+// PUT /api/kitchen/kots/:kotId/items/:itemId/serve  ← per-item hand-off tick (READY → SERVED)
+router.put('/kots/:kotId/items/:itemId/serve', authenticate, async (req, res, next) => {
+  try {
+    const result = await kotService.markItemServed(req.params.kotId, req.params.itemId, scopedOutlet(req));
+    sendSuccess(res, result, 'Item served');
   } catch (error) { next(error); }
 });
 

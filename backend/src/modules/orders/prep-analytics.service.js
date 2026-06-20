@@ -85,7 +85,11 @@ async function getItemStats(outletId, from, to) {
   try {
     const where = {
       is_deleted: false,
-      status: 'ready',
+      // A cooked item is later flipped 'ready' → 'served' at hand-off; both are
+      // "was cooked" for prep-time purposes (ready_at is preserved across the
+      // transition). Without 'served' here, every item dropped out of this report
+      // once it was handed to the customer.
+      status: { in: ['ready', 'served'] },
       ready_at: { not: null },
       kot: {
         outlet_id: outletId,
