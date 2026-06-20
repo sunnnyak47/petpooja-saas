@@ -3,15 +3,14 @@
  * Confirmed → Ready → Served → Paid, with stuck-order alerts. "Served" is derived
  * server-side from KOT statuses (see dashboard.controller.getOrderPipeline).
  */
-import { useEffect } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { Activity, ChefHat, CheckCircle2, HandPlatter, CreditCard, AlertTriangle } from 'lucide-react';
 import api, { SOCKET_URL } from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
-import toast from 'react-hot-toast';
+import OrderPipelineModal from './OrderPipelineModal';
 
 const STAGES = [
   { key: 'confirmed', label: 'Confirmed', sub: 'In kitchen',       color: '#d97706', Icon: ChefHat },
@@ -22,10 +21,10 @@ const STAGES = [
 
 export default function OrderStateAlert() {
   const { user } = useSelector((s) => s.auth);
-  const outletId = user?.outlet_id;
-  const navigate = useNavigate();
+  const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const { format } = useCurrency();
   const queryClient = useQueryClient();
+  const [openStage, setOpenStage] = useState(null); // which stage's drill-down popup is open
 
   const { data, isLoading } = useQuery({
     queryKey: ['order-pipeline', outletId],
@@ -50,13 +49,6 @@ export default function OrderStateAlert() {
     socket.on('order_complete', refresh);
     return () => socket.disconnect();
   }, [outletId, queryClient]);
-
-  // Collect payment for a served order: bill it, then open the POS payment screen.
-  const collectMut = useMutation({
-    mutationFn: (orderId) => api.post(`/orders/${orderId}/bill`, { outlet_id: outletId }),
-    onSuccess: (_d, orderId) => navigate(`/pos?order_id=${orderId}&pay=true`),
-    onError: (e) => toast.error(e?.response?.data?.message || 'Could not start payment'),
-  });
 
   const stages = data?.stages || {};
   const totalOpen = ['confirmed', 'ready', 'served'].reduce((n, k) => n + (stages[k]?.count || 0), 0);
@@ -92,7 +84,7 @@ export default function OrderStateAlert() {
             return (
               <button
                 key={key}
-                onClick={() => navigate('/running-orders')}
+                onClick={() => setOpenStage(key)}
                 className="text-left rounded-xl p-3 border transition-all hover:shadow-sm"
                 style={{
                   background: hasAlert ? '#ef44440d' : 'var(--bg-card)',
@@ -108,25 +100,29 @@ export default function OrderStateAlert() {
                 <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{sub}</p>
 
                 {key !== 'paid' && top && (
-                  <div className="mt-2 pt-2 border-t flex items-center justify-between gap-1" style={{ borderColor: 'var(--border)' }}>
+                  <div className="mt-2 pt-2 border-t flex items-center gap-1" style={{ borderColor: 'var(--border)' }}>
                     <span className="text-[11px] font-medium truncate" style={{ color: top.alert ? '#ef4444' : 'var(--text-secondary)' }}>
                       {top.table_number ? `T${top.table_number}` : `#${(top.order_number || '').split('-').pop()}`} · {top.stuck_mins}m
                     </span>
-                    {key === 'served' && (
-                      <span
-                        role="button"
-                        onClick={(e) => { e.stopPropagation(); collectMut.mutate(top.id); }}
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0"
-                        style={{ background: 'var(--accent)', color: '#fff' }}>
-                        Collect
-                      </span>
-                    )}
                   </div>
                 )}
               </button>
             );
           })}
         </div>
+      )}
+
+      {/* Drill-down popup — list of orders in the clicked stage → order detail (history + served/pending). */}
+      {openStage && (
+        <OrderPipelineModal
+          isOpen={!!openStage}
+          onClose={() => setOpenStage(null)}
+          stageKey={openStage}
+          stageLabel={STAGES.find((s) => s.key === openStage)?.label || ''}
+          color={STAGES.find((s) => s.key === openStage)?.color}
+          orders={stages[openStage]?.orders || []}
+          format={format}
+        />
       )}
     </div>
   );

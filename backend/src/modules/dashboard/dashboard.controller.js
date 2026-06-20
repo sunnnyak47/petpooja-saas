@@ -333,7 +333,7 @@ async function getOrderPipeline(req, res, next) {
         status: { notIn: ['cancelled', 'voided'] },
       },
       select: {
-        id: true, order_number: true, grand_total: true, status: true, is_paid: true, created_at: true,
+        id: true, order_number: true, order_type: true, grand_total: true, status: true, is_paid: true, created_at: true,
         table: { select: { table_number: true } },
         kots: { where: { is_deleted: false }, select: { status: true, completed_at: true } },
       },
@@ -352,7 +352,22 @@ async function getOrderPipeline(req, res, next) {
       const stage = deriveStage(o);
       if (!stage) continue;
       stages[stage].count += 1;
-      if (stage === 'paid') continue; // count only — no per-order alerts for paid
+
+      const base = {
+        id: o.id,
+        order_number: o.order_number,
+        order_type: o.order_type,
+        table_number: o.table?.table_number || null,
+        grand_total: Number(o.grand_total),
+        created_at: o.created_at,
+      };
+
+      // Paid: list-only (no stuck timer/alert) so the drill-down popup can show
+      // today's settled orders too. Other stages carry a stuck timer.
+      if (stage === 'paid') {
+        stages.paid.orders.push({ ...base, stuck_mins: 0, alert: false });
+        continue;
+      }
 
       // since = when the order entered this stage: latest KOT completed_at (ready/served)
       // when available, else the order's created_at.
@@ -363,17 +378,14 @@ async function getOrderPipeline(req, res, next) {
       }
       const stuckMins = Math.max(0, Math.round((now - since.getTime()) / 60000));
       stages[stage].orders.push({
-        id: o.id,
-        order_number: o.order_number,
-        table_number: o.table?.table_number || null,
-        grand_total: Number(o.grand_total),
-        created_at: o.created_at,
+        ...base,
         stuck_mins: stuckMins,
         alert: stuckMins > (STAGE_THRESHOLDS[stage] ?? Infinity),
       });
     }
-    // Most-stuck first so the UI can surface the worst order per stage.
+    // Most-stuck first so the UI can surface the worst order per stage; paid newest-first.
     for (const k of ['confirmed', 'ready', 'served']) stages[k].orders.sort((a, b) => b.stuck_mins - a.stuck_mins);
+    stages.paid.orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     sendSuccess(res, { stages, thresholds: STAGE_THRESHOLDS, generated_at: new Date().toISOString() }, 'Order pipeline retrieved');
   } catch (error) {
