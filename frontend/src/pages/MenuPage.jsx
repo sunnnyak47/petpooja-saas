@@ -406,10 +406,10 @@ export default function MenuPage() {
                  <Percent className="w-4 h-4"/> Update Prices ({selectedItems.size})
                </button>
             )}
-            <button onClick={() => setIsAISyncOpen(true)} className="btn-secondary flex items-center gap-2">
+            <button data-tour="menu.aiscan" onClick={() => setIsAISyncOpen(true)} className="btn-secondary flex items-center gap-2">
                <Sparkles className="w-4 h-4" /> AI Sync
             </button>
-            <button onClick={() => { setItemForm({...EMPTY_ITEM}); setIsItemModalOpen(true); }} className="btn-primary shadow-lg shadow-brand-500/20">
+            <button data-tour="menu.add" onClick={() => { setItemForm({...EMPTY_ITEM}); setIsItemModalOpen(true); }} className="btn-primary shadow-lg shadow-brand-500/20">
               <Plus className="w-4 h-4 mr-1"/> Add Item
             </button>
          </div>

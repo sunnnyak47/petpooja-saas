@@ -36,10 +36,10 @@ const PO_STATUS_STYLES = {
 };
 
 /* ─── Collapsible section wrapper ───────────────────────────── */
-function Section({ title, icon: Icon, count, children, defaultOpen = false }) {
+function Section({ title, icon: Icon, count, children, defaultOpen = false, anchor }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-3xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+    <div data-tour={anchor} className="rounded-3xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-6 py-4 transition-all hover:opacity-80"
@@ -422,7 +422,7 @@ export default function InventoryPage() {
       </div>
 
       {/* ══ ZONE A — AI Insight Strip ══════════════════════════ */}
-      <AIInsightStrip outletId={outletId} onAction={handleInsightAction} />
+      <div data-tour="inv.ai"><AIInsightStrip outletId={outletId} onAction={handleInsightAction} /></div>
 
       {/* ══ ZONE B — Quick Actions (refined: clean white cards, accent on icon only) ══ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -575,7 +575,7 @@ export default function InventoryPage() {
         </Section>
 
         {/* ── Recipes ── */}
-        <Section title="Recipes" icon={ChefHat} count={recipes.length}>
+        <Section title="Recipes" icon={ChefHat} count={recipes.length} anchor="inv.recipes">
           <div className="space-y-2">
             {recipes.length === 0 ? (
               <p className="text-sm text-center py-6" style={{ color: 'var(--text-secondary)' }}>

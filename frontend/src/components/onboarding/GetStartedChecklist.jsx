@@ -40,7 +40,7 @@ export default function GetStartedChecklist() {
   const pct = Math.round((done / (data.total || 5)) * 100);
 
   return (
-    <div className="rounded-2xl border overflow-hidden mb-6" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+    <div data-tour="dash.checklist" className="rounded-2xl border overflow-hidden mb-6" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
       <div className="px-5 py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"

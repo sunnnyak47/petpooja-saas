@@ -1010,7 +1010,7 @@ export default function KitchenDisplayPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 24px', gap: 16,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg-secondary)', padding: '3px', borderRadius: 8, border: `1px solid var(--border)` }}>
+        <div data-tour="kds.stations" style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg-secondary)', padding: '3px', borderRadius: 8, border: `1px solid var(--border)` }}>
           {STATIONS.map(({ id, label, Icon }) => {
             const active = activeStation === id;
             return (
@@ -1047,7 +1047,7 @@ export default function KitchenDisplayPage() {
           <span style={{ fontSize: 15, fontWeight: 600 }}>Loading orders…</span>
         </div>
       ) : (
-        <div style={{
+        <div data-tour="kds.card" style={{
           flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
           overflow: 'hidden',
         }}>

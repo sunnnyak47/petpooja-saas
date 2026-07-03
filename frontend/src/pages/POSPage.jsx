@@ -1397,7 +1397,7 @@ export default function POSPage() {
           )}
 
           {/* Row 2: Order type selector — prominent, always visible */}
-          <div className="flex items-center gap-2">
+          <div data-tour="pos.ordertype" className="flex items-center gap-2">
             {[
               { id: 'dine_in',  label: 'Dine In',   Icon: UtensilsCrossed },
               { id: 'takeaway', label: 'Takeaway',   Icon: Package },
@@ -1483,7 +1483,7 @@ export default function POSPage() {
             </div>
 
             {/* Menu Grid */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 content-start">
+            <div data-tour="pos.menu" className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 content-start">
               {menuLoading && filteredItems.length === 0 &&
                 Array.from({ length: 12 }).map((_, i) => (
                   <div key={`sk-${i}`} className="card p-3 pt-2 pl-3 border-l-4 border-l-surface-600 animate-pulse" style={{ minHeight: 76 }}>
@@ -1859,7 +1859,7 @@ export default function POSPage() {
                   * If cart has items, primarily show PUNCH KOT. 
                   * Hide GENERATE BILL if items are pending.
                   */
-                 <button onClick={handlePunchKOT} disabled={punching} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-500/20 disabled:opacity-60 disabled:cursor-not-allowed">
+                 <button data-tour="pos.actions" onClick={handlePunchKOT} disabled={punching} className="btn-primary flex-1 py-3 text-sm flex flex-col items-center justify-center gap-1 shadow-lg shadow-brand-500/20 disabled:opacity-60 disabled:cursor-not-allowed">
                     <Send className="w-4 h-4"/> <span>{punching ? 'Sending…' : 'PUNCH KOT & PRINT'}</span>
                  </button>
                )}

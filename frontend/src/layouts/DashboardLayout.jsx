@@ -25,6 +25,10 @@ import NotificationCenter from '../components/NotificationCenter';
 import AutoFreeTableManager from '../components/AutoFreeTableManager';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
 import DunningBanner from '../components/onboarding/DunningBanner';
+import { TourProvider } from '../onboarding/TourProvider';
+import TourAutoRunner from '../onboarding/TourAutoRunner';
+import WelcomeModal from '../components/onboarding/WelcomeModal';
+import TourHelpButton from '../components/onboarding/TourHelpButton';
 import IncomingOrderAlert from '../components/POS/IncomingOrderAlert';
 
 // `perm` gates visibility for scoped platform staff. Items without a `perm`
@@ -291,6 +295,7 @@ export default function DashboardLayout() {
   const brandLogo = user?.role === 'super_admin' ? '' : (user?.head_office?.logo_url || user?.logo_url || '');
 
   return (
+    <TourProvider>
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <ImpersonationBanner />
       <DunningBanner user={user} />
@@ -514,6 +519,8 @@ export default function DashboardLayout() {
               {/* In-App Notification Center (single bell — kitchen-orders bell removed to avoid double-bell confusion) */}
               <NotificationCenter />
 
+              <TourHelpButton />
+
               <button
                 onClick={toggleTheme}
                 title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -538,5 +545,8 @@ export default function DashboardLayout() {
       {/* Global predictive auto-free table popup (gated by outlet setting) */}
       <AutoFreeTableManager />
     </div>
+    <TourAutoRunner />
+    <WelcomeModal />
+    </TourProvider>
   );
 }

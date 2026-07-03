@@ -427,7 +427,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div data-tour="dash.kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card, i) => (
           <div key={i} className="card">
             <div className="flex items-start justify-between gap-3">
@@ -464,7 +464,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Order pipeline — Confirmed → Ready → Served → Paid with stuck alerts ── */}
-      <OrderStateAlert />
+      <div data-tour="dash.pipeline"><OrderStateAlert /></div>
 
       {/* ── Middle row — AI Forecast (replaces Health Score) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

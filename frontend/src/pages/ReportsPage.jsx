@@ -291,7 +291,7 @@ export default function ReportsPage() {
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-surface-900 p-4 rounded-2xl border border-surface-800 shadow-sm print:hidden">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-black text-white px-2 pr-4 border-r border-surface-700">Analytics</h1>
-          <div className="flex bg-surface-950 p-1 rounded-xl shadow-inner overflow-x-auto">
+          <div data-tour="reports.range" className="flex bg-surface-950 p-1 rounded-xl shadow-inner overflow-x-auto">
             {DATE_PRESETS.map((preset, idx) => (
               <button key={preset.label}
                 onClick={() => { setPresetIndex(idx); setDateRange(preset.getValue()); setShowCustomRange(false); }}
