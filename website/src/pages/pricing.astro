@@ -14,7 +14,7 @@ const faqs = [
   <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
     <span class="eyebrow">Pricing</span>
     <h1 class="h1 text-4xl sm:text-5xl mt-3">Simple, per-outlet pricing.</h1>
-    <p class="lead mt-4">Switch region in the header to see <span class="r-in">₹ INR</span><span class="r-au">A$ AUD</span> pricing.</p>
+    <p class="lead mt-4"><span class="r-au">Switch region in the header to see A$ AUD pricing.</span><span class="r-in">India pricing is shared on your demo — book one below.</span></p>
   </section>
 
   <section class="container-x">
@@ -27,8 +27,9 @@ const faqs = [
           <div class="mt-4 flex items-end gap-1">
             {p.custom ? <span class="text-3xl font-extrabold">Custom</span> : (
               <>
-                <span class="text-4xl font-extrabold"><span class="r-in">₹{p.inr.toLocaleString('en-IN')}</span><span class="r-au">A${p.aud}</span></span>
-                <span class="text-ink-mute mb-1 text-sm">/outlet / mo</span>
+                <span class="r-au text-4xl font-extrabold">A${p.aud}</span>
+                <span class="r-au text-ink-mute mb-1 text-sm">/outlet / mo</span>
+                <span class="r-in text-2xl font-bold text-ink-mute">On request</span>
               </>
             )}
           </div>
