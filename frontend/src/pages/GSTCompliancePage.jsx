@@ -296,7 +296,9 @@ export default function GSTCompliancePage() {
                       {rateWiseData.length > 0 && (
                         <tr className="bg-surface-950 font-bold">
                           <td className="p-3 text-surface-200">TOTAL</td>
-                          <td className="p-3 text-surface-200">{rateWiseData.reduce((s, r) => s + r.order_count, 0)}</td>
+                          {/* Distinct order count — NOT the sum of per-rate counts, which double-counts
+                              a single order that has items at more than one GST rate (M42). */}
+                          <td className="p-3 text-surface-200">{summaryCards.totalOrders}</td>
                           <td className="p-3 text-surface-200">{fmt(rateWiseData.reduce((s, r) => s + r.taxable, 0))}</td>
                           {isAU ? (
                             <td className="p-3 text-brand-400">{fmt(rateWiseData.reduce((s, r) => s + r.total_tax, 0))}</td>
