@@ -16,6 +16,9 @@ const createCustomerSchema = Joi.object({
   dietary_preference: Joi.string().valid('veg', 'non_veg', 'vegan', 'jain').allow(null),
   allergens: Joi.string().max(500).allow('', null),
   notes: Joi.string().max(1000).allow('', null),
+  // Marketing segment chosen at signup + campaign consent.
+  segment: Joi.string().valid('new', 'regular', 'vip', 'lapsed').allow(null),
+  marketing_consent: Joi.boolean(),
 });
 
 const updateCustomerSchema = Joi.object({
@@ -28,6 +31,7 @@ const updateCustomerSchema = Joi.object({
   dietary_preference: Joi.string().valid('veg', 'non_veg', 'vegan', 'jain').allow(null),
   allergens: Joi.string().max(500).allow('', null),
   notes: Joi.string().max(1000).allow('', null),
+  segment: Joi.string().valid('new', 'regular', 'vip', 'lapsed'),
 }).min(1);
 
 const addAddressSchema = Joi.object({

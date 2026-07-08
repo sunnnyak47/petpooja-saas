@@ -81,13 +81,13 @@ const ownerNav = [
   { section: 'Menu & Stock' },
   { path: '/menu',             label: 'Menu',            icon: UtensilsCrossed, feature: 'menu' },
   { path: '/inventory',        label: 'Inventory',       icon: Package, feature: 'inventory' },
-  { path: '/purchase-orders',  label: 'Purchase Orders', icon: ShoppingBag, feature: 'purchase_orders' },
+  { path: '/purchase-orders',  label: 'Purchase Orders', icon: ShoppingBag, feature: 'purchase_orders', sub: true },
   { path: '/central-kitchen',  label: 'Central Kitchen', icon: Warehouse, feature: 'central_kitchen' },
 
   // ── Customers & Promos ──
   { section: 'Customers' },
   { path: '/customers',      label: 'Customers',       icon: Users, feature: 'customers' },
-  { path: '/crm',            label: 'Loyalty & Rewards',   icon: Heart, feature: 'crm' },
+  { path: '/crm',            label: 'Loyalty & Rewards',   icon: Heart, feature: 'crm', sub: true },
   { path: '/discounts',      label: 'Promotions',      icon: Tag, feature: 'discounts' },
   { path: '/pricing',        label: 'Dynamic Pricing', icon: Zap, feature: 'dynamic_pricing' },
   { path: '/festival',       label: 'Festival Mode',   icon: Sparkles, feature: 'festival_mode' },
@@ -148,9 +148,9 @@ const ownerNavAU = [
   { section: 'Management' },
   { path: '/menu',             label: 'Menu',             icon: UtensilsCrossed, feature: 'menu' },
   { path: '/inventory',        label: 'Inventory',        icon: Package,         feature: 'inventory' },
-  { path: '/purchase-orders',  label: 'Purchase Orders',  icon: ShoppingBag,     feature: 'purchase_orders' },
+  { path: '/purchase-orders',  label: 'Purchase Orders',  icon: ShoppingBag,     feature: 'purchase_orders', sub: true },
   { path: '/customers',        label: 'Customers',        icon: Users,           feature: 'customers' },
-  { path: '/crm',              label: 'Loyalty & Rewards',icon: Heart,           feature: 'crm' },
+  { path: '/crm',              label: 'Loyalty & Rewards',icon: Heart,           feature: 'crm', sub: true },
   { path: '/discounts',        label: 'Promotions',       icon: Tag,             feature: 'discounts' },
   { path: '/rostering',        label: 'Staff Rostering',  icon: CalendarDays,    feature: 'rostering' },
   { path: '/staff-management', label: 'Staff Management', icon: IdCard,          feature: 'staff' },
@@ -435,14 +435,14 @@ export default function DashboardLayout() {
                   </div>
                 );
               }
-              const { path, label, icon: Icon, isLive } = item;
+              const { path, label, icon: Icon, isLive, sub } = item;
               return (
                 <NavLink
                   key={path}
                   to={path}
                   end={path === '/'}
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 mb-[1px] ${collapsed ? 'justify-center' : ''} ${isActive ? 'sidebar-link-active' : 'sidebar-link'}`
+                    `flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 mb-[1px] ${collapsed ? 'justify-center' : ''} ${sub && !collapsed ? 'ml-4' : ''} ${isActive ? 'sidebar-link-active' : 'sidebar-link'}`
                   }
                   title={collapsed ? label : undefined}
                 >

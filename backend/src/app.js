@@ -454,6 +454,11 @@ async function startApp() {
                                 ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`],
       // tables: auto_free_at added for predictive auto-free feature
       ['tables', `ADD COLUMN IF NOT EXISTS auto_free_at TIMESTAMPTZ`],
+      // tables: cleaning/dirty lifecycle — reminder timer + assign-during-cleaning window.
+      // auto_free_at doubles as the next cleaning reminder timestamp; cleaning_started_at
+      // anchors the 10-minute within-window reuse; reminder_count drives "no more reminders".
+      ['tables', `ADD COLUMN IF NOT EXISTS cleaning_started_at TIMESTAMPTZ,
+                  ADD COLUMN IF NOT EXISTS reminder_count      INTEGER NOT NULL DEFAULT 0`],
       // purchase_orders: supplier_id must be nullable (POs can be supplier-less)
       ['purchase_orders', `ALTER COLUMN supplier_id DROP NOT NULL`],
       // purchase_orders: columns added across procurement iterations
@@ -506,6 +511,11 @@ async function startApp() {
                           ADD COLUMN IF NOT EXISTS police_check_date  DATE,
                           ADD COLUMN IF NOT EXISTS police_check_expiry DATE,
                           ADD COLUMN IF NOT EXISTS notes              TEXT`],
+      // customers: head_office_id stamps the creating tenant so a just-created
+      // (order-less) customer is scoped to its own tenant. Without it, order-less
+      // customers leaked into every tenant's list (they belong to a tenant only
+      // via their orders, and a fresh customer has none yet).
+      ['customers', `ADD COLUMN IF NOT EXISTS head_office_id UUID`],
     ];
     for (const [tbl, sql] of driftFixes) {
       try {
@@ -514,6 +524,11 @@ async function startApp() {
       } catch (e) {
         logger.warn(`Schema drift skipped (${tbl}):`, { error: e.message });
       }
+    }
+    try {
+      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_customers_head_office ON customers(head_office_id)`);
+    } catch (e) {
+      logger.warn('customers head_office index skipped:', { error: e.message });
     }
 
     // ── Create procurement tables if missing ────────────────────────────────

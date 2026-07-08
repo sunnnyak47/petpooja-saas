@@ -7,14 +7,14 @@ const customerService = require('./customer.service');
 const { sendSuccess, sendCreated, sendPaginated } = require('../../utils/response');
 
 async function createCustomer(req, res, next) {
-  try { sendCreated(res, await customerService.createCustomer(req.body), 'Customer created'); }
+  try { sendCreated(res, await customerService.createCustomer(req.body, req.user), 'Customer created'); }
   catch (e) { next(e); }
 }
 
 async function listCustomers(req, res, next) {
   try {
     const outletId = req.query.outlet_id || req.user?.outlet_id;
-    const { customers, total, page, limit } = await customerService.listCustomers(outletId, req.query);
+    const { customers, total, page, limit } = await customerService.listCustomers(outletId, req.query, req.user);
     sendPaginated(res, customers, total, page, limit, 'Customers retrieved');
   } catch (e) { next(e); }
 }

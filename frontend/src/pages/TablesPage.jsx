@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import api, { SOCKET_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import TableCleaningPopup from '../components/TableCleaningPopup';
+import { setSelectedTable, setOrderType } from '../store/slices/posSlice';
 import {
   Users, Plus, Trash2, Loader2, Edit3, Save, X, Move,
   Square, Circle, RectangleHorizontal, RotateCw, Layers,
@@ -40,6 +42,14 @@ const AREA_COLORS = [
 const GRID = 10;
 const snap = (v) => Math.round(v / GRID) * GRID;
 
+/* ─── cleaning / dirty lifecycle helpers ────────────────
+   A 'dirty' table may be handed to the next customer only within this window
+   of going dirty (mirrors backend CLEANING_WINDOW_MINUTES). */
+const CLEANING_WINDOW_MS = 10 * 60 * 1000;
+const withinCleaningWindow = (t) =>
+  t?.status === 'dirty' && !!t?.cleaning_started_at &&
+  (Date.now() - new Date(t.cleaning_started_at).getTime()) <= CLEANING_WINDOW_MS;
+
 /* ─── elapsed timer ─────────────────────────────────── */
 function ElapsedTimer({ timestamp }) {
   const [ms, setMs] = useState(Date.now() - new Date(timestamp).getTime());
@@ -61,13 +71,17 @@ export default function TablesPage() {
   const outletId = user?.outlet_id;
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { symbol } = useCurrency();
 
-  /* ── server data ── */
+  /* ── server data ──
+     Poll periodically so cleaning reminder timestamps stay fresh even if a
+     socket event is missed — the reminder popup is time-driven off auto_free_at. */
   const { data: serverTables = [], isLoading } = useQuery({
     queryKey: ['tables', outletId],
     queryFn: () => api.get(`/kitchen/tables?outlet_id=${outletId}`).then(r => r.data),
     enabled: !!outletId,
+    refetchInterval: 20_000,
   });
   const { data: serverAreas = [] } = useQuery({
     queryKey: ['tableAreas', outletId],
@@ -128,6 +142,7 @@ export default function TablesPage() {
     const s = io(`${SOCKET_URL}/orders`, { auth: { token: localStorage.getItem('accessToken') }, transports: ['websocket'], withCredentials: true });
     s.emit('join_outlet', outletId);
     s.on('table_status_change', () => qc.invalidateQueries({ queryKey: ['tables', outletId] }));
+    s.on('table:cleaning_reminder_set', () => qc.invalidateQueries({ queryKey: ['tables', outletId] }));
     return () => s.disconnect();
   }, [outletId, qc, editMode]);
 
@@ -259,6 +274,96 @@ export default function TablesPage() {
     if (ids.length === 0) { toast.error('Select at least one table'); return; }
     bulkStatusMut.mutate({ ids, status });
   };
+
+  /* ══════════════════════════════════════════════════════
+     DIRTY / CLEANING LIFECYCLE (post-payment table state)
+     A paid dine-in table enters 'dirty'. We surface the cleaning popup here by
+     polling each table's reminder timestamp (auto_free_at) — the popup lets the
+     operator set a timer, mark free, take more time (loops), stop reminders, or
+     seat the next customer within the 10-min window.
+  ══════════════════════════════════════════════════════ */
+  const [cleaningPopup, setCleaningPopup] = useState(null); // { table, mode: 'start'|'reminder' }
+  const closeCleaning = useCallback(() => setCleaningPopup(null), []);
+  // Start-popups the operator dismissed (keyed per cleaning session so a fresh
+  // payment re-prompts), and reminders already surfaced (keyed per timer).
+  const cleaningDismissed = useRef(new Set());
+  const reminderShown = useRef(new Set());
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // Re-evaluate reminder due-times on a light interval (poll keeps data fresh).
+  useEffect(() => {
+    const i = setInterval(() => setNowTick(Date.now()), 5000);
+    return () => clearInterval(i);
+  }, []);
+
+  const cleaningTimerMut = useMutation({
+    mutationFn: ({ id, minutes }) => api.post(`/kitchen/tables/${id}/cleaning-timer`, { minutes }),
+    onSuccess: (_res, vars) => {
+      toast.success(`Reminder set for ${vars.minutes} min`);
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      closeCleaning();
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Failed to set reminder'),
+  });
+  const markFreeMut = useMutation({
+    mutationFn: (id) => api.post(`/kitchen/tables/${id}/mark-free`),
+    onSuccess: () => {
+      toast.success('Table marked free');
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      closeCleaning();
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Failed to free table'),
+  });
+  const stopRemindersMut = useMutation({
+    mutationFn: (id) => api.post(`/kitchen/tables/${id}/stop-reminders`),
+    onSuccess: () => {
+      toast.success('Reminders stopped — table stays dirty');
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      closeCleaning();
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Failed to stop reminders'),
+  });
+  const assignCleaningMut = useMutation({
+    mutationFn: (id) => api.post(`/kitchen/tables/${id}/assign-cleaning`),
+    onSuccess: (_res, id) => {
+      const t = serverTables.find((x) => x.id === id);
+      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      closeCleaning();
+      setDetailOpen(false);
+      // Pre-select the now-free table for a new dine-in order and jump to POS.
+      dispatch(setOrderType('dine_in'));
+      if (t) dispatch(setSelectedTable({ ...t, status: 'available', current_order_id: null }));
+      navigate('/pos');
+    },
+    onError: (e) => toast.error(e?.response?.data?.message || e.message || 'Cannot assign yet — cleaning window passed'),
+  });
+
+  const cleaningBusy = cleaningTimerMut.isPending || markFreeMut.isPending
+    || stopRemindersMut.isPending || assignCleaningMut.isPending;
+
+  // Detection: open at most one popup at a time. Skip while another modal /
+  // select mode / edit mode is active so we never stack over the operator.
+  useEffect(() => {
+    if (editMode || selectMode || detailOpen || cleaningPopup) return;
+    const now = Date.now();
+    // 1) A cleaning reminder whose time has arrived → verification popup.
+    const dueReminder = serverTables.find((t) =>
+      t.status === 'dirty' && t.auto_free_at &&
+      new Date(t.auto_free_at).getTime() <= now &&
+      !reminderShown.current.has(`${t.id}:${t.auto_free_at}`)
+    );
+    if (dueReminder) {
+      reminderShown.current.add(`${dueReminder.id}:${dueReminder.auto_free_at}`);
+      setCleaningPopup({ table: dueReminder, mode: 'reminder' });
+      return;
+    }
+    // 2) A freshly-dirty table (from payment) with no timer set yet → start popup.
+    const needsTimer = serverTables.find((t) =>
+      t.status === 'dirty' && !t.auto_free_at && t.cleaning_started_at &&
+      !cleaningDismissed.current.has(`${t.id}:${t.cleaning_started_at}`)
+    );
+    if (needsTimer) setCleaningPopup({ table: needsTimer, mode: 'start' });
+  }, [serverTables, nowTick, cleaningPopup, editMode, selectMode, detailOpen]);
 
   /* ── save floor plan ── */
   const handleSave = () => {
@@ -1498,6 +1603,30 @@ export default function TablesPage() {
               </button>
             )}
 
+            {/* Cleaning lifecycle — dirty tables can be timed, freed, or reused within window */}
+            {focusTable.status === 'dirty' && (
+              <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <p className="text-xs font-bold uppercase mb-2" style={{ color: '#f87171' }}>Cleaning in progress</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => { setDetailOpen(false); setCleaningPopup({ table: focusTable, mode: 'start' }); }}
+                    className="w-full py-2 rounded-lg border text-sm font-semibold transition-colors"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
+                    Set cleaning timer / mark free
+                  </button>
+                  {withinCleaningWindow(focusTable) && (
+                    <button
+                      onClick={() => assignCleaningMut.mutate(focusTable.id)}
+                      disabled={cleaningBusy}
+                      className="w-full py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' }}>
+                      Seat next customer (within cleaning window)
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="border-t border-surface-800 pt-3">
               <p className="text-xs text-surface-500 font-bold uppercase mb-2">Manual Status Override</p>
               <div className="grid grid-cols-2 gap-2">
@@ -1568,6 +1697,28 @@ export default function TablesPage() {
         message={`Remove zone "${selectedArea?.name}"? Tables in this zone will be unassigned.`}
         isLoading={deleteAreaMut.isPending}
       />
+
+      {/* Cleaning lifecycle popup (start timer / reminder / mark free / seat next) */}
+      {cleaningPopup && (
+        <TableCleaningPopup
+          table={cleaningPopup.table}
+          mode={cleaningPopup.mode}
+          withinWindow={withinCleaningWindow(cleaningPopup.table)}
+          busy={cleaningBusy}
+          onPickTime={(minutes) => cleaningTimerMut.mutate({ id: cleaningPopup.table.id, minutes })}
+          onMarkFree={() => markFreeMut.mutate(cleaningPopup.table.id)}
+          onStopReminders={() => stopRemindersMut.mutate(cleaningPopup.table.id)}
+          onAssign={() => assignCleaningMut.mutate(cleaningPopup.table.id)}
+          onClose={() => {
+            // Dismissing the initial "set a timer" prompt shouldn't nag again for
+            // this same cleaning session (a fresh payment gets a new key).
+            if (cleaningPopup.mode === 'start' && cleaningPopup.table?.cleaning_started_at) {
+              cleaningDismissed.current.add(`${cleaningPopup.table.id}:${cleaningPopup.table.cleaning_started_at}`);
+            }
+            closeCleaning();
+          }}
+        />
+      )}
     </div>
   );
 }

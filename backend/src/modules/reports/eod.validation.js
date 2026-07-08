@@ -11,8 +11,12 @@ const saveDraftSchema = Joi.object({
   date: Joi.date(),
   opening_cash: Joi.number().min(0),
   denomination_count: Joi.object(),
-  notes: Joi.string().max(500),
-  discrepancy_reason: Joi.string().max(255),
+  // Joi.string() rejects '' by default, but Save Draft is meant to work at any
+  // step with the drawer un-counted and no notes yet — the wizard always sends
+  // notes and discrepancy_reason (both default to ''). Allow blank/null so an
+  // early draft save doesn't 400 with "notes is not allowed to be empty".
+  notes: Joi.string().max(500).allow('', null),
+  discrepancy_reason: Joi.string().max(255).allow('', null),
 });
 
 /** POST /api/reports/eod/lock */

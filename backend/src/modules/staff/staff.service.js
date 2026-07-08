@@ -29,7 +29,21 @@ async function assertOutletInTenant(outletId, user) {
     where: { id: outletId },
     select: { head_office_id: true },
   });
-  if (!outlet || !outlet.head_office_id || outlet.head_office_id !== user?.head_office_id) {
+  if (!outlet) throw new NotFoundError('Staff record not found');
+  // Owners manage every outlet inside their own head office and already bypass
+  // enforceOutletScope / hasPermission everywhere else. A multi-outlet owner's JWT
+  // can carry head_office_id=null (their primary role has no outlet to derive it
+  // from), or a legacy outlet may have a null head_office_id — in either case the
+  // strict equality below wrongly reported "Staff record not found" and blocked a
+  // valid create. For owners, only reject genuine cross-tenant access (both ids
+  // known AND different); otherwise let them through.
+  if (user && user.role === 'owner') {
+    if (user.head_office_id && outlet.head_office_id && outlet.head_office_id !== user.head_office_id) {
+      throw new NotFoundError('Staff record not found');
+    }
+    return;
+  }
+  if (!outlet.head_office_id || outlet.head_office_id !== user?.head_office_id) {
     throw new NotFoundError('Staff record not found');
   }
 }

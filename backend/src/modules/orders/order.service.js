@@ -1059,10 +1059,22 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
         },
       });
 
-      if (order.table_id && !deferTableFree) {
+      if (order.table_id) {
+        // Post-payment the table is NOT freed outright — it enters a 'dirty'
+        // (cleaning) state. The floor operator marks it free via the cleaning
+        // popup + timed reminder loop (autofree.service / kot.routes tables/*).
+        // Stamp cleaning_started_at (anchors the 10-min assign-during-cleaning
+        // window) and reset any reminder schedule; auto_free_at stays null until
+        // the operator picks a cleaning-timer duration.
         await tx.table.update({
           where: { id: order.table_id },
-          data: { status: 'available', current_order_id: null },
+          data: {
+            status: 'dirty',
+            current_order_id: null,
+            cleaning_started_at: new Date(),
+            auto_free_at: null,
+            reminder_count: 0,
+          },
         });
       }
 
@@ -1101,21 +1113,18 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
     const io = getIO();
     if (io) {
       io.of('/orders').to(`outlet:${order.outlet_id}`).emit('order_complete', { order_id: orderId });
-      if (order.table_id && !deferTableFree) {
+      if (order.table_id) {
+        // Floor updates live: the table is now cleaning ('dirty'), not free.
         io.of('/orders').to(`outlet:${order.outlet_id}`).emit('table_status_change', {
-          table_id: order.table_id, status: 'available',
+          table_id: order.table_id, status: 'dirty',
         });
       }
     }
-
-    // Billed now — if the kitchen has already served, schedule the auto-free.
-    // Fire-and-forget so the payment response doesn't wait on it.
-    if (deferTableFree) {
-      setImmediate(() => {
-        autoFreeService.scheduleAutoFreeIfReady(orderId)
-          .catch((e) => logger.warn('Auto-free schedule failed (non-critical):', e.message));
-      });
-    }
+    // NB: the table now enters the 'dirty' cleaning lifecycle on payment (above),
+    // which supersedes the old predictive auto-free grace popup for POS-paid
+    // dine-in orders. `deferTableFree` is retained only for reference; the cleaning
+    // reminder loop is driven from the Tables floor (kot.routes /tables/* + poll).
+    void deferTableFree;
 
     logger.info('Payment processed', { orderId, method: paymentData.method, amount: paymentData.amount });
 

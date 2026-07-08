@@ -35,7 +35,7 @@ async function tenantScopeFilter(caller) {
    CUSTOMER CRUD
    ============================ */
 
-async function createCustomer(data) {
+async function createCustomer(data, caller) {
   const prisma = getDbClient();
   const existing = await prisma.customer.findFirst({ where: { phone: data.phone, is_deleted: false } });
   if (existing) throw new ConflictError('Customer with this phone already exists');
@@ -43,6 +43,9 @@ async function createCustomer(data) {
   const customer = await prisma.customer.create({
     data: {
       phone: data.phone,
+      // Stamp the creating tenant so a just-created (order-less) customer is
+      // scoped to its own head office and doesn't leak into other tenants.
+      head_office_id: caller?.head_office_id || data.head_office_id || null,
       full_name: data.full_name || null,
       email: data.email || null,
       date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : null,
@@ -51,6 +54,17 @@ async function createCustomer(data) {
       dietary_preference: data.dietary_preference || null,
       allergens: data.allergens || null,
       notes: data.notes || null,
+      // Marketing segment chosen at signup (defaults to 'new'); later auto-managed
+      // by updateSegment() as the customer transacts.
+      segment: data.segment || 'new',
+      // Marketing-campaign consent captured on the create form (DPDP basis).
+      ...(data.marketing_consent !== undefined
+        ? {
+            marketing_consent: !!data.marketing_consent,
+            consent_at: data.marketing_consent ? new Date() : null,
+            consent_source: data.marketing_consent ? 'pos' : null,
+          }
+        : {}),
     },
   });
 
@@ -69,7 +83,16 @@ async function listCustomers(outletId, query = {}, caller) {
   const tenantFilter = await tenantScopeFilter(caller);
   if (Object.keys(tenantFilter).length) scopeAnd.push(tenantFilter);
   if (outletId) scopeAnd.push({ orders: { some: { outlet_id: outletId, is_deleted: false } } });
-  if (scopeAnd.length) where.AND = scopeAnd;
+  if (scopeAnd.length) {
+    // A just-created customer has no orders yet, so the order-based scope would
+    // hide it — the "added successfully but never shows in the list" bug. We now
+    // stamp head_office_id on create, so surface order-less customers of THIS
+    // tenant only (not globally, which leaked every tenant's fresh customers).
+    // Once they place their first order they also match the order-based branch.
+    const orBranches = [{ AND: scopeAnd }];
+    if (caller?.head_office_id) orBranches.push({ head_office_id: caller.head_office_id });
+    where.AND = [{ OR: orBranches }];
+  }
   if (query.segment) where.segment = query.segment;
   if (query.dietary_preference) where.dietary_preference = query.dietary_preference;
   if (query.search) {

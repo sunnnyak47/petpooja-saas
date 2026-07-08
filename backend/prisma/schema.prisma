@@ -955,6 +955,8 @@ model Table {
   status           String             @default("available") @db.VarChar(20)
   current_order_id String?            @db.Uuid
   auto_free_at     DateTime?          @db.Timestamptz(6)
+  cleaning_started_at DateTime?       @db.Timestamptz(6)
+  reminder_count   Int                @default(0)
   display_order    Int                @default(0)
   pos_x            Float              @default(0)
   pos_y            Float              @default(0)
@@ -1467,6 +1469,10 @@ model Customer {
   consent_at           DateTime?            @db.Timestamptz(6)
   consent_source       String?              @db.VarChar(50)
   anonymised_at        DateTime?            @db.Timestamptz(6)
+  // Creating tenant. Customers are global-by-phone, but this stamps who first
+  // created the record so an order-less customer stays scoped to its own tenant
+  // (they otherwise belong to a tenant only via their orders).
+  head_office_id       String?              @db.Uuid
   created_at           DateTime             @default(now()) @db.Timestamptz(6)
   updated_at           DateTime             @default(now()) @updatedAt @db.Timestamptz(6)
   is_deleted           Boolean              @default(false)
@@ -1475,6 +1481,7 @@ model Customer {
   loyalty_transactions LoyaltyTransaction[]
   orders               Order[]
 
+  @@index([head_office_id])
   @@map("customers")
 }
 

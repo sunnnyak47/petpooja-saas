@@ -2,9 +2,10 @@
  * ReservationsPage — Table booking and reservation management
  * Route: /reservations
  */
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useRegion } from '../hooks/useRegion';
@@ -12,8 +13,29 @@ import { isValidPhone, PHONE_MAXLEN } from '../lib/validation';
 import {
   Calendar, Users, Plus, Phone,
   CheckCircle2, XCircle, AlertCircle,
-  Utensils, Search, Edit2, Trash2, Loader2
+  Utensils, Search, Edit2, Trash2, Loader2,
+  QrCode, Copy, Download, Mail, MessageCircle, ExternalLink, Sparkles
 } from 'lucide-react';
+
+/**
+ * Best-fit table ranking (mirrors the backend service): smallest AVAILABLE
+ * table that seats the party, else largest available, else any table.
+ */
+function rankTablesByFit(tables, partySize) {
+  const size = Math.max(1, parseInt(partySize, 10) || 1);
+  const byCapAsc = (a, b) =>
+    (a.seating_capacity - b.seating_capacity) ||
+    String(a.table_number).localeCompare(String(b.table_number), undefined, { numeric: true });
+  const byCapDesc = (a, b) => (b.seating_capacity - a.seating_capacity) || byCapAsc(a, b);
+  const live = (tables || []).filter(t => !t.is_deleted);
+  const available = live.filter(t => (t.status || 'available') === 'available');
+  const availableFits = available.filter(t => (t.seating_capacity || 0) >= size).sort(byCapAsc);
+  if (availableFits.length) return availableFits;
+  if (available.length) return available.slice().sort(byCapDesc);
+  const anyFits = live.filter(t => (t.seating_capacity || 0) >= size).sort(byCapAsc);
+  if (anyFits.length) return anyFits;
+  return live.slice().sort(byCapDesc);
+}
 
 const STATUS_CFG = {
   PENDING:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  label: 'Pending',   icon: AlertCircle },
@@ -36,7 +58,7 @@ function dateStr(dt) {
 const EMPTY_FORM = {
   customer_name: '', customer_phone: '',
   party_size: 2, reservation_date: '', reservation_time: '',
-  special_requests: '', status: 'confirmed'
+  special_requests: '', status: 'confirmed', table_id: ''
 };
 
 export default function ReservationsPage() {
@@ -51,16 +73,94 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [editId, setEditId]     = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // reservation object pending deletion
+  const [showShare, setShowShare] = useState(false);        // share QR/link modal
+  const qrRef = useRef(null);
 
   const today = new Date().toISOString().split('T')[0];
+
+  // Public self-reservation link for this outlet (hash-routed, like the QR order link)
+  const reserveUrl = outletId
+    ? `${window.location.origin}/#/reserve?outlet=${outletId}`
+    : '';
+
+  // Live tables (read-only) — used to auto-suggest a best-fit table for the party.
+  const { data: tables = [] } = useQuery({
+    queryKey: ['tables', outletId],
+    queryFn: () => api.get(`/orders/tables?outlet_id=${outletId}`).then(r => r.data),
+    enabled: !!outletId,
+    staleTime: 30_000,
+  });
+
+  const suggestions = useMemo(
+    () => rankTablesByFit(tables, form.party_size).slice(0, 3),
+    [tables, form.party_size]
+  );
+  const topSuggestion = suggestions[0] || null;
+  const suggestionFits =
+    topSuggestion && (topSuggestion.seating_capacity || 0) >= (parseInt(form.party_size, 10) || 1);
+  // The table actually chosen for this booking (explicit pick or the top suggestion).
+  const chosenTableId = form.table_id || topSuggestion?.id || '';
 
   const handleSave = () => {
     if (form.customer_phone && !isValidPhone(form.customer_phone)) {
       toast.error('Please enter a valid phone number');
       return;
     }
-    const payload = { ...form, party_size: Number(form.party_size) };
+    const { table_id, ...rest } = form;
+    const payload = { ...rest, party_size: Number(form.party_size) };
+    // Attach the chosen/suggested table so what the owner sees is what gets booked.
+    if (chosenTableId) payload.table_id = chosenTableId;
     saveMutation.mutate(editId ? payload : { ...payload, outlet_id: outletId });
+  };
+
+  // ── Share helpers ──────────────────────────────────────────────────────────
+  const copyLink = () => {
+    navigator.clipboard.writeText(reserveUrl)
+      .then(() => toast.success('Reservation link copied!'))
+      .catch(() => toast.error('Copy failed'));
+  };
+
+  const shareWhatsApp = () => {
+    const msg = `Book a table at ${user?.outlet?.name || 'our restaurant'}: ${reserveUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const shareEmail = () => {
+    const subject = `Reserve a table at ${user?.outlet?.name || 'our restaurant'}`;
+    const body = `Hi,\n\nYou can reserve a table online here:\n${reserveUrl}\n\nSee you soon!`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const downloadQR = () => {
+    const svg = qrRef.current?.querySelector('svg');
+    if (!svg) return;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    canvas.width = 800; canvas.height = 1000;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 800, 1000);
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 30px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(user?.outlet?.name || 'Reserve a Table', 400, 70);
+      ctx.drawImage(img, 150, 110, 500, 500);
+      ctx.fillStyle = '#4f46e5';
+      ctx.font = 'bold 40px Inter, system-ui, sans-serif';
+      ctx.fillText('Scan to Reserve', 400, 690);
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '22px Inter, system-ui, sans-serif';
+      ctx.fillText('Book your table online', 400, 740);
+      ctx.fillText('in a few taps', 400, 772);
+      const link = document.createElement('a');
+      link.download = `Reservation-QR-${user?.outlet?.name || 'restaurant'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast.success('Reservation QR downloaded!');
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   const { data: reservations = [], isLoading } = useQuery({
@@ -134,6 +234,7 @@ export default function ReservationsPage() {
       reservation_time: r.reservation_time || '',
       special_requests: r.special_requests || '',
       status: r.status,
+      table_id: r.table_id || r.table?.id || '',
     });
     setShowForm(true);
   };
@@ -148,11 +249,18 @@ export default function ReservationsPage() {
             Manage table bookings and walk-in reservations
           </p>
         </div>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-          style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>
-          <Plus className="w-4 h-4" /> New Reservation
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowShare(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <QrCode className="w-4 h-4" /> Share Booking Link
+          </button>
+          <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM); }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>
+            <Plus className="w-4 h-4" /> New Reservation
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -245,6 +353,58 @@ export default function ReservationsPage() {
                   style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
               </div>
             </div>
+
+            {/* Auto table suggestion based on party size */}
+            {topSuggestion && (
+              <div className="rounded-xl p-3"
+                style={{
+                  background: suggestionFits ? 'rgba(99,102,241,0.10)' : 'rgba(245,158,11,0.10)',
+                  border: `1px solid ${suggestionFits ? 'rgba(99,102,241,0.30)' : 'rgba(245,158,11,0.30)'}`,
+                }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: suggestionFits ? '#818cf8' : '#f59e0b' }} />
+                  <span className="text-[11px] font-bold uppercase tracking-wide"
+                    style={{ color: suggestionFits ? '#818cf8' : '#f59e0b' }}>
+                    Suggested table
+                  </span>
+                </div>
+                {suggestionFits ? (
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span className="font-bold">Table {topSuggestion.table_number}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {' '}(seats {topSuggestion.seating_capacity}) — best fit for {form.party_size} guests
+                      {suggestions.length > 1
+                        ? `. Alt: ${suggestions.slice(1).map(t => `T${t.table_number}`).join(', ')}`
+                        : ''}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                    No free table seats {form.party_size} right now — largest is{' '}
+                    <span className="font-bold">Table {topSuggestion.table_number}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}> ({topSuggestion.seating_capacity} seats)</span>
+                  </p>
+                )}
+                {/* Quick pick from the ranked suggestions */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {suggestions.map(t => {
+                    const active = chosenTableId === t.id;
+                    return (
+                      <button key={t.id} type="button"
+                        onClick={() => setForm(p => ({ ...p, table_id: active ? '' : t.id }))}
+                        className="text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors"
+                        style={{
+                          background: active ? '#4f46e5' : 'var(--bg-primary)',
+                          border: `1px solid ${active ? '#4f46e5' : 'var(--border)'}`,
+                          color: active ? '#fff' : 'var(--text-secondary)',
+                        }}>
+                        T{t.table_number} · {t.seating_capacity}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button onClick={() => { setShowForm(false); setEditId(null); }}
@@ -368,6 +528,77 @@ export default function ReservationsPage() {
           </div>
         )}
       </div>
+
+      {/* ═════ Share reservation QR + link ═════ */}
+      {showShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowShare(false); }}>
+          <div className="w-full max-w-md rounded-2xl p-6 space-y-5"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-5 h-5" style={{ color: '#818cf8' }} />
+                <h3 className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Share Booking Link</h3>
+              </div>
+              <button onClick={() => setShowShare(false)}>
+                <XCircle className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </div>
+
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Customers can scan this QR or open the link to reserve a table themselves — no app or login needed.
+            </p>
+
+            {/* QR */}
+            <div className="flex justify-center">
+              <div ref={qrRef} className="inline-block bg-white p-5 rounded-2xl shadow-lg">
+                {reserveUrl
+                  ? <QRCodeSVG value={reserveUrl} size={200} level="H" includeMargin fgColor="#111827" />
+                  : <div className="w-[200px] h-[200px] flex items-center justify-center text-gray-400 text-sm">No outlet</div>}
+              </div>
+            </div>
+
+            {/* Link + inline copy/open */}
+            <div className="flex items-center gap-2 rounded-xl p-3"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+              <code className="text-[11px] flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>{reserveUrl}</code>
+              <button onClick={copyLink} title="Copy link"
+                className="p-1.5 rounded-lg" style={{ color: 'var(--text-secondary)' }}>
+                <Copy className="w-4 h-4" />
+              </button>
+              <a href={reserveUrl} target="_blank" rel="noopener noreferrer" title="Open link"
+                className="p-1.5 rounded-lg" style={{ color: 'var(--text-secondary)' }}>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+
+            {/* Share actions */}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={copyLink}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                <Copy className="w-4 h-4" /> Copy Link
+              </button>
+              <button onClick={shareWhatsApp}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', color: '#22c55e' }}>
+                <MessageCircle className="w-4 h-4" /> WhatsApp
+              </button>
+              <button onClick={shareEmail}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                <Mail className="w-4 h-4" /> Email
+              </button>
+              <button onClick={downloadQR}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff' }}>
+                <Download className="w-4 h-4" /> Download QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═════ Delete-reservation confirm dialog ═════ */}
       {confirmDelete && (

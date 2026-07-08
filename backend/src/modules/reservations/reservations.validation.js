@@ -4,7 +4,7 @@
  */
 
 const Joi = require('joi');
-const { phoneOptional } = require('../../utils/validators');
+const { phoneOptional, phoneRequired } = require('../../utils/validators');
 
 /** POST /api/reservations */
 const createReservationSchema = Joi.object({
@@ -29,7 +29,24 @@ const updateReservationSchema = Joi.object({
   special_requests: Joi.string().max(500),
 });
 
+/**
+ * POST /api/reservations/public — customer self-service via QR/link.
+ * Phone is required here (no logged-in staff to follow up otherwise) and the
+ * outlet is taken from the link/token, not a trusted session.
+ */
+const publicReservationSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  customer_name: Joi.string().trim().required().max(150),
+  customer_phone: phoneRequired,
+  party_size: Joi.number().integer().min(1).max(50).required(),
+  reservation_date: Joi.date().required(),
+  reservation_time: Joi.string().pattern(/^[0-2][0-9]:[0-5][0-9]$/).required(),
+  special_requests: Joi.string().max(500).allow('', null),
+  table_id: Joi.string().uuid().allow(null, ''),
+});
+
 module.exports = {
   createReservationSchema,
   updateReservationSchema,
+  publicReservationSchema,
 };

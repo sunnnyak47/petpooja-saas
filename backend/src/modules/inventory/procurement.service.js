@@ -346,6 +346,9 @@ async function getPurchaseOrder(id, outletId) {
           id: true, name: true, address_line1: true, address_line2: true,
           city: true, state: true, pincode: true, phone: true, email: true,
           gstin: true, fssai_number: true, logo_url: true,
+          // currency/country_code live on the head_office relation, not the outlet.
+          // Needed so the PO PDF prints the correct currency symbol ($ / Rs).
+          head_office: { select: { currency: true, country_code: true } },
         },
       },
       po_items: { where: { is_deleted: false }, orderBy: { created_at: 'asc' } },

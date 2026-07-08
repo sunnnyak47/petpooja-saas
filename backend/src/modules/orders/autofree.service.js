@@ -14,6 +14,14 @@ const logger = require('../../config/logger');
 // Snooze / preset durations (minutes) shared with the frontend popup.
 const PRESET_MINUTES = [10, 15, 20, 25, 30, 45, 60, 120, 240];
 
+// Cleaning-lifecycle presets (minutes) offered in the "Table is being cleaned —
+// mark free" popup and the timed reminder loop. Kept small on purpose.
+const CLEANING_PRESET_MINUTES = [5, 10, 15, 30];
+
+// Assign-during-cleaning window: a 'dirty' table may still be handed to the next
+// customer if cleaning finishes within this many minutes of going dirty.
+const CLEANING_WINDOW_MINUTES = 10;
+
 /** Reads the outlet's auto-free config from OutletSetting (one round-trip). */
 async function getAutoFreeConfig(prisma, outletId) {
   const rows = await prisma.outletSetting.findMany({
@@ -72,9 +80,14 @@ async function scheduleAutoFreeIfReady(orderId, prismaArg) {
 
     const table = await prisma.table.findFirst({
       where: { id: order.table_id, is_deleted: false },
-      select: { id: true, table_number: true, seating_capacity: true, auto_free_at: true },
+      select: { id: true, table_number: true, seating_capacity: true, auto_free_at: true, status: true },
     });
     if (!table) return false;
+
+    // A POS-paid dine-in order now flips its table to 'dirty' (cleaning lifecycle)
+    // in processPayment. Never re-arm the old predictive grace popup on top of a
+    // table that is already being cleaned — the cleaning reminder loop owns it.
+    if (table.status === 'dirty') return false;
 
     const dishes = order.order_items.reduce((s, i) => s + Number(i.quantity || 0), 0);
     const seats = table.seating_capacity || 0;
@@ -105,4 +118,79 @@ async function scheduleAutoFreeIfReady(orderId, prismaArg) {
   }
 }
 
-module.exports = { getAutoFreeConfig, predictDwellMinutes, scheduleAutoFreeIfReady, PRESET_MINUTES };
+/**
+ * Cleaning reminder scheduler (dirty/cleaning lifecycle).
+ *
+ * Called when the operator picks a "mark free in N minutes" duration from the
+ * cleaning popup — for the FIRST timer, for "take more time", and for each
+ * subsequent auto-reminder. It stamps the table's next reminder time on
+ * `auto_free_at` (reused as the reminder timestamp), keeps the table 'dirty',
+ * and bumps `reminder_count` so the frontend can reveal the "no more reminders"
+ * option from the 2nd reminder on. Purely timestamp-driven so a server restart
+ * never loses the schedule (the frontend polls `auto_free_at`).
+ *
+ * @param {string} tableId
+ * @param {number} minutes  one of CLEANING_PRESET_MINUTES (clamped 1..240)
+ * @param {object} [prismaArg]
+ * @returns {Promise<{ table_id, status, auto_free_at, cleaning_started_at, reminder_count }>}
+ */
+async function scheduleCleaningReminder(tableId, minutes, prismaArg) {
+  const prisma = prismaArg || getDbClient();
+  const table = await prisma.table.findFirst({
+    where: { id: tableId, is_deleted: false },
+    select: { id: true, outlet_id: true, table_number: true, cleaning_started_at: true, reminder_count: true },
+  });
+  if (!table) {
+    const { NotFoundError } = require('../../utils/errors');
+    throw new NotFoundError('Table not found');
+  }
+
+  const mins = Math.min(240, Math.max(1, Number(minutes) || CLEANING_PRESET_MINUTES[1]));
+  const reminderAt = new Date(Date.now() + mins * 60_000);
+
+  const updated = await prisma.table.update({
+    where: { id: tableId },
+    data: {
+      status: 'dirty',
+      auto_free_at: reminderAt,
+      // Anchor the assign-during-cleaning window the first time a timer is set.
+      cleaning_started_at: table.cleaning_started_at || new Date(),
+      reminder_count: (table.reminder_count || 0) + 1,
+    },
+  });
+
+  const io = getIO();
+  if (io) {
+    io.of('/orders').to(`outlet:${table.outlet_id}`).emit('table:cleaning_reminder_set', {
+      table_id: tableId,
+      table_number: table.table_number,
+      status: 'dirty',
+      auto_free_at: reminderAt.toISOString(),
+      reminder_count: updated.reminder_count,
+      minutes: mins,
+    });
+    // Keep the generic floor listeners in sync too.
+    io.of('/orders').to(`outlet:${table.outlet_id}`).emit('table_status_change', {
+      table_id: tableId, status: 'dirty', table_number: table.table_number,
+    });
+  }
+
+  logger.info('Cleaning reminder scheduled', { table: table.table_number, minutes: mins, reminder_count: updated.reminder_count });
+  return {
+    table_id: tableId,
+    status: updated.status,
+    auto_free_at: reminderAt.toISOString(),
+    cleaning_started_at: updated.cleaning_started_at,
+    reminder_count: updated.reminder_count,
+  };
+}
+
+module.exports = {
+  getAutoFreeConfig,
+  predictDwellMinutes,
+  scheduleAutoFreeIfReady,
+  scheduleCleaningReminder,
+  PRESET_MINUTES,
+  CLEANING_PRESET_MINUTES,
+  CLEANING_WINDOW_MINUTES,
+};

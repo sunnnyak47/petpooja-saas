@@ -1,12 +1,53 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { getDbClient } = require('../../config/database');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-const { createReservationSchema, updateReservationSchema } = require('./reservations.validation');
+const {
+  createReservationSchema, updateReservationSchema, publicReservationSchema,
+} = require('./reservations.validation');
+const reservationService = require('./reservations.service');
 const { sendSuccess, sendError } = require('../../utils/response');
 
+/* ==================================================================
+   PUBLIC ROUTES (UNAUTHENTICATED) — customer self-reservation via
+   QR code / shared link. These are declared BEFORE `router.use(authenticate)`
+   so no session is required. The outlet is taken from the link (path/body)
+   and validated to exist + be active; nothing else is trusted.
+   ================================================================== */
+
+// Basic abuse guard for the public create endpoint.
+const publicReservationLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  message: { success: false, message: 'Too many reservation attempts, please try again shortly' },
+});
+
+/** GET /api/reservations/public/:outletId/info — outlet + table info for the public page */
+router.get('/public/:outletId/info', async (req, res, next) => {
+  try {
+    const info = await reservationService.getPublicOutletInfo(req.params.outletId);
+    if (!info) return sendError(res, 404, 'Reservations are not available for this restaurant');
+    sendSuccess(res, info);
+  } catch (err) { next(err); }
+});
+
+/** POST /api/reservations/public — customer creates a reservation for the outlet in the link */
+router.post('/public', publicReservationLimiter, validate(publicReservationSchema), async (req, res, next) => {
+  try {
+    const reservation = await reservationService.createPublicReservation(req.body);
+    sendSuccess(res, reservation, 'Reservation request received', 201);
+  } catch (err) {
+    if (err && err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
+/* ==================================================================
+   AUTHENTICATED ROUTES (owner/staff) below this line.
+   ================================================================== */
 router.use(authenticate);
 
 /** GET /api/reservations */
@@ -48,12 +89,18 @@ router.post('/', hasPermission('MANAGE_POS'), validate(createReservationSchema),
     if (!customer_name || !reservation_date || !outlet_id)
       return sendError(res, 400, 'customer_name, reservation_date, outlet_id are required');
 
-    // Pick a table if not specified
+    // Pick a table if not specified — auto-suggest the best-fit available table
+    // for the party size, falling back to any table for the outlet.
     let tid = table_id;
     if (!tid) {
-      const anyTable = await getDbClient().table.findFirst({ where: { outlet_id, is_deleted: false } });
-      if (!anyTable) return sendError(res, 400, 'No tables found for this outlet');
-      tid = anyTable.id;
+      const [suggested] = await reservationService.suggestTables(outlet_id, party_size, 1);
+      if (suggested) {
+        tid = suggested.id;
+      } else {
+        const anyTable = await getDbClient().table.findFirst({ where: { outlet_id, is_deleted: false } });
+        if (!anyTable) return sendError(res, 400, 'No tables found for this outlet');
+        tid = anyTable.id;
+      }
     }
 
     const resDate = new Date(reservation_date);

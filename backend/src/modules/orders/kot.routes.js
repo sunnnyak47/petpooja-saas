@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const kotService = require('./kot.service');
 const tableService = require('./table.service');
+const autoFreeService = require('./autofree.service');
 const prepAnalytics = require('./prep-analytics.service');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { enforceOutletScope } = require('../../middleware/rbac.middleware');
@@ -192,6 +193,48 @@ router.patch('/tables/:id/status', authenticate, async (req, res, next) => {
   try {
     const table = await tableService.updateTableStatus(req.params.id, req.body.status);
     sendSuccess(res, table, 'Table status updated');
+  } catch (error) { next(error); }
+});
+
+/* ── Dirty / cleaning lifecycle (post-payment table state) ──────────────────
+   These are POST (distinct method + sub-paths) so they never collide with the
+   PATCH /tables/:id or /tables/:id/status routes above. */
+
+// Start / restart the cleaning reminder timer (initial pick, "take more time",
+// and each next auto-reminder). Body: { minutes: 5|10|15|30 }.
+router.post('/tables/:id/cleaning-timer', authenticate, async (req, res, next) => {
+  try {
+    const minutes = Number(req.body.minutes);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return res.status(400).json({ success: false, data: null, message: 'minutes is required' });
+    }
+    const result = await autoFreeService.scheduleCleaningReminder(req.params.id, minutes);
+    sendSuccess(res, result, 'Cleaning reminder set');
+  } catch (error) { next(error); }
+});
+
+// Hard "Mark as Free": free immediately + stop the reminder loop.
+router.post('/tables/:id/mark-free', authenticate, async (req, res, next) => {
+  try {
+    const table = await tableService.markTableFree(req.params.id);
+    sendSuccess(res, table, 'Table marked free');
+  } catch (error) { next(error); }
+});
+
+// "No more reminders": keep the table dirty but stop the auto-reminder loop.
+router.post('/tables/:id/stop-reminders', authenticate, async (req, res, next) => {
+  try {
+    const table = await tableService.stopCleaningReminders(req.params.id);
+    sendSuccess(res, table, 'Cleaning reminders stopped');
+  } catch (error) { next(error); }
+});
+
+// Assign-during-cleaning: hand a still-dirty (within-window) table to the next
+// customer — clears the dirty state so it's immediately assignable in POS.
+router.post('/tables/:id/assign-cleaning', authenticate, async (req, res, next) => {
+  try {
+    const table = await tableService.assignTableDuringCleaning(req.params.id);
+    sendSuccess(res, table, 'Table ready for next customer');
   } catch (error) { next(error); }
 });
 

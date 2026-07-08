@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   full_name: '', phone: '', email: '', gender: '',
   date_of_birth: '', anniversary: '',
   dietary_preference: '', notes: '',
+  segment: 'new',
   marketing_consent: false,
 };
 
@@ -44,6 +45,172 @@ function daysUntilBirthday(dob) {
   if (bday < today) bday.setFullYear(today.getFullYear() + 1);
   const diff = Math.ceil((bday - today) / (1000 * 60 * 60 * 24));
   return diff <= 7 ? diff : null;
+}
+
+// ── PDF export (print-to-PDF) ───────────────────────────────────
+// Escape user-supplied values so a customer's name/notes can't inject markup
+// into the generated document.
+function escHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, s => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]
+  ));
+}
+
+/**
+ * Build a clean, self-contained A4 HTML document for a customer's data bundle
+ * (the DPDP export payload). Rendered in a popup so the OS print dialog can
+ * "Save as PDF" — no external PDF dependency required.
+ */
+function buildCustomerPdfHtml(bundle, { format, locale } = {}) {
+  const fmtMoney = typeof format === 'function' ? format : (n => String(n ?? 0));
+  const cust     = bundle?.customer || {};
+  const loyalty  = bundle?.loyalty  || {};
+  const points   = loyalty.points   || {};
+  const txns     = Array.isArray(loyalty.transactions) ? loyalty.transactions : [];
+  const orders   = bundle?.orders   || {};
+  const orderItems = Array.isArray(orders.items) ? orders.items : [];
+  const addresses  = Array.isArray(bundle?.addresses) ? bundle.addresses : [];
+
+  const dOnly = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(locale || undefined, { day: '2-digit', month: 'short', year: 'numeric' }); };
+  const dTime = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleString(locale || undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
+
+  const name    = cust.full_name || cust.phone || 'Customer';
+  const initial = (cust.full_name || cust.phone || '#').charAt(0).toUpperCase();
+  const segment = (cust.segment || 'new');
+
+  const infoRow = (label, value) => (value == null || value === '')
+    ? ''
+    : `<tr><td class="k">${escHtml(label)}</td><td class="v">${escHtml(value)}</td></tr>`;
+
+  const profileRows = [
+    infoRow('Phone', cust.phone),
+    infoRow('Email', cust.email),
+    infoRow('Gender', cust.gender),
+    infoRow('Date of Birth', cust.date_of_birth ? dOnly(cust.date_of_birth) : ''),
+    infoRow('Anniversary', cust.anniversary ? dOnly(cust.anniversary) : ''),
+    infoRow('Diet Preference', cust.dietary_preference),
+    infoRow('Allergens', cust.allergens),
+    infoRow('Marketing Consent', cust.marketing_consent ? 'Yes' : 'No'),
+    infoRow('Total Visits', cust.total_visits),
+    infoRow('Total Spend', cust.total_spend != null ? fmtMoney(Number(cust.total_spend)) : ''),
+    infoRow('Last Visit', cust.last_visit_at ? dOnly(cust.last_visit_at) : ''),
+    infoRow('Customer Since', cust.created_at ? dOnly(cust.created_at) : ''),
+    infoRow('Notes', cust.notes),
+  ].join('');
+
+  const orderRows = orderItems.slice(0, 50).map(o =>
+    `<tr><td>#ORD-${escHtml(String(o.order_number ?? '').padStart(5, '0'))}</td><td>${escHtml(dTime(o.created_at))}</td><td class="num">${escHtml(fmtMoney(Number(o.grand_total ?? 0)))}</td></tr>`
+  ).join('') || `<tr><td colspan="3" class="empty">No orders yet</td></tr>`;
+
+  const txnRows = txns.slice(0, 40).map(t =>
+    `<tr><td>${escHtml(dTime(t.created_at))}</td><td class="cap">${escHtml(t.type ?? '')}</td><td>${escHtml(t.description ?? '')}</td><td class="num">${(t.points ?? 0) > 0 ? '+' : ''}${escHtml(String(t.points ?? 0))}</td></tr>`
+  ).join('') || `<tr><td colspan="4" class="empty">No loyalty activity</td></tr>`;
+
+  const addressBlock = addresses.length
+    ? `<div class="section"><h2>Addresses</h2>${addresses.map(a =>
+        `<p class="addr"><b>${escHtml(a.label || 'Address')}:</b> ${escHtml([a.address_line1, a.address_line2, a.city, a.state, a.pincode].filter(Boolean).join(', '))}</p>`
+      ).join('')}</div>`
+    : '';
+
+  const fileTitle = `Customer_${String(name).replace(/[^a-z0-9]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escHtml(fileTitle)}</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 0; font-size: 12px; line-height: 1.5; }
+  .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #6d28d9; padding-bottom: 14px; margin-bottom: 18px; }
+  .avatar { width: 52px; height: 52px; border-radius: 14px; background: #6d28d9; color: #fff; font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .head h1 { margin: 0; font-size: 20px; }
+  .head .sub { color: #666; font-size: 12px; margin-top: 2px; }
+  .badge { display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; background: #ede9fe; color: #6d28d9; }
+  .cards { display: flex; gap: 12px; margin-bottom: 18px; }
+  .card { flex: 1; border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px; text-align: center; }
+  .card .n { font-size: 20px; font-weight: 800; color: #6d28d9; }
+  .card .l { font-size: 10px; color: #777; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+  .section { margin-bottom: 18px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: #6d28d9; border-bottom: 1px solid #eee; padding-bottom: 5px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  .kv td { padding: 5px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .kv td.k { color: #777; width: 38%; }
+  .kv td.v { color: #1a1a1a; font-weight: 500; }
+  .grid td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; }
+  .grid thead td { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #999; border-bottom: 1px solid #ddd; font-weight: 700; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cap { text-transform: capitalize; }
+  .empty { text-align: center; color: #aaa; padding: 12px 0; }
+  .addr { margin: 4px 0; }
+  .foot { margin-top: 22px; padding-top: 10px; border-top: 1px solid #eee; color: #999; font-size: 10px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="avatar">${escHtml(initial)}</div>
+    <div>
+      <h1>${escHtml(name)}</h1>
+      <div class="sub">${escHtml(cust.phone || '')}${cust.email ? ' · ' + escHtml(cust.email) : ''}</div>
+      <span class="badge">${escHtml(segment)}</span>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="n">${escHtml(String(orders.count ?? orderItems.length ?? 0))}</div><div class="l">Orders</div></div>
+    <div class="card"><div class="n">${escHtml(String(points.current_balance ?? 0))}</div><div class="l">Loyalty Pts</div></div>
+    <div class="card"><div class="n">${escHtml(fmtMoney(Number(cust.total_spend ?? 0)))}</div><div class="l">Lifetime Spend</div></div>
+  </div>
+
+  <div class="section">
+    <h2>Profile</h2>
+    <table class="kv">${profileRows || '<tr><td class="empty" colspan="2">No profile details</td></tr>'}</table>
+  </div>
+
+  <div class="section">
+    <h2>Loyalty — balance ${escHtml(String(points.current_balance ?? 0))} pts (earned ${escHtml(String(points.total_earned ?? 0))}, redeemed ${escHtml(String(points.total_redeemed ?? 0))})</h2>
+    <table class="grid">
+      <thead><tr><td>Date</td><td>Type</td><td>Description</td><td class="num">Points</td></tr></thead>
+      <tbody>${txnRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Recent Orders${orders.count != null ? ' (' + escHtml(String(orders.count)) + ' total)' : ''}</h2>
+    <table class="grid">
+      <thead><tr><td>Order</td><td>Date</td><td class="num">Amount</td></tr></thead>
+      <tbody>${orderRows}</tbody>
+    </table>
+  </div>
+
+  ${addressBlock}
+
+  <div class="foot">
+    Generated ${escHtml(dTime(bundle?.generated_at || new Date()))} · Customer data export (DPDP Act 2023 — right to access). Order history retained per tax law.
+  </div>
+
+  <script>
+    window.onload = function () {
+      setTimeout(function () { try { window.focus(); window.print(); } catch (e) {} }, 350);
+    };
+  </script>
+</body>
+</html>`;
+}
+
+/** Open the generated HTML in a popup so the browser print dialog can Save-as-PDF. */
+function openCustomerPrintWindow(html) {
+  if (typeof window === 'undefined') return false;
+  const w = window.open('', '_blank');
+  if (!w) {
+    toast.error('Popup blocked — allow popups to export the PDF');
+    return false;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  return true;
 }
 
 export default function CustomersPage() {
@@ -141,22 +308,17 @@ export default function CustomersPage() {
   });
 
   // ── DPDP data export (right to access / portability) ─────────
+  // Produces a real, print-ready PDF (via the browser print dialog → "Save as
+  // PDF") from the customer's data bundle — no external PDF dependency.
   async function exportCustomerData(c) {
     if (!c?.id) return;
     setIsExporting(true);
     try {
       const res = await api.get(`/privacy/customers/${c.id}/export`);
       const bundle = res?.data ?? res;
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `customer_${c.id}_data.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success('Customer data exported');
+      const html = buildCustomerPdfHtml(bundle, { format, locale });
+      const opened = openCustomerPrintWindow(html);
+      if (opened) toast.success('Customer PDF ready — choose “Save as PDF” in the print dialog');
     } catch (e) {
       toast.error(e.response?.data?.message || e.message || 'Failed to export data');
     } finally {
@@ -198,6 +360,7 @@ export default function CustomersPage() {
       date_of_birth: c.date_of_birth ? c.date_of_birth.slice(0, 10) : '',
       anniversary: c.anniversary ? c.anniversary.slice(0, 10) : '',
       dietary_preference: c.dietary_preference || '', notes: c.notes || '',
+      segment: c.segment || 'new',
       marketing_consent: !!c.marketing_consent,
     });
     setIsEditOpen(true);
@@ -620,6 +783,15 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
           <input className="input w-full" type="date" value={formData.anniversary} onChange={set('anniversary')} />
         </div>
         <div>
+          <label className="label flex items-center gap-1"><Crown className="w-3 h-3 text-amber-400" /> Segment</label>
+          <select className="input w-full" value={formData.segment || 'new'} onChange={set('segment')}>
+            <option value="new">New</option>
+            <option value="regular">Regular</option>
+            <option value="vip">VIP</option>
+          </select>
+          <p className="text-[10px] text-surface-500 mt-0.5">Used to target marketing campaigns</p>
+        </div>
+        <div>
           <label className="label">Diet Preference</label>
           <select className="input w-full" value={formData.dietary_preference} onChange={set('dietary_preference')}>
             <option value="">—</option>
@@ -676,7 +848,7 @@ function CustomerForm({ formData, setFormData, onSubmit, loading, onCancel, subm
               </button>
             )}
           </div>
-          <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Export delivers the customer&apos;s data as JSON. Erase permanently anonymises personal data (order history is retained for tax law).</p>
+          <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>Export opens a print-ready PDF of the customer&apos;s data (use &ldquo;Save as PDF&rdquo;). Erase permanently anonymises personal data (order history is retained for tax law).</p>
         </div>
       )}
 

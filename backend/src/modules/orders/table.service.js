@@ -114,7 +114,13 @@ async function updateTableStatus(tableId, status) {
 
     const updated = await prisma.table.update({
       where: { id: tableId },
-      data: { status, current_order_id: status === 'available' ? null : table.current_order_id },
+      data: {
+        status,
+        current_order_id: status === 'available' ? null : table.current_order_id,
+        // Freeing a table also clears any cleaning-reminder schedule so the
+        // dirty/cleaning loop can't re-fire against a now-free table.
+        ...(status === 'available' ? { auto_free_at: null, cleaning_started_at: null, reminder_count: 0 } : {}),
+      },
     });
 
     const io = getIO();
@@ -235,10 +241,16 @@ async function bulkUpdateTableStatus(tableIds, status) {
   });
   if (tables.length === 0) throw new NotFoundError('No matching tables found');
 
-  // When freeing tables, also clear their current order link.
+  // When freeing tables, also clear their current order link and any cleaning
+  // reminder schedule (stops the dirty/cleaning loop for those tables).
   await prisma.table.updateMany({
     where: { id: { in: tables.map((t) => t.id) } },
-    data: { status, ...(status === 'available' ? { current_order_id: null } : {}) },
+    data: {
+      status,
+      ...(status === 'available'
+        ? { current_order_id: null, auto_free_at: null, cleaning_started_at: null, reminder_count: 0 }
+        : {}),
+    },
   });
 
   const io = getIO();
@@ -451,6 +463,107 @@ async function autoFreeAction(tableId, action, minutes) {
   return { table_id: tableId, auto_free_at: autoFreeAt.toISOString() };
 }
 
+/* ══════════════════════════════════════════════════════
+   DIRTY / CLEANING LIFECYCLE
+   On payment a dine-in table goes 'dirty' (cleaning) instead of free. The floor
+   operator then either sets a timed reminder (autofree.scheduleCleaningReminder),
+   marks it free, stops the reminder loop, or hands the still-dirty table to the
+   next customer if cleaning finishes within CLEANING_WINDOW_MINUTES.
+══════════════════════════════════════════════════════ */
+
+/** Emits a table_status_change to the outlet floor. */
+function emitTableStatus(outletId, tableId, status, tableNumber) {
+  const io = getIO();
+  if (io) {
+    io.of('/orders').to(`outlet:${outletId}`).emit('table_status_change', {
+      table_id: tableId, status, table_number: tableNumber,
+    });
+  }
+}
+
+/**
+ * Hard "Mark as Free": frees the table immediately AND stops the auto-reminder
+ * loop (clears the reminder schedule + cleaning anchor + count).
+ */
+async function markTableFree(tableId) {
+  const prisma = getDbClient();
+  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
+  if (!table) throw new NotFoundError('Table not found');
+
+  const updated = await prisma.table.update({
+    where: { id: tableId },
+    data: {
+      status: 'available',
+      current_order_id: null,
+      auto_free_at: null,
+      cleaning_started_at: null,
+      reminder_count: 0,
+    },
+  });
+  emitTableStatus(table.outlet_id, tableId, 'available', table.table_number);
+  return updated;
+}
+
+/**
+ * "No more reminders": keep the table 'dirty' (still visibly needs cleaning) but
+ * drop the reminder schedule so the loop stops nagging. A fresh timer can still
+ * be started later via scheduleCleaningReminder.
+ */
+async function stopCleaningReminders(tableId) {
+  const prisma = getDbClient();
+  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
+  if (!table) throw new NotFoundError('Table not found');
+
+  const updated = await prisma.table.update({
+    where: { id: tableId },
+    data: { auto_free_at: null },
+  });
+  const io = getIO();
+  if (io) {
+    io.of('/orders').to(`outlet:${table.outlet_id}`).emit('table:cleaning_reminder_set', {
+      table_id: tableId, table_number: table.table_number, status: 'dirty',
+      auto_free_at: null, reminder_count: updated.reminder_count, stopped: true,
+    });
+  }
+  return updated;
+}
+
+/**
+ * Assign-during-cleaning: a still-'dirty' table may be handed to the next
+ * customer if cleaning finishes within CLEANING_WINDOW_MINUTES of going dirty.
+ * Clears the dirty/cleaning state so the table is immediately assignable in POS
+ * (this is what lets the within-window reuse bypass the "dirty blocks reuse" UI
+ * rule). Returns the freed table; the caller opens POS with it pre-selected.
+ */
+async function assignTableDuringCleaning(tableId) {
+  const prisma = getDbClient();
+  const { CLEANING_WINDOW_MINUTES } = require('./autofree.service');
+  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
+  if (!table) throw new NotFoundError('Table not found');
+  if (table.status !== 'dirty') {
+    throw new BadRequestError('Table is not in a cleaning state');
+  }
+  if (table.cleaning_started_at) {
+    const ageMs = Date.now() - new Date(table.cleaning_started_at).getTime();
+    if (ageMs > CLEANING_WINDOW_MINUTES * 60_000) {
+      throw new BadRequestError('Cleaning window has passed — mark the table free before reassigning');
+    }
+  }
+
+  const updated = await prisma.table.update({
+    where: { id: tableId },
+    data: {
+      status: 'available',
+      current_order_id: null,
+      auto_free_at: null,
+      cleaning_started_at: null,
+      reminder_count: 0,
+    },
+  });
+  emitTableStatus(table.outlet_id, tableId, 'available', table.table_number);
+  return updated;
+}
+
 module.exports = {
   listTables,
   createTable,
@@ -466,4 +579,7 @@ module.exports = {
   deleteTableArea,
   getTableQR,
   autoFreeAction,
+  markTableFree,
+  stopCleaningReminders,
+  assignTableDuringCleaning,
 };

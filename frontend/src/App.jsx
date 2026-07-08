@@ -62,6 +62,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import QRCodesPage from './pages/QRCodesPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
+import PublicReservationPage from './pages/PublicReservationPage';
 import OnlineStatusBar from './components/OnlineStatusBar';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import SetupWizard from './pages/SetupWizard';
@@ -238,6 +239,9 @@ export default function App() {
 
       {/* PUBLIC: Customer ordering page — accessed via QR code scan */}
       <Route path="/order" element={<CustomerOrderPage />} />
+
+      {/* PUBLIC: Self-service table reservation — accessed via QR code / shared link */}
+      <Route path="/reserve" element={<PublicReservationPage />} />
 
       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         {/* The Home page acts as an intelligent traffic officer */}

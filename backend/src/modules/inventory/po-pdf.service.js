@@ -103,6 +103,18 @@ function _drawPO(doc, po) {
   const items    = (po.po_items || []).filter(Boolean);
   const sc       = STATUS[po.status] || STATUS.draft;
 
+  // ── Currency resolution ────────────────────────────────────────────────────
+  // currency/country_code live on the head_office relation (not the outlet).
+  // NOTE: the ₹ glyph (U+20B9) does NOT render in PDFKit's default Helvetica
+  // (WinAnsi encoding) — it prints as nothing, which is the "missing symbol" bug.
+  // So we fall back to "Rs " for INR; "$" renders reliably for AUD.
+  const currency = outlet.head_office?.currency
+    || po.currency
+    || (outlet.head_office?.country_code === 'AU' ? 'AUD' : 'INR');
+  const CURSYM  = currency === 'AUD' ? '$' : 'Rs ';
+  const CURCODE = CURSYM.trim();               // for compact column headers
+  const money   = (n) => `${CURSYM}${fmt(n)}`; // prefix every amount
+
   let y = 0;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -278,9 +290,9 @@ function _drawPO(doc, po) {
     { label: 'HSN',      w: 48,  align: 'center' },
     { label: 'UNIT',     w: 40,  align: 'center' },
     { label: 'QTY',      w: 38,  align: 'right' },
-    { label: 'RATE (₹)', w: 72,  align: 'right' },
+    { label: `RATE (${CURCODE})`, w: 72,  align: 'right' },
     { label: 'GST%',     w: 40,  align: 'center' },
-    { label: 'AMOUNT (₹)', w: 73, align: 'right' },
+    { label: `AMOUNT (${CURCODE})`, w: 73, align: 'right' },
   ];
   const TABLE_H = 28;
   const ROW_H   = 26;
@@ -324,9 +336,9 @@ function _drawPO(doc, po) {
       { v: item.hsn_code || '—', align: 'center' },
       { v: item.unit || 'pcs', align: 'center' },
       { v: qty % 1 === 0 ? String(qty) : qty.toFixed(2), align: 'right' },
-      { v: `₹${fmt(rate)}`, align: 'right' },
+      { v: money(rate), align: 'right' },
       { v: taxPct > 0 ? `${taxPct}%` : '—', align: 'center' },
-      { v: `₹${fmt(total)}`, align: 'right', bold: true },
+      { v: money(total), align: 'right', bold: true },
     ];
 
     let rx = ML + 4;
@@ -392,12 +404,12 @@ function _drawPO(doc, po) {
     ty += opts.gap || 16;
   }
 
-  totalRow('Subtotal', `₹${fmt(po.total_amount || po.subtotal)}`);
+  totalRow('Subtotal', money(po.total_amount || po.subtotal));
   if (Number(po.tax_amount) > 0) {
-    totalRow('GST / Tax', `₹${fmt(po.tax_amount)}`);
+    totalRow('GST / Tax', money(po.tax_amount));
   }
   if (Number(po.discount_amount) > 0) {
-    totalRow('Discount', `−₹${fmt(po.discount_amount)}`, { valueColor: C.red });
+    totalRow('Discount', `-${money(po.discount_amount)}`, { valueColor: C.red });
   }
 
   // Divider above grand total
@@ -411,7 +423,7 @@ function _drawPO(doc, po) {
      .text('GRAND TOTAL', TOTALS_X + 18, ty + 10, { width: 90, lineBreak: false })
      .restore();
   doc.save().fillColor(C.white).font('Helvetica-Bold').fontSize(14)
-     .text(`₹${fmt(po.grand_total)}`, TOTALS_X + 18, ty + 8, { width: TOTALS_W - 36, align: 'right', lineBreak: false })
+     .text(money(po.grand_total), TOTALS_X + 18, ty + 8, { width: TOTALS_W - 36, align: 'right', lineBreak: false })
      .restore();
 
   // ═══════════════════════════════════════════════════════════════════════════
