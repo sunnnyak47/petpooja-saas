@@ -109,6 +109,17 @@ async function saveAlert(prisma, outletId, staffId, payload) {
     },
   });
 
+  // Realtime: push the new fraud alert to the owner app (non-fatal — never break
+  // detection if the broadcaster is unavailable). Only fires on a genuinely new
+  // alert; the dedupe branch above returns before reaching here.
+  try {
+    if (typeof global.broadcastToOutlet === 'function') {
+      global.broadcastToOutlet(outletId, 'ALERT_NEW', { id: alert.id, type: alert.alert_type });
+    }
+  } catch (e) {
+    logger.warn('ALERT_NEW broadcast failed', { error: e.message });
+  }
+
   // Send WA if risk score crosses threshold
   if (payload.risk_score >= DEFAULT_THRESHOLDS.risk_score_notify_threshold) {
     const sent = await notifyWhatsApp(outletId, alert);

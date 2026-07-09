@@ -1146,6 +1146,20 @@ async function startApp() {
       });
     };
 
+    // Generic outlet-scoped broadcaster — available to services via
+    // global.broadcastToOutlet(outletId, type, data). Mirrors the outlet-scoping
+    // used by broadcastOrderUpdate: sends to every socket whose outletId matches
+    // (or is unset). Call sites must guard with typeof === 'function' and wrap in
+    // try/catch so a broadcast failure never breaks the originating request.
+    global.broadcastToOutlet = (outletId, type, data) => {
+      const payload = JSON.stringify({ type, data });
+      wss.clients.forEach((ws) => {
+        if (ws.readyState === 1 && (!ws.outletId || ws.outletId === outletId)) {
+          ws.send(payload);
+        }
+      });
+    };
+
     logger.info('Native WebSocket server initialised at /ws');
   } catch (err) {
     logger.error('Failed to initialise WebSocket server:', err.message);

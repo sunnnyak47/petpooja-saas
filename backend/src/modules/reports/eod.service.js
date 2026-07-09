@@ -366,6 +366,17 @@ async function saveDraft(outletId, userId, { date, openingCash, denominationCoun
       },
     });
 
+    // Realtime: notify the owner app that today's EOD moved (non-fatal).
+    try {
+      if (typeof global.broadcastToOutlet === 'function') {
+        global.broadcastToOutlet(outletId, 'EOD_STATUS', {
+          status: report.status, report_date: report.report_date,
+        });
+      }
+    } catch (e) {
+      logger.warn('EOD_STATUS broadcast failed', { error: e.message });
+    }
+
     return { ...report, snapshot };
   } catch (err) {
     logger.error('EOD saveDraft failed', { error: err.message });
@@ -382,11 +393,24 @@ async function lockEOD(outletId, reportId, userId) {
     if (!existing) throw new Error('EOD report not found');
     if (existing.status === 'locked') throw new Error('Report is already locked');
 
-    return await prisma.eODReport.update({
+    const locked = await prisma.eODReport.update({
       where: { id: reportId },
       data:  { status: 'locked', closed_by: userId, closed_at: new Date() },
       include: { closer: { select: { full_name: true, email: true } } },
     });
+
+    // Realtime: notify the owner app that EOD is now locked (non-fatal).
+    try {
+      if (typeof global.broadcastToOutlet === 'function') {
+        global.broadcastToOutlet(outletId, 'EOD_STATUS', {
+          status: locked.status, report_date: locked.report_date,
+        });
+      }
+    } catch (e) {
+      logger.warn('EOD_STATUS broadcast failed', { error: e.message });
+    }
+
+    return locked;
   } catch (err) {
     logger.error('EOD lockEOD failed', { error: err.message });
     throw err;

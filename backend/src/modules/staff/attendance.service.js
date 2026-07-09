@@ -38,6 +38,18 @@ async function clockIn(userId, outletId, data = {}) {
     });
 
     logger.info('Staff clocked in', { userId, outletId });
+
+    // Realtime: notify the owner app that the "who's in" roster changed (non-fatal).
+    try {
+      if (typeof global.broadcastToOutlet === 'function') {
+        global.broadcastToOutlet(outletId, 'STAFF_CLOCK', {
+          user_id: userId, action: 'clock_in', attendance_id: attendance.id,
+        });
+      }
+    } catch (e) {
+      logger.warn('STAFF_CLOCK broadcast failed', { error: e.message });
+    }
+
     return attendance;
   } catch (error) {
     if (error instanceof BadRequestError) throw error;
@@ -83,6 +95,18 @@ async function clockOut(userId, outletId, data = {}) {
     });
 
     logger.info('Staff clocked out', { userId, hoursWorked: updated.hours_worked });
+
+    // Realtime: notify the owner app that the "who's in" roster changed (non-fatal).
+    try {
+      if (typeof global.broadcastToOutlet === 'function') {
+        global.broadcastToOutlet(outletId, 'STAFF_CLOCK', {
+          user_id: userId, action: 'clock_out', attendance_id: updated.id,
+        });
+      }
+    } catch (e) {
+      logger.warn('STAFF_CLOCK broadcast failed', { error: e.message });
+    }
+
     return updated;
   } catch (error) {
     if (error instanceof BadRequestError) throw error;
