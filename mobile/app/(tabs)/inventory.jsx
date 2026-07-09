@@ -167,21 +167,12 @@ function InventoryRow({ item, index, onUpdate, onEdit }) {
   const isWeb = Platform.OS === 'web';
   const [expanded, setExpanded] = useState(false);
   const expandH = useSharedValue(0);
-  const opacity = useSharedValue(isWeb ? 1 : 0);
-  const translateX = useSharedValue(isWeb ? 0 : 30);
 
-  // Entrance animation (native only)
-  useEffect(() => {
-    if (isWeb) return;
-    const delay = Math.min(index * 40, 400);
-    opacity.value = withDelay(delay, withTiming(1, { duration: 350 }));
-    translateX.value = withDelay(delay, withSpring(0, { damping: 18, stiffness: 120 }));
-  }, []);
-
-  const rowAnim = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateX: translateX.value }],
-  }));
+  // Entrance uses the declarative `entering` prop (FadeIn) on the wrapper below,
+  // NOT a mount-effect animating opacity 0→1. With FlashList row recycling the
+  // mount effect didn't re-run on a data refetch, leaving opacity stuck at 0 and
+  // the whole card blank. `entering` degrades safely: if it doesn't fire, the row
+  // is simply at its final (visible) state.
 
   const expandStyle = useAnimatedStyle(() => ({
     height: expandH.value,
@@ -215,7 +206,7 @@ function InventoryRow({ item, index, onUpdate, onEdit }) {
   );
 
   return (
-    <Animated.View style={[rowAnim, styles.rowWrapper, isCritical && styles.rowCriticalBorder, !isCritical && isLow && styles.rowLowBorder]}>
+    <Animated.View entering={isWeb ? undefined : FadeIn.duration(250)} style={[styles.rowWrapper, isCritical && styles.rowCriticalBorder, !isCritical && isLow && styles.rowLowBorder]}>
       {/* Phase 2: PressCard wrapping the row inner */}
       <PressCard
         style={styles.rowInner}
@@ -656,7 +647,7 @@ export default function InventoryScreen() {
       const itemPayload = {
         name: formData.name,
         category: formData.category || null,
-        unit: (formData.unit || '').trim() || 'pcs', // unit is a required enum server-side
+        unit: (formData.unit || '').trim() || 'kg', // required enum server-side; default matches the field placeholder
         cost_per_unit: parseFloat(formData.price) || 0,
         min_threshold: parseFloat(formData.reorder_point) || 0,
         outlet_id: outletId,
