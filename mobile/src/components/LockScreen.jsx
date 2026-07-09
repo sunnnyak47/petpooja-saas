@@ -73,10 +73,11 @@ export default function LockScreen() {
   );
 }
 
+// MS-RM light/blue theme — matches the login screen (was an all-black screen).
 const s = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: '#f8fafc', // slate-50
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
@@ -89,7 +90,7 @@ const s = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#2563eb', // MS-RM blue
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -97,19 +98,19 @@ const s = StyleSheet.create({
   brand: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#FFF',
+    color: '#0f172a', // slate-900
     letterSpacing: 1,
     marginBottom: 32,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#0f172a',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#475569', // slate-600
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 40,
@@ -118,12 +119,10 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     marginBottom: 16,
   },
   biometricText: {
@@ -137,7 +136,7 @@ const s = StyleSheet.create({
   },
   signInText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '700',
+    color: '#2563eb', // blue link
   },
 });
