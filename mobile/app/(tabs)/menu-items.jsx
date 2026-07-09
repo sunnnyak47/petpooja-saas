@@ -1317,6 +1317,17 @@ export default function MenuItemsScreen() {
           );
         }
       } else {
+        // The backend REQUIRES a real category_id. If the chosen category isn't
+        // one of the outlet's synced categories (e.g. a hardcoded default), the
+        // create cannot persist — tell the user rather than silently keeping a
+        // local-only item that vanishes on reload.
+        if (!outletId || !catId) {
+          Alert.alert(
+            'Pick a valid category',
+            'This category isn’t set up for your outlet yet, so the item can’t be saved. Choose one of your outlet’s categories (pull to refresh / sync your menu if the list looks wrong).'
+          );
+          return;
+        }
         setItems((prev) => [
           {
             ...formData,
@@ -1326,14 +1337,10 @@ export default function MenuItemsScreen() {
           },
           ...prev,
         ]);
-        // Persist only when we can satisfy the backend's required category_id +
-        // outlet_id; otherwise the item stays local until a category is synced.
-        if (outletId && catId) {
-          createMenuItem(
-            { ...base, category_id: catId, outlet_id: outletId },
-            { onSuccess: () => refreshMenu?.() }
-          );
-        }
+        createMenuItem(
+          { ...base, category_id: catId, outlet_id: outletId },
+          { onSuccess: () => refreshMenu?.() }
+        );
       }
       closeItemModal();
     },
