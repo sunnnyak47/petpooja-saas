@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useOutlet } from '../context/OutletContext';
 
 // ─── Query Keys ────────────────────────────────────────────────────────────
 export const KEYS = {
@@ -148,11 +149,15 @@ function transformDashboardSummary(raw) {
 }
 
 export function useDashboard() {
+  const { outletId } = useOutlet();
   return useQuery({
-    queryKey: KEYS.dashboard,
+    queryKey: [...KEYS.dashboard, outletId],
     queryFn: async () => {
       try {
-        const res = await api.get('/dashboard/summary');
+        // MUST scope to the selected outlet — without outlet_id the backend uses
+        // the user's default outlet, so an owner viewing another outlet (e.g. an
+        // AU outlet) saw "No data yet" even with real sales.
+        const res = await api.get('/dashboard/summary', { params: { outlet_id: outletId } });
         return res;
       } catch {
         return null;
@@ -163,6 +168,7 @@ export function useDashboard() {
       if (isEmptyResult(data)) return { ...EMPTY_DASHBOARD };
       return transformDashboardSummary(data);
     },
+    enabled: !!outletId,
     staleTime: 15 * 1000, // refresh every 15s for live feel
   });
 }
@@ -170,11 +176,13 @@ export function useDashboard() {
 // ─── Orders ─────────────────────────────────────────────────────────────────
 // Backend route: GET /api/orders
 export function useOrders(params = {}) {
+  const { outletId } = useOutlet();
+  const scoped = { outlet_id: outletId, ...params };
   return useQuery({
-    queryKey: [...KEYS.orders, params],
+    queryKey: [...KEYS.orders, scoped],
     queryFn: async () => {
       try {
-        const res = await api.get('/orders', { params });
+        const res = await api.get('/orders', { params: scoped });
         return res;
       } catch {
         return null;
@@ -185,6 +193,7 @@ export function useOrders(params = {}) {
       if (isEmptyResult(data)) return [];
       return data;
     },
+    enabled: !!outletId,
     staleTime: 10 * 1000,
   });
 }
@@ -247,11 +256,13 @@ function normalizeStockItem(it) {
 }
 
 export function useInventory(params = {}) {
+  const { outletId } = useOutlet();
+  const scoped = { outlet_id: outletId, ...params };
   return useQuery({
-    queryKey: [...KEYS.inventory, params],
+    queryKey: [...KEYS.inventory, scoped],
     queryFn: async () => {
       try {
-        const res = await api.get('/inventory/stock', { params });
+        const res = await api.get('/inventory/stock', { params: scoped });
         return res;
       } catch {
         return null;
@@ -262,6 +273,7 @@ export function useInventory(params = {}) {
       if (isEmptyResult(data)) return [];
       return Array.isArray(data) ? data.map(normalizeStockItem) : data;
     },
+    enabled: !!outletId,
     staleTime: 60 * 1000,
   });
 }
@@ -297,11 +309,12 @@ export function useAdjustStock() {
 // ─── Reports ────────────────────────────────────────────────────────────────
 // Backend route: GET /api/reports (summary via /api/reports/summary)
 export function useReports(range = '7d') {
+  const { outletId } = useOutlet();
   return useQuery({
-    queryKey: KEYS.reports(range),
+    queryKey: [...KEYS.reports(range), outletId],
     queryFn: async () => {
       try {
-        const res = await api.get('/reports/summary', { params: { range } });
+        const res = await api.get('/reports/summary', { params: { range, outlet_id: outletId } });
         return res;
       } catch {
         return null;
@@ -312,6 +325,7 @@ export function useReports(range = '7d') {
       if (isEmptyResult(data)) return { ...EMPTY_REPORTS, range };
       return data;
     },
+    enabled: !!outletId,
     staleTime: 5 * 60 * 1000, // reports are slow to change
   });
 }
@@ -319,11 +333,12 @@ export function useReports(range = '7d') {
 // ─── Purchase Orders ─────────────────────────────────────────────────────────
 // Backend route: GET /api/purchase-orders (via procurement.routes mounted at /api)
 export function usePurchaseOrders() {
+  const { outletId } = useOutlet();
   return useQuery({
-    queryKey: KEYS.purchaseOrders,
+    queryKey: [...KEYS.purchaseOrders, outletId],
     queryFn: async () => {
       try {
-        const res = await api.get('/purchase-orders');
+        const res = await api.get('/purchase-orders', { params: { outlet_id: outletId } });
         return res;
       } catch {
         return null;
@@ -334,6 +349,7 @@ export function usePurchaseOrders() {
       if (isEmptyResult(data)) return [];
       return data;
     },
+    enabled: !!outletId,
     staleTime: 30 * 1000,
   });
 }
@@ -503,11 +519,13 @@ export function useDeleteReservation() {
 // ─── Customers ───────────────────────────────────────────────────────────────
 // Backend route: GET /api/customers
 export function useCustomers(params = {}) {
+  const { outletId } = useOutlet();
+  const scoped = { outlet_id: outletId, ...params };
   return useQuery({
-    queryKey: [...KEYS.customers, params],
+    queryKey: [...KEYS.customers, scoped],
     queryFn: async () => {
       try {
-        const res = await api.get('/customers', { params });
+        const res = await api.get('/customers', { params: scoped });
         return res;
       } catch {
         return null;
@@ -518,6 +536,7 @@ export function useCustomers(params = {}) {
       if (isEmptyResult(data)) return [];
       return data;
     },
+    enabled: !!outletId,
     staleTime: 60 * 1000,
   });
 }
@@ -541,12 +560,13 @@ export function useUpdateCustomer() {
 // ─── KOT ─────────────────────────────────────────────────────────────────────
 // Reuses orders endpoint filtered to kitchen-relevant statuses
 export function useKOT() {
+  const { outletId } = useOutlet();
   return useQuery({
-    queryKey: KEYS.kot,
+    queryKey: [...KEYS.kot, outletId],
     queryFn: async () => {
       try {
         const res = await api.get('/orders', {
-          params: { status: 'pending,preparing,ready' },
+          params: { outlet_id: outletId, status: 'pending,preparing,ready' },
         });
         return res;
       } catch {
@@ -558,6 +578,7 @@ export function useKOT() {
       if (isEmptyResult(data)) return [];
       return data;
     },
+    enabled: !!outletId,
     staleTime: 8 * 1000,
   });
 }

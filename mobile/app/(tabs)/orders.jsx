@@ -24,6 +24,7 @@ import Animated, {
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrders, useUpdateOrderStatus } from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -489,10 +490,16 @@ export default function Orders() {
   // Resolve the active tab to its backend status group so 'created'/'confirmed'
   // orders surface under Pending/Preparing. listOrders splits a comma-separated
   // `status` into an `{ in: [...] }` filter.
+  const { outletId } = useOutlet();
   const activeStatuses =
     activeTab === 'All' ? null : (TAB_STATUS_GROUPS[activeTab] || [activeTab.toLowerCase()]);
+  // MUST scope by the selected outlet — without outlet_id the backend falls back
+  // to the user's default outlet, so an owner viewing an AU outlet saw no orders
+  // even though the KOT board (which passes outletId) showed them.
   const { data, isLoading, refetch, isRefetching } = useOrders(
-    activeStatuses ? { status: activeStatuses.join(',') } : {}
+    activeStatuses
+      ? { outlet_id: outletId, status: activeStatuses.join(',') }
+      : { outlet_id: outletId }
   );
   const { mutate: updateStatusMutation } = useUpdateOrderStatus();
 

@@ -31,6 +31,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { T, R, FS, FW } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
+import { useOutlet } from '../../src/context/OutletContext';
 import {
   useCustomers,
   useCreateCustomer,
@@ -141,7 +142,8 @@ function initials(name) {
 export default function CustomersScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const outletId = user?.outlet_id;
+  // Use the app-wide SELECTED outlet (an owner's user.outlet_id is often null).
+  const { outletId } = useOutlet();
 
   const [search, setSearch]               = useState('');
   const [debouncedSearch, setDebounced]   = useState('');
