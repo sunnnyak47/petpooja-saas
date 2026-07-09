@@ -110,7 +110,11 @@ function buildOrderItems(items, menuItemMap, taxConfig) {
       variant_price: variantPrice,
       addons_total: addonsTotal,
       item_total: itemTotal,
-      gst_rate: Number(menuItem.gst_rate) || taxConfig.default_gst_rate || 0,
+      // AU GST is a uniform 10% — coerce Indian per-item slabs (e.g. seeded
+      // gst_rate=5) so an Australian order never carries a 5% rate.
+      gst_rate: taxConfig.country_code === 'AU'
+        ? (taxConfig.default_gst_rate || 10)
+        : (Number(menuItem.gst_rate) || taxConfig.default_gst_rate || 0),
       kitchen_station: menuItem.kitchen_station,
       notes: item.notes || null,
       addons: orderAddons,

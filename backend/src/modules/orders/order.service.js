@@ -39,7 +39,10 @@ async function getOutletTaxConfig(prismaClient, outletId) {
   const isAU = hoCountry === 'AU' || outlet.head_office?.region === 'AU'
     || outlet.currency === 'AUD' || outlet.head_office?.currency === 'AUD'
     || outlet.country === 'Australia';
-  const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
+  // ANY AU signal must win — a head office mis-seeded with country_code='IN' was
+  // overriding a genuinely Australian outlet (currency AUD, country Australia),
+  // producing CGST/SGST 5% splits on AU bills instead of a single 10% GST.
+  const countryCode = isAU ? 'AU' : (hoCountry || 'IN');
   // AU GST is inclusive by law — always true for AU regardless of DB default
   // (Prisma defaults gst_inclusive to false; ?? won't override false, only null/undefined)
   const gstInclusive = isAU ? true : (outlet.head_office?.gst_inclusive ?? false);
@@ -159,7 +162,11 @@ async function recalcOrderTotals(tx, orderId, taxConfig) {
     const itemTotal = Number(oi.item_total);
     subtotalPaise += Math.round(itemTotal * 100);
 
-    const gstRate = Number(oi.gst_rate) || taxConfig.default_gst_rate || 0;
+    // AU GST is a uniform 10% — never let an Indian per-item slab (e.g. a menu
+    // item seeded with gst_rate=5) leak into an Australian bill.
+    const gstRate = taxConfig.country_code === 'AU'
+      ? (taxConfig.default_gst_rate || 10)
+      : (Number(oi.gst_rate) || taxConfig.default_gst_rate || 0);
     const tax = calculateItemTax(
       { base_price: itemTotal / Number(oi.quantity), quantity: Number(oi.quantity), gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
       { country_code: taxConfig.country_code, state: taxConfig.state }
@@ -280,8 +287,12 @@ async function createOrder(data, staffId) {
       for (const oi of orderItemsData) {
         const qty = Number(oi.quantity) || 1;
         const discountedUnitBase = (Number(oi.item_total) * factor) / qty;
+        // AU: uniform 10% — coerce stored Indian per-item slabs (see recalcOrderTotals)
+        const rate = taxCfg.country_code === 'AU'
+          ? (taxCfg.default_gst_rate || 10)
+          : oi.gst_rate;
         const t = calculateItemTax(
-          { base_price: discountedUnitBase, quantity: qty, gst_rate: oi.gst_rate, is_inclusive: taxCfg.gst_inclusive },
+          { base_price: discountedUnitBase, quantity: qty, gst_rate: rate, is_inclusive: taxCfg.gst_inclusive },
           taxCfg
         );
         cgstPaise += Math.round(t.cgst * 100);
