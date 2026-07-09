@@ -93,20 +93,27 @@ function isNewThisMonth(firstVisit) {
 
 /**
  * Normalise API field names → consistent UI shape.
- * Handles both snake_case (API) and camelCase (legacy mock) keys.
+ * Backend (GET /customers) returns: full_name, total_visits, total_spend (Decimal→string),
+ * last_visit_at, date_of_birth, anniversary, segment ('new'|'regular'|'vip'|'lapsed'),
+ * notes, created_at, and loyalty_points as a RELATION OBJECT { current_balance, ... }.
  */
 function normalizeCustomer(c) {
   return {
     ...c,
+    name:        c.full_name       ?? c.name        ?? '',
     visits:      c.total_visits    ?? c.visits      ?? 0,
-    totalSpent:  c.total_spent     ?? c.totalSpent   ?? 0,
-    lastVisit:   c.last_visit      ?? c.lastVisit    ?? null,
-    birthday:    c.dob             ?? c.birthday     ?? '',
+    // total_spend is a Prisma Decimal → serialised as a string; coerce to Number.
+    totalSpent:  Number(c.total_spend ?? c.total_spent ?? c.totalSpent ?? 0) || 0,
+    lastVisit:   c.last_visit_at   ?? c.last_visit  ?? c.lastVisit ?? null,
+    birthday:    c.date_of_birth   ?? c.dob         ?? c.birthday  ?? '',
     anniversary: c.anniversary     ?? '',
-    isVIP:       c.is_vip          ?? c.isVIP        ?? false,
+    // VIP is derived from the marketing segment, not a boolean column.
+    isVIP:       c.segment === 'vip' || c.is_vip === true || c.isVIP === true,
+    // loyalty_points is a relation object — never render it directly; read the scalar balance.
+    loyaltyBalance: c.loyalty_points?.current_balance ?? 0,
     notes:       c.notes           ?? '',
     firstVisit:  c.created_at      ?? c.firstVisit   ?? null,
-    orders:      c.orders          ?? [],
+    orders:      Array.isArray(c.orders) ? c.orders : [],
     favouriteDish: c.favourite_dish ?? c.favouriteDish ?? '—',
   };
 }
@@ -235,15 +242,17 @@ export default function CustomersScreen() {
     if (!form.name.trim())  { Alert.alert('Required', 'Please enter customer name');  return; }
     if (!form.phone.trim()) { Alert.alert('Required', 'Please enter phone number');   return; }
 
+    // Field names must match the backend Joi schema (customer.validation.js);
+    // unknown keys are stripped (stripUnknown), so `name`/`dob`/`is_vip` were silently dropped.
     const payload = {
-      outlet_id:   outletId,
-      name:        form.name.trim(),
-      phone:       form.phone.trim(),
-      email:       form.email.trim()       || undefined,
-      dob:         form.birthday.trim()    || undefined,
-      anniversary: form.anniversary.trim() || undefined,
-      notes:       form.notes.trim()       || undefined,
-      is_vip:      form.isVIP,
+      full_name:     form.name.trim(),
+      phone:         form.phone.trim(),
+      email:         form.email.trim()       || undefined,
+      date_of_birth: form.birthday.trim()    || undefined,
+      anniversary:   form.anniversary.trim() || undefined,
+      notes:         form.notes.trim()       || undefined,
+      // VIP maps to the marketing segment enum; only set it when enabling VIP.
+      ...(form.isVIP ? { segment: 'vip' } : {}),
     };
 
     try {
@@ -518,7 +527,9 @@ function CrmStat({ label, value, icon, color }) {
 }
 
 function CustomerCard({ customer: c, index, expanded, onExpand, onCall, onWhatsApp, onEdit }) {
-  const loyaltyPts     = c.loyalty_points ?? c.visits * 10;
+  // loyaltyBalance is the scalar current_balance extracted in normalizeCustomer.
+  // NEVER read c.loyalty_points here — it is a relation OBJECT and crashes inside <Text>.
+  const loyaltyPts     = c.loyaltyBalance ?? 0;
   const daysInactive   = lastVisitDaysAgo(c.lastVisit);
   const showInactive   = daysInactive >= 30 && !c.isVIP && c.visits >= 3;
   const bgColor        = avatarColor(c.visits);

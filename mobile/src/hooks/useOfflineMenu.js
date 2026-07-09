@@ -32,7 +32,8 @@ function getPrefetch() {
  *   refresh: () => Promise<void>
  * }}
  */
-export function useOfflineMenu(outletId) {
+export function useOfflineMenu(outletId, options = {}) {
+  const { includeUnavailable = false } = options;
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +51,7 @@ export function useOfflineMenu(outletId) {
 
     try {
       const cats = getCachedCategories(outletId);
-      const allItems = getCachedItems(outletId);
+      const allItems = getCachedItems(outletId, null, includeUnavailable);
       const staleStatus = isMenuStale(outletId);
 
       if (mountedRef.current) {
@@ -67,7 +68,7 @@ export function useOfflineMenu(outletId) {
         setIsLoading(false);
       }
     }
-  }, [outletId]);
+  }, [outletId, includeUnavailable]);
 
   // Load on mount and when outletId changes
   useEffect(() => {

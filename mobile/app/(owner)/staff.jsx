@@ -223,17 +223,17 @@ export default function StaffScreen() {
                     : [{ label: 'No staff on floor', value: '--' }],
                 },
                 {
-                  heading: 'Labour Cost Summary',
+                  heading: 'Labour Cost Summary (estimated from sales, not payroll)',
                   rows: [
-                    { label: 'Total Labour Cost', value: `${symbol}${(labour.totalCost || 0).toLocaleString(locale)}` },
+                    { label: 'Est. Labour Cost', value: `${symbol}${(labour.totalCost || 0).toLocaleString(locale)}` },
                     { label: 'Staff Count', value: `${labour.staffCount || 0}` },
-                    { label: 'Avg Hourly Rate', value: `${symbol}${(labour.avgHourly || 0).toLocaleString(locale)}` },
-                    { label: 'Cost % of Revenue', value: `${labour.costPercentage || 0}%` },
+                    { label: 'Est. Avg Hourly Rate', value: `${symbol}${(labour.avgHourly || 0).toLocaleString(locale)}` },
+                    { label: 'Est. Cost % of Revenue', value: `${labour.costPercentage || 0}%` },
                   ],
                 },
               ],
               tableData: (labour.breakdown || []).length > 0 ? {
-                title: 'Cost Breakdown by Staff',
+                title: 'Estimated Cost Breakdown by Staff',
                 headers: ['Name', 'Hours', 'Cost'],
                 rows: (labour.breakdown || []).map(b => [
                   b.name,
@@ -375,10 +375,19 @@ export default function StaffScreen() {
         {/* TAB 2: Labour & Timesheets */}
         {activeTab === 'labour' && (
           <View>
+            {/* Estimate disclaimer — these figures are derived from sales
+                heuristics (≈30% of revenue), NOT actual payroll/timeclock wages. */}
+            <View style={[s.estimateBanner, { backgroundColor: colors.pillBg, borderColor: colors.border }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+              <Text style={[s.estimateBannerText, { color: colors.textMuted }]}>
+                Estimated from sales — not actual payroll or clocked wages.
+              </Text>
+            </View>
+
             {/* Labour Summary Cards */}
             <View style={s.metricsRow}>
               <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Total Cost</Text>
+                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Est. Labour Cost</Text>
                 <Text style={[s.metricValue, { color: colors.text }]}>{fmtFull(labour.totalCost)}</Text>
               </View>
               <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -386,7 +395,7 @@ export default function StaffScreen() {
                 <Text style={[s.metricValue, { color: colors.text }]}>{labour.staffCount}</Text>
               </View>
               <View style={[s.metricCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Cost %</Text>
+                <Text style={[s.metricLabel, { color: colors.textMuted }]}>Est. Cost %</Text>
                 <Text style={[s.metricValue, { color: colors.text }]}>
                   {labour.costPercentage}%
                   <Text style={[s.metricSub, { color: colors.textMuted }]}> of revenue</Text>
@@ -398,7 +407,7 @@ export default function StaffScreen() {
             <View style={[s.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.sectionHeader}>
                 <Ionicons name="bar-chart-outline" size={18} color={colors.text} />
-                <Text style={[s.sectionTitle, { color: colors.text }]}>Cost Breakdown</Text>
+                <Text style={[s.sectionTitle, { color: colors.text }]}>Estimated Cost Breakdown</Text>
               </View>
 
               {(labour.breakdown || []).length === 0 && (
@@ -774,6 +783,22 @@ const s = StyleSheet.create({
     ...TYPE.caption,
     color: LC.text3,
     marginTop: 2,
+  },
+
+  // Estimate disclaimer banner
+  estimateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  estimateBannerText: {
+    ...TYPE.caption,
+    flex: 1,
   },
 
   // Metrics row

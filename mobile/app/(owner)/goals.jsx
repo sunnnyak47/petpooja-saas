@@ -10,6 +10,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  TextInput,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +22,7 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
-import { useGoals, useOwnerDashboard } from '../../src/hooks/useOwnerApi';
+import { useGoals, useOwnerDashboard, useSetGoal } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -78,12 +79,31 @@ export default function GoalsScreen() {
   const { fmt } = useCurrency();
   const { data: goalsData, isLoading, isError, refetch } = useGoals(outletId);
   const { data: dashData } = useOwnerDashboard(outletId);
+  const setGoal = useSetGoal();
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeGoal, setActiveGoal] = useState('daily');
+  const [targetInput, setTargetInput] = useState('');
 
   const goals = goalsData?.daily ? goalsData : DEFAULT_GOALS;
   const currentRevenue = dashData?.todayRevenue || 0;
+
+  // Save the target for the currently-selected period, preserving the other
+  // periods' stored values. Wired to the existing set-goal mutation, which
+  // persists the whole goals blob as a JSON string via /ho/settings.
+  const handleSaveTarget = useCallback(() => {
+    const target = Number(targetInput);
+    if (!outletId || !Number.isFinite(target) || target <= 0) return;
+    const base = goals || DEFAULT_GOALS;
+    const next = {
+      daily:   { target: base.daily?.target || 0,   current: base.daily?.current || 0 },
+      weekly:  { target: base.weekly?.target || 0,  current: base.weekly?.current || 0 },
+      monthly: { target: base.monthly?.target || 0, current: base.monthly?.current || 0 },
+    };
+    next[activeGoal] = { ...next[activeGoal], target };
+    setGoal.mutate({ outletId, data: next });
+    setTargetInput('');
+  }, [targetInput, outletId, goals, activeGoal, setGoal]);
 
   // Override daily.current with live data
   const liveGoals = useMemo(() => ({
@@ -197,6 +217,30 @@ export default function GoalsScreen() {
                 </View>
               )}
             </PressCard>
+
+            {/* Set Target — minimal editor wired to the set-goal mutation */}
+            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>
+                Set {activeGoal.charAt(0).toUpperCase() + activeGoal.slice(1)} Target
+              </Text>
+              <View style={s.editorRow}>
+                <TextInput
+                  style={[s.targetInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.pillBg }]}
+                  value={targetInput}
+                  onChangeText={setTargetInput}
+                  keyboardType="numeric"
+                  placeholder={goal.target > 0 ? `${goal.target}` : 'Enter target amount'}
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TouchableOpacity
+                  style={[s.saveBtn, { backgroundColor: colors.accent }, (setGoal.isPending || !targetInput) && { opacity: 0.5 }]}
+                  onPress={handleSaveTarget}
+                  disabled={setGoal.isPending || !targetInput}
+                >
+                  <Text style={s.saveBtnText}>{setGoal.isPending ? 'Saving…' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {/* Weekly Comparison */}
             {goalsData?.comparison && goalsData.comparison.length > 0 && (
@@ -329,6 +373,27 @@ const s = StyleSheet.create({
     borderColor: '#EAEAEA',
   },
   sectionTitle: { ...TYPE.bodyMed, color: '#000', marginBottom: 14 },
+  editorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  targetInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  saveBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+  },
+  saveBtnText: { ...TYPE.smallMed, color: '#FFF' },
   compRow: {
     flexDirection: 'row',
     alignItems: 'center',

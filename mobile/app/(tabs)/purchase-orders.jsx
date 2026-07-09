@@ -35,6 +35,7 @@ import {
   useCancelPurchaseOrder,
 } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import api from '../../src/lib/api';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const T = {
@@ -107,7 +108,11 @@ function StatCard({ label, value, icon, iconColor }) {
 function POCard({ po, index, onMarkReceived, onCancel }) {
   const cfg = statusCfg(po.status);
   const total = parseFloat(po.total_amount || 0);
-  const itemCount = Array.isArray(po.items) ? po.items.length : (po.item_count || 0);
+  // List response includes `_count.po_items`; the detail response includes a `po_items`
+  // array. Neither is called `items`, so fall through the real backend shapes.
+  const itemCount = Array.isArray(po.items)
+    ? po.items.length
+    : (po.po_items?.length ?? po._count?.po_items ?? po.item_count ?? 0);
   const date = new Date(po.order_date || po.created_at || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
@@ -192,11 +197,30 @@ function EmptyState() {
 // ─── Create PO Modal ──────────────────────────────────────────────────────────
 const EMPTY_ITEM = () => ({ name: '', qty: '', price: '' });
 
-function CreatePOModal({ visible, onClose, onCreate }) {
+function CreatePOModal({ visible, onClose, onCreate, outletId }) {
   const insets = useSafeAreaInsets();
-  const [supplier, setSupplier] = useState('');
+  // Backend links a PO to a supplier by supplier_id (uuid FK) — a free-text name is
+  // never persisted. So we fetch the outlet's suppliers and let the user pick one.
+  const [suppliers, setSuppliers] = useState([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [supplierId, setSupplierId] = useState(null);
   const [items, setItems] = useState([EMPTY_ITEM()]);
   const [submitting, setSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setSuppliersLoading(true);
+    api.get('/suppliers', { params: outletId ? { outlet_id: outletId } : {} })
+      .then((res) => {
+        if (cancelled) return;
+        const list = res?.data ?? res ?? [];
+        setSuppliers(Array.isArray(list) ? list : []);
+      })
+      .catch(() => { if (!cancelled) setSuppliers([]); })
+      .finally(() => { if (!cancelled) setSuppliersLoading(false); });
+    return () => { cancelled = true; };
+  }, [visible, outletId]);
 
   const slideY = useSharedValue(500);
   React.useEffect(() => {
@@ -236,10 +260,6 @@ function CreatePOModal({ visible, onClose, onCreate }) {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!supplier.trim()) {
-      Alert.alert('Required', 'Please enter a supplier name.');
-      return;
-    }
     const validItems = items.filter(it => it.name.trim());
     if (validItems.length === 0) {
       Alert.alert('Required', 'Add at least one item.');
@@ -248,15 +268,18 @@ function CreatePOModal({ visible, onClose, onCreate }) {
     setSubmitting(true);
     try {
       await onCreate({
-        supplier_name: supplier.trim(),
+        // Backend expects supplier_id (uuid). Optional — a PO can have no supplier.
+        supplier_id: supplierId || null,
         items: validItems.map(it => ({
-          name: it.name.trim(),
+          // Backend PO line-item field is `item_name`, not `name` — a `name` key is
+          // stripped by validation and the supplier/items silently drop.
+          item_name: it.name.trim(),
           quantity: parseFloat(it.qty) || 1,
           unit_price: parseFloat(it.price) || 0,
         })),
         total_amount: total,
       });
-      setSupplier('');
+      setSupplierId(null);
       setItems([EMPTY_ITEM()]);
       onClose();
     } catch (e) {
@@ -264,7 +287,7 @@ function CreatePOModal({ visible, onClose, onCreate }) {
     } finally {
       setSubmitting(false);
     }
-  }, [supplier, items, total, onCreate, onClose]);
+  }, [supplierId, items, total, onCreate, onClose]);
 
   if (!visible) return null;
 
@@ -285,14 +308,32 @@ function CreatePOModal({ visible, onClose, onCreate }) {
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Supplier */}
-            <Text style={styles.inputLabel}>Supplier Name</Text>
-            <TextInput
-              style={styles.input}
-              value={supplier}
-              onChangeText={setSupplier}
-              placeholder="e.g. Fresh Farms Ltd"
-              placeholderTextColor={T.text3}
-            />
+            <Text style={styles.inputLabel}>Supplier</Text>
+            {suppliersLoading ? (
+              <Text style={styles.supplierHint}>Loading suppliers…</Text>
+            ) : suppliers.length === 0 ? (
+              <Text style={styles.supplierHint}>
+                No suppliers yet — this PO will be created without one.
+              </Text>
+            ) : (
+              <View style={styles.supplierChips}>
+                {suppliers.map((s) => {
+                  const selected = supplierId === s.id;
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[styles.supplierChip, selected && styles.supplierChipActive]}
+                      onPress={() => setSupplierId(selected ? null : s.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.supplierChipText, selected && styles.supplierChipTextActive]}>
+                        {s.name || 'Unnamed supplier'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Items */}
             <Text style={[styles.inputLabel, { marginTop: 16 }]}>Items</Text>
@@ -565,6 +606,7 @@ export default function PurchaseOrdersScreen() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onCreate={handleCreate}
+        outletId={outletId}
       />
     </View>
   );
@@ -832,6 +874,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
     marginBottom: 8,
+  },
+  supplierHint: {
+    color: T.text3,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  supplierChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  supplierChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: T.pageBg,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  supplierChipActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  supplierChipText: {
+    color: T.text2,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  supplierChipTextActive: {
+    color: '#FFFFFF',
   },
   itemRow: {
     flexDirection: 'row',

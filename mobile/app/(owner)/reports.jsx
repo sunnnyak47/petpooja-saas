@@ -84,7 +84,13 @@ function getDateRange(rangeKey) {
 }
 
 function shortDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
+  // /reports/revenue-trend returns `date` as a full ISO timestamp (Prisma
+  // DateTime, e.g. "2026-07-09T00:00:00.000Z"). The old code appended
+  // 'T00:00:00' which corrupted that into an Invalid Date → "NaN undefined".
+  // Parse the value as-is; new Date() handles both full ISO and 'YYYY-MM-DD'.
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
@@ -385,9 +391,12 @@ export default function ReportsScreen() {
     [revenueData],
   );
 
+  // Order count comes from the daily-summary trend (`orders` per day), NOT from
+  // summing top-item quantities (one order has many items, so that badly
+  // over-counts orders and collapses avg order value).
   const totalOrders = useMemo(() => {
-    return topItems.reduce((sum, d) => sum + d.qty, 0);
-  }, [topItems]);
+    return revenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
+  }, [revenueData]);
 
   const avgOrderValue = useMemo(() => {
     if (!totalOrders) return 0;

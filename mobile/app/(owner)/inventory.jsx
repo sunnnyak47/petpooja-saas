@@ -55,7 +55,9 @@ export default function InventoryScreen() {
     return lowStock.filter(i => i.name.toLowerCase().includes(q) || i.category?.toLowerCase().includes(q));
   }, [lowStock, search]);
 
-  const totalWastageCost = useMemo(() => wastage.reduce((s, w) => s + (w.cost || 0), 0), [wastage]);
+  // WastageLog has no cost column in the backend, so a rupee total would be a
+  // fabricated ₹0. We surface the entry count instead and label cost as untracked.
+  const wastageEntryCount = wastage.length;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -191,10 +193,14 @@ export default function InventoryScreen() {
           </>
         ) : (
           <>
-            {/* Wastage Summary */}
+            {/* Wastage Summary — cost is not tracked by the backend, so we show
+                the number of logged entries rather than a fake ₹0 total. */}
             <View style={[s.wastageSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[s.wastageLabel, { color: colors.textMuted }]}>Today's Wastage Cost</Text>
-              <Text style={s.wastageAmount}>{symbol}{totalWastageCost.toLocaleString(locale)}</Text>
+              <Text style={[s.wastageLabel, { color: colors.textMuted }]}>Wastage Entries</Text>
+              <Text style={[s.wastageAmount, { color: colors.text }]}>{wastageEntryCount}</Text>
+              <Text style={[s.wastageLabel, { color: colors.textMuted, marginTop: 6, letterSpacing: 0 }]}>
+                Cost per entry is not tracked
+              </Text>
             </View>
 
             {isLoading ? (
@@ -220,7 +226,8 @@ export default function InventoryScreen() {
                         {w.qty} {w.unit} — {w.reason}
                       </Text>
                     </View>
-                    <Text style={s.wastageCost}>{symbol}{w.cost}</Text>
+                    {/* Cost is genuinely unavailable (no column on WastageLog). */}
+                    <Text style={[s.wastageCost, { color: colors.textMuted }]}>—</Text>
                   </View>
                   <View style={s.wastageFooter}>
                     <Text style={[s.wastageTime, { color: colors.textMuted }]}>{w.date}</Text>

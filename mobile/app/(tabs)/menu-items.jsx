@@ -36,6 +36,7 @@ import Animated, {
 import { PressCard } from '../../src/components/PressCard';
 import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCreateMenuItem, useUpdateMenuItem, useDeleteMenuItem } from '../../src/hooks/useApi';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -1140,7 +1141,23 @@ export default function MenuItemsScreen() {
     isLoading: menuLoading,
     refresh: refreshMenu,
     isStale,
-  } = useOfflineMenu(outletId);
+    // Management view must show out-of-stock items too (POS ordering doesn't).
+  } = useOfflineMenu(outletId, { includeUnavailable: true });
+
+  // Real menu CRUD — persists to the backend (GET/POST/PATCH/DELETE /api/menu/items),
+  // then re-syncs the offline cache. Local state below stays for instant UX.
+  const { mutate: createMenuItem } = useCreateMenuItem();
+  const { mutate: updateMenuItem } = useUpdateMenuItem();
+  const { mutate: deleteMenuItem } = useDeleteMenuItem();
+
+  // The UI works in category NAMES; the backend needs the category_id (UUID).
+  const categoryIdByName = useMemo(() => {
+    const map = {};
+    (offlineCategories || []).forEach((c) => {
+      if (c?.name) map[c.name] = c.id;
+    });
+    return map;
+  }, [offlineCategories]);
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
@@ -1253,7 +1270,11 @@ export default function MenuItemsScreen() {
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, available: val } : i))
     );
-  }, []);
+    // Persist the availability flip to the backend (real field: is_available).
+    if (outletId && id) {
+      updateMenuItem({ id, data: { is_available: val, outlet_id: outletId } });
+    }
+  }, [outletId, updateMenuItem]);
 
   const openAddModal = useCallback(() => {
     setEditingItem(null);
@@ -1272,10 +1293,29 @@ export default function MenuItemsScreen() {
 
   const handleSave = useCallback(
     (formData) => {
+      // Map the UI form → the backend's real menu-item fields.
+      const catId = categoryIdByName[formData.category];
+      const base = {
+        name: formData.name,
+        description: formData.description || '',
+        base_price: Number(formData.price) || 0,
+        food_type: formData.isVeg ? 'veg' : 'non_veg',
+        is_available: formData.available,
+      };
+
       if (editingItem) {
         setItems((prev) =>
           prev.map((i) => (i.id === editingItem.id ? { ...i, ...formData } : i))
         );
+        if (outletId && editingItem.id) {
+          updateMenuItem(
+            {
+              id: editingItem.id,
+              data: { ...base, ...(catId ? { category_id: catId } : {}), outlet_id: outletId },
+            },
+            { onSuccess: () => refreshMenu?.() }
+          );
+        }
       } else {
         setItems((prev) => [
           {
@@ -1286,18 +1326,32 @@ export default function MenuItemsScreen() {
           },
           ...prev,
         ]);
+        // Persist only when we can satisfy the backend's required category_id +
+        // outlet_id; otherwise the item stays local until a category is synced.
+        if (outletId && catId) {
+          createMenuItem(
+            { ...base, category_id: catId, outlet_id: outletId },
+            { onSuccess: () => refreshMenu?.() }
+          );
+        }
       }
       closeItemModal();
     },
-    [editingItem, closeItemModal]
+    [editingItem, categoryIdByName, outletId, updateMenuItem, createMenuItem, refreshMenu, closeItemModal]
   );
 
   const handleDeleteItem = useCallback(() => {
     if (editingItem) {
       setItems((prev) => prev.filter((i) => i.id !== editingItem.id));
+      if (outletId && editingItem.id) {
+        deleteMenuItem(
+          { id: editingItem.id, outlet_id: outletId },
+          { onSuccess: () => refreshMenu?.() }
+        );
+      }
     }
     closeItemModal();
-  }, [editingItem, closeItemModal]);
+  }, [editingItem, outletId, deleteMenuItem, refreshMenu, closeItemModal]);
 
   // Selection
   const handleLongPress = useCallback((id) => {
@@ -1320,13 +1374,19 @@ export default function MenuItemsScreen() {
   }, []);
 
   const bulkMarkOutOfStock = useCallback(() => {
+    const ids = [...selectedIds];
     setItems((prev) =>
       prev.map((i) =>
         selectedIds.has(i.id) ? { ...i, available: false } : i
       )
     );
+    if (outletId) {
+      ids.forEach((id) =>
+        updateMenuItem({ id, data: { is_available: false, outlet_id: outletId } })
+      );
+    }
     exitSelection();
-  }, [selectedIds, exitSelection]);
+  }, [selectedIds, outletId, updateMenuItem, exitSelection]);
 
   const bulkDelete = useCallback(() => {
     Alert.alert(
@@ -1338,13 +1398,17 @@ export default function MenuItemsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            const ids = [...selectedIds];
             setItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+            if (outletId) {
+              ids.forEach((id) => deleteMenuItem({ id, outlet_id: outletId }));
+            }
             exitSelection();
           },
         },
       ]
     );
-  }, [selectedIds, exitSelection]);
+  }, [selectedIds, outletId, deleteMenuItem, exitSelection]);
 
   const handleSaveCategories = useCallback((newCats) => {
     setCategories(newCats);

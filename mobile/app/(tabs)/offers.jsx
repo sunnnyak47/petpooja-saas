@@ -36,22 +36,38 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Type Maps ────────────────────────────────────────────────────────────────
 
+// Keyed off the backend discount `type` enum: percentage | flat | bogo | buy_x_get_y
+// (see backend/src/modules/discounts/discount.validation.js). Legacy display-string
+// keys are kept only for optimistic/local cards created before the server round-trips.
 const TYPE_COLORS = {
+  percentage: '#2563eb',
+  flat: '#00B341',
+  bogo: '#9B59B6',
+  buy_x_get_y: '#F5A623',
+  // legacy display strings
   'Happy Hour': '#F5A623',
   'Combo': '#2563eb',
   'Coupon': '#9B59B6',
-  'Festival': '#EE0000',
-  'Loyalty': '#00B341',
-  'Flat Discount': '#444',
+  'Flat Discount': '#00B341',
 };
 
 const TYPE_ICONS = {
+  percentage: 'pricetag-outline',
+  flat: 'cash-outline',
+  bogo: 'gift-outline',
+  buy_x_get_y: 'gift-outline',
+  // legacy display strings
   'Happy Hour': 'beer-outline',
   'Combo': 'grid-outline',
   'Coupon': 'pricetag-outline',
-  'Festival': 'sparkles-outline',
-  'Loyalty': 'star-outline',
   'Flat Discount': 'cash-outline',
+};
+
+const TYPE_LABELS = {
+  percentage: 'Percentage',
+  flat: 'Flat',
+  bogo: 'BOGO',
+  buy_x_get_y: 'Buy X Get Y',
 };
 
 const FILTERS = ['All', 'Active', 'Scheduled', 'Expired'];
@@ -362,16 +378,15 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
   const typeColor = TYPE_COLORS[offer.type] || '#444';
   // Support both normalized API shape (type + value) and legacy UI shape (discountType + discountValue)
   const discountLabel = (() => {
-    if (offer.discountType === 'percent' || offer.type === 'percentage') {
-      const val = offer.discountValue ?? offer.value;
-      return `${val}% OFF`;
+    const val = offer.value ?? offer.discountValue ?? 0;
+    // Backend `type` enum: percentage | flat | bogo | buy_x_get_y
+    if (offer.type === 'flat' || offer.discountType === 'flat') {
+      return `₹${val} OFF`;
     }
-    if (offer.discountType === 'flat') {
-      return `₹${offer.discountValue ?? offer.value} OFF`;
+    if (offer.type === 'bogo' || offer.type === 'buy_x_get_y') {
+      return 'Buy 1 Get 1';
     }
-    // API normalized: type is 'percentage' | 'flat' | 'happy_hour' | 'buy_x_get_y' | 'combo'
-    if (offer.type === 'flat') return `₹${offer.value} OFF`;
-    return `${offer.value}% OFF`;
+    return `${val}% OFF`;
   })();
   const usageCount = offer.usageCount ?? offer.usage_count ?? 0;
   const usageLimit = offer.usageLimit ?? offer.max_uses ?? null;
@@ -394,7 +409,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
         <View style={styles.offerTop}>
           <View style={[styles.typeBadge, { backgroundColor: typeColor + '18' }]}>
             <Ionicons name={TYPE_ICONS[offer.type] || 'pricetag-outline'} size={13} color={typeColor} />
-            <Text style={[styles.typeBadgeText, { color: typeColor }]}>{offer.type}</Text>
+            <Text style={[styles.typeBadgeText, { color: typeColor }]}>{TYPE_LABELS[offer.type] ?? offer.type}</Text>
           </View>
           <Switch
             value={isActive}
@@ -443,10 +458,10 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
           </View>
         </View>
 
-        {offer.coupon_code ? (
+        {(offer.code ?? offer.coupon_code) ? (
           <View style={styles.couponBadgeRow}>
             <Ionicons name="pricetag-outline" size={12} color="#9B59B6" />
-            <Text style={styles.couponBadgeText}>{offer.coupon_code}</Text>
+            <Text style={styles.couponBadgeText}>{offer.code ?? offer.coupon_code}</Text>
           </View>
         ) : null}
 
@@ -538,21 +553,38 @@ export default function OffersScreen() {
   }, [localOffers, updateDiscount, outletId]);
 
   const handleCreate = useCallback((formData) => {
+    // Backend discount `type` is percentage | flat | bogo | buy_x_get_y — NOT the UI
+    // offer category ('Happy Hour'/'Combo'/'Coupon'). Derive it from the discount
+    // mechanism the form actually captured (percent vs flat amount).
+    const backendType = formData.discountType === 'flat' ? 'flat' : 'percentage';
+    const numValue = parseFloat(formData.discountValue ?? formData.value ?? 0) || 0;
+    // Backend field is `code` (uppercase, ≤20), not `coupon_code`.
+    const code = (formData.couponCode ?? formData.coupon_code ?? '').toUpperCase() || null;
+
     const optimisticId = `temp_${Date.now()}`;
-    const optimistic = { ...formData, id: optimisticId, is_active: true, active: true, usage_count: 0, usageCount: 0 };
+    const optimistic = {
+      ...formData,
+      id: optimisticId,
+      type: backendType,
+      value: numValue,
+      code,
+      is_active: true,
+      active: true,
+      usage_count: 0,
+      usageCount: 0,
+    };
     setLocalOffers(prev => [optimistic, ...(prev ?? [])]);
     setShowCreate(false);
     createDiscount.mutate(
       {
         name: formData.name,
-        description: formData.description ?? '',
-        type: formData.type ?? formData.offerType ?? 'percentage',
-        value: parseFloat(formData.discountValue ?? formData.value ?? 0),
+        type: backendType,
+        value: numValue,
         min_order_value: parseFloat(formData.minOrder ?? formData.min_order_value ?? 0) || 0,
         max_uses: parseInt(formData.usageLimit ?? formData.max_uses) || null,
-        start_date: formData.dateFrom ?? formData.start_date ?? null,
-        end_date: formData.dateTo ?? formData.end_date ?? null,
-        coupon_code: formData.couponCode ?? formData.coupon_code ?? null,
+        start_date: formData.dateFrom || formData.start_date || null,
+        end_date: formData.dateTo || formData.end_date || null,
+        code,
         outlet_id: outletId,
       },
       { onError: () => setLocalOffers(prev => (prev ?? []).filter(o => o.id !== optimisticId)) }

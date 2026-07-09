@@ -53,17 +53,38 @@ const REJECT_REASONS = [
 
 // ─── Field normaliser ────────────────────────────────────────────────────────
 /**
- * Maps API snake_case order fields to the shape expected by the UI.
- * Works with both real API responses and the mock fallback in useApi.js.
+ * Maps the real backend order shape (GET /orders, order.service.listOrders) to the UI shape.
+ * Confirmed backend fields: grand_total/total_amount (Decimal→string), the platform lives in
+ * `aggregator` ('swiggy'|'zomato'|'ubereats'); `source` is 'pos'|'online' (never the brand).
+ * `customer` is a RELATION OBJECT { full_name, phone } — plus scalar customer_name/customer_phone.
  */
+// Translate the backend Order.status enum into the delivery UI's status bucket.
+function deliveryUiStatus(raw) {
+  switch (String(raw || '').toLowerCase()) {
+    case 'created':
+    case 'confirmed':
+    case 'pending':          return 'new';
+    case 'preparing':        return 'preparing';
+    case 'ready':
+    case 'served':
+    case 'billed':           return 'out_for_delivery';
+    case 'delivered':
+    case 'completed':
+    case 'paid':             return 'delivered';
+    case 'cancelled':
+    case 'voided':           return 'cancelled';
+    default:                 return 'new';
+  }
+}
+
 function normalizeOrder(o) {
-  // Determine delivery platform
-  const rawPlatform = (o.platform || o.source || o.channel || 'direct').toUpperCase();
+  // Real platform identity is the `aggregator` column; source is just pos/online.
+  const rawPlatform = String(o.aggregator || o.source || '').toUpperCase();
   const platform =
     rawPlatform.includes('ZOMATO') ? 'ZOMATO' :
     rawPlatform.includes('SWIGGY') ? 'SWIGGY' : 'DIRECT';
 
-  // Normalise items array
+  // Backend returns order_items; each row carries a scalar `name` and `quantity`.
   const items = (o.items || o.order_items || []).map(item => ({
     qty:  item.quantity  ?? item.qty  ?? 1,
     name: item.name      ?? item.item_name ?? item.menu_item?.name ?? 'Item',
@@ -72,9 +93,17 @@ function normalizeOrder(o) {
   return {
     ...o,
     platform,
-    customer:        o.customer_name    ?? o.customer        ?? 'Customer',
-    phone:           o.customer_phone   ?? o.phone           ?? '',
-    total:           o.total_amount     ?? o.total           ?? 0,
+    // Map the real Order.status enum (created|confirmed|ready|billed|paid|
+    // cancelled|voided|preparing|served|delivered|completed) into the UI bucket
+    // statusMeta/handlers understand — otherwise every order fell through to 'new'
+    // and paid orders never counted toward revenue (which keyed on 'delivered').
+    status:          deliveryUiStatus(o.status),
+    // NEVER render o.customer (a relation object) in <Text> — read its scalar full_name.
+    customer:        o.customer?.full_name ?? o.customer_name  ?? 'Guest',
+    phone:           o.customer?.phone     ?? o.customer_phone ?? '',
+    // grand_total/total_amount are Prisma Decimals → serialised as strings; coerce to Number
+    // so the summary reduces add instead of string-concatenating.
+    total:           Number(o.grand_total ?? o.total_amount ?? o.total ?? 0) || 0,
     placedAt:        o.created_at       ? new Date(o.created_at) : (o.placedAt ?? new Date()),
     estimatedDelivery: o.estimated_delivery_time ?? o.estimatedDelivery ?? 35,
     deliveryPartner: o.delivery_partner ?? o.deliveryPartner ?? null,
@@ -364,7 +393,9 @@ export default function DeliveryOrdersScreen() {
 
   // ── Action handlers ───────────────────────────────────────────────────────
   function handleAccept(orderId) {
-    updateStatus.mutate({ orderId, status: 'accepted' });
+    // Backend updateOrderStatusSchema accepts pending|preparing|ready|served|
+    // delivered|completed|cancelled — NOT 'accepted'/'out_for_delivery' (400).
+    updateStatus.mutate({ orderId, status: 'preparing' });
   }
 
   function handleReject(orderId) {
@@ -384,11 +415,11 @@ export default function DeliveryOrdersScreen() {
   }
 
   function handleMarkReady(orderId) {
-    updateStatus.mutate({ orderId, status: 'out_for_delivery' });
+    updateStatus.mutate({ orderId, status: 'ready' });
   }
 
   function handleAutoAccept(orderId) {
-    updateStatus.mutate({ orderId, status: 'accepted' });
+    updateStatus.mutate({ orderId, status: 'preparing' });
   }
 
   // ── Render ────────────────────────────────────────────────────────────────

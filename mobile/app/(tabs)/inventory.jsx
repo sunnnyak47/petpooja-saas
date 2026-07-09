@@ -36,7 +36,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useInventory, useUpdateInventory, useCreateInventoryItem } from '../../src/hooks/useApi';
+import { useInventory, useUpdateInventory, useCreateInventoryItem, useAdjustStock } from '../../src/hooks/useApi';
+import { useOutlet } from '../../src/context/OutletContext';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -205,7 +206,10 @@ function InventoryRow({ item, index, onUpdate, onEdit }) {
   const handleQtyChange = useCallback(
     (delta) => {
       const newQty = Math.max(0, current + delta);
-      onUpdate({ itemId: item.id ?? item._id, data: { current_stock: newQty } });
+      const applied = newQty - current; // clamp so stock never goes below 0
+      if (applied === 0) return;
+      // Pass a signed DELTA — the backend /inventory/adjust endpoint increments.
+      onUpdate({ itemId: item.id ?? item._id, delta: applied });
     },
     [current, item, onUpdate]
   );
@@ -547,10 +551,12 @@ export default function InventoryScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null = add mode
 
+  const { outletId } = useOutlet();
   const { data: rawData, isLoading, refetch, isRefetching } = useInventory();
   const { mutate: updateInventory, isPending: isPatching } = useUpdateInventory();
   const { mutate: createInventoryItem, isPending: isCreating } = useCreateInventoryItem();
-  const isSaving = isCreating || isPatching;
+  const { mutate: adjustStock, isPending: isAdjusting } = useAdjustStock();
+  const isSaving = isCreating || isPatching || isAdjusting;
 
   // Normalise API response — could be array or { data: [...] }
   // Fall back to mock data when API returns empty (web dev / offline)
@@ -605,11 +611,22 @@ export default function InventoryScreen() {
     return list;
   }, [allItems, activeCategory, search]);
 
+  // +/- quick adjustments route through the real stock-adjust endpoint with a delta.
   const handleUpdate = useCallback(
-    ({ itemId, data }) => {
-      updateInventory({ itemId, data });
+    ({ itemId, delta }) => {
+      if (!itemId || !delta) return;
+      if (!outletId) {
+        Alert.alert('No outlet', 'Select an outlet before adjusting stock.');
+        return;
+      }
+      adjustStock({
+        outlet_id: outletId,
+        item_id: itemId,
+        quantity: delta,
+        reason: 'Manual adjustment (mobile)',
+      });
     },
-    [updateInventory]
+    [adjustStock, outletId]
   );
 
   const openAddModal = useCallback(() => {
@@ -629,27 +646,69 @@ export default function InventoryScreen() {
 
   const handleModalSave = useCallback(
     (formData) => {
+      if (!outletId) {
+        Alert.alert('No outlet', 'Select an outlet before saving inventory.');
+        return;
+      }
+      // The modal collects screen-shaped fields; map them to the backend's real
+      // inventory-item fields (cost_per_unit, min_threshold, unit enum, outlet_id).
+      const stockValue = parseFloat(formData.current_stock) || 0;
+      const itemPayload = {
+        name: formData.name,
+        category: formData.category || null,
+        unit: (formData.unit || '').trim() || 'pcs', // unit is a required enum server-side
+        cost_per_unit: parseFloat(formData.price) || 0,
+        min_threshold: parseFloat(formData.reorder_point) || 0,
+        outlet_id: outletId,
+      };
+
       if (editingItem) {
         const itemId = editingItem.id ?? editingItem._id;
         updateInventory(
-          { itemId, data: formData },
+          { itemId, data: itemPayload },
           {
-            onSuccess: closeModal,
+            onSuccess: () => {
+              // Reconcile the stock level via the adjust endpoint (PATCH never
+              // touches stock). Apply only the delta from the previous value.
+              const prevStock = parseFloat(editingItem.current_stock ?? 0) || 0;
+              const delta = stockValue - prevStock;
+              if (delta !== 0) {
+                adjustStock({
+                  outlet_id: outletId,
+                  item_id: itemId,
+                  quantity: delta,
+                  reason: 'Stock corrected (mobile edit)',
+                });
+              }
+              closeModal();
+            },
             onError: (err) => {
               Alert.alert('Error', err?.message ?? 'Failed to update item.');
             },
           }
         );
       } else {
-        createInventoryItem(formData, {
-          onSuccess: closeModal,
+        createInventoryItem(itemPayload, {
+          onSuccess: (res) => {
+            // Set the opening stock (create makes no InventoryStock row on its own).
+            const newId = res?.data?.id ?? res?.id;
+            if (newId && stockValue > 0) {
+              adjustStock({
+                outlet_id: outletId,
+                item_id: newId,
+                quantity: stockValue,
+                reason: 'Opening stock (mobile)',
+              });
+            }
+            closeModal();
+          },
           onError: (err) => {
             Alert.alert('Error', err?.message ?? 'Failed to create item.');
           },
         });
       }
     },
-    [editingItem, updateInventory, createInventoryItem, closeModal]
+    [editingItem, outletId, updateInventory, createInventoryItem, adjustStock, closeModal]
   );
 
   const renderItem = useCallback(

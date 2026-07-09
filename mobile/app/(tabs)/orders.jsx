@@ -54,66 +54,52 @@ const C = {
 
 const STATUS_TABS = ['All', 'Pending', 'Preparing', 'Ready', 'Delivered'];
 
+// Maps each filter tab to the backend status values it should surface. The real
+// Order.status enum is created → confirmed → ready → billed → paid (online orders
+// start 'pending'); the UI's tab labels group those raw values. Backend listOrders
+// accepts a comma-separated `status` and turns it into an `{ in: [...] }` filter.
+const TAB_STATUS_GROUPS = {
+  Pending:   ['pending', 'created'],
+  Preparing: ['preparing', 'confirmed'],
+  Ready:     ['ready'],
+  Delivered: ['delivered', 'served', 'completed'],
+};
+
+// Live/in-play statuses (used for the header "N live" badge + stats).
+const ACTIVE_STATUSES = ['pending', 'created', 'preparing', 'confirmed', 'ready'];
+
 const STATUS_META = {
+  created:   { color: C.pending,   bg: C.pendingBg },
   pending:   { color: C.pending,   bg: C.pendingBg },
+  confirmed: { color: C.preparing, bg: C.preparingBg },
   preparing: { color: C.preparing, bg: C.preparingBg },
   ready:     { color: C.ready,     bg: C.readyBg },
+  served:    { color: C.delivered, bg: C.deliveredBg },
   delivered: { color: C.delivered, bg: C.deliveredBg },
   cancelled: { color: C.cancelled, bg: C.cancelledBg },
 };
 
-// Phase 3 — Contextual CTA map
+// Phase 3 — Contextual CTA map. Freshly-synced POS orders are 'created', kitchen-
+// accepted orders are 'confirmed'; both advance into the same flow as pending/preparing.
 const STATUS_CTA = {
+  created:   { label: 'Start Preparing →', color: '#F5A623', nextStatus: 'preparing' },
   pending:   { label: 'Start Preparing →', color: '#F5A623', nextStatus: 'preparing' },
+  confirmed: { label: 'Mark Ready →',      color: '#2563eb', nextStatus: 'ready' },
   preparing: { label: 'Mark Ready →',      color: '#2563eb', nextStatus: 'ready' },
   ready:     { label: 'Mark Served ✓',     color: '#00B341', nextStatus: 'served' },
-  served:    { label: 'Generate Bill',      color: '#2563eb', nextStatus: 'billed' },
+  // NOTE: no served→'billed' advance — the status endpoint rejects 'billed' (400).
+  // Billing is a dedicated flow (POST /orders/:id/bill) wired in Phase 3; a served
+  // order is terminal in this list until then.
 };
 
 // Keep legacy NEXT_STATUS for optimistic-update logic (handleAdvance)
 const NEXT_STATUS = {
+  created:   'preparing',
   pending:   'preparing',
+  confirmed: 'ready',
   preparing: 'ready',
   ready:     'served',
-  served:    'billed',
 };
-
-const MOCK_ORDERS = [
-  {
-    id: '1',
-    order_number: '#1042',
-    table_number: '4',
-    order_type: 'dine_in',
-    status: 'pending',
-    total_amount: 1850,
-    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
-    items: [{ name: 'Butter Chicken', qty: 2 }, { name: 'Naan', qty: 4 }],
-  },
-  {
-    id: '2',
-    order_number: '#1041',
-    table_number: 'T/A',
-    order_type: 'takeaway',
-    status: 'preparing',
-    total_amount: 650,
-    created_at: new Date(Date.now() - 12 * 60000).toISOString(),
-    items: [{ name: 'Veg Biryani', qty: 1 }],
-  },
-  {
-    id: '3',
-    order_number: '#1040',
-    table_number: '2',
-    order_type: 'dine_in',
-    status: 'ready',
-    total_amount: 2200,
-    created_at: new Date(Date.now() - 18 * 60000).toISOString(),
-    items: [
-      { name: 'Paneer Tikka', qty: 2 },
-      { name: 'Dal Makhani', qty: 1 },
-      { name: 'Roti', qty: 6 },
-    ],
-  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -189,8 +175,9 @@ function OrdersSkeleton() {
 
 function StatsBar({ orders }) {
   const counts = {
-    pending:   orders.filter((o) => (o.status || '').toLowerCase() === 'pending').length,
-    preparing: orders.filter((o) => (o.status || '').toLowerCase() === 'preparing').length,
+    // 'created' (fresh POS) counts as pending; 'confirmed' (kitchen-accepted) as preparing.
+    pending:   orders.filter((o) => ['pending', 'created'].includes((o.status || '').toLowerCase())).length,
+    preparing: orders.filter((o) => ['preparing', 'confirmed'].includes((o.status || '').toLowerCase())).length,
     ready:     orders.filter((o) => (o.status || '').toLowerCase() === 'ready').length,
   };
 
@@ -361,11 +348,14 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
     opacity: entryOpacity.value,
   }));
 
-  const items   = order.items || [];
+  // Backend listOrders returns `order_items` (array) and a nested `table` relation.
+  const items   = order.order_items || order.items || [];
   const orderId = order.id || order._id;
 
-  const tableLabel = order.table_number
-    ? (order.order_type === 'takeaway' ? 'Takeaway' : `Table ${order.table_number}`)
+  // Read the scalar table_number off the nested table relation (never render the object).
+  const tableNumber = order.table?.table_number ?? order.table_number;
+  const tableLabel = tableNumber
+    ? (order.order_type === 'takeaway' ? 'Takeaway' : `Table ${tableNumber}`)
     : (order.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in');
 
   function handleAdvance() {
@@ -407,7 +397,7 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
           </View>
           {/* Phase 4 — amount typography */}
           <Text style={styles.amount}>
-            ₹{Number(order.total_amount || order.total || 0).toFixed(0)}
+            ₹{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}
           </Text>
           <Text style={[styles.chevron, expanded && styles.chevronUp]}>›</Text>
         </PressCard>
@@ -429,8 +419,10 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
                   <Text style={styles.itemName} numberOfLines={1}>
                     {item.name || item.item_name || 'Item'}
                   </Text>
-                  {item.price != null && (
-                    <Text style={styles.itemPrice}>₹{Number(item.price).toFixed(0)}</Text>
+                  {(item.item_total ?? item.unit_price ?? item.price) != null && (
+                    <Text style={styles.itemPrice}>
+                      ₹{Number(item.item_total ?? item.unit_price ?? item.price).toFixed(0)}
+                    </Text>
                   )}
                 </View>
               ))}
@@ -439,7 +431,7 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
             {/* Footer: total + advance button */}
             <View style={styles.cardFooter}>
               <Text style={styles.totalLabel}>
-                Total: <Text style={styles.amount}>₹{Number(order.total_amount || order.total || 0).toFixed(0)}</Text>
+                Total: <Text style={styles.amount}>₹{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}</Text>
               </Text>
               {/* Phase 2 + 3: PressCard on advance button, contextual CTA label */}
               {canAdvance && (
@@ -492,9 +484,13 @@ export default function Orders() {
     return () => clearTimeout(t);
   }, []);
 
-  const statusParam = activeTab === 'All' ? undefined : activeTab.toLowerCase();
+  // Resolve the active tab to its backend status group so 'created'/'confirmed'
+  // orders surface under Pending/Preparing. listOrders splits a comma-separated
+  // `status` into an `{ in: [...] }` filter.
+  const activeStatuses =
+    activeTab === 'All' ? null : (TAB_STATUS_GROUPS[activeTab] || [activeTab.toLowerCase()]);
   const { data, isLoading, refetch, isRefetching } = useOrders(
-    statusParam ? { status: statusParam } : {}
+    activeStatuses ? { status: activeStatuses.join(',') } : {}
   );
   const { mutate: updateStatusMutation } = useUpdateOrderStatus();
 
@@ -508,20 +504,20 @@ export default function Orders() {
 
   const filtered = React.useMemo(() => {
     let list = displayOrders;
-    if (statusParam) {
-      list = list.filter((o) => (o.status || '').toLowerCase() === statusParam);
+    if (activeStatuses) {
+      list = list.filter((o) => activeStatuses.includes((o.status || '').toLowerCase()));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (o) =>
           (o.order_number || '').toLowerCase().includes(q) ||
-          String(o.table_number || '').toLowerCase().includes(q) ||
+          String(o.table?.table_number ?? o.table_number ?? '').toLowerCase().includes(q) ||
           (o.order_type || '').toLowerCase().includes(q)
       );
     }
     return list;
-  }, [displayOrders, statusParam, search]);
+  }, [displayOrders, activeStatuses, search]);
 
   const handleAdvance = useCallback(
     (orderId, currentStatus, onError) => {
@@ -583,7 +579,7 @@ export default function Orders() {
   }
 
   const liveCount = displayOrders.filter((o) =>
-    ['pending', 'preparing', 'ready'].includes((o.status || '').toLowerCase())
+    ACTIVE_STATUSES.includes((o.status || '').toLowerCase())
   ).length;
 
   const renderItem = useCallback(

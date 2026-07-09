@@ -108,7 +108,7 @@ const QUICK_ACTIONS = [
 
 // ─── Memoized list-item components ─────────────────────────────────────────
 
-const TopItemRow = React.memo(({ item, idx, maxItemCount, colors }) => (
+const TopItemRow = React.memo(({ item, idx, maxItemCount, colors, fmt }) => (
   <View style={[s.topItemRow, { borderBottomColor: colors.border }]}>
     <View style={s.topItemLeft}>
       <Text style={[s.topItemRank, { color: colors.textMuted }]}>{idx + 1}</Text>
@@ -149,7 +149,11 @@ const ORDER_STATUS_COLORS = {
   cancelled:  '#EE0000',
 };
 
-const LiveOrderRow = React.memo(({ order, colors }) => {
+// symbol/locale must be passed in as props — this module-level component has no
+// access to the useCurrency() hook values from the screen scope, and referencing
+// bare `symbol`/`dateLocale` here throws a ReferenceError (red screen) the moment
+// live order rows render.
+const LiveOrderRow = React.memo(({ order, colors, symbol = '', locale }) => {
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#888';
   return (
     <View style={[s.liveOrderRow, { borderBottomColor: colors.border }]}>
@@ -157,7 +161,7 @@ const LiveOrderRow = React.memo(({ order, colors }) => {
       <Text style={[s.liveOrderTable, { color: colors.text }]}>{order.table || 'Takeaway'}</Text>
       <Text style={[s.liveOrderStatus, { color: statusColor }]}>{order.status}</Text>
       <View style={{ flex: 1 }} />
-      <Text style={[s.liveOrderAmount, { color: colors.text }]}>{symbol}{(order.amount || 0).toLocaleString(dateLocale)}</Text>
+      <Text style={[s.liveOrderAmount, { color: colors.text }]}>{symbol}{(order.amount || 0).toLocaleString(locale)}</Text>
       <Text style={[s.liveOrderTime, { color: colors.textMuted }]}>{order.time || ''}</Text>
     </View>
   );
@@ -221,8 +225,8 @@ export default function OwnerHomeScreen() {
     transform: [{ translateY: cardTranslateY.value }],
   }));
 
-  // User display name
-  const userName = user?.name || user?.first_name || 'Owner';
+  // User display name — the auth user carries `full_name` (there is no `name`).
+  const userName = user?.full_name || user?.name || 'Owner';
   const firstName = userName.split(' ')[0];
 
   // Alert count
@@ -425,7 +429,7 @@ export default function OwnerHomeScreen() {
                 <Text style={[s.sectionTitle, { color: colors.text }]}>Live Orders</Text>
               </View>
               {liveStats.recentOrders.slice(0, 5).map((order, idx) => (
-                <LiveOrderRow key={order.id || idx} order={order} colors={colors} />
+                <LiveOrderRow key={order.id || idx} order={order} colors={colors} symbol={symbol} locale={dateLocale} />
               ))}
             </View>
           )}
@@ -444,7 +448,7 @@ export default function OwnerHomeScreen() {
               </View>
             )}
             {topItems.map((item, idx) => (
-              <TopItemRow key={idx} item={item} idx={idx} maxItemCount={maxItemCount} colors={colors} />
+              <TopItemRow key={idx} item={item} idx={idx} maxItemCount={maxItemCount} colors={colors} fmt={fmt} />
             ))}
           </View>
 

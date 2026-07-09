@@ -83,12 +83,13 @@ export default function ApprovalsScreen() {
           text: 'Approve',
           onPress: () => {
             setLocalStatuses((s) => ({ ...s, [item.id]: 'approved' }));
-            approveMutation.mutate({ approvalId: item.id, data: { status: 'approved' } });
+            // outlet_id is REQUIRED by the backend approve schema.
+            approveMutation.mutate({ approvalId: item.id, outletId });
           },
         },
       ]
     );
-  }, []);
+  }, [approveMutation, outletId]);
 
   const handleReject = useCallback((item) => {
     Alert.alert(
@@ -101,12 +102,13 @@ export default function ApprovalsScreen() {
           style: 'destructive',
           onPress: () => {
             setLocalStatuses((s) => ({ ...s, [item.id]: 'rejected' }));
-            rejectMutation.mutate({ approvalId: item.id, data: { status: 'rejected' } });
+            // outlet_id is REQUIRED by the backend reject schema.
+            rejectMutation.mutate({ approvalId: item.id, outletId });
           },
         },
       ]
     );
-  }, []);
+  }, [rejectMutation, outletId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

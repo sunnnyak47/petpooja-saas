@@ -108,6 +108,45 @@ function isEmptyResult(data) {
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 // Backend route: GET /api/dashboard/summary
+//
+// The backend returns a NESTED shape (confirmed in
+// backend/src/modules/dashboard/dashboard.controller.js getSummary):
+//   { date, revenue: { total, currency, paid_orders },
+//     orders: { total, by_status: {created,confirmed,preparing,ready,served,paid,cancelled} },
+//     top_items: [{ menu_item_id, quantity_sold, name }],
+//     hourly_breakdown: [{ hour, revenue, orders }] }
+// dashboard.jsx reads FLAT snake_case fields (today_revenue, total_orders,
+// pending_orders, …). We flatten here — mirroring useOwnerApi's transformDashboard.
+function transformDashboardSummary(raw) {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_DASHBOARD };
+  const byStatus = raw.orders?.by_status || {};
+  const totalOrders = Number(raw.orders?.total ?? 0);
+  const todayRevenue = Number(raw.revenue?.total ?? 0);
+  const paidOrders = Number(raw.revenue?.paid_orders ?? 0);
+
+  const pending = (byStatus.pending || 0) + (byStatus.created || 0);
+  const preparing = (byStatus.preparing || 0) + (byStatus.cooking || 0) + (byStatus.confirmed || 0);
+  const ready = byStatus.ready || 0;
+  const completed = (byStatus.completed || 0) + (byStatus.served || 0) + (byStatus.paid || 0);
+
+  return {
+    today_revenue: todayRevenue,
+    total_orders: totalOrders,
+    pending_orders: pending,
+    preparing_orders: preparing,
+    ready_orders: ready,
+    completed_orders: completed,
+    avg_order_value: paidOrders > 0 ? Math.round(todayRevenue / paidOrders) : 0,
+    revenue_growth: 0, // /dashboard/summary has no comparison window
+    top_items: (raw.top_items || []).map((item) => ({
+      name: item.name || 'Unknown',
+      count: Number(item.quantity_sold ?? item.count ?? 0),
+      revenue: Number(item.revenue ?? 0),
+    })),
+    hourly_revenue: (raw.hourly_breakdown || []).map((h) => Number(h.revenue ?? 0)),
+  };
+}
+
 export function useDashboard() {
   return useQuery({
     queryKey: KEYS.dashboard,
@@ -121,8 +160,8 @@ export function useDashboard() {
     },
     select: (res) => {
       const data = extractData(res);
-      if (isEmptyResult(data)) return EMPTY_DASHBOARD;
-      return data;
+      if (isEmptyResult(data)) return { ...EMPTY_DASHBOARD };
+      return transformDashboardSummary(data);
     },
     staleTime: 15 * 1000, // refresh every 15s for live feel
   });
@@ -155,12 +194,15 @@ export function useUpdateOrderStatus() {
   return useMutation({
     mutationFn: ({ orderId, status, ...extra }) =>
       api.patch(`/orders/${orderId}/status`, { status, ...extra }),
-    // Optimistic update — UI changes before server responds
+    // Optimistic update — UI changes before server responds.
+    // useOrders keys on ['orders', params] (NOT the bare ['orders']), so an exact
+    // getQueryData(['orders']) never matched and the optimistic write silently no-op'd.
+    // Target every ['orders', …] cache via a prefix filter with getQueriesData/setQueriesData.
     onMutate: async ({ orderId, status }) => {
       await qc.cancelQueries({ queryKey: KEYS.orders });
-      const prev = qc.getQueryData(KEYS.orders);
-      qc.setQueryData(KEYS.orders, (old) => {
-        if (!old?.data) return old;
+      const prev = qc.getQueriesData({ queryKey: KEYS.orders });
+      qc.setQueriesData({ queryKey: KEYS.orders }, (old) => {
+        if (!old?.data || !Array.isArray(old.data)) return old;
         return {
           ...old,
           data: old.data.map((o) =>
@@ -171,8 +213,10 @@ export function useUpdateOrderStatus() {
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      // Rollback on failure
-      if (ctx?.prev) qc.setQueryData(KEYS.orders, ctx.prev);
+      // Rollback every cache entry we touched.
+      if (ctx?.prev) {
+        for (const [key, data] of ctx.prev) qc.setQueryData(key, data);
+      }
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: KEYS.orders });
@@ -182,13 +226,32 @@ export function useUpdateOrderStatus() {
 }
 
 // ─── Inventory ──────────────────────────────────────────────────────────────
-// Backend route: GET /api/inventory
+// Backend route: GET /api/inventory/stock  (confirmed in inventory.routes.js →
+// inventory.service.js getStock). The bare GET /api/inventory (listItems) returns
+// item DEFINITIONS only — no current_stock — which is why the screen showed all-0
+// and all-low-stock. /stock enriches each item with current_stock + stock_status
+// from the InventoryStock table.
+//
+// Stock/threshold/cost live under different backend names than the screen reads;
+// map them: current_stock (already present), reorder_point ← min_threshold,
+// max_quantity ← max_threshold, price ← cost_per_unit.
+function normalizeStockItem(it) {
+  if (!it || typeof it !== 'object') return it;
+  return {
+    ...it,
+    current_stock: Number(it.current_stock ?? 0),
+    reorder_point: Number(it.min_threshold ?? it.reorder_point ?? 0),
+    max_quantity: Number(it.max_threshold ?? it.max_quantity ?? 0),
+    price: Number(it.cost_per_unit ?? it.price ?? 0),
+  };
+}
+
 export function useInventory(params = {}) {
   return useQuery({
     queryKey: [...KEYS.inventory, params],
     queryFn: async () => {
       try {
-        const res = await api.get('/inventory', { params });
+        const res = await api.get('/inventory/stock', { params });
         return res;
       } catch {
         return null;
@@ -197,16 +260,36 @@ export function useInventory(params = {}) {
     select: (res) => {
       const data = extractData(res);
       if (isEmptyResult(data)) return [];
-      return data;
+      return Array.isArray(data) ? data.map(normalizeStockItem) : data;
     },
     staleTime: 60 * 1000,
   });
 }
 
+// Item-definition edit — PATCH /api/inventory/:itemId (updateItem). Unknown keys
+// are stripped server-side (validate middleware stripUnknown), so callers must
+// pass the real backend field names (cost_per_unit, min_threshold, unit, …).
 export function useUpdateInventory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ itemId, data }) => api.patch(`/inventory/${itemId}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.inventory }),
+  });
+}
+
+// Stock level change — POST /api/inventory/adjust with a signed DELTA (quantity),
+// not an absolute value. This is the only endpoint that mutates InventoryStock;
+// PATCH /inventory/:id does NOT touch stock, which is why +/- was a no-op before.
+export function useAdjustStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ outlet_id, item_id, quantity, reason }) =>
+      api.post('/inventory/adjust', {
+        outlet_id,
+        item_id,
+        quantity,
+        reason: reason || 'Manual adjustment',
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.inventory }),
   });
 }
@@ -292,13 +375,28 @@ export function useCreateInventoryItem() {
 }
 
 // ─── Menu Items ──────────────────────────────────────────────────────────────
-// Backend route: GET /api/menu-items
+// Backend route: GET /api/menu/items  (mounted at /api/menu → menu.routes.js).
+// The old '/menu-items' path 404'd. Responses use `base_price` + `food_type`
+// (confirmed in menu.service.js listMenuItems / menu.validation.js), so we map
+// those to the flat price + is_veg the screens read.
+function normalizeMenuItem(m) {
+  if (!m || typeof m !== 'object') return m;
+  return {
+    ...m,
+    price: Number(m.base_price ?? m.price ?? 0) || 0,
+    is_veg: m.food_type != null ? m.food_type === 'veg' : !!(m.is_veg ?? m.isVeg),
+    category: m.category?.name ?? (typeof m.category === 'string' ? m.category : ''),
+    category_id: m.category_id ?? m.category?.id ?? null,
+    is_available: m.is_available ?? m.isAvailable ?? true,
+  };
+}
+
 export function useMenuItems(params = {}) {
   return useQuery({
     queryKey: [...KEYS.menuItems, params],
     queryFn: async () => {
       try {
-        const res = await api.get('/menu-items', { params });
+        const res = await api.get('/menu/items', { params });
         return res;
       } catch {
         return null;
@@ -307,7 +405,7 @@ export function useMenuItems(params = {}) {
     select: (res) => {
       const data = extractData(res);
       if (isEmptyResult(data)) return [];
-      return data;
+      return Array.isArray(data) ? data.map(normalizeMenuItem) : data;
     },
     staleTime: 60 * 1000,
   });
@@ -316,7 +414,7 @@ export function useMenuItems(params = {}) {
 export function useCreateMenuItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data) => api.post('/menu-items', data),
+    mutationFn: (data) => api.post('/menu/items', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.menuItems }),
   });
 }
@@ -324,15 +422,17 @@ export function useCreateMenuItem() {
 export function useUpdateMenuItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }) => api.patch(`/menu-items/${id}`, data),
+    mutationFn: ({ id, data }) => api.patch(`/menu/items/${id}`, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.menuItems }),
   });
 }
 
 export function useDeleteMenuItem() {
   const qc = useQueryClient();
+  // Backend DELETE /api/menu/items/:id reads outlet_id from the query string.
   return useMutation({
-    mutationFn: (id) => api.delete(`/menu-items/${id}`),
+    mutationFn: ({ id, outlet_id }) =>
+      api.delete(`/menu/items/${id}`, { params: outlet_id ? { outlet_id } : {} }),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.menuItems }),
   });
 }

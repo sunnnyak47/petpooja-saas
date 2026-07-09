@@ -58,7 +58,9 @@ const CHART_PADDING_B = 32;
 const CHART_W = SCREEN_W - 32; // card padding
 
 const RANGES = ['Today', '7D', '30D', '3M'];
-const RANGE_MAP = { Today: 'today', '7D': '7d', '30D': '30d', '3M': '3m' };
+// Backend GET /reports/summary only understands 1d/7d/30d/90d — an unknown key
+// silently defaults to 7d, so 'today'/'3m' quietly returned the wrong window.
+const RANGE_MAP = { Today: '1d', '7D': '7d', '30D': '30d', '3M': '90d' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,14 @@ function fmtShort(n) {
   if (n >= 100000) return `${(n / 100000).toFixed(0)}L`;
   if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
   return `${Math.round(n)}`;
+}
+
+// Turn a backend daily_revenue date (ISO string or "YYYY-MM-DD") into a short axis label.
+function fmtDayLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr).slice(5); // fallback: "07-09"
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
 function buildAreaPath(data, w, h) {
@@ -773,26 +783,60 @@ export default function ReportsScreen() {
   // Missing individual fields fall back to legitimate zeros / empty arrays.
   const data = useMemo(() => {
     const raw = apiData?.data ?? apiData;
-    const hasData = !!(
-      raw &&
-      (raw.total_revenue != null || (raw.revenue_series?.length ?? 0) > 0)
-    );
+    if (!raw || typeof raw !== 'object') return null;
+
+    // Backend GET /reports/summary returns { total_revenue, total_orders,
+    // avg_order_value, top_items:[{name,count,revenue}], daily_revenue:[{date,revenue,...}] }
+    // (confirmed in backend/src/modules/reports/reports.routes.js /summary).
+    // The chart reads revenue_series/revenue_labels → derive them from daily_revenue.
+    const daily = Array.isArray(raw.daily_revenue) ? raw.daily_revenue : [];
+    const revenue_series = daily.map((d) => Number(d.revenue ?? d.total ?? 0));
+    const revenue_labels = daily.map((d) => fmtDayLabel(d.date));
+
+    // top_items arrive as { name, count, revenue }; TopItemRow reads `qty`.
+    const top_items = (Array.isArray(raw.top_items) ? raw.top_items : []).map((t, i) => ({
+      id: t.menu_item_id ?? t.id ?? i,
+      name: t.name ?? 'Unknown',
+      revenue: Number(t.revenue ?? 0),
+      qty: Number(t.count ?? t.quantity_sold ?? t.total_quantity ?? 0),
+    }));
+
+    const totalRevenue = Number(raw.total_revenue ?? 0);
+    const totalOrders = Number(raw.total_orders ?? 0);
+
+    // Best day = the highest-revenue day in the real trend.
+    let best_day = '—';
+    if (daily.length) {
+      const top = daily.reduce((a, b) =>
+        Number(b.revenue ?? 0) > Number(a.revenue ?? 0) ? b : a
+      );
+      best_day = fmtDayLabel(top.date);
+    }
+
+    const hasData =
+      totalRevenue > 0 ||
+      totalOrders > 0 ||
+      revenue_series.some((v) => v > 0) ||
+      top_items.length > 0;
     if (!hasData) return null;
+
     return {
-      revenue_series: [],
-      revenue_labels: [],
-      total_revenue: 0,
-      total_orders: 0,
-      avg_order_value: 0,
-      best_day: '—',
+      revenue_series,
+      revenue_labels,
+      total_revenue: totalRevenue,
+      total_orders: totalOrders,
+      avg_order_value: Number(raw.avg_order_value ?? 0),
+      best_day,
+      // /reports/summary carries no comparison window → honest zero deltas.
       revenue_change: 0,
       orders_change: 0,
       avg_order_change: 0,
       best_day_change: 0,
+      // No real source for order-type mix or a weekly peak-hours grid in this
+      // endpoint → keep empty and hide those sections (never fabricate).
       order_types: [],
-      top_items: [],
+      top_items,
       peak_hours: [],
-      ...raw,
     };
   }, [apiData]);
 
@@ -905,17 +949,21 @@ export default function ReportsScreen() {
             </Animated.View>
 
             {/* ── Order Type Donut ───────────────────────────────── */}
-            <Animated.View
-              style={s.card}
-              entering={Platform.OS !== 'web' ? FadeInDown.delay(200).duration(400) : undefined}
-            >
-              <SectionHeader title="Order Mix" subtitle="by type" />
-              <DonutChart
-                key={`donut-${range}-${refreshKey}`}
-                segments={orderTypeSegments}
-                total={data.total_orders ?? 0}
-              />
-            </Animated.View>
+            {/* Hidden until a real order-type-mix source is wired — /reports/summary
+                doesn't provide one, and we never fabricate segments. */}
+            {orderTypeSegments.length > 0 && (
+              <Animated.View
+                style={s.card}
+                entering={Platform.OS !== 'web' ? FadeInDown.delay(200).duration(400) : undefined}
+              >
+                <SectionHeader title="Order Mix" subtitle="by type" />
+                <DonutChart
+                  key={`donut-${range}-${refreshKey}`}
+                  segments={orderTypeSegments}
+                  total={data.total_orders ?? 0}
+                />
+              </Animated.View>
+            )}
 
             {/* ── Top Items ──────────────────────────────────────── */}
             <Animated.View
@@ -938,31 +986,35 @@ export default function ReportsScreen() {
             </Animated.View>
 
             {/* ── Peak Hours Heatmap ─────────────────────────────── */}
-            <Animated.View
-              style={[s.card, { overflow: 'hidden' }]}
-              entering={Platform.OS !== 'web' ? FadeInDown.delay(300).duration(400) : undefined}
-            >
-              <SectionHeader title="Peak Hours" subtitle="Mon–Sun · 8am–10pm" />
-              <PeakHeatmap
-                key={`heat-${range}-${refreshKey}`}
-                data={data.peak_hours ?? []}
-              />
-              {/* Color scale legend */}
-              <View style={s.heatLegend}>
-                <Text style={s.heatLegendText}>Low</Text>
-                <LinearGradient
-                  colors={[
-                    `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.05)`,
-                    `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.4)`,
-                    colors.accent,
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={s.heatGradBar}
+            {/* Hidden until a real weekly peak-hours grid is wired — /reports/summary
+                doesn't provide one. */}
+            {(data.peak_hours?.length ?? 0) > 0 && (
+              <Animated.View
+                style={[s.card, { overflow: 'hidden' }]}
+                entering={Platform.OS !== 'web' ? FadeInDown.delay(300).duration(400) : undefined}
+              >
+                <SectionHeader title="Peak Hours" subtitle="Mon–Sun · 8am–10pm" />
+                <PeakHeatmap
+                  key={`heat-${range}-${refreshKey}`}
+                  data={data.peak_hours ?? []}
                 />
-                <Text style={s.heatLegendText}>High</Text>
-              </View>
-            </Animated.View>
+                {/* Color scale legend */}
+                <View style={s.heatLegend}>
+                  <Text style={s.heatLegendText}>Low</Text>
+                  <LinearGradient
+                    colors={[
+                      `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.05)`,
+                      `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.4)`,
+                      colors.accent,
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={s.heatGradBar}
+                  />
+                  <Text style={s.heatLegendText}>High</Text>
+                </View>
+              </Animated.View>
+            )}
           </>
         ) : (
           /* ── Empty state — no fabricated numbers ─────────────── */

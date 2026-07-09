@@ -175,8 +175,10 @@ export default function AlertsScreen() {
   const markAllRead      = useMarkAllAlertsRead();
   const dismissAlert     = useDismissAlert();
 
-  // Use API data with safe defaults
-  const sourceAlerts = data || [];
+  // Use API data with safe defaults. MUST be memoized: the re-seed effect below
+  // depends on sourceAlerts, so a fresh `data || []` array every render would
+  // retrigger setLocalAlerts → re-render → new array → infinite loop.
+  const sourceAlerts = useMemo(() => data || [], [data]);
 
   // Use local state for optimistic updates, seed from source
   const alerts = useMemo(() => {
@@ -222,9 +224,10 @@ export default function AlertsScreen() {
       setLocalAlerts((prev) =>
         (prev || []).map((a) => (a.id === alertId ? { ...a, read: true } : a)),
       );
-      markAlertRead.mutate({ alertId });
+      // outlet_id is REQUIRED by the backend mark-read schema.
+      markAlertRead.mutate({ alertId, outletId });
     },
-    [markAlertRead],
+    [markAlertRead, outletId],
   );
 
   // Dismiss an alert — remove from list optimistically

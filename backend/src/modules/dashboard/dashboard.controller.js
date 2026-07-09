@@ -51,7 +51,7 @@ async function getSummary(req, res, next) {
             created_at: { gte: todayStart, lte: todayEnd },
           },
         },
-        _sum: { quantity: true },
+        _sum: { quantity: true, item_total: true },
         orderBy: { _sum: { quantity: 'desc' } },
         take: 5,
       }),
@@ -81,6 +81,8 @@ async function getSummary(req, res, next) {
     let topItems = topItemsRaw.map((r) => ({
       menu_item_id: r.menu_item_id,
       quantity_sold: Number(r._sum.quantity) || 0,
+      // Additive: per-item revenue = sum of this item's order-item line totals in the window
+      revenue: Number(r._sum.item_total) || 0,
       name: null,
     }));
     try {

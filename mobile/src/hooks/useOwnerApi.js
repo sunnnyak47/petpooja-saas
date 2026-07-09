@@ -108,12 +108,31 @@ function transformAlerts(raw) {
       ? (() => { try { return JSON.parse(alert.evidence); } catch { return {}; } })()
       : (alert.evidence || {});
 
+    // Approval status: the backend fraudAlert has NO `status` column. The
+    // approve/reject flow marks `is_resolved = true` and stores the outcome in
+    // `resolved_note` as a JSON string like { status: 'APPROVED'|'REJECTED', ... }.
+    // Derive a lowercased status so the Approvals screen (pending/approved/rejected)
+    // renders the correct action buttons instead of always falling through to
+    // "Rejected".
+    let status = 'pending';
+    if (alert.is_resolved) {
+      let resolvedStatus = '';
+      if (typeof alert.resolved_note === 'string') {
+        try { resolvedStatus = (JSON.parse(alert.resolved_note)?.status || '').toUpperCase(); }
+        catch { resolvedStatus = ''; }
+      } else if (alert.resolved_note && typeof alert.resolved_note === 'object') {
+        resolvedStatus = (alert.resolved_note.status || '').toUpperCase();
+      }
+      status = resolvedStatus === 'REJECTED' ? 'rejected' : 'approved';
+    }
+
     return {
       id: alert.id,
       type: typeMap[alert.alert_type] || alert.alert_type?.toLowerCase() || 'system',
       title: alert.title || '',
       description: alert.description || '',
       severity: alert.severity || 'low',
+      status,
       time: formatRelativeTime(alert.created_at),
       read: !!alert.is_read,
       staff: alert.staff?.full_name || evidence.staff_name || null,
@@ -515,6 +534,49 @@ function transformTaxSummary(raw) {
   };
 }
 
+/**
+ * Wastage logs: backend (inventory.service.getWastageLogs) returns an array of
+ * WastageLog rows with `include: { inventory_item: true }`. Real fields:
+ *   { id, quantity, reason, created_at, inventory_item: { name, unit } }
+ * There is NO cost column on WastageLog and logged_by is a bare user id (no user
+ * relation is loaded), so cost and staff name are genuinely unavailable.
+ * Screen previously read w.item/w.qty/w.cost — none of which the backend sends.
+ */
+function transformWastageLogs(raw) {
+  if (!raw) return [];
+  const items = Array.isArray(raw) ? raw : (raw.items || raw.records || []);
+  return items.map((w) => ({
+    id: w.id,
+    item: w.inventory_item?.name || w.name || 'Unknown item',
+    qty: w.quantity ?? 0,
+    unit: w.inventory_item?.unit || w.unit || '',
+    reason: w.reason || '',
+    // WastageLog has no cost column — cost is genuinely unavailable, not ₹0.
+    cost: null,
+    date: formatRelativeTime(w.created_at),
+    staff: null, // logged_by is a bare id; no user relation is loaded server-side
+  }));
+}
+
+/**
+ * Parse a settings "section" blob returned by GET /ho/settings?section=<name>.
+ * The backend stores each section as a single OutletSetting row whose
+ * setting_value is a JSON STRING (see useSetGoal/useUpdateAlertPreferences which
+ * write `{ [section]: JSON.stringify(data) }`). GET returns a flat object like
+ * `{ goals: '<json string>' }`, so we must unwrap the section key and JSON.parse
+ * it. Returns {} when nothing is saved yet.
+ */
+function parseSettingsSection(raw, key) {
+  if (!raw || typeof raw !== 'object') return {};
+  const val = raw[key];
+  if (val == null) return {};
+  if (typeof val === 'string') {
+    try { return JSON.parse(val); } catch { return {}; }
+  }
+  if (typeof val === 'object') return val;
+  return {};
+}
+
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
 export function useOwnerDashboard(outletId) {
@@ -545,12 +607,20 @@ export function useAlertBadges(outletId) {
           params: { outlet_id: outletId },
         });
         const raw = unwrap(res);
-        // Transform to { totalAlerts, voids, refunds, lowStock }
+        // Derive true per-type counts from by_type (NOT by_severity, which is
+        // high/medium buckets, not void/refund counts). Low stock isn't tracked
+        // by fraud stats — omit it so the Alerts screen's client-side fallback
+        // (computed from the merged alert list) supplies the real count.
+        const byType = Object.fromEntries(
+          (raw?.by_type || []).map((t) => [t.type, t.count])
+        );
         return {
           totalAlerts: raw?.total || raw?.unread || 0,
-          voids: raw?.by_severity?.high || 0,
-          refunds: raw?.by_severity?.medium || 0,
-          lowStock: 0, // fraud stats don't track low stock
+          voids:
+            (byType.VOID_ABUSE || 0) +
+            (byType.QUICK_CANCEL || 0) +
+            (byType.EXCESSIVE_CANCELLATIONS || 0),
+          refunds: byType.REFUND_PATTERN || 0,
         };
       } catch {
         return {};
@@ -623,12 +693,13 @@ export function useOwnerAlerts(outletId, filters = {}) {
 export function useMarkAlertRead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ alertId }) => {
+    mutationFn: ({ alertId, outletId, outlet_id }) => {
       // Low-stock pseudo-alerts are client-only — no backend call needed
       if (String(alertId).startsWith('low_stock_') || String(alertId).startsWith('mock_')) {
         return Promise.resolve({ success: true });
       }
-      return api.patch(`/fraud/alerts/${alertId}/read`);
+      // markReadSchema requires outlet_id in the body → omitting it → 400.
+      return api.patch(`/fraud/alerts/${alertId}/read`, { outlet_id: outletId ?? outlet_id });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['owner-alerts'] });
@@ -673,7 +744,9 @@ export function useAlertPreferences(outletId) {
         const res = await api.get('/ho/settings', {
           params: { outlet_id: outletId, section: 'alert_preferences' },
         });
-        return unwrap(res) || {};
+        // The section is stored as a JSON string under the `alert_preferences`
+        // key — parse it or every toggle falls back to its default.
+        return parseSettingsSection(unwrap(res), 'alert_preferences');
       } catch {
         return {};
       }
@@ -916,7 +989,7 @@ export function useWastageLogs(outletId) {
         const res = await api.get('/inventory/wastage', {
           params: { outlet_id: outletId },
         });
-        return unwrap(res) || [];
+        return transformWastageLogs(unwrap(res));
       } catch {
         return [];
       }
@@ -972,10 +1045,14 @@ export function useApprovals(outletId) {
     queryKey: OWNER_KEYS.approvals(outletId),
     queryFn: async () => {
       try {
+        // NOTE: backend listAlerts applies alert_type as an exact-equality filter
+        // (no comma/IN splitting), so passing 'DISCOUNT_ABUSE,VOID_ABUSE' matches
+        // nothing → permanently empty. Fetch all, transform, then filter client-side.
         const res = await api.get('/fraud/alerts', {
-          params: { outlet_id: outletId, alert_type: 'DISCOUNT_ABUSE,VOID_ABUSE' },
+          params: { outlet_id: outletId, limit: 100 },
         });
-        return transformAlerts(unwrap(res));
+        const all = transformAlerts(unwrap(res));
+        return all.filter((a) => a.type === 'discount' || a.type === 'void');
       } catch {
         return [];
       }
@@ -985,12 +1062,13 @@ export function useApprovals(outletId) {
   });
 }
 
-// Fix 3: useApproveRequest — call POST /fraud/alerts/:id/approve with { note }
+// Fix 3: useApproveRequest — POST /fraud/alerts/:id/approve. approveAlertSchema
+// REQUIRES outlet_id in the body; without it the request 400s.
 export function useApproveRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ approvalId, note }) =>
-      api.post(`/fraud/alerts/${approvalId}/approve`, { note }),
+    mutationFn: ({ approvalId, outletId, outlet_id, note }) =>
+      api.post(`/fraud/alerts/${approvalId}/approve`, { outlet_id: outletId ?? outlet_id, note }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['owner-approvals'] });
       qc.invalidateQueries({ queryKey: ['owner-alerts'] });
@@ -999,12 +1077,13 @@ export function useApproveRequest() {
   });
 }
 
-// Fix 4: useRejectRequest — call POST /fraud/alerts/:id/reject with { note }
+// Fix 4: useRejectRequest — POST /fraud/alerts/:id/reject. rejectAlertSchema
+// REQUIRES outlet_id in the body; without it the request 400s.
 export function useRejectRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ approvalId, note }) =>
-      api.post(`/fraud/alerts/${approvalId}/reject`, { note }),
+    mutationFn: ({ approvalId, outletId, outlet_id, note }) =>
+      api.post(`/fraud/alerts/${approvalId}/reject`, { outlet_id: outletId ?? outlet_id, note }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['owner-approvals'] });
       qc.invalidateQueries({ queryKey: ['owner-alerts'] });
@@ -1063,7 +1142,9 @@ export function useGoals(outletId) {
         const res = await api.get('/ho/settings', {
           params: { outlet_id: outletId, section: 'goals' },
         });
-        return unwrap(res) || {};
+        // The goals blob is stored as a JSON string under the `goals` key — parse
+        // it or the screen falls back to zeroed DEFAULT_GOALS.
+        return parseSettingsSection(unwrap(res), 'goals');
       } catch {
         return {};
       }

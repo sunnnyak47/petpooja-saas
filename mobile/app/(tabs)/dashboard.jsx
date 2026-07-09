@@ -675,13 +675,21 @@ export default function Dashboard() {
     };
   }, [rawData]);
 
+  // The API normalizer always returns numeric fields (0 for an empty outlet), so a
+  // "field present" check would always pass and mask the honest empty state. Key
+  // off real activity instead — revenue, orders, or any live pipeline count.
   const hasData = useMemo(() => {
     const api = rawData?.data || rawData || {};
+    const num = (...vals) => vals.reduce((acc, v) => acc + (Number(v) || 0), 0);
     return (
-      api.todayRevenue != null ||
-      api.today_revenue != null ||
-      api.totalOrders != null ||
-      api.total_orders != null
+      num(api.todayRevenue, api.today_revenue) > 0 ||
+      num(api.totalOrders, api.total_orders) > 0 ||
+      num(
+        api.pendingOrders, api.pending_orders,
+        api.preparingOrders, api.preparing_orders,
+        api.readyOrders, api.ready_orders,
+        api.completedOrders, api.completed_orders,
+      ) > 0
     );
   }, [rawData]);
 

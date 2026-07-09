@@ -76,10 +76,10 @@ export default function ProfileScreen() {
         <View style={[s.avatarCard, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <View style={[s.avatar, { backgroundColor: roleColor + '20' }]}>
             <Text style={[s.avatarLetter, { color: roleColor }]}>
-              {(user?.name || 'O').charAt(0).toUpperCase()}
+              {(user?.full_name || 'O').charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Text style={[s.userName, { color: colors.text }]}>{user?.name || 'Owner'}</Text>
+          <Text style={[s.userName, { color: colors.text }]}>{user?.full_name || 'Owner'}</Text>
           <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email || 'owner@petpooja.com'}</Text>
           <View style={[s.roleBadge, { backgroundColor: roleColor + '15' }]}>
             <Text style={[s.roleText, { color: roleColor }]}>
@@ -91,7 +91,7 @@ export default function ProfileScreen() {
         {/* Account Section */}
         <Text style={[s.sectionLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
         <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingsRow icon="person" label="Name" value={user?.name || '—'} chevron={false} colors={colors} />
+          <SettingsRow icon="person" label="Name" value={user?.full_name || '—'} chevron={false} colors={colors} />
           <SettingsRow icon="mail" label="Email" value={user?.email || '—'} chevron={false} colors={colors} />
           <SettingsRow icon="call" label="Phone" value={user?.phone || '—'} chevron={false} colors={colors} />
         </View>

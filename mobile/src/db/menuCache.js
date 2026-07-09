@@ -45,9 +45,19 @@ export function cacheMenu(outletId, categories, items) {
           item.category_id ?? item.categoryId,
           outletId,
           item.name,
-          item.price ?? 0,
-          item.is_available ?? item.isAvailable ?? 1,
-          item.is_veg ?? item.isVeg ?? 0,
+          // Backend field is `base_price` (Prisma Decimal → serialized as string);
+          // the old mapper read `item.price` which never exists → every item cached ₹0.
+          Number(item.base_price ?? item.price ?? 0) || 0,
+          (item.is_available ?? item.isAvailable ?? true) ? 1 : 0,
+          // Backend encodes veg/non-veg as `food_type` ('veg' | 'non_veg' | 'egg'),
+          // not a boolean. The old mapper read `item.is_veg` (absent) → every item
+          // cached as non-veg. Derive the flag from food_type, keeping the boolean
+          // fallback for any pre-mapped payloads.
+          (item.food_type != null
+            ? item.food_type === 'veg'
+            : (item.is_veg ?? item.isVeg ?? false))
+            ? 1
+            : 0,
           item.image_url ?? item.imageUrl ?? null,
           JSON.stringify(item.variants ?? item.variants_json ?? []),
           JSON.stringify(item.addons ?? item.addons_json ?? []),
@@ -103,12 +113,19 @@ export function getCachedCategories(outletId) {
  * @param {string} [categoryId] - Optional category filter
  * @returns {Array} Array of item objects with parsed variants/addons
  */
-export function getCachedItems(outletId, categoryId) {
+export function getCachedItems(outletId, categoryId, includeUnavailable = false) {
   const db = getDb();
 
   try {
-    let query = `SELECT * FROM menu_items WHERE outlet_id = ? AND is_available = 1`;
+    // POS ordering wants available-only; the MENU MANAGEMENT screen must see
+    // out-of-stock items too (else they vanish and the "Out of Stock" count is
+    // always 0, and an item toggled unavailable can never be toggled back).
+    let query = `SELECT * FROM menu_items WHERE outlet_id = ?`;
     const params = [outletId];
+
+    if (!includeUnavailable) {
+      query += ' AND is_available = 1';
+    }
 
     if (categoryId) {
       query += ' AND category_id = ?';
