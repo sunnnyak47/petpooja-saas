@@ -2,11 +2,15 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import { getAccessToken, getRefreshToken, setAccessToken, clearTokens } from './tokenStore';
 
-// Use local backend in dev (if configured), Render in production
+// Resolve the API base URL. Precedence:
+//   1. EXPO_PUBLIC_API_URL env var (per-build override)
+//   2. app.json expo.extra.apiUrl (configurable default)
+//   3. Hardcoded Render production URL (final fallback)
+// Lets the app target a local/staging backend for testing without a code change.
 const BASE_URL =
-  __DEV__ && Constants.expoConfig?.extra?.apiUrl
-    ? Constants.expoConfig.extra.apiUrl
-    : 'https://petpooja-saas.onrender.com/api';
+  process.env.EXPO_PUBLIC_API_URL ||
+  Constants.expoConfig?.extra?.apiUrl ||
+  'https://petpooja-saas.onrender.com/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

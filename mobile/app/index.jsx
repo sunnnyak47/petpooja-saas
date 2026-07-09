@@ -5,8 +5,16 @@ import { useAppMode } from '../src/context/AppModeContext';
 import { View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Roles that get the mode-selection screen (POS vs Owner)
-const OWNER_ROLES = ['owner', 'super_admin'];
+// Roles that get the two-surface experience (POS vs Owner) and the mode picker.
+const OWNER_ROLES = ['owner', 'super_admin', 'manager'];
+
+// Single source of truth for the default surface when the user has NOT saved a
+// mode yet. POS-only roles (cashier / waiter / kitchen) always land in POS;
+// owner-capable roles return null so the onboarding / mode-select flow runs.
+function defaultModeForRole(role) {
+  if (OWNER_ROLES.includes(role)) return null;
+  return 'pos';
+}
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -14,34 +22,39 @@ export default function Index() {
   const [onboardingDone, setOnboardingDone] = useState(null);
 
   useEffect(() => {
-    AsyncStorage.getItem('onboarding_complete').then((val) => {
-      setOnboardingDone(val === 'true');
-    });
+    AsyncStorage.getItem('onboarding_complete')
+      .then((val) => setOnboardingDone(val === 'true'))
+      // If storage is unreadable, treat as "not onboarded" rather than hang the
+      // gate forever on a blank spinner — the router can then proceed safely.
+      .catch(() => setOnboardingDone(false));
   }, []);
 
   if (loading || modeLoading || onboardingDone === null) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#000000" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
 
-  // Not logged in → login
+  // Not logged in → login.
   if (!user) return <Redirect href="/login" />;
 
-  // Cashier / waiter → POS only (no mode picker)
+  // Effective mode: saved preference first, else a role-derived default.
+  const effectiveMode = mode || defaultModeForRole(user.role);
+
+  // POS-only roles (cashier / waiter / kitchen) → straight to POS, no picker.
   if (!OWNER_ROLES.includes(user.role)) {
     return <Redirect href="/(tabs)/dashboard" />;
   }
 
-  // Owner / super_admin with a saved mode preference → go straight there
-  if (mode === 'owner') return <Redirect href="/(owner)/home" />;
-  if (mode === 'pos') return <Redirect href="/(tabs)/dashboard" />;
+  // Owner-capable role with a saved / resolved mode → go straight there.
+  if (effectiveMode === 'owner') return <Redirect href="/(owner)/home" />;
+  if (effectiveMode === 'pos') return <Redirect href="/(tabs)/dashboard" />;
 
-  // First-time owner who hasn't seen onboarding → show onboarding
-  if (!onboardingDone && !mode) return <Redirect href="/onboarding" />;
+  // First-time owner-capable user who hasn't seen onboarding → onboarding.
+  if (!onboardingDone) return <Redirect href="/onboarding" />;
 
-  // First time → show mode picker
+  // Onboarded but no mode chosen yet → mode picker.
   return <Redirect href="/mode-select" />;
 }

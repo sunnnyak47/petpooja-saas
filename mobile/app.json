@@ -59,6 +59,7 @@
       "@sentry/react-native"
     ],
     "extra": {
+      "apiUrl": "https://petpooja-saas.onrender.com/api",
       "router": {},
       "eas": {
         "projectId": "934fae42-3d3a-4767-8bc1-a13992144aec"

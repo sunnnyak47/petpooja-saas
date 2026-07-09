@@ -118,7 +118,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      router.replace('/(tabs)/dashboard');
+      // Delegate routing to the index router (app/index.jsx) — it is the single
+      // authority that picks owner vs POS surface from role + saved app_mode,
+      // and handles the onboarding / mode-select flow. Previously this hard-
+      // routed EVERYONE to the POS dashboard, ignoring role and saved mode.
+      router.replace('/');
     } catch (err) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {

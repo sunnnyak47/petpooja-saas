@@ -14,6 +14,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const lastActivityRef = useRef(Date.now());
+  // Track the current user id in a ref so logout stays a stable callback while
+  // still able to clear that user's scoped app_mode key.
+  const userIdRef = useRef(null);
+  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   // Update activity timestamp on any user interaction
   const touchActivity = useCallback(() => {
@@ -21,8 +25,17 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Best-effort server-side logout (token blacklist). Route exists at
+    // POST /api/auth/logout; run it BEFORE clearing tokens so the auth header
+    // is still attached. Never let a network/timeout error block local logout.
+    try { await api.post('/auth/logout', {}, { timeout: 8000 }); } catch (_) {}
     await clearTokens();
     await AsyncStorage.removeItem('auth_user').catch(() => {});
+    // Clear this user's scoped app_mode so a different account on the same
+    // device isn't routed to the previous user's surface. (Key format mirrors
+    // AppModeContext.appModeKey — kept inline to avoid a circular import.)
+    const uid = userIdRef.current;
+    if (uid) await AsyncStorage.removeItem(`app_mode:${uid}`).catch(() => {});
     setToken(null);
     setUser(null);
   }, []);

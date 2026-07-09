@@ -51,7 +51,10 @@ export function SyncProvider({ children }) {
     lastError: null,
   });
 
-  const engineInitRef = useRef(false);
+  // Stores the outletId the SyncEngine is currently initialized for (or null).
+  // Tracking the id — not a boolean — lets us detect an outlet switch and
+  // re-scope the engine + prefetch to the new outlet.
+  const engineInitRef = useRef(null);
   const unsubscribeRef = useRef(null);
   const mountedRef = useRef(true);
 
@@ -75,21 +78,72 @@ export function SyncProvider({ children }) {
     };
   }, []);
 
-  // Step 2 & 3 & 4: Initialize SyncEngine and prefetch when outlet + user are available
+  // Step 2 & 3 & 4: Initialize SyncEngine and prefetch when outlet + user are
+  // available. Re-runs whenever outletId changes so the engine + prefetch are
+  // re-scoped to the newly selected outlet (owner switching outlets).
   useEffect(() => {
-    if (!outletId || !user?.id) return;
-    if (engineInitRef.current) return; // Already initialized for this session
+    // Composite identity: re-scope (and re-init) whenever EITHER the outlet or
+    // the signed-in user changes. null when logged out or no outlet selected.
+    const initKey = outletId && user?.id ? `${outletId}::${user.id}` : null;
+
+    // Logged out / no outlet → tear down any live engine so auto-sync (interval,
+    // NetInfo/AppState listeners, retry timers) stops firing against a cleared
+    // token. SyncProvider sits above the router so it never unmounts on logout.
+    if (!initKey) {
+      if (engineInitRef.current) {
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+        const eng = getSyncEngine();
+        if (eng) {
+          try { eng.destroy(); } catch { /* silent */ }
+        }
+        engineInitRef.current = null;
+        setIsReady(false);
+      }
+      return;
+    }
+    // Already initialized for THIS outlet+user — nothing to do (prevents double
+    // initialization for the same identity, e.g. StrictMode / user churn).
+    if (engineInitRef.current === initKey) return;
 
     let active = true;
+    const targetOutletId = outletId;
+    const targetUserId = user.id;
 
     (async () => {
       try {
         const SyncEngine = getSyncEngine();
 
-        // Initialize the sync engine
+        // If the engine was initialized for a DIFFERENT outlet, tear it down
+        // before re-scoping. destroy() stops auto-sync (interval, NetInfo and
+        // AppState listeners, retry timers) and clears engine state.
+        if (
+          engineInitRef.current &&
+          engineInitRef.current !== initKey
+        ) {
+          if (unsubscribeRef.current) {
+            unsubscribeRef.current();
+            unsubscribeRef.current = null;
+          }
+          if (SyncEngine) {
+            try {
+              SyncEngine.destroy();
+            } catch {
+              // Silent — proceed to re-init regardless
+            }
+          }
+          engineInitRef.current = null;
+        }
+
+        // Initialize the sync engine for the target outlet
         if (SyncEngine) {
-          await SyncEngine.init({ outletId, userId: user.id });
-          engineInitRef.current = true;
+          await SyncEngine.init({ outletId: targetOutletId, userId: targetUserId });
+          // Bail if the outlet switched again while init was in flight — a newer
+          // effect run owns the engine now.
+          if (!active) return;
+          engineInitRef.current = initKey;
 
           // Subscribe to status changes
           unsubscribeRef.current = SyncEngine.onStatusChange((status) => {
@@ -109,6 +163,7 @@ export function SyncProvider({ children }) {
 
         // Prefetch outlet data if online
         const netState = await NetInfo.fetch();
+        if (!active) return;
         const online =
           netState.isConnected && netState.isInternetReachable !== false;
 
@@ -116,12 +171,13 @@ export function SyncProvider({ children }) {
           const prefetch = getDataPrefetch();
           if (prefetch && prefetch.prefetchOutletData) {
             try {
-              await prefetch.prefetchOutletData(outletId);
+              await prefetch.prefetchOutletData(targetOutletId);
             } catch (err) {
               console.warn('[SyncProvider] Prefetch failed:', err.message);
             }
           }
         }
+        if (!active) return;
 
         // Start auto-sync
         if (SyncEngine) {
@@ -164,7 +220,7 @@ export function SyncProvider({ children }) {
         } catch {
           // Silent cleanup
         }
-        engineInitRef.current = false;
+        engineInitRef.current = null;
       }
     };
   }, []);
