@@ -644,12 +644,24 @@ export default function TablesScreen() {
         section: t.section || 'Main',
         capacity: t.capacity || 4,
         status: t.status || 'available',
-        // Keep other fields the UI expects with defaults
+        // Keep other fields the UI expects with defaults. The detail modal reads
+        // table.orders/.mergedWith/.number/.amount — without these defaults they
+        // are undefined and `table.orders.reduce(...)` crashes on tap (the mock
+        // seed that used to provide them was removed).
         waiter: null,
         covers: 0,
         order_id: null,
         time_seated: null,
+        orders: [],
+        mergedWith: [],
+        number: t.table_number ?? t.name,
+        amount: 0,
         ...t, // spread any extra fields from cache
+      })).map(row => ({
+        ...row,
+        // Guarantee arrays even if the cache spread above supplied a null.
+        orders: Array.isArray(row.orders) ? row.orders : [],
+        mergedWith: Array.isArray(row.mergedWith) ? row.mergedWith : [],
       }))
     );
   }, [offlineTables]);
@@ -709,8 +721,19 @@ export default function TablesScreen() {
           }
         : t
     ));
-    // Persist status change to SQLite
-    updateStatus(id, newStatus);
+    // Persist status change to SQLite (optimistic mirror) AND push to the
+    // backend table-status endpoint. The hook rolls the local cache/state back
+    // if the server rejects, which re-seeds this screen via offlineTables.
+    Promise.resolve(updateStatus(id, newStatus))
+      .then((res) => {
+        if (res && res.ok === false && !res.offline) {
+          Alert.alert(
+            'Status not saved',
+            'Could not update the table status on the server. The change was reverted.'
+          );
+        }
+      })
+      .catch(() => {});
   }, [updateStatus]);
 
   const handleUpdateCovers = useCallback((id, covers) => {

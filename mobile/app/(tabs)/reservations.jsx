@@ -63,6 +63,39 @@ function dateKey(d) {
   return d.toISOString().split('T')[0];
 }
 
+// The backend requires reservation_time as a strict 24-hour "HH:MM" string
+// (createReservationSchema pattern /^[0-2][0-9]:[0-5][0-9]$/, and the route parses
+// it by splitting on ':'). The field placeholder shows a 12-hour example ("7:30 PM"),
+// so we normalise whatever the user typed — "7:30 PM", "7:30", "19:30", "7 PM",
+// "1930" — into canonical "HH:MM". Returns '' when the input can't be parsed so the
+// caller can reject it instead of sending a corrupt/invalid value.
+function to24hTime(input) {
+  if (!input) return '';
+  const s = String(input).trim().toUpperCase();
+  // "1930" / "930" → HHMM without separator
+  const compact = s.match(/^(\d{3,4})$/);
+  if (compact) {
+    const digits = compact[1].padStart(4, '0');
+    const hh = parseInt(digits.slice(0, 2), 10);
+    const mm = parseInt(digits.slice(2), 10);
+    if (hh > 23 || mm > 59) return '';
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  }
+  const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM)?$/);
+  if (!m) return '';
+  let hh = parseInt(m[1], 10);
+  const mm = m[2] != null ? parseInt(m[2], 10) : 0;
+  const ap = m[3] || null;
+  if (Number.isNaN(hh) || Number.isNaN(mm) || mm > 59) return '';
+  if (ap) {
+    if (hh < 1 || hh > 12) return '';
+    if (ap === 'PM' && hh < 12) hh += 12;
+    if (ap === 'AM' && hh === 12) hh = 0;
+  }
+  if (hh > 23) return '';
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 const TABLES = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8'];
 
 const STATUS_META = {
@@ -264,12 +297,19 @@ export default function ReservationsScreen() {
       return;
     }
 
+    // Normalise the free-text time into strict 24h "HH:MM" the backend accepts.
+    const time24 = to24hTime(form.time);
+    if (!time24) {
+      Alert.alert('Invalid Time', 'Enter a valid time like 19:30 or 7:30 PM.');
+      return;
+    }
+
     const payload = {
       customer_name: form.guestName.trim(),
       customer_phone: form.phone.trim(),
       party_size: form.partySize,
       reservation_date: form.date,
-      reservation_time: form.time.trim(),
+      reservation_time: time24,
       special_requests: form.notes.trim(),
       outlet_id: outletId,
     };
@@ -283,7 +323,7 @@ export default function ReservationsScreen() {
       partySize: form.partySize,
       guests: form.partySize,
       date: form.date,
-      time: form.time.trim(),
+      time: time24,
       status: 'Pending',
       table: form.table,
       notes: form.notes.trim(),
@@ -293,7 +333,7 @@ export default function ReservationsScreen() {
       customer_phone: form.phone.trim(),
       party_size: form.partySize,
       reservation_date: form.date,
-      reservation_time: form.time.trim(),
+      reservation_time: time24,
       special_requests: form.notes.trim(),
     };
 
@@ -515,7 +555,7 @@ export default function ReservationsScreen() {
 
               <FormField label="Date" placeholder="YYYY-MM-DD" value={form.date}
                 onChangeText={v => setForm(f => ({ ...f, date: v }))} />
-              <FormField label="Time *" placeholder="e.g. 7:30 PM" value={form.time}
+              <FormField label="Time *" placeholder="e.g. 19:30 or 7:30 PM" value={form.time}
                 onChangeText={v => setForm(f => ({ ...f, time: v }))} />
 
               {/* Table picker */}

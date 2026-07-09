@@ -650,12 +650,32 @@ export function useEOD(date, outletId) {
   });
 }
 
-// POST /api/reports/eod/lock — finalise & lock the day
+// Close Day is a TWO-STEP flow against the deployed backend:
+//   1) POST /api/reports/eod/save  → upserts an EODReport draft, returns it
+//      (sendSuccess → { success, data: { id, …report, snapshot } }). We need the
+//      report's `id`.
+//   2) POST /api/reports/eod/lock  → finalises & locks, and REQUIRES { outlet_id,
+//      report_id } (lockEODSchema). Posting only { outlet_id, date } 400'd because
+//      report_id is a required UUID.
+// Both routes are confirmed in backend/src/modules/reports/eod.routes.js +
+// eod.validation.js. If /save is missing on an older prod deploy the axios call
+// rejects and the mutation surfaces the error (handled by the caller) instead of
+// silently 400-ing on lock.
 export function useCloseDay() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ outlet_id, date }) =>
-      api.post('/reports/eod/lock', { outlet_id, date }),
+    mutationFn: async ({ outlet_id, date }) => {
+      // Step 1 — save/upsert today's draft to obtain a report_id.
+      const saveRes = await api.post('/reports/eod/save', { outlet_id, date });
+      // api unwraps to the response body: { success, data: report, message }.
+      const report  = saveRes?.data ?? saveRes;
+      const reportId = report?.id ?? report?.report_id;
+      if (!reportId) {
+        throw new Error('Could not save the end-of-day report (no report id returned). Day was not closed.');
+      }
+      // Step 2 — lock using the saved report_id.
+      return api.post('/reports/eod/lock', { outlet_id, report_id: reportId });
+    },
     onSuccess: (_res, vars) => {
       qc.invalidateQueries({ queryKey: [...KEYS.eod, vars.date,   vars.outlet_id] });
       qc.invalidateQueries({ queryKey: [...KEYS.eod, 'today',    vars.outlet_id] });

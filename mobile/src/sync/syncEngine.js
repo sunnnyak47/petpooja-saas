@@ -26,7 +26,6 @@ import {
   getOrderCount,
 } from '../db/offlineOrders';
 import { getDb } from '../db/sqlite';
-import { resolveOrderConflict } from './conflictResolver';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -47,6 +46,12 @@ let _initialized = false;
 let _outletId = null;
 let _userId = null;
 let _isSyncing = false;
+// Dedicated re-entrancy mutex for pushOrders(). The connectivity handler, retry
+// timer, periodic interval, and per-order create trigger can all fire pushOrders
+// at once; without this guard two overlapping pushes could send the SAME queued
+// order to POST /orders/sync concurrently and the server (which cannot dedup our
+// non-uuid local ids) would create a DUPLICATE order.
+let _isPushing = false;
 let _lastSyncAt = null;
 let _lastError = null;
 let _pendingCount = 0;
@@ -206,36 +211,40 @@ async function _pullTables() {
 // ─── Push Operations ──────────────────────────────────────────────────────────
 
 async function _pushBatch(orders) {
-  // Transform local orders to the shape the backend expects
-  const payload = orders.map((order) => ({
-    id: order.id,
-    local_id: order.id,
-    outlet_id: order.outlet_id,
-    table_id: order.table_id,
-    order_type: order.order_type,
-    status: order.status,
-    subtotal: order.subtotal,
-    tax: order.tax,
-    discount: order.discount,
-    total: order.total,
-    customer_id: order.customer_id,
-    source: order.source,
-    notes: order.notes,
-    payment_status: order.payment_status,
-    created_by: order.created_by,
-    created_at: order.created_at,
-    items: (order.items || []).map((item) => ({
-      menu_item_id: item.menu_item_id,
-      item_name: item.item_name,
-      variant_id: item.variant_id,
-      variant_name: item.variant_name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.total_price,
-      notes: item.notes,
-      addons: item.addons || [],
-    })),
-  }));
+  // Transform local orders to the shape POST /orders/sync (syncOfflineOrdersSchema)
+  // actually accepts. Fields not on that schema (subtotal/tax/total/status/…) are
+  // stripped by the server validator, but we keep the payload lean and only emit
+  // keys that validate — notably `notes` (allow('') but NOT null) and `created_by`
+  // (must be a uuid) are omitted when empty so they never trip validation.
+  //
+  // `id` carries our STABLE local id. The server dedups on it via
+  // findUnique({ where: { id } }); combined with the positional response mapping
+  // in _handleSyncResponse this is what keeps a re-push from duplicating.
+  const payload = orders.map((order) => {
+    const entry = {
+      id: order.id,
+      outlet_id: order.outlet_id,
+      order_type: order.order_type,
+      table_id: order.table_id || null,
+      customer_id: order.customer_id || null,
+      source: order.source || 'pos',
+      created_at: order.created_at,
+      items: (order.items || []).map((item) => ({
+        menu_item_id: item.menu_item_id,
+        item_name: item.item_name,
+        variant_id: item.variant_id || null,
+        variant_name: item.variant_name || null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        notes: item.notes || null,
+        addons: item.addons || [],
+      })),
+    };
+    if (order.notes) entry.notes = order.notes;
+    if (order.created_by) entry.created_by = order.created_by;
+    return entry;
+  });
 
   const response = await api.post('/orders/sync', { orders: payload });
 
@@ -243,78 +252,72 @@ async function _pushBatch(orders) {
     throw new Error(response?.message || 'Sync request failed');
   }
 
-  return response.data; // { synced: [...], conflicts: [...], errors: [...] }
+  // Backend returns the results array directly as `data` (order.controller
+  // syncOfflineOrders → sendSuccess(res, results)). Each element mirrors the
+  // request order at the SAME index:
+  //   { id, status: 'synced' }               // id = NEW server order id
+  //   { id: <localId>, status: 'exists' }    // already created on a prior push
+  //   { id: <localId>, status: 'failed', error }
+  return Array.isArray(response.data) ? response.data : (response.data?.results || []);
 }
 
-async function _handleSyncResponse(syncResult, originalOrders) {
-  const { synced = [], conflicts = [], errors = [] } = syncResult;
+/**
+ * Reconcile the POST /orders/sync response with the batch we sent.
+ *
+ * The prod response is a flat ARRAY whose entries line up POSITIONALLY with the
+ * orders we submitted (the service iterates the input array and pushes one result
+ * per order, in order). We therefore correlate by INDEX rather than by id — this
+ * is essential because a 'synced' result returns the NEW server order id (which
+ * bears no relation to our local id), while 'exists'/'failed' echo our local id.
+ *
+ * Idempotency guarantee: a queued order is only ever marked synced once the server
+ * confirms it ('synced' or 'exists'). It is never removed from the queue optimistically,
+ * so a dropped response simply leaves it pending for a later push (never a phantom).
+ *
+ * @param {Array<{id?:string,status?:string,error?:string}>} syncResult
+ * @param {Array<Object>} batch  The exact orders passed to _pushBatch, same order.
+ */
+async function _handleSyncResponse(syncResult, batch) {
+  const results = Array.isArray(syncResult) ? syncResult : [];
 
-  // Mark successfully synced orders
-  for (const syncedEntry of synced) {
-    // synced might be an array of IDs or objects with { id, cloud_id }
-    const localId = typeof syncedEntry === 'string' ? syncedEntry : syncedEntry.local_id || syncedEntry.id;
-    const cloudId = typeof syncedEntry === 'string' ? syncedEntry : syncedEntry.cloud_id || syncedEntry.id;
-    try {
-      markOrderSynced(localId, cloudId);
-    } catch (e) {
-      console.warn('[SyncEngine] Failed to mark order synced:', localId, e.message);
+  results.forEach((result, index) => {
+    const localOrder = batch[index];
+    if (!localOrder) return;
+
+    const status = result?.status;
+
+    // 'synced' → server created it now (result.id is the new server order id).
+    // 'exists' → server already had an order with our id from a prior push; treat
+    //            as success so we stop re-pushing (this is the dedup path).
+    if (status === 'synced' || status === 'exists') {
+      const cloudId = result.id || localOrder.cloud_id || localOrder.id;
+      try {
+        markOrderSynced(localOrder.id, cloudId);
+      } catch (e) {
+        console.warn('[SyncEngine] Failed to mark order synced:', localOrder.id, e.message);
+      }
+      return;
     }
-  }
 
-  // Handle conflicts using conflict resolver
-  for (const conflict of conflicts) {
-    const localOrder = originalOrders.find(
-      (o) => o.id === conflict.local_id || o.id === conflict.id
-    );
-    if (!localOrder) continue;
-
-    const resolution = resolveOrderConflict(localOrder, conflict);
-
-    switch (resolution.action) {
-      case 'mark_synced':
-        try {
-          markOrderSynced(localOrder.id, resolution.cloudId || conflict.cloud_id || conflict.id);
-        } catch (e) {
-          console.warn('[SyncEngine] Failed to mark conflicted order synced:', e.message);
-        }
-        break;
-
-      case 'retry_partial':
-        // Update the order items in SQLite for next retry attempt
-        // For now, increment attempts — the partial items will be sent on next push
-        _setOrderRetry(
-          localOrder.id,
-          (localOrder.sync_attempts || 0) + 1,
-          Date.now() + _getBackoffDelay((localOrder.sync_attempts || 0) + 1)
-        );
-        break;
-
-      case 'abandon':
-        _markOrderAbandoned(localOrder.id, resolution.reason);
-        break;
-
-      default:
-        console.warn('[SyncEngine] Unknown resolution action:', resolution.action);
-    }
-  }
-
-  // Handle errors — increment attempt count and schedule retry
-  for (const error of errors) {
-    const localOrder = originalOrders.find(
-      (o) => o.id === error.local_id || o.id === error.id
-    );
-    if (!localOrder) continue;
-
+    // 'failed' (or anything unexpected) → back off and retry, or abandon after
+    // exhausting attempts. Never mark synced.
     const newAttemptCount = (localOrder.sync_attempts || 0) + 1;
+    const reason = result?.error || `Unexpected sync status: ${status}`;
     if (newAttemptCount >= MAX_RETRY_ATTEMPTS) {
-      markOrderSyncFailed(localOrder.id, `Max retries exceeded: ${error.message || 'Unknown error'}`);
-      // Also mark as abandoned so it's excluded from future queries
+      markOrderSyncFailed(localOrder.id, `Max retries exceeded: ${reason}`);
       _markOrderAbandoned(localOrder.id, `Failed after ${MAX_RETRY_ATTEMPTS} attempts`);
     } else {
-      const nextRetry = Date.now() + _getBackoffDelay(newAttemptCount);
-      _setOrderRetry(localOrder.id, newAttemptCount, nextRetry);
+      _setOrderRetry(
+        localOrder.id,
+        newAttemptCount,
+        Date.now() + _getBackoffDelay(newAttemptCount)
+      );
     }
-  }
+  });
+
+  // A shorter response than the batch means the server never reported on the tail
+  // orders (partial failure). Leave them pending — a later push retries them; they
+  // are still synced=0 so getPendingOrders will pick them up again.
 }
 
 // ─── Auto-Sync Handlers ──────────────────────────────────────────────────────
@@ -554,6 +557,14 @@ export const SyncEngine = {
       return { pushed: 0, failed: 0 };
     }
 
+    // Re-entrancy mutex — prevents concurrent pushes (see _isPushing docs) from
+    // sending the same queued order twice and creating duplicates server-side.
+    if (_isPushing) {
+      console.warn('[SyncEngine] pushOrders already in progress, skipping');
+      return { pushed: 0, failed: 0, skipped: true };
+    }
+    _isPushing = true;
+
     let totalPushed = 0;
     let totalFailed = 0;
 
@@ -608,8 +619,14 @@ export const SyncEngine = {
         try {
           const syncResult = await _pushBatch(batch);
           await _handleSyncResponse(syncResult, batch);
-          totalPushed += syncResult.synced?.length || 0;
-          totalFailed += (syncResult.errors?.length || 0);
+          // Count against the flat results array (positional per batch order):
+          // 'synced'/'exists' → applied, anything else → failed/retry.
+          const results = Array.isArray(syncResult) ? syncResult : [];
+          const okCount = results.filter(
+            (r) => r?.status === 'synced' || r?.status === 'exists'
+          ).length;
+          totalPushed += okCount;
+          totalFailed += Math.max(batch.length, results.length) - okCount;
         } catch (e) {
           console.warn('[SyncEngine] Batch push failed:', e.message);
 
@@ -641,16 +658,20 @@ export const SyncEngine = {
     } catch (e) {
       console.warn('[SyncEngine] pushOrders error:', e.message);
       _lastError = e.message;
+    } finally {
+      // Always release the mutex, even if the batch loop threw.
+      _isPushing = false;
+
+      // Update pending count
+      try {
+        _pendingCount = getOrderCount(_outletId, { synced: 0 });
+      } catch (e) {
+        // Non-critical
+      }
+
+      _notifyListeners();
     }
 
-    // Update pending count
-    try {
-      _pendingCount = getOrderCount(_outletId, { synced: 0 });
-    } catch (e) {
-      // Non-critical
-    }
-
-    _notifyListeners();
     return { pushed: totalPushed, failed: totalFailed };
   },
 
@@ -704,6 +725,7 @@ export const SyncEngine = {
     _outletId = null;
     _userId = null;
     _isSyncing = false;
+    _isPushing = false;
     _lastError = null;
     _pendingCount = 0;
     _lastSyncAt = null;

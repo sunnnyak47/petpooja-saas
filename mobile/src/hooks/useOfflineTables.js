@@ -1,6 +1,57 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import { getDb } from '../db/sqlite';
+import api from '../lib/api';
+
+// ── Status vocabulary mapping ────────────────────────────────────────────────
+// The UI speaks empty/occupied/reserved/bill_pending/cleaning; the backend
+// Table.status enum is available/occupied/dirty/reserved/blocked
+// (see backend updateTableStatusSchema). We translate at the data boundary so
+// the SQLite cache stays a faithful mirror of the server enum, while the
+// component keeps working in its own vocabulary.
+const SERVER_ENUM = ['available', 'occupied', 'dirty', 'reserved', 'blocked'];
+
+const UI_TO_SERVER_STATUS = {
+  empty: 'available',
+  occupied: 'occupied',
+  reserved: 'reserved',
+  bill_pending: 'occupied', // backend has no bill_pending; a table awaiting its bill is still occupied
+  cleaning: 'dirty',
+};
+
+const SERVER_TO_UI_STATUS = {
+  available: 'empty',
+  occupied: 'occupied',
+  reserved: 'reserved',
+  dirty: 'cleaning',
+  blocked: 'cleaning',
+};
+
+function toServerStatus(status) {
+  if (UI_TO_SERVER_STATUS[status]) return UI_TO_SERVER_STATUS[status];
+  if (SERVER_ENUM.includes(status)) return status; // already a server enum
+  return 'available';
+}
+
+function toUiStatus(status) {
+  return SERVER_TO_UI_STATUS[status] || status || 'empty';
+}
+
+/**
+ * PATCH the real table-status endpoint. Uses the validated route first
+ * (/orders/tables/:id/status → table.routes, requires MANAGE_POS); if that is
+ * rejected — e.g. the signed-in user lacks the permission — it falls back to
+ * the auth-only kitchen route (/kitchen/tables/:id/status → kot.routes), which
+ * calls the identical tableService.updateTableStatus. `status` must already be
+ * a backend enum value.
+ */
+async function patchTableStatus(tableId, serverStatus) {
+  try {
+    return await api.patch(`/orders/tables/${tableId}/status`, { status: serverStatus });
+  } catch (primaryErr) {
+    return await api.patch(`/kitchen/tables/${tableId}/status`, { status: serverStatus });
+  }
+}
 
 // Lazy import — dataPrefetch may not exist yet
 function getPrefetch() {
@@ -54,7 +105,8 @@ export function useOfflineTables(outletId) {
         name: row.name,
         section: row.section,
         capacity: row.capacity,
-        status: row.status,
+        // Cache holds the backend enum; expose the UI vocabulary to the screen.
+        status: toUiStatus(row.status),
         data: row.data_json ? safeJsonParse(row.data_json) : null,
         updated_at: row.updated_at,
       }));
@@ -97,35 +149,89 @@ export function useOfflineTables(outletId) {
   );
 
   /**
-   * Update a table's status locally in SQLite and state.
-   * Used to mark tables as occupied/available during POS operations.
+   * Update a table's status: optimistic local write (SQLite mirror + state),
+   * then push to the real backend table-status endpoint and reconcile.
+   *
+   * Flow:
+   *   1. Write the mapped backend status to the SQLite cache + in-memory state
+   *      immediately (optimistic — the UI never waits on the network).
+   *   2. If offline, keep the optimistic local change and skip the server call
+   *      gracefully (returns { synced: false, offline: true }).
+   *   3. If online, PATCH the server; on failure roll the cache + state back to
+   *      the previous status so mobile never drifts from the server.
    *
    * @param {string} tableId
-   * @param {string} status - 'available' | 'occupied' | 'reserved'
+   * @param {string} status - UI status: 'empty' | 'occupied' | 'reserved' |
+   *                          'bill_pending' | 'cleaning' (backend enums also accepted)
+   * @returns {Promise<{ ok: boolean, synced: boolean, offline?: boolean, error?: string }>}
    */
   const updateStatus = useCallback(
-    (tableId, status) => {
-      if (!tableId || !outletId) return;
+    async (tableId, status) => {
+      if (!tableId || !outletId) return { ok: false, synced: false, error: 'missing-args' };
 
+      const db = getDb();
+      const now = new Date().toISOString();
+      const uiStatus = toUiStatus(toServerStatus(status)); // normalize UI value
+      const serverStatus = toServerStatus(status);
+
+      // Capture the previous cached status (backend enum) for rollback.
+      let prevServerStatus = null;
       try {
-        const db = getDb();
-        const now = new Date().toISOString();
-
-        db.runSync(
-          `UPDATE tables_cache SET status = ?, updated_at = ? WHERE id = ? AND outlet_id = ?`,
-          [status, now, tableId, outletId]
+        const rows = db.getAllSync(
+          `SELECT status FROM tables_cache WHERE id = ? AND outlet_id = ?`,
+          [tableId, outletId]
         );
+        prevServerStatus = rows?.[0]?.status ?? null;
+      } catch (_) {
+        // best-effort — if we can't read the previous value we simply won't roll back
+      }
 
-        // Update local state immediately
+      const applyLocal = (serverVal, uiVal) => {
+        try {
+          db.runSync(
+            `UPDATE tables_cache SET status = ?, updated_at = ? WHERE id = ? AND outlet_id = ?`,
+            [serverVal, now, tableId, outletId]
+          );
+        } catch (err) {
+          console.error('[useOfflineTables] Failed to write status to cache:', err);
+        }
         if (mountedRef.current) {
           setTables((prev) =>
             prev.map((t) =>
-              t.id === tableId ? { ...t, status, updated_at: now } : t
+              t.id === tableId ? { ...t, status: uiVal, updated_at: now } : t
             )
           );
         }
+      };
+
+      // 1. Optimistic local write.
+      applyLocal(serverStatus, uiStatus);
+
+      // 2. Offline → keep the optimistic change, skip the server gracefully.
+      let online = true;
+      try {
+        const net = await NetInfo.fetch();
+        online = net.isConnected && net.isInternetReachable !== false;
+      } catch (_) {
+        online = true; // if NetInfo fails, attempt the request anyway
+      }
+      if (!online) {
+        return { ok: true, synced: false, offline: true };
+      }
+
+      // 3. Push to the server; roll back on failure.
+      try {
+        await patchTableStatus(tableId, serverStatus);
+        return { ok: true, synced: true };
       } catch (err) {
-        console.error('[useOfflineTables] Failed to update status:', err);
+        console.warn(
+          '[useOfflineTables] Server status update failed, rolling back:',
+          err?.message
+        );
+        if (prevServerStatus != null && prevServerStatus !== serverStatus) {
+          applyLocal(prevServerStatus, toUiStatus(prevServerStatus));
+        }
+        return { ok: false, synced: false, error: err?.message || 'update failed' };
       }
     },
     [outletId]

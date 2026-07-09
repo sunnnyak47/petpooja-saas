@@ -19,12 +19,14 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { T, R, FS, FW } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
+import { useOutlet } from '../../src/context/OutletContext';
 import { useEOD, useCloseDay } from '../../src/hooks/useApi';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -231,7 +233,10 @@ function LoadingSection() {
 export default function EODScreen() {
   const insets        = useSafeAreaInsets();
   const { user }      = useAuth();
-  const outletId      = user?.outlet_id;
+  // Use the app-wide selected outlet (matches billing/pos/tables) — NOT
+  // user.outlet_id, which can differ after an owner switches outlet and is null
+  // for an owner with no home outlet (which would blank EOD entirely).
+  const { outletId }  = useOutlet();
 
   const todayDate     = new Date();
   const todayStr      = toDateStr(todayDate);
@@ -299,12 +304,18 @@ export default function EODScreen() {
   }, [buildShareText]);
 
   async function handleCloseDay() {
+    setShowCloseModal(false);
     try {
       await closeDayMutation.mutateAsync({ outlet_id: outletId, date: currentStr });
     } catch (err) {
-      // mutation error handled by React Query — refetch will update status
-    } finally {
-      setShowCloseModal(false);
+      // Surface a clear message instead of failing silently. The two-step
+      // save→lock flow can reject if the draft can't be saved or the lock is
+      // refused (e.g. already locked, or /save missing on an older deploy).
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to close the day. Please try again.';
+      Alert.alert('Close Day Failed', msg);
     }
   }
 

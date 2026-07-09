@@ -283,7 +283,7 @@ export default function POSScreen() {
 
   // Menu + tables offline data
   const { categories, items, isLoading: menuLoading, refresh: refreshMenu } = useOfflineMenu(outletId);
-  const { tables, isLoading: tablesLoading } = useOfflineTables(outletId);
+  const { tables, isLoading: tablesLoading, updateStatus: setTableStatus } = useOfflineTables(outletId);
   const { createOrder, isCreating } = useCreateOfflineOrder();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -426,6 +426,19 @@ export default function POSScreen() {
       });
 
       setShowCart(false);
+
+      // The order was punched live to the backend (punch-kot created the order +
+      // KOT and already seized the table server-side). Reflect that occupancy in
+      // the POS picker + Tables screen right away: updateStatus does an optimistic
+      // in-memory + SQLite write and a PATCH /orders/tables/:id/status round-trip.
+      if (order?._online && orderType === 'dine_in' && selectedTable?.id) {
+        try {
+          const res = setTableStatus(selectedTable.id, 'occupied');
+          if (res && typeof res.catch === 'function') res.catch(() => {});
+        } catch (_) {
+          // Non-critical — table cache corrects on next pull.
+        }
+      }
 
       // Auto-print KOT if enabled
       if (autoPrintKot) {
