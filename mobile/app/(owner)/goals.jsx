@@ -33,7 +33,7 @@ const DEFAULT_GOALS = {
 };
 
 
-function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#0070F3', trackColor = '#F0F0F0' }) {
+function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#2563eb', trackColor = '#F0F0F0' }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
@@ -100,7 +100,7 @@ export default function GoalsScreen() {
     setRefreshing(false);
   }, []);
 
-  const goalColor = progress >= 1 ? '#00B341' : progress >= 0.7 ? '#0070F3' : progress >= 0.4 ? '#F5A623' : '#EE0000';
+  const goalColor = progress >= 1 ? '#00B341' : progress >= 0.7 ? '#2563eb' : progress >= 0.4 ? '#F5A623' : '#EE0000';
 
   if (isError) {
     return (
@@ -115,7 +115,7 @@ export default function GoalsScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -280,7 +280,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
   },
-  periodPillActive: { backgroundColor: '#000' },
+  periodPillActive: { backgroundColor: '#2563eb' },
   periodText: { ...TYPE.smallMed, color: '#888' },
   periodTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 14 },

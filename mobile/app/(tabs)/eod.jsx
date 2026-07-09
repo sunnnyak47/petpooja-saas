@@ -274,7 +274,7 @@ export default function EODScreen() {
   const buildShareText = useCallback(() => {
     if (!data) return '';
     return (
-      `*PetPooja EOD Report — ${displayDate(currentDate)}*\n\n` +
+      `*MS-RM EOD Report — ${displayDate(currentDate)}*\n\n` +
       `Revenue: ₹${data.revenue.toLocaleString('en-IN')}\n` +
       `Orders: ${data.orders}\n` +
       `Avg Order: ₹${data.avgOrderValue}\n\n` +
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: T.textPrimary,
+    backgroundColor: '#2563eb',
     borderRadius: R['2xl'],
     paddingVertical: 16,
     marginBottom: 20,
@@ -971,7 +971,7 @@ const styles = StyleSheet.create({
   modalCancelText:  { fontSize: 15, fontWeight: FW.semibold, color: T.textSecondary },
   modalConfirm: {
     flex: 1,
-    backgroundColor: T.textPrimary,
+    backgroundColor: '#2563eb',
     borderRadius: R.xl,
     paddingVertical: 14,
     alignItems: 'center',

@@ -48,11 +48,11 @@ const C = {
   surface2: '#FAFAFA',
   border: '#EAEAEA',
   gold: '#F5A623',
-  indigo: '#0070F3',
+  indigo: '#2563eb',
   success: '#00B341',
   warning: '#F5A623',
   error: '#EE0000',
-  text1: '#000000',
+  text1: '#0f172a',
   text2: '#444444',
   text3: '#888888',
 };
@@ -61,7 +61,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Category Config ─────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { label: 'All', color: '#0070F3' },
+  { label: 'All', color: '#2563eb' },
   { label: 'Vegetables', color: '#4CAF82' },
   { label: 'Grains', color: '#D4A027' },
   { label: 'Dairy', color: '#2196F3' },
@@ -730,8 +730,8 @@ export default function InventoryScreen() {
                 style={[
                   styles.catPill,
                   isActive && {
-                    backgroundColor: '#000000',
-                    borderColor: '#000000',
+                    backgroundColor: '#2563eb',
+                    borderColor: '#e2e8f0',
                   },
                 ]}
                 onPress={() => setActiveCategory(cat.label)}
@@ -1134,12 +1134,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(0,112,243,0.08)',
     borderWidth: 1,
-    borderColor: '#0070F3',
+    borderColor: '#2563eb',
   },
   editReorderText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0070F3',
+    color: '#2563eb',
   },
   editItemBtn: {
     flexDirection: 'row',
@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1266,8 +1266,8 @@ const modalStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   categoryPillActive: {
-    backgroundColor: '#000000',
-    borderColor: '#000000',
+    backgroundColor: '#2563eb',
+    borderColor: '#e2e8f0',
   },
   categoryPillText: {
     fontSize: 12,
@@ -1283,7 +1283,7 @@ const modalStyles = StyleSheet.create({
   },
   saveBtn: {
     height: 48,
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

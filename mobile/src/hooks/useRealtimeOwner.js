@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppState } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OWNER_KEYS } from './useOwnerApi';
+import { getAccessToken } from '../lib/tokenStore';
 
 const WS_URL = 'wss://petpooja-saas.onrender.com/ws';
 
@@ -19,7 +19,7 @@ export function useRealtimeOwner(outletId, onLiveStats) {
     if (ws.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const token = await AsyncStorage.getItem('auth_token');
+      const token = await getAccessToken();
       if (!token) return;
 
       ws.current = new WebSocket(`${WS_URL}?token=${token}`);

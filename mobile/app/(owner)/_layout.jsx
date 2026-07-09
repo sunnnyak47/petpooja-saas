@@ -32,7 +32,9 @@ function HapticTabButton(props) {
   const { onPress, children, style, accessibilityState } = props;
   return (
     <TouchableOpacity
-      style={style}
+      // flex:1 makes each tab share the bar width evenly. Without it the button
+      // shrinks to its content and all tabs cram into the left.
+      style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, style]}
       onPress={(e) => {
         triggerHapticLight();
         if (onPress) onPress(e);
@@ -128,7 +130,9 @@ export default function OwnerLayout() {
         }}
         screenOptions={{
           headerShown: false,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          // NOTE: no custom tabBarButton — react-navigation's default button
+          // distributes tabs evenly (flex:1 each). A custom TouchableOpacity
+          // button collapsed each tab to content width and crammed them left.
           tabBarStyle: {
             backgroundColor: colors.tabBar,
             borderTopColor: colors.border,
@@ -236,47 +240,47 @@ export default function OwnerLayout() {
         {/* ── Hidden screens — registered but not shown in tab bar ── */}
         <Tabs.Screen
           name="inventory"
-          options={{ title: 'INVENTORY', tabBarButton: () => null }}
+          options={{ title: 'INVENTORY', href: null }}
         />
         <Tabs.Screen
           name="cash-recon"
-          options={{ title: 'CASH RECON', tabBarButton: () => null }}
+          options={{ title: 'CASH RECON', href: null }}
         />
         <Tabs.Screen
           name="approvals"
-          options={{ title: 'APPROVALS', tabBarButton: () => null }}
+          options={{ title: 'APPROVALS', href: null }}
         />
         <Tabs.Screen
           name="menu-overview"
-          options={{ title: 'MENU OVERVIEW', tabBarButton: () => null }}
+          options={{ title: 'MENU OVERVIEW', href: null }}
         />
         <Tabs.Screen
           name="outlet-settings"
-          options={{ title: 'OUTLET SETTINGS', tabBarButton: () => null }}
+          options={{ title: 'OUTLET SETTINGS', href: null }}
         />
         <Tabs.Screen
           name="user-management"
-          options={{ title: 'USER MANAGEMENT', tabBarButton: () => null }}
+          options={{ title: 'USER MANAGEMENT', href: null }}
         />
         <Tabs.Screen
           name="goals"
-          options={{ title: 'GOALS', tabBarButton: () => null }}
+          options={{ title: 'GOALS', href: null }}
         />
         <Tabs.Screen
           name="activity-log"
-          options={{ title: 'ACTIVITY LOG', tabBarButton: () => null }}
+          options={{ title: 'ACTIVITY LOG', href: null }}
         />
         <Tabs.Screen
           name="support"
-          options={{ title: 'SUPPORT', tabBarButton: () => null }}
+          options={{ title: 'SUPPORT', href: null }}
         />
         <Tabs.Screen
           name="profile"
-          options={{ title: 'PROFILE', tabBarButton: () => null }}
+          options={{ title: 'PROFILE', href: null }}
         />
         <Tabs.Screen
           name="alert-settings"
-          options={{ title: 'ALERT SETTINGS', tabBarButton: () => null }}
+          options={{ title: 'ALERT SETTINGS', href: null }}
         />
       </Tabs>
     </>

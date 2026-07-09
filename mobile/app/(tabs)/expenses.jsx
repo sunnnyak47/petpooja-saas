@@ -27,11 +27,11 @@ const C = {
   bg: '#F7F7F7',
   surface: '#FFFFFF',
   border: '#EAEAEA',
-  text1: '#000000',
+  text1: '#0f172a',
   text2: '#444444',
   text3: '#888888',
   gold: '#F5A623',
-  indigo: '#0070F3',
+  indigo: '#2563eb',
   success: '#00B341',
   error: '#EE0000',
 };

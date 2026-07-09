@@ -25,102 +25,10 @@ import QRScanner from '../../src/components/QRScanner';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const WAITERS = [
-  { id: 'w1', name: 'Rahul Sharma',  initials: 'RS', color: '#0070F3' },
+  { id: 'w1', name: 'Rahul Sharma',  initials: 'RS', color: '#2563eb' },
   { id: 'w2', name: 'Priya Patel',   initials: 'PP', color: '#9B59B6' },
   { id: 'w3', name: 'Amit Verma',    initials: 'AV', color: '#00B341' },
   { id: 'w4', name: 'Sneha Gupta',   initials: 'SG', color: '#F5A623' },
-];
-
-// NOW = 1:47 PM for consistent mock time display
-const MOCK_TABLES = [
-  {
-    id: 't1',  number: 1,  capacity: 2, status: 'empty',
-    waiterId: null,  covers: 0,  sinceMs: null,       amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't2',  number: 2,  capacity: 4, status: 'occupied',
-    waiterId: 'w1',  covers: 3,  sinceMs: Date.now() - 42 * 60000, amount: 1240,
-    orders: [
-      { name: 'Paneer Butter Masala', qty: 1, price: 320 },
-      { name: 'Garlic Naan × 3',      qty: 3, price: 120 },
-      { name: 'Lassi',                qty: 2, price: 80  },
-      { name: 'Raita',                qty: 1, price: 60  },
-    ],
-    guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't3',  number: 3,  capacity: 4, status: 'bill_pending',
-    waiterId: 'w2',  covers: 4,  sinceMs: Date.now() - 97 * 60000, amount: 2850,
-    orders: [
-      { name: 'Dal Makhani',          qty: 1, price: 280 },
-      { name: 'Butter Chicken',       qty: 2, price: 380 },
-      { name: 'Jeera Rice',           qty: 2, price: 160 },
-      { name: 'Tandoori Roti × 6',    qty: 6, price: 40  },
-    ],
-    guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't4',  number: 4,  capacity: 6, status: 'empty',
-    waiterId: null,  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't5',  number: 5,  capacity: 2, status: 'occupied',
-    waiterId: 'w3',  covers: 2,  sinceMs: Date.now() - 22 * 60000, amount: 560,
-    orders: [
-      { name: 'Veg Biryani',          qty: 2, price: 220 },
-      { name: 'Cold Coffee',          qty: 2, price: 110 },
-    ],
-    guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't6',  number: 6,  capacity: 4, status: 'cleaning',
-    waiterId: null,  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't7',  number: 7,  capacity: 8, status: 'occupied',
-    waiterId: 'w1',  covers: 6,  sinceMs: Date.now() - 77 * 60000, amount: 3200,
-    orders: [
-      { name: 'Chicken Tikka',        qty: 2, price: 420 },
-      { name: 'Kadai Paneer',         qty: 1, price: 300 },
-      { name: 'Naan × 8',            qty: 8, price: 40  },
-      { name: 'Fish Curry',           qty: 1, price: 380 },
-      { name: 'Soft Drinks',          qty: 4, price: 60  },
-    ],
-    guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't8',  number: 8,  capacity: 4, status: 'empty',
-    waiterId: null,  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't9',  number: 9,  capacity: 2, status: 'bill_pending',
-    waiterId: 'w2',  covers: 2,  sinceMs: Date.now() - 112 * 60000, amount: 780,
-    orders: [
-      { name: 'Masala Dosa',          qty: 2, price: 180 },
-      { name: 'Filter Coffee',        qty: 2, price: 80  },
-      { name: 'Idli Sambar',          qty: 1, price: 120 },
-    ],
-    guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't10', number: 10, capacity: 6, status: 'empty',
-    waiterId: null,  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
-  {
-    id: 't11', number: 11, capacity: 4, status: 'reserved',
-    waiterId: 'w4',  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: 'Sharma Family', reservedAt: '2:00 PM', mergedWith: [],
-  },
-  {
-    id: 't12', number: 12, capacity: 2, status: 'empty',
-    waiterId: null,  covers: 0,  sinceMs: null,        amount: 0,
-    orders: [],      guestName: null, reservedAt: null, mergedWith: [],
-  },
 ];
 
 // Floor plan positions — (left, top) in px on a 360-wide canvas (height ~480)
@@ -143,7 +51,7 @@ const FLOOR_POSITIONS = {
 
 const STATUS = {
   empty:        { label: 'Empty',        color: '#00B341', bg: '#EDFBF3', icon: 'checkmark-circle-outline' },
-  occupied:     { label: 'Occupied',     color: '#0070F3', bg: '#EBF3FF', icon: 'people'                   },
+  occupied:     { label: 'Occupied',     color: '#2563eb', bg: '#EBF3FF', icon: 'people'                   },
   reserved:     { label: 'Reserved',     color: '#F5A623', bg: '#FFF8EB', icon: 'calendar-outline'         },
   bill_pending: { label: 'Bill Pending', color: '#EE0000', bg: '#FFEBEB', icon: 'receipt-outline'          },
   cleaning:     { label: 'Cleaning',     color: '#888888', bg: '#F5F5F5', icon: 'construct-outline'        },
@@ -292,7 +200,7 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
       {/* Merged indicator */}
       {table.mergedWith && table.mergedWith.length > 0 && (
         <View style={styles.mergedTag}>
-          <Ionicons name="git-merge-outline" size={9} color="#0070F3" />
+          <Ionicons name="git-merge-outline" size={9} color="#2563eb" />
           <Text style={styles.mergedTagText}>+T{table.mergedWith.join(', T')}</Text>
         </View>
       )}
@@ -351,7 +259,7 @@ function QuickActionsSheet({ table, visible, onClose, onAction }) {
   const actions = [
     { key: 'empty',    icon: 'checkmark-circle-outline', label: 'Mark Empty',    color: '#00B341' },
     { key: 'cleaning', icon: 'construct-outline',        label: 'Mark Cleaning', color: '#888888' },
-    { key: 'assign',   icon: 'person-add-outline',       label: 'Assign Waiter', color: '#0070F3' },
+    { key: 'assign',   icon: 'person-add-outline',       label: 'Assign Waiter', color: '#2563eb' },
     { key: 'bill',     icon: 'receipt-outline',          label: 'Generate Bill', color: '#EE0000' },
   ];
 
@@ -477,7 +385,7 @@ function TableDetailModal({
                     <WaiterBadge waiterId={w.id} size={20} />
                     <Text style={styles.waiterOptionText}>{w.name}</Text>
                     {table.waiterId === w.id && (
-                      <Ionicons name="checkmark" size={14} color="#0070F3" style={{ marginLeft: 'auto' }} />
+                      <Ionicons name="checkmark" size={14} color="#2563eb" style={{ marginLeft: 'auto' }} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -521,7 +429,7 @@ function TableDetailModal({
                   <Ionicons name="cash-outline" size={14} color="#888" />
                   <Text style={styles.detailLabel}>Amount</Text>
                 </View>
-                <Text style={[styles.detailValue, { color: '#0070F3', fontWeight: '700' }]}>
+                <Text style={[styles.detailValue, { color: '#2563eb', fontWeight: '700' }]}>
                   ₹{table.amount.toLocaleString()}
                 </Text>
               </View>
@@ -601,7 +509,7 @@ function TableDetailModal({
           {/* Take Order — shown for empty/reserved tables (start a fresh order) */}
           {(table.status === 'empty' || table.status === 'reserved') && (
             <TouchableOpacity
-              style={[styles.btnSolid, { marginBottom: 8, backgroundColor: '#000' }]}
+              style={[styles.btnSolid, { marginBottom: 8, backgroundColor: '#2563eb' }]}
               onPress={() => {
                 onUpdateStatus(table.id, 'occupied');
                 onClose();
@@ -623,7 +531,7 @@ function TableDetailModal({
           {/* Add More Items — shown for occupied tables */}
           {table.status === 'occupied' && (
             <TouchableOpacity
-              style={[styles.btnOutline, { marginBottom: 8, borderColor: '#0070F3' }]}
+              style={[styles.btnOutline, { marginBottom: 8, borderColor: '#2563eb' }]}
               onPress={() => {
                 onClose();
                 router.push({
@@ -636,8 +544,8 @@ function TableDetailModal({
                 });
               }}
             >
-              <Ionicons name="add-outline" size={15} color="#0070F3" />
-              <Text style={[styles.btnOutlineText, { color: '#0070F3' }]}>Add More Items</Text>
+              <Ionicons name="add-outline" size={15} color="#2563eb" />
+              <Text style={[styles.btnOutlineText, { color: '#2563eb' }]}>Add More Items</Text>
             </TouchableOpacity>
           )}
 
@@ -673,8 +581,8 @@ function TableDetailModal({
                 onClose();
               }}
             >
-              <Ionicons name="git-merge-outline" size={15} color="#0070F3" />
-              <Text style={[styles.btnOutlineText, { color: '#0070F3' }]}>Merge Table</Text>
+              <Ionicons name="git-merge-outline" size={15} color="#2563eb" />
+              <Text style={[styles.btnOutlineText, { color: '#2563eb' }]}>Merge Table</Text>
             </TouchableOpacity>
 
             {(table.status === 'bill_pending' || table.status === 'cleaning') && (
@@ -726,10 +634,11 @@ export default function TablesScreen() {
   const [mergeSourceId, setMergeSourceId] = useState(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
 
-  // Populate tables from offline SQLite cache
+  // Populate tables from the offline SQLite cache (real data only — no mock fallback).
+  // When the cache is empty this clears the list so the empty state can show.
   useEffect(() => {
-    if (offlineTables && offlineTables.length > 0) {
-      setTables(offlineTables.map(t => ({
+    setTables(
+      (offlineTables || []).map(t => ({
         id: t.id,
         name: t.name,
         section: t.section || 'Main',
@@ -741,16 +650,9 @@ export default function TablesScreen() {
         order_id: null,
         time_seated: null,
         ...t, // spread any extra fields from cache
-      })));
-    }
+      }))
+    );
   }, [offlineTables]);
-
-  // Fallback to mock data if offline cache is empty (first launch / no sync yet)
-  useEffect(() => {
-    if (!offlineTables || offlineTables.length === 0) {
-      setTables(MOCK_TABLES);
-    }
-  }, []);
 
   // Loading state: use tablesLoading from hook, with a minimum display time
   useEffect(() => {
@@ -889,7 +791,7 @@ export default function TablesScreen() {
 
   const MergeBar = () => (
     <View style={styles.mergeBar}>
-      <Ionicons name="git-merge-outline" size={16} color="#0070F3" />
+      <Ionicons name="git-merge-outline" size={16} color="#2563eb" />
       <Text style={styles.mergeBarText}>
         {mergeSourceId
           ? `T-${tables.find(t => t.id === mergeSourceId)?.number} selected — tap another table to merge`
@@ -933,7 +835,7 @@ export default function TablesScreen() {
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0070F3" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
     >
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.floorCanvas}>
@@ -977,7 +879,7 @@ export default function TablesScreen() {
     <ScrollView
       contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 24 }]}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0070F3" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
     >
       {filteredTables.length === 0 ? (
         <EmptyState icon="🪑" title="No tables found" subtitle="Try a different filter" />
@@ -1052,6 +954,18 @@ export default function TablesScreen() {
 
       {loading ? (
         <TablesSkeleton />
+      ) : tables.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
+        >
+          <EmptyState
+            icon="🪑"
+            title="No tables configured"
+            subtitle="Pull to refresh to sync tables for this outlet."
+          />
+        </ScrollView>
       ) : (
         <>
           {/* Summary bar */}
@@ -1178,7 +1092,7 @@ const styles = StyleSheet.create({
   occupiedBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0070F3',
+    color: '#2563eb',
   },
 
   // ── View toggle ─────────────────────────────────────────────────────────────
@@ -1196,7 +1110,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toggleBtnActive: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
   },
 
   // ── Summary bar ─────────────────────────────────────────────────────────────
@@ -1245,7 +1159,7 @@ const styles = StyleSheet.create({
   mergeBarText: {
     flex: 1,
     fontSize: 12,
-    color: '#0070F3',
+    color: '#2563eb',
     fontWeight: '500',
   },
   mergeBarCancel: {
@@ -1277,7 +1191,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   pillActive: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
   },
   pillInactive: {
     backgroundColor: '#FFFFFF',
@@ -1346,7 +1260,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   cardMergeTarget: {
-    borderColor: '#0070F3',
+    borderColor: '#2563eb',
     borderWidth: 2,
     borderLeftWidth: 4,
   },
@@ -1449,7 +1363,7 @@ const styles = StyleSheet.create({
   mergedTagText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#0070F3',
+    color: '#2563eb',
   },
 
   // ── Waiter badge ─────────────────────────────────────────────────────────────
@@ -1725,7 +1639,7 @@ const styles = StyleSheet.create({
   orderTotalValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0070F3',
+    color: '#2563eb',
   },
 
   // ── Action buttons ───────────────────────────────────────────────────────────
@@ -1741,7 +1655,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderWidth: 1.5,
-    borderColor: '#000000',
+    borderColor: '#e2e8f0',
     borderRadius: 12,
     minHeight: 46,
     paddingVertical: 10,
@@ -1757,7 +1671,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     minHeight: 46,
     paddingVertical: 10,
@@ -1805,7 +1719,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,

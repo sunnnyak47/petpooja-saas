@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: '#111111', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#888888', marginBottom: 32, textAlign: 'center' },
   btn: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,

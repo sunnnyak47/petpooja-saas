@@ -34,7 +34,7 @@ import { exportReportPdf, shareFile } from '../../src/utils/exportReport';
 // ─── Role Colors ────────────────────────────────────────────────────────────
 
 const ROLE_COLORS = {
-  Manager: '#0070F3',
+  Manager: '#2563eb',
   Cashier: '#00B341',
   Chef: '#F5A623',
   Waiter: '#888888',
@@ -163,7 +163,7 @@ export default function StaffScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -211,7 +211,7 @@ export default function StaffScreen() {
             const uri = await exportReportPdf({
               title: 'Staff Report',
               subtitle: `${new Date().toLocaleDateString(dateLocale)}`,
-              outletName: currentOutlet?.name || 'PetPooja',
+              outletName: currentOutlet?.name || 'MS-RM',
               sections: [
                 {
                   heading: `On Floor (${staffIn.length} staff)`,
@@ -656,7 +656,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   tabActive: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
   },
   tabText: {
     ...TYPE.smallMed,

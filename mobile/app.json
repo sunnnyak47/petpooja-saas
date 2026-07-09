@@ -1,28 +1,28 @@
 {
   "expo": {
-    "name": "PetPooja Owner",
+    "name": "MS-RM Owner",
     "slug": "msrm-owner",
     "scheme": "msrm-owner",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "description": "PetPooja Owner — Restaurant management dashboard for owners. Track sales, manage inventory, monitor staff, and run your restaurant business from anywhere.",
+    "description": "MS-RM Owner — Restaurant management dashboard for owners. Track sales, manage inventory, monitor staff, and run your restaurant business from anywhere.",
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#f8fafc"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.petpooja.owner",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "PetPooja needs camera access to scan barcodes and capture product images.",
-        "NSPhotoLibraryUsageDescription": "PetPooja needs photo library access to upload product and menu images.",
-        "NSLocationWhenInUseUsageDescription": "PetPooja uses your location to identify your outlet and provide location-based insights.",
-        "NSFaceIDUsageDescription": "Use Face ID to securely sign in to PetPooja.",
+        "NSCameraUsageDescription": "MS-RM needs camera access to scan barcodes and capture product images.",
+        "NSPhotoLibraryUsageDescription": "MS-RM needs photo library access to upload product and menu images.",
+        "NSLocationWhenInUseUsageDescription": "MS-RM uses your location to identify your outlet and provide location-based insights.",
+        "NSFaceIDUsageDescription": "Use Face ID to securely sign in to MS-RM.",
         "UIBackgroundModes": [
           "remote-notification"
         ]
@@ -36,7 +36,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#2563eb"
       },
       "permissions": [
         "CAMERA",
@@ -66,7 +66,7 @@
       "privacyPolicyUrl": "https://petpooja.com/privacy-policy"
     },
     "owner": "sunnyak47",
-    "primaryColor": "#000000",
+    "primaryColor": "#2563eb",
     "updates": {
       "fallbackToCacheTimeout": 0
     },

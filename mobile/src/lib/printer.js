@@ -145,7 +145,7 @@ export function buildReceiptHtml({
   <div class="footer">
     <div>Thank you for visiting!</div>
     <div>${new Date().toLocaleString('en-IN')}</div>
-    <div style="margin-top:4px">Powered by PetPooja</div>
+    <div style="margin-top:4px">Powered by MS-RM</div>
   </div>
 </body>
 </html>`;

@@ -76,7 +76,7 @@ const ALERT_CATEGORIES = [
     label: 'System Alerts',
     desc: 'Printer offline, connection issues',
     icon: 'information-circle',
-    color: '#0070F3',
+    color: '#2563eb',
   },
 ];
 

@@ -79,7 +79,7 @@ export default function InventoryScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -265,7 +265,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
   },
-  tabActive: { backgroundColor: '#000' },
+  tabActive: { backgroundColor: '#2563eb' },
   tabText: { ...TYPE.smallMed, color: '#888' },
   tabTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 10 },
@@ -334,7 +334,7 @@ const s = StyleSheet.create({
     marginTop: 10,
   },
   wastageTime: { ...TYPE.caption, color: '#888' },
-  wastageStaff: { ...TYPE.caption, color: '#0070F3' },
+  wastageStaff: { ...TYPE.caption, color: '#2563eb' },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,

@@ -41,14 +41,14 @@ const T = {
   pageBg:   '#F7F7F7',
   card:     '#FFFFFF',
   border:   '#EAEAEA',
-  text1:    '#000000',
+  text1:    '#0f172a',
   text2:    '#444444',
   text3:    '#888888',
 
   // Status colors
   pendingColor: '#F5A623',
   pendingBg:    '#FFF8EB',
-  orderedColor: '#0070F3',
+  orderedColor: '#2563eb',
   orderedBg:    '#EBF4FF',
   deliveredColor: '#00B341',
   deliveredBg:  '#EDFBF3',
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 7,
-    backgroundColor: T.text1,
+    backgroundColor: '#2563eb',
   },
   btnReceiveText: {
     color: '#FFFFFF',
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: T.text1,
+    backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -886,7 +886,7 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     borderRadius: 10,
-    backgroundColor: T.text1,
+    backgroundColor: '#2563eb',
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',

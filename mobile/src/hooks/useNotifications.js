@@ -14,15 +14,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import api from '../lib/api';
 
-// expo-notifications + expo-device are unsupported on web
+// expo-notifications + expo-device are unsupported on web.
 let Notifications = null;
 let Device = null;
 let Constants = null;
-if (Platform.OS !== 'web') {
+try { Constants = require('expo-constants').default; } catch (_) {}
+// Remote push was removed from Expo Go with SDK 53 — loading expo-notifications
+// there throws a red-box error. Skip it in Expo Go (executionEnvironment
+// 'storeClient'); it loads normally in dev/production builds.
+const isExpoGo = Constants?.executionEnvironment === 'storeClient';
+if (Platform.OS !== 'web' && !isExpoGo) {
   try {
     Notifications = require('expo-notifications');
     Device = require('expo-device');
-    Constants = require('expo-constants').default;
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: false, // we show our own in-app banner
@@ -74,7 +78,7 @@ function buildForegroundNotification(notification) {
   const content = notification?.request?.content ?? {};
   const data    = content.data ?? {};
   return {
-    title: content.title || 'PetPooja',
+    title: content.title || 'MS-RM',
     body:  content.body  || '',
     type:  data.type     || data.screen || '',
     route: resolveRoute(data),
@@ -137,9 +141,10 @@ export function useNotifications() {
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
     setPushToken(token);
 
-    // Upload to backend (fire-and-forget)
+    // Upload to backend (fire-and-forget). baseURL already ends in `/api`,
+    // so the path must NOT repeat it (was `/api/integrations/...` → 404).
     try {
-      await api.post('/api/integrations/push-token', {
+      await api.post('/integrations/push-token', {
         token,
         device:   Platform.OS,
         platform: Platform.OS,

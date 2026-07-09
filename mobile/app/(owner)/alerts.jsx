@@ -42,7 +42,7 @@ const ALERT_TYPES = {
   no_sale:        { icon: 'cash',                color: '#EE0000', bg: '#FFF0F0', label: 'No Sale' },
   price_override: { icon: 'create',              color: '#F5A623', bg: '#FFF8EB', label: 'Price Override' },
   cash_variance:  { icon: 'wallet',              color: '#EE0000', bg: '#FFF0F0', label: 'Cash Variance' },
-  system:         { icon: 'information-circle',  color: '#0070F3', bg: '#EBF4FF', label: 'System' },
+  system:         { icon: 'information-circle',  color: '#2563eb', bg: '#EBF4FF', label: 'System' },
 };
 
 
@@ -268,7 +268,7 @@ export default function AlertsScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load alerts</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -465,7 +465,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   filterTabActive: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
   },
   filterTabInactive: {
     backgroundColor: '#F0F0F0',

@@ -1,9 +1,16 @@
 import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 
-const SENTRY_DSN = 'https://placeholder@sentry.io/0'; // Replace with real DSN
+// DSN comes from app config (app.json → expo.extra.sentryDsn) or an
+// EXPO_PUBLIC_SENTRY_DSN env var — never hardcoded. Absent/placeholder → no-op.
+const SENTRY_DSN =
+  Constants.expoConfig?.extra?.sentryDsn ||
+  process.env.EXPO_PUBLIC_SENTRY_DSN ||
+  '';
 
 export function initSentry() {
   if (__DEV__) return; // Don't track errors in development
+  if (!SENTRY_DSN || SENTRY_DSN.includes('placeholder')) return; // not configured
 
   Sentry.init({
     dsn: SENTRY_DSN,

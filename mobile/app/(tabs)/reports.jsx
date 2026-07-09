@@ -44,7 +44,8 @@ import Svg, {
   Line,
 } from 'react-native-svg';
 import { useReports } from '../../src/hooks/useApi';
-import { Colors } from '../../src/constants/colors';
+import { useTheme } from '../../src/context/ThemeContext';
+import { chartColors } from '../../src/constants/theme';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,89 +60,16 @@ const CHART_W = SCREEN_W - 32; // card padding
 const RANGES = ['Today', '7D', '30D', '3M'];
 const RANGE_MAP = { Today: 'today', '7D': '7d', '30D': '30d', '3M': '3m' };
 
-// Light theme palette (Vercel × Apple)
-const C = {
-  bg: '#F7F7F7',
-  surface: '#FFFFFF',
-  surface2: '#F7F7F7',
-  border: '#EAEAEA',
-  gold: '#F5A623',
-  indigo: '#0070F3',
-  success: '#00B341',
-  warning: '#F5A623',
-  error: '#EE0000',
-  text1: '#000000',
-  text2: '#444444',
-  text3: '#888888',
-};
-
-// ─── Mock / Fallback Data ─────────────────────────────────────────────────────
-
-function buildMock(range) {
-  const points = range === 'Today' ? 12 : range === '7D' ? 7 : range === '30D' ? 30 : 12;
-  const revenue = Array.from({ length: points }, (_, i) => {
-    const base = 18000 + Math.sin(i * 0.8) * 5000 + i * 400;
-    return Math.max(5000, base + (Math.random() - 0.4) * 3000);
-  });
-  const labels =
-    range === 'Today'
-      ? ['8a', '9a', '10a', '11a', '12p', '1p', '2p', '3p', '4p', '5p', '6p', '7p']
-      : range === '7D'
-      ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-      : range === '30D'
-      ? Array.from({ length: 30 }, (_, i) => (i % 5 === 0 ? `${i + 1}` : ''))
-      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  const totalRevenue = revenue.reduce((a, b) => a + b, 0);
-  const totalOrders = Math.round(totalRevenue / 480);
-
-  return {
-    revenue_series: revenue,
-    revenue_labels: labels,
-    total_revenue: totalRevenue,
-    total_orders: totalOrders,
-    avg_order_value: totalRevenue / totalOrders,
-    best_day: range === '7D' ? 'Saturday' : range === 'Today' ? '1 PM' : 'Week 3',
-    revenue_change: 12.4,
-    orders_change: 8.1,
-    avg_order_change: 3.9,
-    best_day_change: 5.2,
-    order_types: [
-      { label: 'Dine-in', value: 48, color: C.indigo },
-      { label: 'Takeaway', value: 32, color: C.gold },
-      { label: 'Delivery', value: 20, color: C.success },
-    ],
-    top_items: [
-      { id: 1, name: 'Butter Chicken', qty: 312, revenue: 74880 },
-      { id: 2, name: 'Dal Makhani', qty: 280, revenue: 50400 },
-      { id: 3, name: 'Paneer Tikka', qty: 254, revenue: 63500 },
-      { id: 4, name: 'Chicken Biryani', qty: 231, revenue: 92400 },
-      { id: 5, name: 'Naan Basket', qty: 198, revenue: 19800 },
-      { id: 6, name: 'Masala Chai', qty: 185, revenue: 9250 },
-      { id: 7, name: 'Gulab Jamun', qty: 167, revenue: 16700 },
-      { id: 8, name: 'Lassi', qty: 142, revenue: 14200 },
-      { id: 9, name: 'Samosa Chaat', qty: 128, revenue: 19200 },
-      { id: 10, name: 'Tandoori Roti', qty: 112, revenue: 5600 },
-    ],
-    peak_hours: buildPeakHours(),
-  };
-}
-
-function buildPeakHours() {
-  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const hours = [8, 10, 12, 14, 16, 18, 20, 22]; // 8 slots
-  return days.map((day, di) =>
-    hours.map((h) => {
-      const lunchBump = h >= 12 && h <= 14 ? 0.6 : 0;
-      const dinnerBump = h >= 18 && h <= 20 ? 0.7 : 0;
-      const weekendBump = di >= 5 ? 0.2 : 0;
-      const val = Math.min(1, 0.1 + lunchBump + dinnerBump + weekendBump + Math.random() * 0.2);
-      return { day, hour: h, value: val };
-    })
-  );
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Convert a #rgb / #rrggbb color into its {r,g,b} components so we can build
+// theme-aware rgba() strings (e.g. accent-tinted chart gradients / heatmap).
+function hexToRgb(hex) {
+  let h = String(hex || '#000000').replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const int = parseInt(h, 16);
+  return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
+}
 
 function fmt(n) {
   if (!n) return '₹0';
@@ -191,6 +119,8 @@ function buildAreaPath(data, w, h) {
 // ─── Animated Pill Selector ───────────────────────────────────────────────────
 
 function RangeSelector({ selected, onChange }) {
+  const { colors } = useTheme();
+  const rs = useMemo(() => makeRsStyles(colors), [colors]);
   const pillWidth = (SCREEN_W - 32 - 8) / RANGES.length; // card - gap
   const selectedIdx = RANGES.indexOf(selected);
   const slideX = useSharedValue(selectedIdx * pillWidth);
@@ -225,40 +155,44 @@ function RangeSelector({ selected, onChange }) {
   );
 }
 
-const rs = StyleSheet.create({
-  track: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 4,
-    position: 'relative',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-  },
-  indicator: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    height: 32,
-    borderRadius: 9,
-    backgroundColor: '#F7F7F7',
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-  },
-  pill: {
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  pillText: { fontSize: 13, fontWeight: '600', color: '#888888' },
-  pillTextActive: { color: '#000000', fontWeight: '700' },
-});
+function makeRsStyles(colors) {
+  return StyleSheet.create({
+    track: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 4,
+      position: 'relative',
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    indicator: {
+      position: 'absolute',
+      top: 4,
+      left: 4,
+      height: 32,
+      borderRadius: 9,
+      backgroundColor: colors.pillBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pill: {
+      height: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1,
+    },
+    pillText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    pillTextActive: { color: colors.text, fontWeight: '700' },
+  });
+}
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value, change, index }) {
+  const { colors } = useTheme();
+  const kpi = useMemo(() => makeKpiStyles(colors), [colors]);
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
 
@@ -276,7 +210,7 @@ function KpiCard({ label, value, change, index }) {
   }));
 
   const up = change >= 0;
-  const changeColor = up ? C.success : C.error;
+  const changeColor = up ? colors.success : colors.error;
 
   return (
     <Animated.View style={[kpi.card, animStyle]}>
@@ -300,24 +234,27 @@ function KpiCard({ label, value, change, index }) {
   );
 }
 
-const kpi = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-  },
-  label: { fontSize: 10, color: '#888888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
-  value: { fontSize: 17, fontWeight: '800', color: '#000000', letterSpacing: -0.3 },
-  trendRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4 },
-  trendText: { fontSize: 11, fontWeight: '700' },
-});
+function makeKpiStyles(colors) {
+  return StyleSheet.create({
+    card: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    label: { fontSize: 10, color: colors.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+    value: { fontSize: 17, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+    trendRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4 },
+    trendText: { fontSize: 11, fontWeight: '700' },
+  });
+}
 
 // ─── Revenue Area Chart ────────────────────────────────────────────────────────
 
 function RevenueChart({ data, labels }) {
+  const { colors } = useTheme();
   const [tooltip, setTooltip] = useState(null);
   const drawProgress = useSharedValue(0);
   const [pathMeta, setPathMeta] = useState(null);
@@ -391,8 +328,8 @@ function RevenueChart({ data, labels }) {
       >
         <Defs>
           <SvgLinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#0070F3" stopOpacity="0.15" />
-            <Stop offset="100%" stopColor="#0070F3" stopOpacity="0" />
+            <Stop offset="0%" stopColor={colors.accent} stopOpacity="0.15" />
+            <Stop offset="100%" stopColor={colors.accent} stopOpacity="0" />
           </SvgLinearGradient>
         </Defs>
 
@@ -404,7 +341,7 @@ function RevenueChart({ data, labels }) {
               y1={g.y}
               x2={w - CHART_PADDING_R}
               y2={g.y}
-              stroke={C.border}
+              stroke={colors.border}
               strokeWidth="0.5"
               strokeDasharray="3 4"
             />
@@ -413,7 +350,7 @@ function RevenueChart({ data, labels }) {
               y={g.y + 4}
               textAnchor="end"
               fontSize="9"
-              fill={C.text3}
+              fill={colors.textMuted}
             >
               {g.label}
             </SvgText>
@@ -429,7 +366,7 @@ function RevenueChart({ data, labels }) {
               y={h - 4}
               textAnchor="middle"
               fontSize="9"
-              fill={C.text3}
+              fill={colors.textMuted}
             >
               {xl.label}
             </SvgText>
@@ -446,7 +383,7 @@ function RevenueChart({ data, labels }) {
           <Path
             d={meta.line}
             fill="none"
-            stroke="#0070F3"
+            stroke={colors.accent}
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -461,7 +398,7 @@ function RevenueChart({ data, labels }) {
               y1={CHART_PADDING_T}
               x2={tooltip.x}
               y2={CHART_PADDING_T + innerH}
-              stroke="#0070F3"
+              stroke={colors.accent}
               strokeWidth="1"
               strokeDasharray="3 3"
               opacity="0.6"
@@ -470,8 +407,8 @@ function RevenueChart({ data, labels }) {
               cx={tooltip.x}
               cy={tooltip.y}
               r="5"
-              fill="#0070F3"
-              stroke="#FFFFFF"
+              fill={colors.accent}
+              stroke={colors.card}
               strokeWidth="2"
             />
             {/* Tooltip box */}
@@ -481,8 +418,8 @@ function RevenueChart({ data, labels }) {
               width={68}
               height={28}
               rx="6"
-              fill="#FFFFFF"
-              stroke="#EAEAEA"
+              fill={colors.card}
+              stroke={colors.border}
               strokeWidth="1"
             />
             <SvgText
@@ -490,7 +427,7 @@ function RevenueChart({ data, labels }) {
               y={tooltip.y - 32}
               textAnchor="middle"
               fontSize="9"
-              fill="#888888"
+              fill={colors.textMuted}
             >
               {tooltip.label}
             </SvgText>
@@ -500,7 +437,7 @@ function RevenueChart({ data, labels }) {
               textAnchor="middle"
               fontSize="11"
               fontWeight="700"
-              fill="#0070F3"
+              fill={colors.accent}
             >
               {fmt(tooltip.val)}
             </SvgText>
@@ -514,6 +451,8 @@ function RevenueChart({ data, labels }) {
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 
 function DonutChart({ segments, total }) {
+  const { colors } = useTheme();
+  const dn = useMemo(() => makeDnStyles(colors), [colors]);
   const RADIUS = 62;
   const STROKE = 18;
   const CX = 82;
@@ -570,7 +509,7 @@ function DonutChart({ segments, total }) {
           cy={CY}
           r={RADIUS}
           fill="none"
-          stroke="#EAEAEA"
+          stroke={colors.border}
           strokeWidth={STROKE}
         />
         {/* Segments */}
@@ -591,7 +530,7 @@ function DonutChart({ segments, total }) {
           textAnchor="middle"
           fontSize="22"
           fontWeight="800"
-          fill="#000000"
+          fill={colors.text}
         >
           {total}
         </SvgText>
@@ -600,7 +539,7 @@ function DonutChart({ segments, total }) {
           y={CY + 10}
           textAnchor="middle"
           fontSize="10"
-          fill="#888888"
+          fill={colors.textMuted}
         >
           orders
         </SvgText>
@@ -620,18 +559,22 @@ function DonutChart({ segments, total }) {
   );
 }
 
-const dn = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  legend: { flex: 1, gap: 10 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { flex: 1, fontSize: 13, color: '#444444', fontWeight: '500' },
-  legendVal: { fontSize: 13, fontWeight: '700', color: '#000000' },
-});
+function makeDnStyles(colors) {
+  return StyleSheet.create({
+    container: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    legend: { flex: 1, gap: 10 },
+    legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    dot: { width: 10, height: 10, borderRadius: 5 },
+    legendLabel: { flex: 1, fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+    legendVal: { fontSize: 13, fontWeight: '700', color: colors.text },
+  });
+}
 
 // ─── Top Item Row (for FlashList) ─────────────────────────────────────────────
 
 function TopItemRow({ item, index, maxRevenue }) {
+  const { colors } = useTheme();
+  const ti = useMemo(() => makeTiStyles(colors), [colors]);
   const barProgress = useSharedValue(0);
 
   useEffect(() => {
@@ -646,8 +589,8 @@ function TopItemRow({ item, index, maxRevenue }) {
     width: `${barProgress.value * 100}%`,
   }));
 
-  const rankColors = ['#000000', '#888888', '#AAAAAA'];
-  const rankColor = index < 3 ? rankColors[index] : '#CCCCCC';
+  const rankColors = [colors.text, colors.textSecondary, colors.textMuted];
+  const rankColor = index < 3 ? rankColors[index] : colors.textMuted;
 
   return (
     <View style={ti.row}>
@@ -672,22 +615,29 @@ function TopItemRow({ item, index, maxRevenue }) {
   );
 }
 
-const ti = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, paddingHorizontal: 16, gap: 10 },
-  rankWrap: { width: 22, alignItems: 'center', paddingTop: 2 },
-  rank: { fontSize: 13, fontWeight: '800' },
-  info: { flex: 1 },
-  nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
-  name: { flex: 1, fontSize: 13, fontWeight: '600', color: '#000000', marginRight: 8 },
-  revenue: { fontSize: 13, fontWeight: '700', color: '#0070F3' },
-  barTrack: { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2, overflow: 'hidden' },
-  barFill: { height: 4, backgroundColor: '#0070F3', borderRadius: 2 },
-  qty: { fontSize: 11, color: '#888888', marginTop: 3 },
-});
+function makeTiStyles(colors) {
+  return StyleSheet.create({
+    row: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, paddingHorizontal: 16, gap: 10 },
+    rankWrap: { width: 22, alignItems: 'center', paddingTop: 2 },
+    rank: { fontSize: 13, fontWeight: '800' },
+    info: { flex: 1 },
+    nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+    name: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, marginRight: 8 },
+    revenue: { fontSize: 13, fontWeight: '700', color: colors.accent },
+    barTrack: { height: 4, backgroundColor: colors.borderLight, borderRadius: 2, overflow: 'hidden' },
+    barFill: { height: 4, backgroundColor: colors.accent, borderRadius: 2 },
+    qty: { fontSize: 11, color: colors.textMuted, marginTop: 3 },
+  });
+}
 
 // ─── Peak Hours Heatmap ────────────────────────────────────────────────────────
 
 function PeakHeatmap({ data }) {
+  const { colors } = useTheme();
+  const { r: accentR, g: accentG, b: accentB } = useMemo(
+    () => hexToRgb(colors.accent),
+    [colors.accent]
+  );
   // data: 7 rows (days) × 8 cols (hour slots)
   const CELL_W = (CHART_W - 32) / 8; // 8 time slots
   const CELL_H = 26;
@@ -698,9 +648,9 @@ function PeakHeatmap({ data }) {
   const svgH = CELL_H * 7 + 20 + 4; // 7 day rows + hour header + gap
 
   function heatColor(val) {
-    // 0 → very light blue, 1 → #0070F3
+    // 0 → very light accent, 1 → full accent
     const opacity = 0.05 + Math.pow(val, 0.6) * 0.85;
-    return `rgba(0,112,243,${opacity.toFixed(2)})`;
+    return `rgba(${accentR},${accentG},${accentB},${opacity.toFixed(2)})`;
   }
 
   function interpolateNum(t, from, to) {
@@ -735,7 +685,7 @@ function PeakHeatmap({ data }) {
           y={12}
           textAnchor="middle"
           fontSize="8.5"
-          fill={C.text3}
+          fill={colors.textMuted}
         >
           {h}
         </SvgText>
@@ -769,7 +719,7 @@ function PeakHeatmap({ data }) {
           y={20 + i * CELL_H + CELL_H / 2 + 4}
           textAnchor="end"
           fontSize="9"
-          fill={i >= 5 ? '#0070F3' : '#888888'}
+          fill={i >= 5 ? colors.accent : colors.textMuted}
           fontWeight={i >= 5 ? '700' : '400'}
         >
           {d}
@@ -782,6 +732,8 @@ function PeakHeatmap({ data }) {
 // ─── Section Header ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title, subtitle }) {
+  const { colors } = useTheme();
+  const sh = useMemo(() => makeShStyles(colors), [colors]);
   return (
     <View style={sh.row}>
       <View style={sh.accent} />
@@ -793,16 +745,21 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
-const sh = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  accent: { width: 3, height: 18, borderRadius: 2, backgroundColor: '#000000' },
-  title: { fontSize: 13, fontWeight: '800', color: '#000000', textTransform: 'uppercase', letterSpacing: 0.6 },
-  sub: { fontSize: 11, color: '#888888', marginTop: 1 },
-});
+function makeShStyles(colors) {
+  return StyleSheet.create({
+    row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+    accent: { width: 3, height: 18, borderRadius: 2, backgroundColor: colors.text },
+    title: { fontSize: 13, fontWeight: '800', color: colors.text, textTransform: 'uppercase', letterSpacing: 0.6 },
+    sub: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  });
+}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ReportsScreen() {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+  const accentRgb = useMemo(() => hexToRgb(colors.accent), [colors.accent]);
   const insets = useSafeAreaInsets();
   const [range, setRange] = useState('7D');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -811,20 +768,33 @@ export default function ReportsScreen() {
   const apiRange = RANGE_MAP[range];
   const { data: apiData, isLoading, refetch, isRefetching } = useReports(apiRange);
 
-  // Use API data if present, else fallback to mock
+  // Use API data when present. When the report API returns empty we render a
+  // clean empty state — we never fabricate revenue / orders / heatmap values.
+  // Missing individual fields fall back to legitimate zeros / empty arrays.
   const data = useMemo(() => {
     const raw = apiData?.data ?? apiData;
-    if (
+    const hasData = !!(
       raw &&
-      (raw.total_revenue != null || raw.revenue_series?.length > 0)
-    ) {
-      return {
-        ...buildMock(range), // fill gaps with mock structure
-        ...raw,
-      };
-    }
-    return buildMock(range);
-  }, [apiData, range]);
+      (raw.total_revenue != null || (raw.revenue_series?.length ?? 0) > 0)
+    );
+    if (!hasData) return null;
+    return {
+      revenue_series: [],
+      revenue_labels: [],
+      total_revenue: 0,
+      total_orders: 0,
+      avg_order_value: 0,
+      best_day: '—',
+      revenue_change: 0,
+      orders_change: 0,
+      avg_order_change: 0,
+      best_day_change: 0,
+      order_types: [],
+      top_items: [],
+      peak_hours: [],
+      ...raw,
+    };
+  }, [apiData]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -832,8 +802,18 @@ export default function ReportsScreen() {
   }, [refetch]);
 
   const maxRevenue = useMemo(
-    () => Math.max(...(data.top_items ?? []).map((i) => i.revenue), 1),
-    [data.top_items]
+    () => Math.max(...(data?.top_items ?? []).map((i) => i.revenue), 1),
+    [data?.top_items]
+  );
+
+  // Give donut segments a stable chart color when the API doesn't supply one.
+  const orderTypeSegments = useMemo(
+    () =>
+      (data?.order_types ?? []).map((seg, i) => ({
+        ...seg,
+        color: seg.color ?? chartColors[i % chartColors.length],
+      })),
+    [data?.order_types]
   );
 
   const headerOpacity = useSharedValue(0);
@@ -852,7 +832,7 @@ export default function ReportsScreen() {
             <Text style={s.headerTitle}>Analytics</Text>
           </View>
           <TouchableOpacity onPress={handleRefresh} style={s.refreshBtn}>
-            <Ionicons name="refresh-outline" size={18} color="#888888" />
+            <Ionicons name="refresh-outline" size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </Animated.View>
 
@@ -871,116 +851,139 @@ export default function ReportsScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={handleRefresh}
-            tintColor={C.gold}
-            colors={[C.gold]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
       >
-        {/* ── KPI Cards ─────────────────────────────────────── */}
-        <Animated.View entering={Platform.OS !== 'web' ? FadeInDown.delay(100).duration(400) : undefined}>
-          <View style={s.kpiRow}>
-            <KpiCard
-              index={0}
-              label="Revenue"
-              value={fmt(data.total_revenue)}
-              change={data.revenue_change ?? 0}
-            />
-            <KpiCard
-              index={1}
-              label="Orders"
-              value={String(data.total_orders ?? 0)}
-              change={data.orders_change ?? 0}
-            />
-            <KpiCard
-              index={2}
-              label="Avg Order"
-              value={fmt(data.avg_order_value)}
-              change={data.avg_order_change ?? 0}
-            />
-            <KpiCard
-              index={3}
-              label={range === 'Today' ? 'Peak Hr' : 'Best Day'}
-              value={data.best_day ?? '—'}
-              change={data.best_day_change ?? 0}
-            />
+        {data ? (
+          <>
+            {/* ── KPI Cards ─────────────────────────────────────── */}
+            <Animated.View entering={Platform.OS !== 'web' ? FadeInDown.delay(100).duration(400) : undefined}>
+              <View style={s.kpiRow}>
+                <KpiCard
+                  index={0}
+                  label="Revenue"
+                  value={fmt(data.total_revenue)}
+                  change={data.revenue_change ?? 0}
+                />
+                <KpiCard
+                  index={1}
+                  label="Orders"
+                  value={String(data.total_orders ?? 0)}
+                  change={data.orders_change ?? 0}
+                />
+                <KpiCard
+                  index={2}
+                  label="Avg Order"
+                  value={fmt(data.avg_order_value)}
+                  change={data.avg_order_change ?? 0}
+                />
+                <KpiCard
+                  index={3}
+                  label={range === 'Today' ? 'Peak Hr' : 'Best Day'}
+                  value={data.best_day ?? '—'}
+                  change={data.best_day_change ?? 0}
+                />
+              </View>
+            </Animated.View>
+
+            {/* ── Revenue Chart ──────────────────────────────────── */}
+            <Animated.View
+              style={s.card}
+              entering={Platform.OS !== 'web' ? FadeInDown.delay(150).duration(400) : undefined}
+            >
+              <SectionHeader
+                title="Revenue"
+                subtitle={`${range} trend`}
+              />
+              <RevenueChart
+                key={`${range}-${refreshKey}`}
+                data={data.revenue_series ?? []}
+                labels={data.revenue_labels ?? []}
+              />
+            </Animated.View>
+
+            {/* ── Order Type Donut ───────────────────────────────── */}
+            <Animated.View
+              style={s.card}
+              entering={Platform.OS !== 'web' ? FadeInDown.delay(200).duration(400) : undefined}
+            >
+              <SectionHeader title="Order Mix" subtitle="by type" />
+              <DonutChart
+                key={`donut-${range}-${refreshKey}`}
+                segments={orderTypeSegments}
+                total={data.total_orders ?? 0}
+              />
+            </Animated.View>
+
+            {/* ── Top Items ──────────────────────────────────────── */}
+            <Animated.View
+              style={[s.card, s.cardNoPad]}
+              entering={Platform.OS !== 'web' ? FadeInDown.delay(250).duration(400) : undefined}
+            >
+              <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
+                <SectionHeader title="Top Dishes" subtitle={`ranked by revenue`} />
+              </View>
+              {(data.top_items ?? []).map((item, i) => (
+                <View key={item.id ?? i}>
+                  <TopItemRow item={item} index={i} maxRevenue={maxRevenue} />
+                  {i < (data.top_items?.length ?? 0) - 1 && (
+                    <View style={s.divider} />
+                  )}
+                </View>
+              ))}
+              {/* Spacer */}
+              <View style={{ height: 8 }} />
+            </Animated.View>
+
+            {/* ── Peak Hours Heatmap ─────────────────────────────── */}
+            <Animated.View
+              style={[s.card, { overflow: 'hidden' }]}
+              entering={Platform.OS !== 'web' ? FadeInDown.delay(300).duration(400) : undefined}
+            >
+              <SectionHeader title="Peak Hours" subtitle="Mon–Sun · 8am–10pm" />
+              <PeakHeatmap
+                key={`heat-${range}-${refreshKey}`}
+                data={data.peak_hours ?? []}
+              />
+              {/* Color scale legend */}
+              <View style={s.heatLegend}>
+                <Text style={s.heatLegendText}>Low</Text>
+                <LinearGradient
+                  colors={[
+                    `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.05)`,
+                    `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.4)`,
+                    colors.accent,
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={s.heatGradBar}
+                />
+                <Text style={s.heatLegendText}>High</Text>
+              </View>
+            </Animated.View>
+          </>
+        ) : (
+          /* ── Empty state — no fabricated numbers ─────────────── */
+          <View style={s.emptyWrap}>
+            <Ionicons name="bar-chart-outline" size={48} color={colors.textMuted} />
+            <Text style={s.emptyTitle}>No data for this period</Text>
+            <Text style={s.emptySub}>
+              {isLoading
+                ? 'Loading…'
+                : 'Try a different range or check back once you have activity.'}
+            </Text>
           </View>
-        </Animated.View>
-
-        {/* ── Revenue Chart ──────────────────────────────────── */}
-        <Animated.View
-          style={s.card}
-          entering={Platform.OS !== 'web' ? FadeInDown.delay(150).duration(400) : undefined}
-        >
-          <SectionHeader
-            title="Revenue"
-            subtitle={`${range} trend`}
-          />
-          <RevenueChart
-            key={`${range}-${refreshKey}`}
-            data={data.revenue_series ?? []}
-            labels={data.revenue_labels ?? []}
-          />
-        </Animated.View>
-
-        {/* ── Order Type Donut ───────────────────────────────── */}
-        <Animated.View
-          style={s.card}
-          entering={Platform.OS !== 'web' ? FadeInDown.delay(200).duration(400) : undefined}
-        >
-          <SectionHeader title="Order Mix" subtitle="by type" />
-          <DonutChart
-            key={`donut-${range}-${refreshKey}`}
-            segments={data.order_types ?? []}
-            total={data.total_orders ?? 0}
-          />
-        </Animated.View>
-
-        {/* ── Top Items ──────────────────────────────────────── */}
-        <Animated.View
-          style={[s.card, s.cardNoPad]}
-          entering={Platform.OS !== 'web' ? FadeInDown.delay(250).duration(400) : undefined}
-        >
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
-            <SectionHeader title="Top Dishes" subtitle={`ranked by revenue`} />
-          </View>
-          {(data.top_items ?? []).map((item, i) => (
-            <View key={item.id ?? i}>
-              <TopItemRow item={item} index={i} maxRevenue={maxRevenue} />
-              {i < (data.top_items?.length ?? 0) - 1 && (
-                <View style={s.divider} />
-              )}
-            </View>
-          ))}
-          {/* Spacer */}
-          <View style={{ height: 8 }} />
-        </Animated.View>
-
-        {/* ── Peak Hours Heatmap ─────────────────────────────── */}
-        <Animated.View
-          style={[s.card, { overflow: 'hidden' }]}
-          entering={Platform.OS !== 'web' ? FadeInDown.delay(300).duration(400) : undefined}
-        >
-          <SectionHeader title="Peak Hours" subtitle="Mon–Sun · 8am–10pm" />
-          <PeakHeatmap
-            key={`heat-${range}-${refreshKey}`}
-            data={data.peak_hours ?? buildPeakHours()}
-          />
-          {/* Color scale legend */}
-          <View style={s.heatLegend}>
-            <Text style={s.heatLegendText}>Low</Text>
-            <LinearGradient
-              colors={['rgba(0,112,243,0.05)', 'rgba(0,112,243,0.4)', '#0070F3']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={s.heatGradBar}
-            />
-            <Text style={s.heatLegendText}>High</Text>
-          </View>
-        </Animated.View>
+        )}
 
         {/* ── Footer stamp ────────────────────────────────────── */}
         <Text style={s.stamp}>
-          {isLoading ? 'Loading live data…' : `Live · Updated just now`}
+          {isLoading
+            ? 'Loading live data…'
+            : data
+            ? `Live · Updated just now`
+            : ''}
         </Text>
       </ScrollView>
     </View>
@@ -989,86 +992,107 @@ export default function ReportsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F7F7' },
+function makeStyles(colors) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.bg },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 14,
-  },
-  headerEye: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#888888',
-    letterSpacing: 1.5,
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#000000',
-    letterSpacing: -0.5,
-  },
-  refreshBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F7F7F7',
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rangeWrap: { marginTop: 4 },
+    header: {
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      backgroundColor: colors.headerBg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerContent: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      marginBottom: 14,
+    },
+    headerEye: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 1.5,
+      marginBottom: 2,
+    },
+    headerTitle: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: colors.text,
+      letterSpacing: -0.5,
+    },
+    refreshBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.bg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    rangeWrap: { marginTop: 4 },
 
-  scroll: { flex: 1 },
-  content: { padding: 16, gap: 14 },
+    scroll: { flex: 1 },
+    content: { padding: 16, gap: 14 },
 
-  kpiRow: { flexDirection: 'row', gap: 8 },
+    kpiRow: { flexDirection: 'row', gap: 8 },
 
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-    overflow: 'hidden',
-  },
-  cardNoPad: { padding: 0 },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    cardNoPad: { padding: 0 },
 
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginHorizontal: 16,
-  },
+    divider: {
+      height: 1,
+      backgroundColor: colors.borderLight,
+      marginHorizontal: 16,
+    },
 
-  heatLegend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  heatLegendText: { fontSize: 10, color: '#888888' },
-  heatGradBar: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-  },
+    heatLegend: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 10,
+    },
+    heatLegendText: { fontSize: 10, color: colors.textMuted },
+    heatGradBar: {
+      flex: 1,
+      height: 6,
+      borderRadius: 3,
+    },
 
-  stamp: {
-    fontSize: 11,
-    color: '#888888',
-    textAlign: 'center',
-    marginTop: 4,
-    letterSpacing: 0.3,
-  },
-});
+    emptyWrap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 80,
+      gap: 10,
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    emptySub: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: 'center',
+      paddingHorizontal: 32,
+    },
+
+    stamp: {
+      fontSize: 11,
+      color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: 4,
+      letterSpacing: 0.3,
+    },
+  });
+}

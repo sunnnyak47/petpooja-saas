@@ -1067,8 +1067,8 @@ const styles = StyleSheet.create({
     borderColor: T.border,
   },
   categoryChipActive: {
-    backgroundColor: T.textPrimary,
-    borderColor: T.textPrimary,
+    backgroundColor: T.accentBlue,
+    borderColor: T.accentBlue,
   },
   categoryChipTxt: {
     fontSize: FS.sm,

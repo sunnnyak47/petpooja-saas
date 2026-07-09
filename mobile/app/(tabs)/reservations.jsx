@@ -44,11 +44,11 @@ const C = {
   bg: '#F7F7F7',
   surface: '#FFFFFF',
   border: '#EAEAEA',
-  text1: '#000000',
+  text1: '#0f172a',
   text2: '#444444',
   text3: '#888888',
   gold: '#F5A623',
-  indigo: '#0070F3',
+  indigo: '#2563eb',
   success: '#00B341',
   error: '#EE0000',
   amber: '#F59E0B',
@@ -248,7 +248,7 @@ export default function ReservationsScreen() {
   }
 
   function openWhatsApp(phone, name, time, date) {
-    const msg = `Hi ${name}! Your reservation at PetPooja Restaurant is confirmed for ${date} at ${time}. We look forward to seeing you! 🍽️`;
+    const msg = `Hi ${name}! Your reservation at MS-RM Restaurant is confirmed for ${date} at ${time}. We look forward to seeing you! 🍽️`;
     Linking.openURL(`https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`).catch(() =>
       Alert.alert('WhatsApp not installed')
     );
@@ -784,7 +784,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 68,
   },
-  datePillActive: { backgroundColor: C.text1, borderColor: C.text1 },
+  datePillActive: { backgroundColor: C.indigo, borderColor: C.indigo },
   datePillDay: { fontSize: 11, color: C.text3, fontWeight: '500' },
   datePillNum: { fontSize: 13, color: C.text2, fontWeight: '700', marginTop: 2 },
   datePillTextActive: { color: '#FFFFFF' },
@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  filterPillActive: { backgroundColor: C.text1, borderColor: C.text1 },
+  filterPillActive: { backgroundColor: C.indigo, borderColor: C.indigo },
   filterPillText: { fontSize: 13, fontWeight: '600', color: C.text2 },
   filterPillTextActive: { color: '#FFFFFF' },
 
@@ -901,7 +901,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     marginRight: 8,
   },
-  tablePillActive: { backgroundColor: C.text1, borderColor: C.text1 },
+  tablePillActive: { backgroundColor: C.indigo, borderColor: C.indigo },
   tablePillText: { fontSize: 13, fontWeight: '600', color: C.text2 },
   tablePillTextActive: { color: '#FFFFFF' },
   toggleRow: {
@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 14, fontWeight: '600', color: C.text1 },
   toggleSub: { fontSize: 12, color: C.text3, marginTop: 2 },
   saveBtn: {
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',

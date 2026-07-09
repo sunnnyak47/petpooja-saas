@@ -38,7 +38,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 const TYPE_COLORS = {
   'Happy Hour': '#F5A623',
-  'Combo': '#0070F3',
+  'Combo': '#2563eb',
   'Coupon': '#9B59B6',
   'Festival': '#EE0000',
   'Loyalty': '#00B341',
@@ -399,8 +399,8 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
           <Switch
             value={isActive}
             onValueChange={() => onToggle(offer.id)}
-            trackColor={{ false: '#EAEAEA', true: '#0070F320' }}
-            thumbColor={isActive ? '#0070F3' : '#fff'}
+            trackColor={{ false: '#EAEAEA', true: '#2563eb20' }}
+            thumbColor={isActive ? '#2563eb' : '#fff'}
             style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
           />
         </View>
@@ -431,7 +431,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
                     styles.usageFill,
                     {
                       width: `${Math.min(usagePct, 100)}%`,
-                      backgroundColor: usagePct > 85 ? '#EE0000' : '#0070F3',
+                      backgroundColor: usagePct > 85 ? '#EE0000' : '#2563eb',
                     },
                   ]}
                 />
@@ -672,7 +672,7 @@ export default function OffersScreen() {
           entering={enter ? FadeInDown.delay(100).springify() : undefined}
           style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Ionicons name="flash-outline" size={20} color="#0070F3" />
+            <Ionicons name="flash-outline" size={20} color="#2563eb" />
             <Text style={styles.summaryVal}>{activeCount}</Text>
             <Text style={styles.summaryLbl}>Active Offers</Text>
           </View>
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#EAEAEA',
   },
-  filterPillActive: { backgroundColor: '#000', borderColor: '#000' },
+  filterPillActive: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
   filterPillText: { fontSize: 13, fontWeight: '600', color: '#444' },
   filterPillTextActive: { color: '#fff' },
 
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -992,11 +992,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDotActive: { backgroundColor: '#000' },
+  stepDotActive: { backgroundColor: '#2563eb' },
   stepDotText: { fontSize: 13, fontWeight: '700', color: '#888' },
   stepDotTextActive: { color: '#fff' },
   stepLine: { flex: 1, height: 2, backgroundColor: '#EAEAEA', marginHorizontal: 4 },
-  stepLineActive: { backgroundColor: '#000' },
+  stepLineActive: { backgroundColor: '#2563eb' },
   stepLabel: { fontSize: 13, color: '#888', marginTop: 8, marginBottom: 4 },
 
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 8, marginTop: 12 },
@@ -1014,7 +1014,7 @@ const styles = StyleSheet.create({
   rowInputs: { flexDirection: 'row', gap: 10 },
   couponRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 4 },
   genBtn: {
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     borderColor: '#EAEAEA',
     backgroundColor: '#F7F7F7',
   },
-  typeCardSelected: { backgroundColor: '#000', borderColor: '#000' },
+  typeCardSelected: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
   typeCardText: { fontSize: 13, fontWeight: '600', color: '#444' },
   typeCardTextSelected: { color: '#fff' },
 
@@ -1050,7 +1050,7 @@ const styles = StyleSheet.create({
     borderColor: '#EAEAEA',
     backgroundColor: '#F7F7F7',
   },
-  pillActive: { backgroundColor: '#000', borderColor: '#000' },
+  pillActive: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
   pillText: { fontSize: 13, fontWeight: '600', color: '#444' },
   pillTextActive: { color: '#fff' },
 
@@ -1084,7 +1084,7 @@ const styles = StyleSheet.create({
   backBtnText: { fontSize: 15, fontWeight: '600', color: '#444' },
   nextBtn: {
     flex: 2,
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -1118,7 +1118,7 @@ const styles = StyleSheet.create({
   },
   errorText: { fontSize: 15, color: '#444', fontWeight: '600' },
   retryBtn: {
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 999,

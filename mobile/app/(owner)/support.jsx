@@ -60,7 +60,7 @@ export default function SupportScreen() {
             onPress={() => Linking.openURL('mailto:support@petpooja.com')}
           >
             <View style={[s.contactIcon, { backgroundColor: '#EBF4FF' }]}>
-              <Ionicons name="mail" size={22} color="#0070F3" />
+              <Ionicons name="mail" size={22} color="#2563eb" />
             </View>
             <Text style={[s.contactLabel, { color: colors.text }]}>Email Us</Text>
             <Text style={[s.contactSub, { color: colors.textMuted }]}>support@petpooja.com</Text>

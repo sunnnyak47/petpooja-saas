@@ -5,7 +5,7 @@ import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
-import { Colors } from '../../src/constants/colors';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useRealtimeOrders } from '../../src/hooks/useRealtimeOrders';
 import { useNotifications } from '../../src/hooks/useNotifications';
 import { SyncStatusBar } from '../../src/components/SyncStatusBar';
@@ -25,12 +25,26 @@ function triggerHapticLight() {
   } catch (_) {}
 }
 
+// Soft accent-tinted background for the active tab icon (theme + tenant-brand
+// aware — mirrors the web app's indigo-50 hover/active state).
+function softTint(hex, alpha = 0.12) {
+  let h = String(hex || '#6366f1').replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 // Wraps each tab button so we can fire haptics on press
 function HapticTabButton(props) {
   const { onPress, children, style, accessibilityState } = props;
   return (
     <TouchableOpacity
-      style={style}
+      // flex:1 makes each tab share the bar width evenly. Without it the button
+      // shrinks to its content and all tabs cram into the left.
+      style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, style]}
       onPress={(e) => {
         triggerHapticLight();
         if (onPress) onPress(e);
@@ -44,6 +58,7 @@ function HapticTabButton(props) {
 }
 
 function TabIcon({ name, focusedName, color, focused }) {
+  const { colors } = useTheme();
   const scale = useSharedValue(1);
 
   useEffect(() => {
@@ -59,7 +74,13 @@ function TabIcon({ name, focusedName, color, focused }) {
   }));
 
   return (
-    <Animated.View style={[styles.iconWrap, focused && styles.iconWrapActive, animStyle]}>
+    <Animated.View
+      style={[
+        styles.iconWrap,
+        focused && { backgroundColor: softTint(colors.accent) },
+        animStyle,
+      ]}
+    >
       <Ionicons name={focused ? focusedName : name} size={22} color={color} />
     </Animated.View>
   );
@@ -82,6 +103,7 @@ function NotificationBridge() {
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -102,23 +124,25 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarButton: (props) => <HapticTabButton {...props} />,
+          // NOTE: no custom tabBarButton — react-navigation's default button
+          // distributes tabs evenly (flex:1 each). A custom TouchableOpacity
+          // button collapsed each tab to content width and crammed them left.
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
-            borderTopColor: '#e2e8f0',
+            backgroundColor: colors.tabBar,
+            borderTopColor: colors.border,
             borderTopWidth: 1,
             height: TAB_HEIGHT,
             paddingBottom: bottomInset + 6,
             paddingTop: 8,
             elevation: 0,
-            shadowColor: '#0f172a',
+            shadowColor: colors.text,
             shadowOpacity: 0.06,
             shadowRadius: 12,
             shadowOffset: { width: 0, height: -2 },
           },
-          // Web app uses indigo-500 #6366f1 as brand accent
-          tabBarActiveTintColor: '#6366f1',
-          tabBarInactiveTintColor: '#94a3b8',
+          // Brand accent (tenant-overridable) drives the active tab tint.
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarInactiveTintColor: colors.tabInactive,
           tabBarLabelStyle: {
             fontSize: 10,
             fontWeight: '700',
@@ -216,84 +240,84 @@ export default function TabLayout() {
           name="pos"
           options={{
             title: 'POS',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="billing"
           options={{
             title: 'BILLING',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="purchase-orders"
           options={{
             title: 'PURCHASE',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="reports"
           options={{
             title: 'REPORTS',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="kot"
           options={{
             title: 'KOT',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="staff"
           options={{
             title: 'STAFF',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="reservations"
           options={{
             title: 'RESERVATIONS',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="customers"
           options={{
             title: 'CUSTOMERS',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="delivery-orders"
           options={{
             title: 'DELIVERY',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="expenses"
           options={{
             title: 'EXPENSES',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="eod"
           options={{
             title: 'EOD',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
         <Tabs.Screen
           name="offers"
           options={{
             title: 'OFFERS',
-            tabBarButton: () => null,
+            href: null,
           }}
         />
       </Tabs>
@@ -308,9 +332,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  iconWrapActive: {
-    // Indigo-50 soft background, matches web's hover/active state
-    backgroundColor: '#eef2ff',
   },
 });

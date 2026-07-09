@@ -1,6 +1,6 @@
 /**
  * Dashboard — MS-RM Owner
- * Vercel × Apple light theme
+ * Web-aligned theme via useTheme() (light + dark aware, tenant-brandable)
  * Web-compatible (expo start --web) · Mobile-first 390px viewport
  * No Gesture.Pan / GestureHandlerRootView — uses TouchableOpacity press effects
  * Reanimated: useSharedValue, useAnimatedStyle, withTiming, withSpring only
@@ -47,62 +47,27 @@ import Svg, {
 } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useDashboard } from '../../src/hooks/useApi';
-import { Colors } from '../../src/constants/colors';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { PressCard } from '../../src/components/PressCard';
 import { TYPE } from '../../src/constants/typography';
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
-// Dashboard theme — matches web app design language exactly.
-// Sync'd with src/constants/theme.js so all screens look consistent.
-const T = {
-  pageBg:    '#f8fafc',   // slate-50 — page background
-  cardBg:    '#ffffff',   // white — cards
-  cardBorder:'#e2e8f0',   // slate-200 — borders
-  shadow:    'rgba(15, 23, 42, 0.04)',
-  shadowHero:'rgba(15, 23, 42, 0.08)',
-  textPrimary:   '#0f172a',  // slate-900
-  textSecondary: '#475569',  // slate-600
-  textMuted:     '#94a3b8',  // slate-400
-  accent:    '#6366f1',   // indigo-500 — brand color (matches POS)
-  success:   '#10b981',   // emerald-500
-  warning:   '#f59e0b',   // amber-500
-  error:     '#ef4444',   // red-500
-  separator: '#f1f5f9',   // slate-100 — soft dividers
-  skeletonBg:'#e2e8f0',
-  gridLine:  '#f1f5f9',
-  // pill active — slate-900 dark pill like web
-  pillActiveBg:  '#0f172a',
-  pillActiveText:'#ffffff',
-  // growth badge — emerald
-  growthBg:  '#d1fae5',
-  growthText:'#047857',
-};
+// ─── Themed styles ─────────────────────────────────────────────────────────────
+// Colors now come from useTheme() (web-aligned, light/dark aware, tenant-brandable)
+// instead of a hardcoded module-scope palette. makeStyles(colors) is a pure factory
+// memoised per-component via useThemedStyles() so every colour re-skins with the theme.
+function useThemedStyles() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return { colors, styles };
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_PAD = 16;
 const CONTENT_W = Math.min(SCREEN_W, 480);
 const HERO_W = CONTENT_W - CARD_PAD * 2;
-
-// ─── Mock fallback data ───────────────────────────────────────────────────────
-const MOCK = {
-  todayRevenue: 124500,
-  totalOrders: 47,
-  pendingOrders: 8,
-  preparingOrders: 12,
-  readyOrders: 5,
-  completedOrders: 22,
-  avgOrderValue: 2648,
-  topItems: [
-    { name: 'Butter Chicken', count: 18, revenue: 32400 },
-    { name: 'Dal Makhani', count: 15, revenue: 18750 },
-    { name: 'Paneer Tikka', count: 12, revenue: 21600 },
-  ],
-  hourlyRevenue: [8000, 12000, 18000, 22000, 19000, 24000, 21500],
-  revenueGrowth: 12.4,
-};
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 function fmt(v) {
@@ -160,6 +125,7 @@ function useCounter(target, duration = 1200) {
 
 // ─── Hero Revenue Card ────────────────────────────────────────────────────────
 function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, hourlyRevenue }) {
+  const { colors, styles } = useThemedStyles();
   const displayRevenue = useCounter(revenue, 1400);
   const displayOrders = useCounter(totalOrders, 1000);
   const displayAvg = useCounter(Math.round(avgOrderValue), 1200);
@@ -199,7 +165,7 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
         </View>
         <View style={styles.heroStatDivider} />
         <View style={styles.heroStatItem}>
-          <Text style={[styles.heroStatValue, { color: isPositive ? T.success : T.error }]}>
+          <Text style={[styles.heroStatValue, { color: isPositive ? colors.success : colors.error }]}>
             {isPositive ? '+' : ''}{revenueGrowth.toFixed(1)}%
           </Text>
           <Text style={styles.heroStatLabel}>Growth</Text>
@@ -211,6 +177,7 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
 
 // ─── Hourly Mini Bar Chart (inside hero card) ─────────────────────────────────
 function HourlyMiniChart({ data = [] }) {
+  const { colors } = useTheme();
   const HOURS = ['10', '11', '12', '13', '14', '15', '16'];
   const max = Math.max(...data, 1);
   const barH = 32;
@@ -234,7 +201,7 @@ function HourlyMiniChart({ data = [] }) {
                 width={barW}
                 height={bh}
                 rx={3}
-                fill={isLast ? T.textPrimary : T.accent}
+                fill={isLast ? colors.text : colors.accent}
                 opacity={isLast ? 1 : 0.55}
               />
               <SvgText
@@ -242,7 +209,7 @@ function HourlyMiniChart({ data = [] }) {
                 y={barH + 14}
                 textAnchor="middle"
                 fontSize={9}
-                fill={isLast ? T.textPrimary : T.textMuted}
+                fill={isLast ? colors.text : colors.textMuted}
                 fontWeight={isLast ? '700' : '400'}
               >
                 {HOURS[i] || ''}
@@ -257,6 +224,7 @@ function HourlyMiniChart({ data = [] }) {
 
 // ─── Stats Row (4 horizontal scroll pills) ───────────────────────────────────
 function StatsRow({ totalOrders, pendingOrders, avgOrderValue, completedOrders }) {
+  const { styles } = useThemedStyles();
   const [activeIdx, setActiveIdx] = useState(0);
 
   const pills = [
@@ -286,6 +254,7 @@ function StatsRow({ totalOrders, pendingOrders, avgOrderValue, completedOrders }
 }
 
 function StatPill({ label, value, active, onPress }) {
+  const { styles } = useThemedStyles();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -316,13 +285,14 @@ function StatPill({ label, value, active, onPress }) {
 
 // ─── Order Status Donut Ring ──────────────────────────────────────────────────
 function OrderStatusRing({ pending, preparing, ready, completed }) {
+  const { colors, styles } = useThemedStyles();
   const total = pending + preparing + ready + completed || 1;
 
   const segments = [
-    { label: 'Pending',   count: pending,   color: T.warning },
-    { label: 'Preparing', count: preparing, color: T.accent },
-    { label: 'Ready',     count: ready,     color: T.success },
-    { label: 'Done',      count: completed, color: T.separator },
+    { label: 'Pending',   count: pending,   color: colors.warning },
+    { label: 'Preparing', count: preparing, color: colors.accent },
+    { label: 'Ready',     count: ready,     color: colors.success },
+    { label: 'Done',      count: completed, color: colors.borderLight },
   ];
 
   const SIZE = 140;
@@ -347,7 +317,7 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
         <Svg width={SIZE} height={SIZE}>
           <Circle
             cx={cx} cy={cy} r={r}
-            stroke={T.separator}
+            stroke={colors.borderLight}
             strokeWidth={STROKE}
             fill="none"
           />
@@ -369,10 +339,10 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
           ))}
         </Svg>
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: T.textPrimary }}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.text }}>
             {pending + preparing + ready}
           </Text>
-          <Text style={{ fontSize: 10, color: T.textMuted, fontWeight: '600' }}>Active</Text>
+          <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '600' }}>Active</Text>
         </View>
       </View>
 
@@ -381,7 +351,7 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
           <View key={i} style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: s.color }]} />
             <Text style={styles.legendLabel}>{s.label}</Text>
-            <Text style={[styles.legendCount, { color: T.textPrimary }]}>{s.count}</Text>
+            <Text style={[styles.legendCount, { color: colors.text }]}>{s.count}</Text>
           </View>
         ))}
       </View>
@@ -391,6 +361,7 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
 
 // ─── Revenue Bar Chart (7 bars, hourly) ───────────────────────────────────────
 function RevenueBarChart({ data = [] }) {
+  const { colors, styles } = useThemedStyles();
   const HOURS = ['10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
   const max = Math.max(...data, 1);
   const CHART_H = 100;
@@ -412,7 +383,7 @@ function RevenueBarChart({ data = [] }) {
             y={CHART_H - CHART_H * pct}
             width={chartW}
             height={1}
-            fill={T.gridLine}
+            fill={colors.borderLight}
           />
         ))}
 
@@ -426,7 +397,7 @@ function RevenueBarChart({ data = [] }) {
                 x={x} y={CHART_H - bh}
                 width={barW} height={bh}
                 rx={6}
-                fill={isActive ? T.textPrimary : T.accent}
+                fill={isActive ? colors.text : colors.accent}
                 opacity={isActive ? 1 : 0.7}
                 onPress={() => setActiveIdx(i)}
               />
@@ -434,7 +405,7 @@ function RevenueBarChart({ data = [] }) {
                 x={x + barW / 2} y={CHART_H + 18}
                 textAnchor="middle"
                 fontSize={9}
-                fill={isActive ? T.textPrimary : T.textMuted}
+                fill={isActive ? colors.text : colors.textMuted}
                 fontWeight={isActive ? '700' : '400'}
               >
                 {HOURS[i] || ''}
@@ -462,13 +433,14 @@ function RevenueBarChart({ data = [] }) {
 const RANK_STYLES = [
   { bg: '#000000', text: '#FFFFFF' },
   { bg: '#444444', text: '#FFFFFF' },
-  { bg: '#DDDDDD', text: '#000000' },
+  { bg: '#DDDDDD', text: '#0f172a' },
 ];
 
 function DishItem({ item, index }) {
+  const { colors, styles } = useThemedStyles();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const rs = RANK_STYLES[index] || { bg: T.separator, text: T.textMuted };
+  const rs = RANK_STYLES[index] || { bg: colors.borderLight, text: colors.textMuted };
 
   return (
     <TouchableOpacity
@@ -505,6 +477,7 @@ const QUICK_ACTIONS = [
 ];
 
 function QuickAction({ label, icon, onPress }) {
+  const { styles } = useThemedStyles();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -526,6 +499,7 @@ function QuickAction({ label, icon, onPress }) {
 
 // ─── Skeleton loading layout ──────────────────────────────────────────────────
 function DashboardSkeleton({ insets }) {
+  const { colors } = useTheme();
   return (
     <ScrollView
       contentContainerStyle={{
@@ -536,26 +510,26 @@ function DashboardSkeleton({ insets }) {
       }}
       showsVerticalScrollIndicator={false}
     >
-      <SkeletonBox width="60%" height={22} borderRadius={6} color={T.skeletonBg} />
-      <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginTop: -6 }} color={T.skeletonBg} />
-      <SkeletonBox width="100%" height={200} borderRadius={12} color={T.skeletonBg} />
+      <SkeletonBox width="60%" height={22} borderRadius={6} color={colors.border} />
+      <SkeletonBox width="40%" height={14} borderRadius={4} style={{ marginTop: -6 }} color={colors.border} />
+      <SkeletonBox width="100%" height={200} borderRadius={12} color={colors.border} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {[0, 1, 2, 3].map((i) => (
-          <SkeletonBox key={i} width={74} height={64} borderRadius={12} color={T.skeletonBg} />
+          <SkeletonBox key={i} width={74} height={64} borderRadius={12} color={colors.border} />
         ))}
       </View>
-      <SkeletonBox width="100%" height={160} borderRadius={12} color={T.skeletonBg} />
-      <SkeletonBox width="100%" height={148} borderRadius={12} color={T.skeletonBg} />
+      <SkeletonBox width="100%" height={160} borderRadius={12} color={colors.border} />
+      <SkeletonBox width="100%" height={148} borderRadius={12} color={colors.border} />
       {[0, 1, 2].map((i) => (
-        <SkeletonBox key={i} width="100%" height={60} borderRadius={12} color={T.skeletonBg} />
+        <SkeletonBox key={i} width="100%" height={60} borderRadius={12} color={colors.border} />
       ))}
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <SkeletonBox width="48%" height={80} borderRadius={12} color={T.skeletonBg} />
-        <SkeletonBox width="48%" height={80} borderRadius={12} color={T.skeletonBg} />
+        <SkeletonBox width="48%" height={80} borderRadius={12} color={colors.border} />
+        <SkeletonBox width="48%" height={80} borderRadius={12} color={colors.border} />
       </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <SkeletonBox width="48%" height={80} borderRadius={12} color={T.skeletonBg} />
-        <SkeletonBox width="48%" height={80} borderRadius={12} color={T.skeletonBg} />
+        <SkeletonBox width="48%" height={80} borderRadius={12} color={colors.border} />
+        <SkeletonBox width="48%" height={80} borderRadius={12} color={colors.border} />
       </View>
     </ScrollView>
   );
@@ -563,6 +537,7 @@ function DashboardSkeleton({ insets }) {
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ title, subtitle }) {
+  const { styles } = useThemedStyles();
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -571,18 +546,13 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
-// ─── Mock Notifications ───────────────────────────────────────────────────────
-const MOCK_NOTIFS = [
-  { id: 1, icon: '🛒', title: 'New Order', body: 'Table 7 placed an order — ₹1,240', time: '2m ago', unread: true },
-  { id: 2, icon: '⚠️', title: 'Low Stock Alert', body: 'Paneer is below reorder point (3.2 kg)', time: '15m ago', unread: true },
-  { id: 3, icon: '✅', title: 'Order Ready', body: 'ORD-041 is ready for delivery', time: '32m ago', unread: false },
-  { id: 4, icon: '🛒', title: 'New Order', body: 'Table 2 placed an order — ₹560', time: '1h ago', unread: false },
-  { id: 5, icon: '📦', title: 'PO Delivered', body: 'PO-2026-002 from Premium Proteins delivered', time: '3h ago', unread: false },
-];
-
 // ─── Notifications Modal ──────────────────────────────────────────────────────
+// Real notifications feed is not wired for this screen yet. Rather than fabricate
+// data (dangerous on an owner screen), we render an honest empty state until a
+// real notifications/alerts source is connected.
 function NotificationsModal({ visible, onClose }) {
-  const [notifs, setNotifs] = useState(MOCK_NOTIFS);
+  const { colors, styles } = useThemedStyles();
+  const [notifs, setNotifs] = useState([]);
   const { height: SCREEN_H } = Dimensions.get('window');
 
   function markAllRead() {
@@ -597,7 +567,7 @@ function NotificationsModal({ visible, onClose }) {
       onRequestClose={onClose}
     >
       <TouchableOpacity
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}
+        style={{ flex: 1, backgroundColor: colors.overlay }}
         activeOpacity={1}
         onPress={onClose}
       />
@@ -605,25 +575,35 @@ function NotificationsModal({ visible, onClose }) {
         <View style={styles.notifHandle} />
         <View style={styles.notifHeaderRow}>
           <Text style={styles.notifTitle}>Notifications</Text>
-          <TouchableOpacity onPress={markAllRead} activeOpacity={0.7}>
-            <Text style={styles.notifMarkAll}>Mark all read</Text>
-          </TouchableOpacity>
+          {notifs.length > 0 && (
+            <TouchableOpacity onPress={markAllRead} activeOpacity={0.7}>
+              <Text style={styles.notifMarkAll}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-          {notifs.map((n) => (
-            <View
-              key={n.id}
-              style={[styles.notifRow, n.unread && styles.notifRowUnread]}
-            >
-              {n.unread && <View style={styles.notifBlueDot} />}
-              <Text style={styles.notifIcon}>{n.icon}</Text>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.notifItemTitle}>{n.title}</Text>
-                <Text style={styles.notifItemBody}>{n.body}</Text>
-              </View>
-              <Text style={styles.notifTime}>{n.time}</Text>
+          {notifs.length === 0 ? (
+            <View style={styles.notifEmpty}>
+              <Text style={styles.notifEmptyIcon}>🔔</Text>
+              <Text style={styles.notifEmptyText}>No notifications</Text>
+              <Text style={styles.notifEmptySub}>You're all caught up.</Text>
             </View>
-          ))}
+          ) : (
+            notifs.map((n) => (
+              <View
+                key={n.id}
+                style={[styles.notifRow, n.unread && styles.notifRowUnread]}
+              >
+                {n.unread && <View style={styles.notifBlueDot} />}
+                <Text style={styles.notifIcon}>{n.icon}</Text>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.notifItemTitle}>{n.title}</Text>
+                  <Text style={styles.notifItemBody}>{n.body}</Text>
+                </View>
+                <Text style={styles.notifTime}>{n.time}</Text>
+              </View>
+            ))
+          )}
           <View style={{ height: 20 }} />
         </ScrollView>
       </View>
@@ -633,6 +613,7 @@ function NotificationsModal({ visible, onClose }) {
 
 // ─── Notification Bell ────────────────────────────────────────────────────────
 function NotifBell({ count = 0, onPress }) {
+  const { styles } = useThemedStyles();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -659,6 +640,7 @@ function NotifBell({ count = 0, onPress }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
+  const { colors, styles } = useThemedStyles();
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -666,6 +648,7 @@ export default function Dashboard() {
   const {
     data: rawData,
     isLoading,
+    isError,
     refetch,
     isRefetching,
   } = useDashboard();
@@ -674,26 +657,32 @@ export default function Dashboard() {
     refetch();
   }, [refetch]);
 
+  // No silent mock fallback — real data only. Missing fields coerce to neutral
+  // zeros/empties so the empty state (below) surfaces instead of fake revenue.
   const d = useMemo(() => {
     const api = rawData?.data || rawData || {};
-    const hasData =
+    return {
+      todayRevenue:     Number(api.todayRevenue     ?? api.today_revenue     ?? 0),
+      totalOrders:      Number(api.totalOrders      ?? api.total_orders      ?? 0),
+      pendingOrders:    Number(api.pendingOrders    ?? api.pending_orders    ?? 0),
+      preparingOrders:  Number(api.preparingOrders  ?? api.preparing_orders  ?? 0),
+      readyOrders:      Number(api.readyOrders      ?? api.ready_orders      ?? 0),
+      completedOrders:  Number(api.completedOrders  ?? api.completed_orders  ?? 0),
+      avgOrderValue:    Number(api.avgOrderValue    ?? api.avg_order_value   ?? 0),
+      topItems:         api.topItems     ?? api.top_items     ?? [],
+      hourlyRevenue:    api.hourlyRevenue ?? api.hourly_revenue ?? [],
+      revenueGrowth:    Number(api.revenueGrowth    ?? api.revenue_growth    ?? 0),
+    };
+  }, [rawData]);
+
+  const hasData = useMemo(() => {
+    const api = rawData?.data || rawData || {};
+    return (
       api.todayRevenue != null ||
       api.today_revenue != null ||
       api.totalOrders != null ||
-      api.total_orders != null;
-    if (!hasData) return MOCK;
-    return {
-      todayRevenue:     Number(api.todayRevenue     ?? api.today_revenue     ?? MOCK.todayRevenue),
-      totalOrders:      Number(api.totalOrders      ?? api.total_orders      ?? MOCK.totalOrders),
-      pendingOrders:    Number(api.pendingOrders     ?? api.pending_orders    ?? MOCK.pendingOrders),
-      preparingOrders:  Number(api.preparingOrders   ?? api.preparing_orders  ?? MOCK.preparingOrders),
-      readyOrders:      Number(api.readyOrders       ?? api.ready_orders      ?? MOCK.readyOrders),
-      completedOrders:  Number(api.completedOrders   ?? api.completed_orders  ?? MOCK.completedOrders),
-      avgOrderValue:    Number(api.avgOrderValue     ?? api.avg_order_value   ?? MOCK.avgOrderValue),
-      topItems:         api.topItems     ?? api.top_items     ?? MOCK.topItems,
-      hourlyRevenue:    api.hourlyRevenue ?? api.hourly_revenue ?? MOCK.hourlyRevenue,
-      revenueGrowth:    Number(api.revenueGrowth     ?? api.revenue_growth    ?? MOCK.revenueGrowth),
-    };
+      api.total_orders != null
+    );
   }, [rawData]);
 
   const notifCount = d.pendingOrders;
@@ -721,7 +710,7 @@ export default function Dashboard() {
             style={{ marginLeft: 8, padding: 8 }}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="person-circle-outline" size={26} color="#000000" />
+            <Ionicons name="person-circle-outline" size={26} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -734,7 +723,7 @@ export default function Dashboard() {
         onRequestClose={() => setProfileOpen(false)}
       >
         <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}
+          style={{ flex: 1, backgroundColor: colors.overlay }}
           activeOpacity={1}
           onPress={() => setProfileOpen(false)}
         />
@@ -772,8 +761,8 @@ export default function Dashboard() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={onRefresh}
-            tintColor={T.accent}
-            colors={[T.accent]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
             progressViewOffset={insets.top + 60}
           />
         }
@@ -782,103 +771,124 @@ export default function Dashboard() {
           { paddingBottom: insets.bottom + 96 },
         ]}
       >
-        {/* 1. Hero Revenue Card */}
-        <View style={styles.section}>
-          <HeroRevenueCard
-            revenue={d.todayRevenue}
-            totalOrders={d.totalOrders}
-            avgOrderValue={d.avgOrderValue}
-            revenueGrowth={d.revenueGrowth}
-            hourlyRevenue={d.hourlyRevenue}
-          />
-        </View>
-
-        {/* 2. Stats Row */}
-        <View style={{ marginTop: 16 }}>
-          <StatsRow
-            totalOrders={d.totalOrders}
-            pendingOrders={d.pendingOrders}
-            avgOrderValue={d.avgOrderValue}
-            completedOrders={d.completedOrders}
-          />
-        </View>
-
-        {/* 3. Order Status Ring */}
-        <View style={styles.section}>
-          <SectionHeader title="Order Status" subtitle="Live breakdown" />
-          <View style={styles.card}>
-            <OrderStatusRing
-              pending={d.pendingOrders}
-              preparing={d.preparingOrders}
-              ready={d.readyOrders}
-              completed={d.completedOrders}
-            />
+        {(isError || !hasData) ? (
+          /* ── Empty / error state — never fabricate revenue ─────────────── */
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>📊</Text>
+            <Text style={styles.emptyTitle}>
+              {isError ? "Couldn't load dashboard" : 'No data yet'}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {isError
+                ? "We couldn't reach the server. Pull to refresh or try again."
+                : "Today's revenue and orders will appear here once activity starts."}
+            </Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={onRefresh} activeOpacity={0.85}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* 4. Revenue Bar Chart */}
-        <View style={styles.section}>
-          <SectionHeader title="Hourly Revenue" subtitle="Tap a bar for value" />
-          <View style={styles.card}>
-            <RevenueBarChart data={d.hourlyRevenue} />
-          </View>
-        </View>
-
-        {/* 5. Top Dishes */}
-        <View style={styles.section}>
-          <SectionHeader title="Top Dishes" subtitle="Today's bestsellers" />
-          <View style={styles.card}>
-            <FlashList
-              data={d.topItems}
-              estimatedItemSize={64}
-              keyExtractor={(item, i) => item.name + i}
-              renderItem={({ item, index }) => (
-                <DishItem item={item} index={index} />
-              )}
-              ItemSeparatorComponent={() => (
-                <View style={{ height: 1, backgroundColor: T.separator, marginVertical: 4 }} />
-              )}
-              scrollEnabled={false}
-            />
-          </View>
-        </View>
-
-        {/* 6. Quick Actions 2×2 grid */}
-        <View style={styles.section}>
-          <SectionHeader title="Quick Actions" />
-          <View style={styles.quickActionsGrid}>
-            <View style={styles.quickActionsRow}>
-              {QUICK_ACTIONS.slice(0, 2).map((a, i) => (
-                <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
-              ))}
+        ) : (
+          <>
+            {/* 1. Hero Revenue Card */}
+            <View style={styles.section}>
+              <HeroRevenueCard
+                revenue={d.todayRevenue}
+                totalOrders={d.totalOrders}
+                avgOrderValue={d.avgOrderValue}
+                revenueGrowth={d.revenueGrowth}
+                hourlyRevenue={d.hourlyRevenue}
+              />
             </View>
-            <View style={styles.quickActionsRow}>
-              {QUICK_ACTIONS.slice(2, 4).map((a, i) => (
-                <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
-              ))}
+
+            {/* 2. Stats Row */}
+            <View style={{ marginTop: 16 }}>
+              <StatsRow
+                totalOrders={d.totalOrders}
+                pendingOrders={d.pendingOrders}
+                avgOrderValue={d.avgOrderValue}
+                completedOrders={d.completedOrders}
+              />
             </View>
-          </View>
-        </View>
+
+            {/* 3. Order Status Ring */}
+            <View style={styles.section}>
+              <SectionHeader title="Order Status" subtitle="Live breakdown" />
+              <View style={styles.card}>
+                <OrderStatusRing
+                  pending={d.pendingOrders}
+                  preparing={d.preparingOrders}
+                  ready={d.readyOrders}
+                  completed={d.completedOrders}
+                />
+              </View>
+            </View>
+
+            {/* 4. Revenue Bar Chart */}
+            <View style={styles.section}>
+              <SectionHeader title="Hourly Revenue" subtitle="Tap a bar for value" />
+              <View style={styles.card}>
+                <RevenueBarChart data={d.hourlyRevenue} />
+              </View>
+            </View>
+
+            {/* 5. Top Dishes */}
+            <View style={styles.section}>
+              <SectionHeader title="Top Dishes" subtitle="Today's bestsellers" />
+              <View style={styles.card}>
+                <FlashList
+                  data={d.topItems}
+                  estimatedItemSize={64}
+                  keyExtractor={(item, i) => item.name + i}
+                  renderItem={({ item, index }) => (
+                    <DishItem item={item} index={index} />
+                  )}
+                  ItemSeparatorComponent={() => (
+                    <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 4 }} />
+                  )}
+                  scrollEnabled={false}
+                />
+              </View>
+            </View>
+
+            {/* 6. Quick Actions 2×2 grid */}
+            <View style={styles.section}>
+              <SectionHeader title="Quick Actions" />
+              <View style={styles.quickActionsGrid}>
+                <View style={styles.quickActionsRow}>
+                  {QUICK_ACTIONS.slice(0, 2).map((a, i) => (
+                    <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
+                  ))}
+                </View>
+                <View style={styles.quickActionsRow}>
+                  {QUICK_ACTIONS.slice(2, 4).map((a, i) => (
+                    <QuickAction key={i} {...a} onPress={() => a.route && router.push(a.route)} />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+// makeStyles(colors) — pure factory built from web-aligned theme colours.
+const makeStyles = (colors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: T.pageBg,
+    backgroundColor: colors.bg,
   },
 
   // Header
   header: {
     paddingHorizontal: CARD_PAD,
     paddingBottom: 14,
-    backgroundColor: T.pageBg,
+    backgroundColor: colors.bg,
     zIndex: 10,
     borderBottomWidth: 1,
-    borderBottomColor: T.separator,
+    borderBottomColor: colors.borderLight,
   },
   headerRow: {
     flexDirection: 'row',
@@ -888,12 +898,12 @@ const styles = StyleSheet.create({
   headerGreeting: {
     fontSize: 18,
     fontWeight: '700',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.3,
   },
   headerDate: {
     fontSize: 12,
-    color: T.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -903,9 +913,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: T.cardBg,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: T.cardBorder,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -913,7 +923,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -4,
-    backgroundColor: T.error,
+    backgroundColor: colors.error,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -932,17 +942,56 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
 
+  // Empty / error state
+  emptyWrap: {
+    minHeight: 420,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    fontSize: 44,
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 19,
+  },
+  retryBtn: {
+    marginTop: 18,
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+  },
+  retryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
   // Layout
   section: {
     paddingHorizontal: CARD_PAD,
     marginTop: 24,
   },
   card: {
-    backgroundColor: T.cardBg,
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: T.cardBorder,
+    borderColor: colors.border,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -961,12 +1010,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
     fontSize: 11,
-    color: T.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
 
@@ -976,8 +1025,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 2,
-    borderColor: T.cardBorder,
-    backgroundColor: T.cardBg,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.09,
@@ -989,7 +1038,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 2,
-    color: T.textMuted,
+    color: colors.textMuted,
     marginBottom: 6,
   },
   heroRevenueRow: {
@@ -1001,7 +1050,7 @@ const styles = StyleSheet.create({
   heroRevenue: {
     fontSize: 36,
     fontWeight: '900',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -1.2,
     lineHeight: 44,
   },
@@ -1009,20 +1058,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: T.growthBg,
+    backgroundColor: colors.success + '22',
     marginBottom: 4,
   },
   growthText: {
     fontSize: 12,
     fontWeight: '700',
-    color: T.growthText,
+    color: colors.success,
   },
   heroStats: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: T.separator,
+    borderTopColor: colors.borderLight,
   },
   heroStatItem: {
     flex: 1,
@@ -1031,20 +1080,20 @@ const styles = StyleSheet.create({
   heroStatValue: {
     fontSize: 16,
     fontWeight: '800',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.4,
   },
   heroStatLabel: {
     fontSize: 10,
     fontWeight: '500',
-    color: T.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
     letterSpacing: 0.3,
   },
   heroStatDivider: {
     width: 1,
     height: 28,
-    backgroundColor: T.separator,
+    backgroundColor: colors.borderLight,
   },
 
   // Stats pills
@@ -1055,8 +1104,8 @@ const styles = StyleSheet.create({
   statPill: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: T.cardBorder,
-    backgroundColor: T.cardBg,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     alignItems: 'center',
@@ -1070,15 +1119,15 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   statPillActive: {
-    backgroundColor: T.pillActiveBg,
-    borderColor: T.pillActiveBg,
+    backgroundColor: colors.pillActiveBg,
+    borderColor: colors.pillActiveBg,
   },
   statPillLabel: {
     fontSize: 9,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: T.textMuted,
+    color: colors.textMuted,
     marginBottom: 4,
   },
   statPillLabelActive: {
@@ -1087,11 +1136,11 @@ const styles = StyleSheet.create({
   statPillValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.3,
   },
   statPillValueActive: {
-    color: T.pillActiveText,
+    color: colors.pillActiveText,
   },
 
   // Donut chart
@@ -1118,7 +1167,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '500',
-    color: T.textSecondary,
+    color: colors.textSecondary,
   },
   legendCount: {
     fontSize: 14,
@@ -1130,12 +1179,12 @@ const styles = StyleSheet.create({
   barTooltip: {
     position: 'absolute',
     top: -28,
-    backgroundColor: T.cardBg,
+    backgroundColor: colors.card,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: T.cardBorder,
+    borderColor: colors.border,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -1145,7 +1194,7 @@ const styles = StyleSheet.create({
   tooltipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: T.textPrimary,
+    color: colors.text,
   },
 
   // Top dishes
@@ -1169,19 +1218,19 @@ const styles = StyleSheet.create({
   dishName: {
     fontSize: 14,
     fontWeight: '700',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.1,
   },
   dishCount: {
     fontSize: 11,
-    color: T.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
     marginTop: 1,
   },
   dishRevenue: {
     fontSize: 15,
     fontWeight: '800',
-    color: T.accent,
+    color: colors.accent,
     letterSpacing: -0.3,
   },
 
@@ -1196,8 +1245,8 @@ const styles = StyleSheet.create({
   quickAction: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: T.cardBorder,
-    backgroundColor: T.cardBg,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     padding: 16,
     alignItems: 'center',
     gap: 6,
@@ -1215,14 +1264,14 @@ const styles = StyleSheet.create({
   quickActionLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: T.textPrimary,
+    color: colors.text,
     letterSpacing: -0.1,
     textAlign: 'center',
   },
 
   // Profile Modal Sheet
   profileSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -1231,7 +1280,7 @@ const styles = StyleSheet.create({
   profileSheetHandle: {
     width: 36,
     height: 4,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
@@ -1239,28 +1288,28 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.text,
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#444444',
+    color: colors.textSecondary,
     marginBottom: 20,
   },
   profileSeparator: {
     height: 1,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: colors.border,
     marginBottom: 20,
   },
   signOutBtn: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.text,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 12,
   },
   signOutBtnText: {
-    color: '#FFFFFF',
+    color: colors.card,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -1269,17 +1318,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: colors.border,
   },
   profileCloseBtnText: {
-    color: '#000000',
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600',
   },
 
   // Notifications modal
   notifSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 16,
@@ -1289,7 +1338,7 @@ const styles = StyleSheet.create({
   notifHandle: {
     width: 36,
     height: 4,
-    backgroundColor: '#DDDDDD',
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 14,
@@ -1303,26 +1352,46 @@ const styles = StyleSheet.create({
   notifTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.text,
     letterSpacing: -0.3,
   },
   notifMarkAll: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0070F3',
+    color: colors.accent,
+  },
+  notifEmpty: {
+    paddingVertical: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifEmptyIcon: {
+    fontSize: 40,
+    marginBottom: 12,
+    opacity: 0.5,
+  },
+  notifEmptyText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  notifEmptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
   },
   notifRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: colors.border,
     paddingLeft: 0,
     position: 'relative',
   },
   notifRowUnread: {
     borderLeftWidth: 3,
-    borderLeftColor: '#0070F3',
+    borderLeftColor: colors.accent,
     paddingLeft: 10,
   },
   notifBlueDot: {
@@ -1335,17 +1404,17 @@ const styles = StyleSheet.create({
   notifItemTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#000000',
+    color: colors.text,
     marginBottom: 2,
   },
   notifItemBody: {
     fontSize: 13,
-    color: '#888888',
+    color: colors.textMuted,
     lineHeight: 18,
   },
   notifTime: {
     fontSize: 11,
-    color: '#888888',
+    color: colors.textMuted,
     marginLeft: 8,
     alignSelf: 'flex-start',
     paddingTop: 2,

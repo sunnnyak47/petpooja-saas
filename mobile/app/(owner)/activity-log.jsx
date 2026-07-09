@@ -21,16 +21,16 @@ import { useAuditLogs } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 
 const ACTION_TYPES = {
-  login: { icon: 'log-in', color: '#0070F3', label: 'Login' },
+  login: { icon: 'log-in', color: '#2563eb', label: 'Login' },
   logout: { icon: 'log-out', color: '#888', label: 'Logout' },
   void: { icon: 'close-circle', color: '#EE0000', label: 'Void' },
   refund: { icon: 'return-down-back', color: '#F5A623', label: 'Refund' },
   discount: { icon: 'pricetag', color: '#F5A623', label: 'Discount' },
-  price_change: { icon: 'create', color: '#0070F3', label: 'Price Change' },
+  price_change: { icon: 'create', color: '#2563eb', label: 'Price Change' },
   settings: { icon: 'settings', color: '#888', label: 'Settings' },
   order: { icon: 'receipt', color: '#00B341', label: 'Order' },
   stock: { icon: 'layers', color: '#F5A623', label: 'Stock' },
-  clock: { icon: 'time', color: '#0070F3', label: 'Clock' },
+  clock: { icon: 'time', color: '#2563eb', label: 'Clock' },
 };
 
 
@@ -105,7 +105,7 @@ export default function ActivityLogScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -197,7 +197,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     marginRight: 8,
   },
-  pillActive: { backgroundColor: '#000' },
+  pillActive: { backgroundColor: '#2563eb' },
   pillText: { ...TYPE.smallMed, color: '#888' },
   pillTextActive: { color: '#FFF' },
   scroll: { padding: 16 },

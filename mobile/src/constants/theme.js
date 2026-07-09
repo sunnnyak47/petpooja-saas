@@ -123,4 +123,50 @@ export const FW = {
   black:    '900',
 };
 
+// ── Fonts (match web: Inter for UI, JetBrains Mono for numbers) ────────────
+// Weight-specific families loaded via @expo-google-fonts/* in app/_layout.jsx.
+export const fonts = {
+  regular:   'Inter_400Regular',
+  medium:    'Inter_500Medium',
+  semibold:  'Inter_600SemiBold',
+  bold:      'Inter_700Bold',
+  extrabold: 'Inter_800ExtraBold',
+  mono:      'JetBrainsMono_500Medium',
+};
+
+// Map a React Native fontWeight to the matching Inter family (RN doesn't
+// synthesize weight for custom fonts on Android — pick the right family).
+export const fontForWeight = (w) => ({
+  '400': fonts.regular, '500': fonts.medium, '600': fonts.semibold,
+  '700': fonts.bold, '800': fonts.extrabold, '900': fonts.extrabold,
+  normal: fonts.regular, bold: fonts.bold,
+}[String(w ?? '400')] || fonts.regular);
+
+// ── Status colour maps (extracted 1:1 from web) ────────────────────────────
+export const tableStatus = {
+  available: { border: '#22c55e', bg: 'rgba(34,197,94,0.12)',  text: '#22c55e', label: 'Free' },
+  occupied:  { border: '#3b82f6', bg: 'rgba(59,130,246,0.15)', text: '#60a5fa', label: 'Busy' },
+  reserved:  { border: '#6366f1', bg: 'rgba(99,102,241,0.12)', text: '#818cf8', label: 'Reserved' },
+  blocked:   { border: '#52525b', bg: 'rgba(82,82,91,0.15)',   text: '#71717a', label: 'Inactive' },
+  held:      { border: '#eab308', bg: 'rgba(234,179,8,0.12)',  text: '#facc15', label: 'Held' },
+  part_paid: { border: '#f97316', bg: 'rgba(249,115,22,0.12)', text: '#fb923c', label: 'Part Paid' },
+  dirty:     { border: '#ef4444', bg: 'rgba(239,68,68,0.10)',  text: '#f87171', label: 'Dirty' },
+};
+
+// Pill: bg = base @ 15% alpha, border = base @ 30% alpha, text = the light shade.
+export const orderStatus = {
+  pending:   { base: '#eab308', text: '#fde047' },
+  confirmed: { base: '#3b82f6', text: '#93c5fd' },
+  preparing: { base: '#f97316', text: '#fdba74' },
+  ready:     { base: '#10b981', text: '#6ee7b7' },
+  served:    { base: '#a855f7', text: '#d8b4fe' },
+  billed:    { base: '#06b6d4', text: '#67e8f9' },
+  paid:      { base: '#22c55e', text: '#86efac' },
+  cancelled: { base: '#ef4444', text: '#fca5a5' },
+};
+
+export const kotStatus = { pending: '#fbbf24', preparing: '#60a5fa', ready: '#10b981' };
+
+export const chartColors = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
 export default T;

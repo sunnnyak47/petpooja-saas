@@ -19,7 +19,7 @@ const SECTIONS = [
     data: [
       {
         icon: 'bar-chart',
-        color: '#0070F3',
+        color: '#2563eb',
         title: 'Reports',
         desc: 'Revenue & analytics',
         route: '/(tabs)/reports',
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   cardActive: {
     borderWidth: 1.5,
-    borderColor: '#000000',
+    borderColor: '#e2e8f0',
     shadowColor: '#000000',
     shadowOpacity: 0.07,
     shadowRadius: 10,

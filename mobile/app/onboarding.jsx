@@ -14,7 +14,7 @@ const ONBOARDING_KEY = 'onboarding_complete';
 const SLIDES = [
   {
     icon: 'bar-chart',
-    color: '#0070F3',
+    color: '#2563eb',
     title: 'Real-Time Dashboard',
     desc: 'Monitor revenue, orders, and staff activity as it happens. All your key metrics in one glance.',
   },
@@ -118,14 +118,14 @@ const styles = StyleSheet.create({
   skipText: { fontSize: 15, color: '#888', fontWeight: '600' },
   slide: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
-  title: { fontSize: 26, fontWeight: '800', color: '#000', textAlign: 'center' },
+  title: { fontSize: 26, fontWeight: '800', color: '#0f172a', textAlign: 'center' },
   desc: { fontSize: 16, color: '#666', textAlign: 'center', marginTop: 12, lineHeight: 24 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#DDD' },
-  dotActive: { backgroundColor: '#000', width: 24 },
+  dotActive: { backgroundColor: '#2563eb', width: 24 },
   nextBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#000', marginHorizontal: 20, marginBottom: 20,
+    backgroundColor: '#2563eb', marginHorizontal: 20, marginBottom: 20,
     paddingVertical: 16, borderRadius: 14,
   },
   nextText: { color: '#FFF', fontSize: 17, fontWeight: '700' },

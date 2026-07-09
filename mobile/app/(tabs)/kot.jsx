@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,95 +21,27 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { PressCard } from '../../src/components/PressCard';
-import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const C = {
-  bg: '#F7F7F7',
-  surface: '#FFFFFF',
-  border: '#EAEAEA',
-  text1: '#000000',
-  text2: '#444444',
-  text3: '#888888',
-  gold: '#F5A623',
-  indigo: '#0070F3',
-  success: '#00B341',
-  error: '#EE0000',
-  amber: '#F5A623',
-  amberBg: '#FFF8EB',
-  blueBg: '#EBF4FF',
-  greenBg: '#EDFBF3',
-  redBg: '#FFF0F0',
-};
+import { useTheme } from '../../src/context/ThemeContext';
+import { useOutlet } from '../../src/context/OutletContext';
+import { kotStatus, chartColors } from '../../src/constants/theme';
+import { useKotList, useBumpKot, useMarkItemReady } from '../../src/hooks/useKot';
 
 const FILTERS = ['ALL', 'PENDING', 'PREPARING', 'READY'];
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const INITIAL_MOCK = [
-  {
-    id: 'k1',
-    order_number: 'ORD-001',
-    table_number: '3',
-    created_at: new Date(Date.now() - 8 * 60000).toISOString(),
-    status: 'pending',
-    items: [
-      { id: 'i1', name: 'Paneer Butter Masala', quantity: 2, item_status: 'waiting' },
-      { id: 'i2', name: 'Garlic Naan', quantity: 4, item_status: 'waiting' },
-      { id: 'i3', name: 'Dal Makhani', quantity: 1, item_status: 'waiting' },
-    ],
-  },
-  {
-    id: 'k2',
-    order_number: 'ORD-002',
-    table_number: '7',
-    created_at: new Date(Date.now() - 23 * 60000).toISOString(),
-    status: 'preparing',
-    items: [
-      { id: 'i4', name: 'Chicken Tikka Masala', quantity: 1, item_status: 'cooking' },
-      { id: 'i5', name: 'Jeera Rice', quantity: 2, item_status: 'done' },
-      { id: 'i6', name: 'Raita', quantity: 1, item_status: 'done' },
-    ],
-  },
-  {
-    id: 'k3',
-    order_number: 'ORD-003',
-    table_number: '2',
-    created_at: new Date(Date.now() - 14 * 60000).toISOString(),
-    status: 'preparing',
-    items: [
-      { id: 'i7', name: 'Masala Dosa', quantity: 2, item_status: 'cooking' },
-      { id: 'i8', name: 'Sambar', quantity: 2, item_status: 'cooking' },
-      { id: 'i9', name: 'Filter Coffee', quantity: 2, item_status: 'waiting' },
-    ],
-  },
-  {
-    id: 'k4',
-    order_number: 'ORD-004',
-    table_number: '5',
-    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
-    status: 'ready',
-    items: [
-      { id: 'i10', name: 'Biryani (Veg)', quantity: 1, item_status: 'done' },
-      { id: 'i11', name: 'Butter Naan', quantity: 2, item_status: 'done' },
-    ],
-  },
-  {
-    id: 'k5',
-    order_number: 'ORD-005',
-    table_number: '9',
-    created_at: new Date(Date.now() - 31 * 60000).toISOString(),
-    status: 'pending',
-    items: [
-      { id: 'i12', name: 'Chole Bhature', quantity: 2, item_status: 'waiting' },
-      { id: 'i13', name: 'Lassi (Sweet)', quantity: 2, item_status: 'waiting' },
-      { id: 'i14', name: 'Gulab Jamun', quantity: 4, item_status: 'waiting' },
-    ],
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Turn a #rgb / #rrggbb into an rgba() string at the given alpha.
+function withAlpha(hex, a) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return hex;
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
 function getElapsedMin(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
 }
@@ -118,25 +50,22 @@ function formatClock(date) {
   return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 }
 
-function elapsedColor(min) {
-  if (min <= 10) return C.success;
-  if (min <= 20) return C.amber;
-  return C.error;
+function elapsedColor(min, colors) {
+  if (min <= 10) return colors.success;
+  if (min <= 20) return colors.warning;
+  return colors.error;
 }
 
-function statusConfig(status) {
-  switch (status) {
-    case 'pending':    return { label: 'PENDING',    color: C.amber,   bg: C.amberBg };
-    case 'preparing':  return { label: 'PREPARING',  color: C.indigo,  bg: C.blueBg  };
-    case 'ready':      return { label: 'READY',      color: C.success, bg: C.greenBg };
-    default:           return { label: status.toUpperCase(), color: C.text3, bg: '#F5F5F5' };
-  }
+function statusConfig(status, colors) {
+  const base = kotStatus[status];
+  if (base) return { label: status.toUpperCase(), color: base, bg: withAlpha(base, 0.15) };
+  return { label: String(status ?? '').toUpperCase(), color: colors.textMuted, bg: withAlpha(colors.textMuted, 0.15) };
 }
 
-function itemStatusDot(s) {
-  if (s === 'done')    return { color: C.success, label: '●' };
-  if (s === 'cooking') return { color: C.indigo,  label: '●' };
-  return { color: C.text3, label: '●' };
+function itemStatusDot(s, colors) {
+  if (s === 'done')    return { color: colors.success, label: '●' };
+  if (s === 'cooking') return { color: kotStatus.preparing, label: '●' };
+  return { color: colors.textMuted, label: '●' };
 }
 
 function ctaLabel(status) {
@@ -146,11 +75,11 @@ function ctaLabel(status) {
   return null;
 }
 
-function ctaColor(status) {
-  if (status === 'pending')   return C.indigo;
-  if (status === 'preparing') return C.success;
-  if (status === 'ready')     return '#7C3AED';
-  return C.text3;
+function ctaColor(status, colors) {
+  if (status === 'pending')   return colors.accent;
+  if (status === 'preparing') return colors.success;
+  if (status === 'ready')     return chartColors[4]; // violet
+  return colors.textMuted;
 }
 
 function nextStatus(status) {
@@ -186,12 +115,15 @@ function PulseCard({ isNew, children, style }) {
 }
 
 // ─── OrderCard ────────────────────────────────────────────────────────────────
-function OrderCard({ order, onStatusChange, isNew }) {
+function OrderCard({ order, onStatusChange, onItemPress, isNew, colors, styles }) {
   const elapsed = getElapsedMin(order.created_at);
   const isRush = elapsed > 20;
-  const sc = statusConfig(order.status);
+  const sc = statusConfig(order.status, colors);
   const cta = ctaLabel(order.status);
-  const ctaBg = ctaColor(order.status);
+  const ctaBg = ctaColor(order.status, colors);
+  const tableLabel = order.table_number
+    ? `T-${order.table_number}`
+    : (order.order_type ? String(order.order_type).replace(/_/g, ' ') : '—');
 
   const buttonScale = useSharedValue(1);
   const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: buttonScale.value }] }));
@@ -201,7 +133,7 @@ function OrderCard({ order, onStatusChange, isNew }) {
       withSpring(0.94, { damping: 20, stiffness: 300 }),
       withSpring(1, { damping: 18, stiffness: 250 })
     );
-    onStatusChange(order.id, nextStatus(order.status));
+    onStatusChange(order, nextStatus(order.status));
   }
 
   return (
@@ -211,8 +143,8 @@ function OrderCard({ order, onStatusChange, isNew }) {
         <View style={styles.cardHeaderLeft}>
           <Text style={styles.orderNum}>{order.order_number}</Text>
           <View style={styles.tableChip}>
-            <Ionicons name="grid-outline" size={11} color={C.text3} />
-            <Text style={styles.tableChipText}>T-{order.table_number}</Text>
+            <Ionicons name="grid-outline" size={11} color={colors.textMuted} />
+            <Text style={styles.tableChipText}>{tableLabel}</Text>
           </View>
         </View>
         <View style={styles.cardHeaderRight}>
@@ -228,21 +160,28 @@ function OrderCard({ order, onStatusChange, isNew }) {
       </View>
 
       {/* Elapsed */}
-      <Text style={[styles.elapsed, { color: elapsedColor(elapsed) }]}>
-        <Ionicons name="time-outline" size={12} color={elapsedColor(elapsed)} /> {elapsed} min ago
+      <Text style={[styles.elapsed, { color: elapsedColor(elapsed, colors) }]}>
+        <Ionicons name="time-outline" size={12} color={elapsedColor(elapsed, colors)} /> {elapsed} min ago
       </Text>
 
       {/* Items */}
       <View style={styles.itemsList}>
         {order.items.map((item) => {
-          const dot = itemStatusDot(item.item_status);
+          const dot = itemStatusDot(item.item_status, colors);
+          const done = item.item_status === 'done';
           return (
-            <View key={item.id} style={styles.itemRow}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.itemRow}
+              activeOpacity={done ? 1 : 0.6}
+              disabled={done}
+              onPress={() => onItemPress(order, item)}
+            >
               <Text style={[styles.itemDot, { color: dot.color }]}>{dot.label}</Text>
               <Text style={styles.itemQty}>{item.quantity}x</Text>
               <Text style={styles.itemName}>{item.name}</Text>
               <Text style={[styles.itemStatusLabel, { color: dot.color }]}>{item.item_status}</Text>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -268,16 +207,43 @@ function OrderCard({ order, onStatusChange, isNew }) {
   );
 }
 
+// ─── Skeleton loading card ──────────────────────────────────────────────────────
+function SkeletonCard({ colors, styles }) {
+  const sk = { backgroundColor: colors.border };
+  return (
+    <View style={styles.orderCard}>
+      <View style={styles.cardHeader}>
+        <SkeletonBox width={90} height={18} borderRadius={6} style={sk} />
+        <SkeletonBox width={64} height={18} borderRadius={999} style={sk} />
+      </View>
+      <SkeletonBox width={80} height={12} borderRadius={6} style={[sk, { marginTop: 8, marginBottom: 14 }]} />
+      <SkeletonBox width="100%" height={14} borderRadius={6} style={[sk, { marginBottom: 8 }]} />
+      <SkeletonBox width="80%" height={14} borderRadius={6} style={[sk, { marginBottom: 14 }]} />
+      <SkeletonBox width="100%" height={42} borderRadius={12} style={sk} />
+    </View>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function KotScreen() {
   const insets = useSafeAreaInsets();
-  const [orders, setOrders] = useState(INITIAL_MOCK);
+  const { colors, isDark } = useTheme();
+  const { outletId } = useOutlet();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const { data, isError, error, refetch } = useKotList({ outlet_id: outletId });
+  const bump = useBumpKot();
+  const markItemReady = useMarkItemReady();
+
+  const orders = data ?? null; // null → still loading (no data, no error yet)
+
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [clock, setClock] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [newOrderIds, setNewOrderIds] = useState(new Set());
   const [, forceUpdate] = useState(0);
   const mountedRef = useRef(true);
+  const prevIdsRef = useRef(null);
 
   // Live clock
   useEffect(() => {
@@ -299,44 +265,58 @@ export default function KotScreen() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  // Pulse newly-arrived tickets. Diff against the previous set of KOT ids; on the
+  // first load every ticket flashes in, then only genuinely new ones do.
+  const idSig = (orders ?? []).map((o) => o.id).join(',');
+  useEffect(() => {
+    if (!orders) return;
+    const ids = new Set(orders.map((o) => o.id));
+    if (prevIdsRef.current === null) {
+      prevIdsRef.current = ids;
+      setNewOrderIds(ids);
+    } else {
+      const fresh = new Set();
+      ids.forEach((id) => { if (!prevIdsRef.current.has(id)) fresh.add(id); });
+      prevIdsRef.current = ids;
+      if (fresh.size) setNewOrderIds(fresh);
+    }
+    const t = setTimeout(() => { if (mountedRef.current) setNewOrderIds(new Set()); }, 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idSig]);
+
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1200);
-  }, []);
+    try { await refetch(); } finally { if (mountedRef.current) setRefreshing(false); }
+  }, [refetch]);
 
-  const handleStatusChange = useCallback((id, newStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        const updatedItems = o.items.map((item) => ({
-          ...item,
-          item_status:
-            newStatus === 'preparing' ? 'cooking' :
-            newStatus === 'ready'     ? 'done'    :
-            item.item_status,
-        }));
-        return { ...o, status: newStatus, items: updatedItems };
-      })
-    );
-  }, []);
+  // Ticket-level bump (Start Cooking → Mark Ready → Serve), via PUT /kots/:id/status.
+  const handleStatusChange = useCallback((order, newStatus) => {
+    bump.mutate({ kotId: order.id, status: newStatus, outlet_id: outletId, order_id: order.order_id });
+  }, [bump, outletId]);
 
-  const filtered = orders.filter((o) => {
-    if (activeFilter === 'ALL') return o.status !== 'served';
+  // Per-item tap → mark that item ready (PUT /kots/:kotId/items/:itemId/ready).
+  const handleItemPress = useCallback((order, item) => {
+    if (item.item_status === 'done') return;
+    markItemReady.mutate({ kotId: order.id, itemId: item.kot_item_id, outlet_id: outletId });
+  }, [markItemReady, outletId]);
+
+  const list = orders ?? [];
+  const filtered = list.filter((o) => {
+    if (activeFilter === 'ALL') return o.status !== 'served' && o.status !== 'completed';
     return o.status === activeFilter.toLowerCase();
   });
 
   const counts = {
-    ALL:      orders.filter((o) => o.status !== 'served').length,
-    PENDING:  orders.filter((o) => o.status === 'pending').length,
-    PREPARING:orders.filter((o) => o.status === 'preparing').length,
-    READY:    orders.filter((o) => o.status === 'ready').length,
+    ALL:      list.filter((o) => o.status !== 'served' && o.status !== 'completed').length,
+    PENDING:  list.filter((o) => o.status === 'pending').length,
+    PREPARING:list.filter((o) => o.status === 'preparing').length,
+    READY:    list.filter((o) => o.status === 'ready').length,
   };
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -345,7 +325,7 @@ export default function KotScreen() {
           <Text style={styles.headerSub}>KOT Display</Text>
         </View>
         <View style={styles.clockBox}>
-          <Ionicons name="time-outline" size={16} color={C.indigo} />
+          <Ionicons name="time-outline" size={16} color={colors.accent} />
           <Text style={styles.clockText}>{formatClock(clock)}</Text>
         </View>
       </View>
@@ -385,23 +365,46 @@ export default function KotScreen() {
         style={styles.list}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.indigo} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon="restaurant-outline"
-            title="No orders"
-            subtitle={`No ${activeFilter.toLowerCase()} orders right now`}
-          />
+        {isError ? (
+          <View style={styles.stateWrap}>
+            <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+            <Text style={styles.stateTitle}>Couldn’t load tickets</Text>
+            <Text style={styles.stateSub}>{error?.message || 'Something went wrong. Pull to refresh.'}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleRefresh} activeOpacity={0.85}>
+              <Ionicons name="refresh-outline" size={16} color="#FFF" />
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : orders === null ? (
+          <>
+            <SkeletonCard colors={colors} styles={styles} />
+            <SkeletonCard colors={colors} styles={styles} />
+            <SkeletonCard colors={colors} styles={styles} />
+          </>
+        ) : filtered.length === 0 ? (
+          <View style={styles.stateWrap}>
+            <Ionicons name="restaurant-outline" size={48} color={colors.textMuted} />
+            <Text style={styles.stateTitle}>No active kitchen tickets</Text>
+            <Text style={styles.stateSub}>
+              {activeFilter === 'ALL'
+                ? 'New orders will appear here as they come in.'
+                : `No ${activeFilter.toLowerCase()} tickets right now.`}
+            </Text>
+          </View>
         ) : (
           filtered.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
               onStatusChange={handleStatusChange}
+              onItemPress={handleItemPress}
               isNew={newOrderIds.has(order.id)}
+              colors={colors}
+              styles={styles}
             />
           ))
         )}
@@ -412,10 +415,10 @@ export default function KotScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: C.bg,
+    backgroundColor: colors.bg,
   },
   header: {
     flexDirection: 'row',
@@ -428,24 +431,24 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 26,
     fontWeight: '700',
-    color: C.text1,
+    color: colors.text,
     letterSpacing: -0.5,
   },
   headerSub: {
     fontSize: 13,
-    color: C.text3,
+    color: colors.textMuted,
     marginTop: 1,
   },
   clockBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -455,7 +458,7 @@ const styles = StyleSheet.create({
   clockText: {
     fontSize: 13,
     fontWeight: '600',
-    color: C.indigo,
+    color: colors.accent,
     fontVariant: ['tabular-nums'],
   },
   filterRow: {
@@ -470,24 +473,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
   },
   filterPillActive: {
-    backgroundColor: C.indigo,
-    borderColor: C.indigo,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: C.text2,
+    color: colors.textSecondary,
   },
   filterPillTextActive: {
     color: '#FFF',
   },
   filterBadge: {
-    backgroundColor: C.border,
+    backgroundColor: colors.border,
     borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -498,7 +501,7 @@ const styles = StyleSheet.create({
   filterBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: C.text2,
+    color: colors.textSecondary,
   },
   filterBadgeTextActive: {
     color: '#FFF',
@@ -511,10 +514,10 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   orderCard: {
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     padding: 16,
     marginBottom: 14,
     shadowColor: '#000',
@@ -542,34 +545,35 @@ const styles = StyleSheet.create({
   orderNum: {
     fontSize: 17,
     fontWeight: '700',
-    color: C.text1,
+    color: colors.text,
   },
   tableChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: colors.pillBg,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   tableChipText: {
     fontSize: 12,
-    color: C.text3,
+    color: colors.textMuted,
     fontWeight: '600',
+    textTransform: 'capitalize',
   },
   rushBadge: {
-    backgroundColor: C.redBg,
+    backgroundColor: withAlpha(colors.error, 0.1),
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: C.error,
+    borderColor: colors.error,
   },
   rushText: {
     fontSize: 11,
     fontWeight: '700',
-    color: C.error,
+    color: colors.error,
   },
   statusBadge: {
     borderRadius: 999,
@@ -602,13 +606,13 @@ const styles = StyleSheet.create({
   itemQty: {
     fontSize: 13,
     fontWeight: '700',
-    color: C.text1,
+    color: colors.text,
     width: 28,
   },
   itemName: {
     flex: 1,
     fontSize: 13,
-    color: C.text2,
+    color: colors.textSecondary,
   },
   itemStatusLabel: {
     fontSize: 11,
@@ -627,5 +631,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF',
+  },
+  stateWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 72,
+    paddingHorizontal: 32,
+  },
+  stateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+    marginTop: 16,
+  },
+  stateSub: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 20,
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+  },
+  retryBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

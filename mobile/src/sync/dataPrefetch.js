@@ -71,43 +71,27 @@ export async function prefetchOutletData(outletId, options = {}) {
 
     let menuItemCount = 0;
     try {
-      const menuResponse = await api.get(`/menu?outlet_id=${outletId}`);
+      // Backend serves menu as two endpoints (categories + items).
+      const [catResp, itemResp] = await Promise.all([
+        api.get(`/menu/categories?outlet_id=${outletId}`),
+        api.get(`/menu/items?outlet_id=${outletId}`),
+      ]);
 
-      // API interceptor unwraps axios .data, so menuResponse = { success, data, message }
-      if (!menuResponse || !menuResponse.success) {
-        throw new Error(menuResponse?.message || 'Menu fetch failed');
+      // API interceptor unwraps axios .data → each is { success, data, message }
+      if (!catResp?.success || !itemResp?.success) {
+        throw new Error(catResp?.message || itemResp?.message || 'Menu fetch failed');
       }
 
-      const menuData = menuResponse.data;
+      const cData = catResp.data;
+      const iData = itemResp.data;
 
-      // Parse the menu response into categories and items arrays
-      // The API may return different shapes depending on backend version
-      let categories = [];
-      let items = [];
-
-      if (Array.isArray(menuData)) {
-        // Shape: [{ id, name, items: [...] }] — categories with nested items
-        categories = menuData.map((cat) => {
-          const { items: catItems, ...catData } = cat;
-          return catData;
-        });
-        items = menuData.flatMap((cat) =>
-          (cat.items || []).map((item) => ({ ...item, category_id: cat.id }))
-        );
-      } else if (menuData?.categories && menuData?.items) {
-        // Shape: { categories: [...], items: [...] } — separate arrays
-        categories = menuData.categories;
-        items = menuData.items;
-      } else if (menuData?.categories) {
-        // Shape: { categories: [{ id, name, items: [...] }] } — nested
-        categories = menuData.categories.map((cat) => {
-          const { items: catItems, ...catData } = cat;
-          return catData;
-        });
-        items = menuData.categories.flatMap((cat) =>
-          (cat.items || []).map((item) => ({ ...item, category_id: cat.id }))
-        );
-      }
+      // Each endpoint may return a bare array or a wrapped object — stay tolerant.
+      const categories = Array.isArray(cData)
+        ? cData
+        : (cData?.categories || cData?.items || cData?.rows || []);
+      const items = Array.isArray(iData)
+        ? iData
+        : (iData?.items || iData?.rows || []);
 
       // Store in SQLite
       cacheMenu(outletId, categories, items);
@@ -136,7 +120,7 @@ export async function prefetchOutletData(outletId, options = {}) {
 
     let tableCount = 0;
     try {
-      const tablesResponse = await api.get(`/tables?outlet_id=${outletId}`);
+      const tablesResponse = await api.get(`/orders/tables?outlet_id=${outletId}`);
 
       if (!tablesResponse || !tablesResponse.success) {
         throw new Error(tablesResponse?.message || 'Tables fetch failed');

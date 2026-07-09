@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,17 +24,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
+import api from '../../src/lib/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const C = {
   bg: '#F7F7F7',
   surface: '#FFFFFF',
   border: '#EAEAEA',
-  text1: '#000000',
+  text1: '#0f172a',
   text2: '#444444',
   text3: '#888888',
   gold: '#F5A623',
-  indigo: '#0070F3',
+  indigo: '#2563eb',
   success: '#00B341',
   error: '#EE0000',
 };
@@ -50,121 +51,30 @@ const SHIFT_FILTERS = ['All', 'On Shift', 'Off Shift', 'Managers'];
 
 const ROLES = ['Manager', 'Chef', 'Waiter', 'Cashier'];
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const INITIAL_STAFF = [
-  {
-    id: 's1',
-    name: 'Rajesh Kumar',
-    phone: '9876543210',
-    role: 'Manager',
-    status: 'on_shift',
-    clock_in: '09:00',
-    hours_today: 5.5,
-    shift_start: '09:00',
-    shift_end: '18:00',
-    salary: 35000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-  {
-    id: 's2',
-    name: 'Priya Sharma',
-    phone: '9812345678',
-    role: 'Cashier',
-    status: 'on_shift',
-    clock_in: '10:00',
-    hours_today: 4.5,
-    shift_start: '10:00',
-    shift_end: '19:00',
-    salary: 22000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-  {
-    id: 's3',
-    name: 'Suresh Yadav',
-    phone: '9823456789',
-    role: 'Chef',
-    status: 'on_shift',
-    clock_in: '08:30',
-    hours_today: 6.0,
-    shift_start: '08:30',
-    shift_end: '17:30',
-    salary: 28000,
-    orders_today: 0,
-    dishes_today: 34,
-  },
-  {
-    id: 's4',
-    name: 'Anita Patel',
-    phone: '9834567890',
-    role: 'Waiter',
-    status: 'on_shift',
-    clock_in: '11:00',
-    hours_today: 3.5,
-    shift_start: '11:00',
-    shift_end: '20:00',
-    salary: 18000,
-    orders_today: 12,
-    dishes_today: 0,
-  },
-  {
-    id: 's5',
-    name: 'Vikram Singh',
-    phone: '9845678901',
-    role: 'Waiter',
-    status: 'off_shift',
-    clock_in: null,
-    hours_today: 0,
-    shift_start: '14:00',
-    shift_end: '23:00',
-    salary: 18000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-  {
-    id: 's6',
-    name: 'Meena Iyer',
-    phone: '9856789012',
-    role: 'Chef',
-    status: 'on_leave',
-    clock_in: null,
-    hours_today: 0,
-    shift_start: '08:00',
-    shift_end: '17:00',
-    salary: 25000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-  {
-    id: 's7',
-    name: 'Arjun Mehta',
-    phone: '9867890123',
-    role: 'Waiter',
-    status: 'off_shift',
-    clock_in: null,
-    hours_today: 0,
-    shift_start: '16:00',
-    shift_end: '23:30',
-    salary: 17000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-  {
-    id: 's8',
-    name: 'Deepa Nair',
-    phone: '9878901234',
-    role: 'Manager',
-    status: 'on_shift',
-    clock_in: '09:30',
-    hours_today: 5.0,
-    shift_start: '09:30',
-    shift_end: '18:30',
-    salary: 40000,
-    orders_today: 0,
-    dishes_today: 0,
-  },
-];
+// ─── Staff normalizer ─────────────────────────────────────────────────────────
+// Maps a raw record from GET /staff into the shape this screen renders.
+// Attendance fields the API doesn't provide default to honest zeros/nulls —
+// never fabricated placeholder values.
+const SHIFT_STATUSES = ['on_shift', 'off_shift', 'on_leave'];
+
+function normalizeStaff(s) {
+  const rawStatus = String(s.status ?? '').toLowerCase();
+  const status = SHIFT_STATUSES.includes(rawStatus) ? rawStatus : 'off_shift';
+  return {
+    id: String(s.id ?? s._id ?? `staff-${Math.random().toString(36).slice(2)}`),
+    name: s.name ?? s.full_name ?? 'Unnamed',
+    phone: s.phone ?? s.phone_number ?? '',
+    role: s.role ?? 'Waiter',
+    status,
+    clock_in: s.clock_in ?? null,
+    hours_today: s.hours_today ?? 0,
+    shift_start: s.shift_start ?? '',
+    shift_end: s.shift_end ?? '',
+    salary: s.salary ?? 0,
+    orders_today: s.orders_today ?? 0,
+    dishes_today: s.dishes_today ?? 0,
+  };
+}
 
 const EMPTY_FORM = {
   name: '',
@@ -177,7 +87,32 @@ const EMPTY_FORM = {
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 function useStaff() {
-  const [staff, setStaff] = useState(INITIAL_STAFF);
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setError(null);
+        const res = await api.get('/staff');
+        const raw = res?.data?.items ?? res?.data ?? res?.items ?? res;
+        const list = Array.isArray(raw) ? raw : [];
+        if (!cancelled) setStaff(list.map(normalizeStaff));
+      } catch (err) {
+        if (!cancelled) {
+          setError(err);
+          setStaff([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const clockToggle = useCallback((id) => {
     setStaff((prev) =>
@@ -232,7 +167,7 @@ function useStaff() {
     );
   }, []);
 
-  return { staff, clockToggle, addStaff, updateStaff };
+  return { staff, loading, error, clockToggle, addStaff, updateStaff };
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -517,7 +452,7 @@ function AttendanceTimeline({ staff }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function StaffScreen() {
   const insets = useSafeAreaInsets();
-  const { staff, clockToggle, addStaff, updateStaff } = useStaff();
+  const { staff, loading, error, clockToggle, addStaff, updateStaff } = useStaff();
   const [activeFilter, setActiveFilter] = useState('All');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
@@ -526,7 +461,7 @@ export default function StaffScreen() {
 
   const totalStaff = staff.length;
   const onShiftCount = staff.filter((s) => s.status === 'on_shift').length;
-  const attendancePct = Math.round((onShiftCount / totalStaff) * 100);
+  const attendancePct = totalStaff > 0 ? Math.round((onShiftCount / totalStaff) * 100) : 0;
 
   const filtered = staff.filter((s) => {
     if (activeFilter === 'On Shift')  return s.status === 'on_shift';
@@ -608,8 +543,24 @@ export default function StaffScreen() {
         </ScrollView>
 
         {/* Staff list */}
-        {filtered.length === 0 ? (
-          <EmptyState icon="people-outline" title="No staff found" subtitle="Try a different filter" />
+        {error ? (
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Couldn't load staff"
+            subtitle={error.message || 'Please check your connection and try again.'}
+          />
+        ) : loading ? (
+          <EmptyState icon="hourglass-outline" title="Loading staff…" subtitle="Fetching your team" />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon="people-outline"
+            title={staff.length === 0 ? 'No staff yet' : 'No staff found'}
+            subtitle={
+              staff.length === 0
+                ? 'Add your first team member with the + button'
+                : 'Try a different filter'
+            }
+          />
         ) : (
           filtered.map((member) => (
             <StaffCard

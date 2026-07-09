@@ -33,7 +33,7 @@ const CONTENT_W = Math.min(SCREEN_W, 480);
 
 function StatusDot({ status }) {
   const colors = {
-    open: '#0070F3',
+    open: '#2563eb',
     closed: '#888',
     balanced: '#00B341',
     short: '#EE0000',
@@ -71,7 +71,7 @@ export default function CashReconScreen() {
     const total = preview.totalSales || 1;
     return [
       { label: 'Cash', amount: preview.cashSales || 0, icon: 'cash', color: '#00B341' },
-      { label: 'UPI', amount: preview.upiSales || 0, icon: 'phone-portrait', color: '#0070F3' },
+      { label: 'UPI', amount: preview.upiSales || 0, icon: 'phone-portrait', color: '#2563eb' },
       { label: 'Card', amount: preview.cardSales || 0, icon: 'card', color: '#F5A623' },
       { label: 'Online', amount: preview.onlineSales || 0, icon: 'globe', color: '#888' },
     ].map((p) => ({ ...p, pct: Math.round((p.amount / total) * 100) }));
@@ -90,7 +90,7 @@ export default function CashReconScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -113,7 +113,7 @@ export default function CashReconScreen() {
             const uri = await exportReportPdf({
               title: 'Cash Reconciliation',
               subtitle: `Today's Session • ${new Date().toLocaleDateString(dateLocale)}`,
-              outletName: currentOutlet?.name || 'PetPooja',
+              outletName: currentOutlet?.name || 'MS-RM',
               sections: [
                 {
                   heading: 'Session Overview',
@@ -184,7 +184,7 @@ export default function CashReconScreen() {
         ) : tab === 'today' ? (
           <>
             {/* Status Badge */}
-            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#0070F3' : '#00B341', backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#2563eb' : '#00B341', backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.statusRow}>
                 <StatusDot status={preview.status} />
                 <Text style={[s.statusLabel, { color: colors.text }]}>
@@ -340,7 +340,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
   },
-  tabActive: { backgroundColor: '#000' },
+  tabActive: { backgroundColor: '#2563eb' },
   tabText: { ...TYPE.smallMed, color: '#888' },
   tabTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 12 },

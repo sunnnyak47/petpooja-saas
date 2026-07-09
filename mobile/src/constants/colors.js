@@ -118,53 +118,56 @@ export const Glass = {
 };
 
 // ─── Theme System — Light / Dark ──────────────────────────────────────────────
+// Values below are aligned 1:1 with the web app's CSS variables
+// (frontend/src/themes/themes.js). Keys are unchanged so every screen using
+// useTheme().colors re-skins to the web look with no screen-code changes.
 
 export const LightColors = {
-  bg: '#F7F7F7',
-  card: '#FFFFFF',
-  text: '#000000',
-  textSecondary: '#444444',
-  textMuted: '#888888',
-  border: '#EAEAEA',
-  borderLight: '#F7F7F7',
-  accent: '#0070F3',
-  success: '#00B341',
-  warning: '#F5A623',
-  error: '#EE0000',
-  headerBg: '#FFFFFF',
-  tabBar: '#FFFFFF',
-  tabInactive: '#888888',
-  tabActive: '#000000',
-  pillBg: '#F0F0F0',
-  pillActiveBg: '#000000',
-  pillText: '#888888',
-  pillActiveText: '#FFFFFF',
-  inputBg: '#FFFFFF',
-  switchTrack: '#000000',
-  overlay: 'rgba(0,0,0,0.5)',
+  bg: '#f8fafc',            // slate-50  — page background
+  card: '#ffffff',          // white     — cards, inputs, modals
+  text: '#0f172a',          // slate-900 — headings/primary
+  textSecondary: '#475569', // slate-600 — body/labels
+  textMuted: '#94a3b8',     // slate-400 — hints/placeholders
+  border: '#e2e8f0',        // slate-200
+  borderLight: '#f1f5f9',   // slate-100 — soft dividers
+  accent: '#2563eb',        // blue-600  — dashboard primary (tenant-overridable)
+  success: '#16a34a',       // green-600
+  warning: '#d97706',       // amber-600
+  error: '#dc2626',         // red-600
+  headerBg: '#ffffff',
+  tabBar: '#ffffff',
+  tabInactive: '#94a3b8',
+  tabActive: '#2563eb',
+  pillBg: '#f1f5f9',
+  pillActiveBg: '#2563eb',
+  pillText: '#475569',
+  pillActiveText: '#ffffff',
+  inputBg: '#ffffff',
+  switchTrack: '#2563eb',
+  overlay: 'rgba(15,23,42,0.5)',
 };
 
 export const DarkColors = {
-  bg: '#0A0A0A',
-  card: '#1A1A1A',
-  text: '#FFFFFF',
-  textSecondary: '#CCCCCC',
-  textMuted: '#888888',
-  border: '#2A2A2A',
-  borderLight: '#1F1F1F',
-  headerBg: '#111111',
-  tabBar: '#111111',
-  tabInactive: '#666666',
-  tabActive: '#FFFFFF',
-  accent: '#4A9EFF',
-  success: '#00D44B',
-  warning: '#FFB84D',
-  error: '#FF4444',
-  pillBg: '#2A2A2A',
-  pillActiveBg: '#FFFFFF',
-  pillText: '#888888',
-  pillActiveText: '#000000',
-  inputBg: '#1A1A1A',
-  switchTrack: '#FFFFFF',
-  overlay: 'rgba(0,0,0,0.7)',
+  bg: '#0f172a',            // slate-900 — page background
+  card: '#1e293b',          // slate-800 — cards
+  text: '#f1f5f9',          // slate-100 — primary
+  textSecondary: '#94a3b8', // slate-400 — body
+  textMuted: '#64748b',     // slate-500 — hints
+  border: '#334155',        // slate-700
+  borderLight: '#1e293b',
+  headerBg: '#0f172a',
+  tabBar: '#0f172a',
+  tabInactive: '#94a3b8',
+  tabActive: '#3b82f6',
+  accent: '#3b82f6',        // blue-500  — dark accent (tenant-overridable)
+  success: '#22c55e',       // green-500
+  warning: '#f59e0b',       // amber-500
+  error: '#ef4444',         // red-500
+  pillBg: '#334155',
+  pillActiveBg: '#3b82f6',
+  pillText: '#94a3b8',
+  pillActiveText: '#ffffff',
+  inputBg: '#1e293b',
+  switchTrack: '#3b82f6',
+  overlay: 'rgba(0,0,0,0.6)',
 };

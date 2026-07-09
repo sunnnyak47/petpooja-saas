@@ -35,13 +35,13 @@ const C = {
   cardBg:      '#FFFFFF',
   cardBorder:  '#EAEAEA',
   cardShadow:  '#000000',
-  text1:       '#000000',
+  text1:       '#0f172a',
   text2:       '#444444',
   text3:       '#888888',
-  accent:      '#0070F3',
+  accent:      '#2563eb',
   pending:     '#F5A623',
   pendingBg:   '#FFF8EB',
-  preparing:   '#0070F3',
+  preparing:   '#2563eb',
   preparingBg: '#EBF4FF',
   ready:       '#00B341',
   readyBg:     '#EDFBF3',
@@ -65,9 +65,9 @@ const STATUS_META = {
 // Phase 3 — Contextual CTA map
 const STATUS_CTA = {
   pending:   { label: 'Start Preparing →', color: '#F5A623', nextStatus: 'preparing' },
-  preparing: { label: 'Mark Ready →',      color: '#0070F3', nextStatus: 'ready' },
+  preparing: { label: 'Mark Ready →',      color: '#2563eb', nextStatus: 'ready' },
   ready:     { label: 'Mark Served ✓',     color: '#00B341', nextStatus: 'served' },
-  served:    { label: 'Generate Bill',      color: '#000000', nextStatus: 'billed' },
+  served:    { label: 'Generate Bill',      color: '#2563eb', nextStatus: 'billed' },
 };
 
 // Keep legacy NEXT_STATUS for optimistic-update logic (handleAdvance)
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     height: 2,
-    backgroundColor: C.text1,
+    backgroundColor: C.accent,
     borderRadius: 1,
   },
   // Phase 4 — filter pills minHeight 36, paddingHorizontal 14

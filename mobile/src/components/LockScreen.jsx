@@ -45,7 +45,7 @@ export default function LockScreen() {
         <View style={s.logoWrap}>
           <Ionicons name="restaurant" size={48} color="#FFF" />
         </View>
-        <Text style={s.brand}>PetPooja</Text>
+        <Text style={s.brand}>MS-RM</Text>
 
         {/* Message */}
         <Text style={s.title}>Session Expired</Text>

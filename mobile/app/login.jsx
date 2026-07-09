@@ -11,24 +11,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
+import { warmup } from '../src/lib/api';
 
-/* ── Design tokens ───────────────────────────────────── */
+/* ── Design tokens — aligned 1:1 with the web MS-RM theme ─────────────── */
 const C = {
-  bg:           '#FAFAFA',
-  card:         '#FFFFFF',
-  border:       '#EAEAEA',
-  text:         '#000000',
-  textSec:      '#666666',
-  textMuted:    '#999999',
-  accent:       '#0070F3',
-  btnBg:        '#000000',
-  btnText:      '#FFFFFF',
-  inputBg:      '#FFFFFF',
-  inputBorder:  '#EAEAEA',
-  inputFocus:   '#000000',
-  error:        '#EE0000',
-  success:      '#00B341',
-  placeholder:  '#BBBBBB',
+  bg:           '#f8fafc',   // slate-50  (web page bg)
+  card:         '#ffffff',
+  border:       '#e2e8f0',   // slate-200
+  text:         '#0f172a',   // slate-900 (was pure black)
+  textSec:      '#475569',   // slate-600
+  textMuted:    '#94a3b8',   // slate-400
+  accent:       '#2563eb',   // blue-600  (web --accent)
+  btnBg:        '#2563eb',   // MS-RM blue (was pure black)
+  btnText:      '#ffffff',
+  inputBg:      '#ffffff',
+  inputBorder:  '#e2e8f0',
+  inputFocus:   '#2563eb',   // accent focus ring (was black)
+  error:        '#dc2626',   // red-600
+  success:      '#16a34a',   // green-600
+  placeholder:  '#94a3b8',
 };
 
 /* ── Simple input with animated border ──────────────── */
@@ -84,6 +85,7 @@ export default function LoginScreen() {
   const formO = useSharedValue(0);
 
   useEffect(() => {
+    warmup(); // wake a possibly cold-started backend while the user types
     logoO.value = withTiming(1, { duration: 480 });
     logoY.value = withSpring(0, { damping: 22, stiffness: 280 });
     setTimeout(() => {
@@ -245,7 +247,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: C.text,
+    backgroundColor: C.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,

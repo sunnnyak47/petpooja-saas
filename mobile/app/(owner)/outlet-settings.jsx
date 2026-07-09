@@ -73,7 +73,7 @@ export default function OutletSettingsScreen() {
   const handleTestPrint = useCallback(async () => {
     try {
       await printKot({
-        outletName: outlet.name || 'PetPooja',
+        outletName: outlet.name || 'MS-RM',
         table: 'T1',
         items: [{ name: 'Test Item', qty: 1 }],
         notes: 'Printer test',
@@ -102,7 +102,7 @@ export default function OutletSettingsScreen() {
         <View style={s.centerState}>
           <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
           <Text style={[s.stateText, { color: colors.textMuted }]}>Failed to load outlet details</Text>
-          <TouchableOpacity style={[s.retryBtn, { backgroundColor: colors.text }]} onPress={refetch}>
+          <TouchableOpacity style={[s.retryBtn, { backgroundColor: colors.accent }]} onPress={refetch}>
             <Text style={[s.retryText, { color: colors.bg }]}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -260,7 +260,7 @@ export default function OutletSettingsScreen() {
         </View>
 
         <View style={s.noteCard}>
-          <Ionicons name="information-circle" size={18} color="#0070F3" />
+          <Ionicons name="information-circle" size={18} color="#2563eb" />
           <Text style={s.noteText}>
             To modify outlet settings, use the web dashboard or contact support.
           </Text>
@@ -340,7 +340,7 @@ const s = StyleSheet.create({
     backgroundColor: '#EBF4FF',
     borderRadius: 12,
   },
-  noteText: { ...TYPE.small, color: '#0070F3', flex: 1, lineHeight: 18 },
+  noteText: { ...TYPE.small, color: '#2563eb', flex: 1, lineHeight: 18 },
 
   // Printer section
   printerBadge: {
@@ -424,7 +424,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: '#0070F3',
+    backgroundColor: '#2563eb',
     borderRadius: 8,
   },
   retryText: { ...TYPE.smallMed, color: '#FFF' },

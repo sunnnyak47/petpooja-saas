@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../lib/api';
+import api, { setAuthFailureHandler } from '../lib/api';
+import { getAccessToken, setTokens, clearTokens } from '../lib/tokenStore';
 
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 
@@ -19,10 +20,23 @@ export function AuthProvider({ children }) {
     lastActivityRef.current = Date.now();
   }, []);
 
+  const logout = useCallback(async () => {
+    await clearTokens();
+    await AsyncStorage.removeItem('auth_user').catch(() => {});
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  // Let the API layer clear session state when a token refresh fails hard.
+  useEffect(() => {
+    setAuthFailureHandler(() => { logout(); });
+    return () => setAuthFailureHandler(null);
+  }, [logout]);
+
   useEffect(() => {
     (async () => {
       try {
-        const storedToken = await AsyncStorage.getItem('auth_token');
+        const storedToken = await getAccessToken();
         const storedUser = await AsyncStorage.getItem('auth_user');
         if (storedToken && storedUser) {
           setToken(storedToken);
@@ -50,19 +64,14 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const login = async (email, password) => {
-    const res = await api.post('/auth/login', { login: email, password });
-    const { accessToken: t, user: u } = res.data;
-    await AsyncStorage.setItem('auth_token', t);
+    // Longer timeout: the backend may still be cold-starting (Render free tier).
+    const res = await api.post('/auth/login', { login: email, password }, { timeout: 60000 });
+    const { accessToken: t, refreshToken: rt, user: u } = res.data;
+    await setTokens({ accessToken: t, refreshToken: rt });
     await AsyncStorage.setItem('auth_user', JSON.stringify(u));
     setToken(t);
     setUser(u);
     return u;
-  };
-
-  const logout = async () => {
-    await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
-    setToken(null);
-    setUser(null);
   };
 
   return (

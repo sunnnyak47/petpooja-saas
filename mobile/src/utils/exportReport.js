@@ -67,7 +67,7 @@ export async function exportReportPdf({ title, subtitle, outletName, sections = 
       </div>
       ${sectionHtml}
       ${tableHtml}
-      <div class="footer">PetPooja Owner App • Confidential Report</div>
+      <div class="footer">MS-RM Owner App • Confidential Report</div>
     </body>
     </html>
   `;

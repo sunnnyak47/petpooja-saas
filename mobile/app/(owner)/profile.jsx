@@ -22,7 +22,7 @@ import { useBiometric } from '../../src/hooks/useBiometric';
 import { useTheme } from '../../src/context/ThemeContext';
 
 const ROLE_COLORS = {
-  owner: '#0070F3',
+  owner: '#2563eb',
   super_admin: '#F5A623',
   manager: '#00B341',
   cashier: '#888',

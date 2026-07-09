@@ -42,11 +42,11 @@ const C = {
   bg: '#F7F7F7',
   surface: '#FFFFFF',
   border: '#EAEAEA',
-  text1: '#000000',
+  text1: '#0f172a',
   text2: '#444444',
   text3: '#888888',
   gold: '#F5A623',
-  indigo: '#0070F3',
+  indigo: '#2563eb',
   success: '#00B341',
   error: '#EE0000',
 };
@@ -1667,7 +1667,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1733,8 +1733,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   catPillActive: {
-    backgroundColor: C.text1,
-    borderColor: C.text1,
+    backgroundColor: C.indigo,
+    borderColor: C.indigo,
   },
   catPillText: {
     fontSize: 13,
@@ -2000,7 +2000,7 @@ const styles = StyleSheet.create({
   emptyAction: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     borderRadius: 999,
   },
   emptyActionText: {
@@ -2058,7 +2058,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2318,7 +2318,7 @@ const ms = StyleSheet.create({
   // Save / Delete
   saveBtn: {
     height: 50,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2457,13 +2457,13 @@ const cm = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtn: {
     height: 48,
-    backgroundColor: C.text1,
+    backgroundColor: C.indigo,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

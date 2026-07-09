@@ -96,12 +96,6 @@ const INITIAL_TABLES = [
   },
 ];
 
-const SETTLED_BILLS_MOCK = [
-  { id: 'b1', tableNumber: 1, waiter: 'Amit', total: 1240, time: '10:30 AM', payMode: 'UPI' },
-  { id: 'b2', tableNumber: 4, waiter: 'Priya', total: 860, time: '11:15 AM', payMode: 'Cash' },
-  { id: 'b3', tableNumber: 6, waiter: 'Rahul', total: 2140, time: '12:00 PM', payMode: 'Card' },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function calcSubtotal(items) {
@@ -209,7 +203,7 @@ function TableBillCard({ table, onPress }) {
 // ─── Settled Bill Row ─────────────────────────────────────────────────────────
 
 function SettledBillRow({ bill }) {
-  const modeColor = bill.payMode === 'UPI' ? '#0070F3' : bill.payMode === 'Card' ? '#7B61FF' : '#00B341';
+  const modeColor = bill.payMode === 'UPI' ? '#2563eb' : bill.payMode === 'Card' ? '#7B61FF' : '#00B341';
   const { symbol, locale } = useCurrency();
   return (
     <View style={styles.settledRow}>
@@ -276,7 +270,7 @@ function ItemPickerModal({ visible, onClose, onAdd, menuItems }) {
               </View>
               <Text style={styles.pickerItemPrice}>{symbol}{item.price}</Text>
               <View style={styles.pickerAddBtn}>
-                <Ionicons name="add" size={18} color="#0070F3" />
+                <Ionicons name="add" size={18} color="#2563eb" />
               </View>
             </TouchableOpacity>
           ))}
@@ -720,7 +714,7 @@ function BillModal({ table, visible, onClose, onSettle, createOrder, isCreating,
             )}
 
             <TouchableOpacity style={styles.addItemsBtn} onPress={() => setShowItemPicker(true)}>
-              <Ionicons name="add-circle-outline" size={16} color="#0070F3" />
+              <Ionicons name="add-circle-outline" size={16} color="#2563eb" />
               <Text style={styles.addItemsBtnText}>Add More Items</Text>
             </TouchableOpacity>
 
@@ -922,7 +916,9 @@ export default function BillingScreen() {
     : MENU_ITEMS;
 
   const [tables, setTables] = useState(INITIAL_TABLES);
-  const [settledBills, setSettledBills] = useState(SETTLED_BILLS_MOCK);
+  // Settled bills accumulate in-session as tables are settled (handleSettle).
+  // No mock seed — starts empty and renders the "no settled bills" empty state.
+  const [settledBills, setSettledBills] = useState([]);
   const [selectedTable, setSelectedTable] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1011,7 +1007,7 @@ export default function BillingScreen() {
             {/* Quick Stats */}
             <View style={styles.statsRow}>
               <StatCard label="Today's Revenue" value={`₹${totalRevenue.toLocaleString('en-IN')}`} accent="#00B341" />
-              <StatCard label="Bills Settled" value={String(settledBills.length)} accent="#0070F3" />
+              <StatCard label="Bills Settled" value={String(settledBills.length)} accent="#2563eb" />
               <StatCard label="Outstanding" value={`₹${outstandingAmt.toLocaleString('en-IN')}`} accent="#F5A623" />
             </View>
 
@@ -1097,7 +1093,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerBadge: {
-    backgroundColor: '#0070F3',
+    backgroundColor: '#2563eb',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -1191,12 +1187,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#0070F3',
+    borderColor: '#2563eb',
   },
   tableCircleText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0070F3',
+    color: '#2563eb',
     letterSpacing: -0.3,
   },
   tableCardBody: { flex: 1 },
@@ -1227,7 +1223,7 @@ const styles = StyleSheet.create({
   },
   metaText: { fontSize: 11, color: '#888888' },
   generateBtn: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -1397,14 +1393,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 10,
   },
-  addItemsBtnText: { fontSize: 14, fontWeight: '700', color: '#0070F3' },
+  addItemsBtnText: { fontSize: 14, fontWeight: '700', color: '#2563eb' },
 
   // Discount
   discountHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10,
   },
-  addDiscountLink: { fontSize: 13, fontWeight: '700', color: '#0070F3' },
+  addDiscountLink: { fontSize: 13, fontWeight: '700', color: '#2563eb' },
   discountPanel: {
     backgroundColor: '#F7F7F7',
     borderRadius: 12,
@@ -1420,7 +1416,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EAEAEA',
     alignItems: 'center',
   },
-  discountModeTabActive: { backgroundColor: '#000' },
+  discountModeTabActive: { backgroundColor: '#2563eb' },
   discountModeTabText: { fontSize: 12, fontWeight: '700', color: '#444' },
   discountModeTabTextActive: { color: '#FFF' },
   discountInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -1436,7 +1432,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   discountApplyBtn: {
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 9,
@@ -1462,7 +1458,7 @@ const styles = StyleSheet.create({
   grandTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1497,7 +1493,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9,
     backgroundColor: '#FFFFFF',
   },
-  payPillSelected: { backgroundColor: '#000000', borderColor: '#000000' },
+  payPillSelected: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
   payPillLabel: { fontSize: 13, fontWeight: '700', color: '#444444' },
   payPillLabelSelected: { color: '#FFFFFF' },
 
@@ -1544,7 +1540,7 @@ const styles = StyleSheet.create({
   // Action buttons
   actionBtnPrimary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#000000', borderRadius: 14, minHeight: 52, marginBottom: 10,
+    backgroundColor: '#2563eb', borderRadius: 14, minHeight: 52, marginBottom: 10,
   },
   actionBtnPrimaryText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
   actionBtnWhatsapp: {

@@ -162,51 +162,34 @@ function _isOrderReadyForRetry(orderId) {
 // ─── Pull Operations ──────────────────────────────────────────────────────────
 
 async function _pullMenu() {
-  // API interceptor unwraps axios response.data, so we get the backend response directly
-  const response = await api.get(`/menu?outlet_id=${_outletId}`);
+  // Backend serves menu as TWO endpoints (categories + items), not a single
+  // `/menu`. API interceptor unwraps axios response.data → we get the envelope.
+  const [catRes, itemRes] = await Promise.all([
+    api.get(`/menu/categories?outlet_id=${_outletId}`),
+    api.get(`/menu/items?outlet_id=${_outletId}`),
+  ]);
 
-  if (!response || !response.success) {
-    throw new Error(response?.message || 'Failed to fetch menu');
+  if (!catRes?.success || !itemRes?.success) {
+    throw new Error(catRes?.message || itemRes?.message || 'Failed to fetch menu');
   }
 
-  const menuData = response.data;
+  const cData = catRes.data;
+  const iData = itemRes.data;
 
-  // The menu API might return data in different shapes:
-  // Shape A: { categories: [...], items: [...] }
-  // Shape B: [{ id, name, items: [...] }] (categories with nested items)
-  // Shape C: { categories: [...] } where each category has .items
-  let categories = [];
-  let items = [];
-
-  if (Array.isArray(menuData)) {
-    // Shape B: array of categories with nested items
-    categories = menuData.map((cat) => ({
-      ...cat,
-      items: undefined, // strip items from category object
-    }));
-    items = menuData.flatMap((cat) =>
-      (cat.items || []).map((item) => ({ ...item, category_id: cat.id }))
-    );
-  } else if (menuData?.categories && menuData?.items) {
-    // Shape A: separate arrays
-    categories = menuData.categories;
-    items = menuData.items;
-  } else if (menuData?.categories) {
-    // Shape C: categories with nested items
-    categories = menuData.categories.map((cat) => ({
-      ...cat,
-      items: undefined,
-    }));
-    items = menuData.categories.flatMap((cat) =>
-      (cat.items || []).map((item) => ({ ...item, category_id: cat.id }))
-    );
-  }
+  // Each endpoint may return a bare array or a wrapped object — stay tolerant.
+  const categories = Array.isArray(cData)
+    ? cData
+    : (cData?.categories || cData?.items || cData?.rows || []);
+  const items = Array.isArray(iData)
+    ? iData
+    : (iData?.items || iData?.rows || []);
 
   cacheMenu(_outletId, categories, items);
 }
 
 async function _pullTables() {
-  const response = await api.get(`/tables?outlet_id=${_outletId}`);
+  // Tables live under /orders/tables (not a top-level /tables).
+  const response = await api.get(`/orders/tables?outlet_id=${_outletId}`);
 
   if (!response || !response.success) {
     throw new Error(response?.message || 'Failed to fetch tables');

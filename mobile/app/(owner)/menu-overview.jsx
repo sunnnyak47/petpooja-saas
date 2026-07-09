@@ -112,7 +112,7 @@ export default function MenuOverviewScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -268,7 +268,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     marginRight: 8,
   },
-  catPillActive: { backgroundColor: '#000' },
+  catPillActive: { backgroundColor: '#2563eb' },
   catText: { ...TYPE.smallMed, color: '#888' },
   catTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 8 },

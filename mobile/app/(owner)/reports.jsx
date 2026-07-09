@@ -43,7 +43,7 @@ const RANGES = [
   { key: 'mtd', label: 'This Month' },
 ];
 
-const CHART_PALETTE = ['#0070F3', '#00B341', '#F5A623', '#EE0000', '#888888'];
+const CHART_PALETTE = ['#2563eb', '#00B341', '#F5A623', '#EE0000', '#888888'];
 
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ function RevenueBarChart({ data, chartWidth }) {
                 width={barWidth}
                 height={barH}
                 rx={4}
-                fill={isLast ? '#0070F3' : '#D0E3FF'}
+                fill={isLast ? '#2563eb' : '#D0E3FF'}
               />
               {/* Date label */}
               <SvgText
@@ -431,7 +431,7 @@ export default function ReportsScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => onRefresh()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -461,7 +461,7 @@ export default function ReportsScreen() {
             const uri = await exportReportPdf({
               title: 'Sales Report',
               subtitle: `${selectedRange} • ${new Date().toLocaleDateString(dateLocale)}`,
-              outletName: currentOutlet?.name || 'PetPooja',
+              outletName: currentOutlet?.name || 'MS-RM',
               sections: [
                 {
                   heading: 'Revenue Summary',
@@ -717,7 +717,7 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   pillActive: {
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
   },
   pillText: {
     ...TYPE.smallMed,

@@ -39,7 +39,7 @@ const APPROVAL_TYPES = {
   discount: { icon: 'pricetag', color: '#F5A623', bg: '#FFF8EB', label: 'Discount' },
   void: { icon: 'close-circle', color: '#EE0000', bg: '#FFF0F0', label: 'Void' },
   refund: { icon: 'return-down-back', color: '#EE0000', bg: '#FFF0F0', label: 'Refund' },
-  price_override: { icon: 'create', color: '#0070F3', bg: '#EBF4FF', label: 'Price Override' },
+  price_override: { icon: 'create', color: '#2563eb', bg: '#EBF4FF', label: 'Price Override' },
   comp: { icon: 'gift', color: '#00B341', bg: '#EDFBF3', label: 'Complimentary' },
 };
 
@@ -128,7 +128,7 @@ export default function ApprovalsScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Ionicons name="cloud-offline" size={48} color={colors.textMuted} />
           <Text style={{ fontSize: 16, color: colors.textMuted, marginTop: 12 }}>Unable to load data</Text>
-          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.text, borderRadius: 8 }}>
+          <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: colors.accent, borderRadius: 8 }}>
             <Text style={{ color: colors.bg, fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -219,7 +219,7 @@ export default function ApprovalsScreen() {
                   </View>
                   {item.staff && (
                     <View style={s.staffBadge}>
-                      <Ionicons name="person" size={12} color="#0070F3" />
+                      <Ionicons name="person" size={12} color="#2563eb" />
                       <Text style={s.staffText}>{item.staff}</Text>
                     </View>
                   )}
@@ -302,7 +302,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F0F0F0',
   },
-  pillActive: { backgroundColor: '#000' },
+  pillActive: { backgroundColor: '#2563eb' },
   pillText: { ...TYPE.smallMed, color: '#888' },
   pillTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 12 },
@@ -355,7 +355,7 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  staffText: { ...TYPE.caption, color: '#0070F3', fontWeight: '600' },
+  staffText: { ...TYPE.caption, color: '#2563eb', fontWeight: '600' },
   actions: {
     flexDirection: 'row',
     gap: 10,
