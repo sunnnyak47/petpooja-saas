@@ -25,14 +25,14 @@ import { useOutlet } from '../../src/context/OutletContext';
 const ROLE_COLORS = {
   Owner: '#2563eb',
   owner: '#2563eb',
-  Manager: '#00B341',
-  manager: '#00B341',
-  Cashier: '#F5A623',
-  cashier: '#F5A623',
-  Chef: '#EE0000',
-  chef: '#EE0000',
-  Waiter: '#888',
-  waiter: '#888',
+  Manager: '#16a34a',
+  manager: '#16a34a',
+  Cashier: '#d97706',
+  cashier: '#d97706',
+  Chef: '#dc2626',
+  chef: '#dc2626',
+  Waiter: '#94a3b8',
+  waiter: '#94a3b8',
   Delivery: '#2563eb',
   delivery: '#2563eb',
 };
@@ -125,7 +125,7 @@ export default function UserManagementScreen() {
           </View>
         ) : null}
         {filtered.map(staff => {
-          const rc = ROLE_COLORS[staff.role] || '#888';
+          const rc = ROLE_COLORS[staff.role] || '#94a3b8';
           return (
             <PressCard key={staff.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.cardRow}>
@@ -137,7 +137,7 @@ export default function UserManagementScreen() {
                 <View style={s.cardInfo}>
                   <View style={s.nameRow}>
                     <Text style={[s.staffName, { color: colors.text }]}>{staff.name}</Text>
-                    <View style={[s.statusDot, { backgroundColor: staff.active ? '#00B341' : colors.textMuted }]} />
+                    <View style={[s.statusDot, { backgroundColor: staff.active ? '#16a34a' : colors.textMuted }]} />
                   </View>
                   <View style={[s.roleBadge, { backgroundColor: rc + '15' }]}>
                     <Text style={[s.roleBadgeText, { color: rc }]}>{staff.role}</Text>
@@ -164,7 +164,7 @@ export default function UserManagementScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,10 +172,10 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
     gap: 12,
   },
-  headerTitle: { ...TYPE.h2, color: '#000', flex: 1 },
+  headerTitle: { ...TYPE.h2, color: '#0f172a', flex: 1 },
   countBadge: {
     ...TYPE.smallMed,
     color: '#FFF',
@@ -196,9 +196,9 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#000' },
+  searchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
   roleScroll: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -208,11 +208,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     marginRight: 8,
   },
   rolePillActive: { backgroundColor: '#2563eb' },
-  roleText: { ...TYPE.smallMed, color: '#888' },
+  roleText: { ...TYPE.smallMed, color: '#94a3b8' },
   roleTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 10 },
   card: {
@@ -220,7 +220,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   cardRow: { flexDirection: 'row' },
   avatar: {
@@ -233,7 +233,7 @@ const s = StyleSheet.create({
   avatarLetter: { fontSize: 20, fontWeight: '800' },
   cardInfo: { flex: 1, marginLeft: 12 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  staffName: { ...TYPE.bodyMed, color: '#000' },
+  staffName: { ...TYPE.bodyMed, color: '#0f172a' },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   roleBadge: {
     alignSelf: 'flex-start',
@@ -243,13 +243,13 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   roleBadgeText: { ...TYPE.caption, fontWeight: '700' },
-  staffMeta: { ...TYPE.caption, color: '#888', marginTop: 3 },
+  staffMeta: { ...TYPE.caption, color: '#94a3b8', marginTop: 3 },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     padding: 14,
-    backgroundColor: '#EBF4FF',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     marginTop: 8,
   },

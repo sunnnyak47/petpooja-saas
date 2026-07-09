@@ -45,18 +45,18 @@ import SkeletonBox from '../../src/components/SkeletonBox';
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg: '#F7F7F7',
-  surface: '#FFFFFF',
-  surface2: '#FAFAFA',
-  border: '#EAEAEA',
-  gold: '#F5A623',
+  bg: '#f8fafc',
+  surface: '#ffffff',
+  surface2: '#f8fafc',
+  border: '#e2e8f0',
+  gold: '#d97706',
   indigo: '#2563eb',
-  success: '#00B341',
-  warning: '#F5A623',
-  error: '#EE0000',
+  success: '#16a34a',
+  warning: '#d97706',
+  error: '#dc2626',
   text1: '#0f172a',
-  text2: '#444444',
-  text3: '#888888',
+  text2: '#475569',
+  text3: '#94a3b8',
 };
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -69,7 +69,7 @@ const CATEGORIES = [
   { label: 'Dairy', color: '#2196F3' },
   { label: 'Spices', color: '#E07843' },
   { label: 'Beverages', color: '#9B59B6' },
-  { label: 'Others', color: '#888888' },
+  { label: 'Others', color: '#94a3b8' },
 ];
 
 const MOCK_INVENTORY = [
@@ -96,11 +96,11 @@ function InventorySkeleton() {
     <View style={{ padding: 16, gap: 12 }}>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         {[0, 1, 2].map((i) => (
-          <SkeletonBox key={i} width={80} height={36} borderRadius={999} color="#F0F0F0" />
+          <SkeletonBox key={i} width={80} height={36} borderRadius={999} color="#f1f5f9" />
         ))}
       </View>
       {[0, 1, 2, 3, 4].map((i) => (
-        <SkeletonBox key={i} width="100%" height={88} borderRadius={16} color="#F0F0F0" />
+        <SkeletonBox key={i} width="100%" height={88} borderRadius={16} color="#f1f5f9" />
       ))}
     </View>
   );
@@ -144,7 +144,7 @@ function StockBar({ current, minQty, maxQty }) {
   const pct = Math.min(Math.max(current / max, 0), 1);
   const isLow = current <= minQty;
   const isCritical = current <= minQty * 0.5;
-  const barColor = isCritical ? '#EE0000' : isLow ? '#F5A623' : '#00B341';
+  const barColor = isCritical ? '#dc2626' : isLow ? '#d97706' : '#16a34a';
 
   const width = useSharedValue(0);
   useEffect(() => {
@@ -303,7 +303,7 @@ function InventoryRow({ item, index, onUpdate, onEdit }) {
             onPress={() => onEdit && onEdit(item)}
             scaleDown={0.95}
           >
-            <Ionicons name="create-outline" size={15} color="#000" />
+            <Ionicons name="create-outline" size={15} color="#0f172a" />
             <Text style={styles.editItemText}>Edit</Text>
           </PressCard>
         </View>
@@ -388,7 +388,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
               {isEdit ? 'Edit Item' : 'New Item'}
             </Text>
             <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn} hitSlop={8}>
-              <Ionicons name="close" size={20} color="#000" />
+              <Ionicons name="close" size={20} color="#0f172a" />
             </TouchableOpacity>
           </View>
 
@@ -403,7 +403,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
               <TextInput
                 style={modalStyles.input}
                 placeholder="e.g. Basmati Rice"
-                placeholderTextColor="#AAAAAA"
+                placeholderTextColor="#94a3b8"
                 value={name}
                 onChangeText={setName}
                 returnKeyType="next"
@@ -439,7 +439,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
                 <TextInput
                   style={modalStyles.input}
                   placeholder="0"
-                  placeholderTextColor="#AAAAAA"
+                  placeholderTextColor="#94a3b8"
                   value={stock}
                   onChangeText={setStock}
                   keyboardType="decimal-pad"
@@ -451,7 +451,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
                 <TextInput
                   style={modalStyles.input}
                   placeholder="kg"
-                  placeholderTextColor="#AAAAAA"
+                  placeholderTextColor="#94a3b8"
                   value={unit}
                   onChangeText={setUnit}
                   returnKeyType="next"
@@ -466,7 +466,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
                 <TextInput
                   style={modalStyles.input}
                   placeholder="0"
-                  placeholderTextColor="#AAAAAA"
+                  placeholderTextColor="#94a3b8"
                   value={reorderPoint}
                   onChangeText={setReorderPoint}
                   keyboardType="decimal-pad"
@@ -478,7 +478,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
                 <TextInput
                   style={modalStyles.input}
                   placeholder="0"
-                  placeholderTextColor="#AAAAAA"
+                  placeholderTextColor="#94a3b8"
                   value={price}
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
@@ -891,7 +891,7 @@ export default function InventoryScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
   },
 
   // Header
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   titleRow: {
     flexDirection: 'row',
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: 0.3,
   },
   alertBadge: {
@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginTop: 4,
-    backgroundColor: '#FFF8EB',
+    backgroundColor: '#fffbeb',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
@@ -927,14 +927,14 @@ const styles = StyleSheet.create({
   alertText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#F5A623',
+    color: '#d97706',
   },
   refreshBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     marginTop: 2,
   },
 
@@ -942,10 +942,10 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 14,
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#000000',
+    color: '#0f172a',
     padding: 0,
   },
 
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     backgroundColor: '#FFFFFF',
     gap: 5,
   },
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
   catPillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#888888',
+    color: '#94a3b8',
   },
 
   // Summary cards
@@ -996,12 +996,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     paddingVertical: 16,
     paddingHorizontal: 10,
     alignItems: 'center',
     gap: 5,
-    shadowColor: '#000000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -1012,7 +1012,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 2,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1020,31 +1020,31 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
   },
   summaryLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#888888',
+    color: '#94a3b8',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
 
   // Phase 3: Low-stock banner
   lowStockBanner: {
-    backgroundColor: '#FFF8E6',
+    backgroundColor: '#fffbeb',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginHorizontal: 16,
     marginTop: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#F5A623',
+    borderLeftColor: '#d97706',
   },
   lowStockBannerText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#7A4F00',
+    color: '#92400e',
   },
 
   // Inventory rows
@@ -1053,9 +1053,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -1063,11 +1063,11 @@ const styles = StyleSheet.create({
   },
   rowLowBorder: {
     borderLeftWidth: 4,
-    borderLeftColor: '#F5A623',
+    borderLeftColor: '#d97706',
   },
   rowCriticalBorder: {
     borderLeftWidth: 4,
-    borderLeftColor: '#EE0000',
+    borderLeftColor: '#dc2626',
   },
   rowInner: {
     flexDirection: 'row',
@@ -1090,7 +1090,7 @@ const styles = StyleSheet.create({
   rowName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.2,
     flex: 1,
   },
@@ -1113,11 +1113,11 @@ const styles = StyleSheet.create({
   lowStockLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#E57300',
+    color: '#d97706',
   },
   minStockLabel: {
     fontSize: 12,
-    color: '#888888',
+    color: '#94a3b8',
     marginTop: 5,
   },
   rowRight: {
@@ -1128,17 +1128,17 @@ const styles = StyleSheet.create({
   rowQty: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.5,
   },
   rowUnit: {
     fontSize: 12,
-    color: '#888888',
+    color: '#94a3b8',
     marginTop: 2,
   },
   rowPrice: {
     fontSize: 12,
-    color: '#444444',
+    color: '#475569',
     fontWeight: '600',
     marginTop: 3,
   },
@@ -1146,7 +1146,7 @@ const styles = StyleSheet.create({
   // Stock bar
   stockBarBg: {
     height: 5,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 3,
   },
   stockBarFill: {
@@ -1161,7 +1161,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EAEAEA',
+    borderTopColor: '#e2e8f0',
     backgroundColor: '#FAFAFA',
     gap: 12,
   },
@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
@@ -1180,13 +1180,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
   editReorderBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,112,243,0.08)',
+    backgroundColor: 'rgba(37,99,235,0.08)',
     borderWidth: 1,
     borderColor: '#2563eb',
   },
@@ -1202,14 +1202,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   editItemText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
 
   // FAB — Phase 1: borderRadius 28, Phase 4: width/height 56
@@ -1218,7 +1218,7 @@ const styles = StyleSheet.create({
     right: 20,
   },
   fabInner: {
-    shadowColor: '#000000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
@@ -1251,7 +1251,7 @@ const modalStyles = StyleSheet.create({
   handleBar: {
     width: 36,
     height: 4,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#e2e8f0',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -1263,20 +1263,20 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   // Phase 4: section header
   sheetTitle: {
     flex: 1,
     fontSize: 17,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1292,17 +1292,17 @@ const modalStyles = StyleSheet.create({
   fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#444444',
+    color: '#475569',
     marginBottom: 4,
   },
   input: {
     height: 44,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: '#000000',
+    color: '#0f172a',
     backgroundColor: '#FFFFFF',
   },
   pillsRow: {
@@ -1316,7 +1316,7 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     backgroundColor: '#FFFFFF',
   },
   categoryPillActive: {
@@ -1326,7 +1326,7 @@ const modalStyles = StyleSheet.create({
   categoryPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666666',
+    color: '#475569',
   },
   categoryPillTextActive: {
     color: '#FFFFFF',

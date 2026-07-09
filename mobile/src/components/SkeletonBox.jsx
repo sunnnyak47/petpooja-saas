@@ -16,21 +16,23 @@ import Animated, {
  *   width         (number | string) – box width
  *   height        (number | string) – box height
  *   borderRadius  (number)          – corner radius (default 8)
+ *   color         (string)          – fill color (default slate-200 #e2e8f0)
  *   style         (object)          – additional styles
  */
 export default function SkeletonBox({
   width,
   height,
   borderRadius = 8,
+  color = '#e2e8f0',
   style,
 }) {
-  const opacity = useSharedValue(0.2);
+  const opacity = useSharedValue(0.55);
 
   useEffect(() => {
     opacity.value = withRepeat(
       withSequence(
-        withTiming(0.5, { duration: 700, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.2, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.55, { duration: 700, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
       false,
@@ -48,7 +50,7 @@ export default function SkeletonBox({
           width,
           height,
           borderRadius,
-          backgroundColor: '#1E3A5F',
+          backgroundColor: color,
         },
         animatedStyle,
         style,

@@ -1,9 +1,9 @@
 /**
  * QRScanner — Camera-based QR code scanner for table identification.
- * QR format: petpooja://table/{outlet_id}/{table_id}
+ * QR format: petpooja://table/{outlet_id}/{table_id} (legacy scheme kept for printed QR compatibility)
  *
  * Props:
- *   onScan(tableId, outletId) — called when a valid PetPooja table QR is scanned
+ *   onScan(tableId, outletId) — called when a valid MS-RM table QR is scanned
  *   onClose() — called to dismiss the scanner
  *   visible — boolean controlling display
  */
@@ -53,7 +53,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
     if (scanned) return;
     setScanned(true);
 
-    // Parse petpooja://table/{outlet_id}/{table_id}
+    // Parse table QR: petpooja://table/{outlet_id}/{table_id} (legacy printed-QR scheme)
     const match = data.match(/^petpooja:\/\/table\/([^/]+)\/([^/]+)$/);
     if (match) {
       const [, outletId, tableId] = match;
@@ -62,7 +62,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
     } else {
       Alert.alert(
         'Invalid QR Code',
-        'This QR code is not a PetPooja table code. Please scan a table QR code.',
+        'This QR code is not an MS-RM table code. Please scan a table QR code.',
         [{ text: 'Try Again', onPress: () => setScanned(false) }]
       );
     }
@@ -89,7 +89,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
         {/* Camera or fallback */}
         {!BarCodeScanner ? (
           <View style={s.fallback}>
-            <Ionicons name="qr-code-outline" size={64} color="#888" />
+            <Ionicons name="qr-code-outline" size={64} color="#94a3b8" />
             <Text style={s.fallbackTitle}>Camera Not Available</Text>
             <Text style={s.fallbackSub}>
               Barcode scanner is not available in this build. Use Expo Go or a production build for QR scanning.
@@ -100,7 +100,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
           </View>
         ) : hasPermission === false ? (
           <View style={s.fallback}>
-            <Ionicons name="camera-outline" size={64} color="#888" />
+            <Ionicons name="camera-outline" size={64} color="#94a3b8" />
             <Text style={s.fallbackTitle}>Camera Permission Denied</Text>
             <Text style={s.fallbackSub}>Please allow camera access in your device settings to scan QR codes.</Text>
             <TouchableOpacity onPress={onClose} style={s.fallbackBtn}>
@@ -144,7 +144,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
           </View>
         ) : (
           <View style={s.fallback}>
-            <Ionicons name="hourglass-outline" size={48} color="#888" />
+            <Ionicons name="hourglass-outline" size={48} color="#94a3b8" />
             <Text style={s.fallbackSub}>Requesting camera permission...</Text>
           </View>
         )}
@@ -156,7 +156,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
 const OVERLAY_COLOR = 'rgba(0,0,0,0.6)';
 const CORNER_SIZE = 22;
 const CORNER_THICKNESS = 3;
-const CORNER_COLOR = '#6366f1';
+const CORNER_COLOR = '#2563eb';
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
@@ -187,7 +187,7 @@ const s = StyleSheet.create({
     paddingTop: 24,
   },
   hint: { color: '#fff', fontSize: 14, textAlign: 'center' },
-  rescanBtn: { marginTop: 12, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#6366f1', borderRadius: 8 },
+  rescanBtn: { marginTop: 12, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#2563eb', borderRadius: 8 },
   rescanText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
   // Corner markers
@@ -210,12 +210,12 @@ const s = StyleSheet.create({
     gap: 16,
   },
   fallbackTitle: { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
-  fallbackSub: { color: '#aaa', fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  fallbackSub: { color: '#94a3b8', fontSize: 14, textAlign: 'center', lineHeight: 20 },
   fallbackBtn: {
     marginTop: 8,
     paddingHorizontal: 32,
     paddingVertical: 12,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#2563eb',
     borderRadius: 10,
   },
   fallbackBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },

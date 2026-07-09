@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export function ShareButton({ onPress, color = '#000', size = 22 }) {
+export function ShareButton({ onPress, color = '#0f172a', size = 22 }) {
   const [loading, setLoading] = useState(false);
 
   const handlePress = async () => {

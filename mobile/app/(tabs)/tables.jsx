@@ -27,9 +27,9 @@ import QRScanner from '../../src/components/QRScanner';
 
 const WAITERS = [
   { id: 'w1', name: 'Rahul Sharma',  initials: 'RS', color: '#2563eb' },
-  { id: 'w2', name: 'Priya Patel',   initials: 'PP', color: '#9B59B6' },
-  { id: 'w3', name: 'Amit Verma',    initials: 'AV', color: '#00B341' },
-  { id: 'w4', name: 'Sneha Gupta',   initials: 'SG', color: '#F5A623' },
+  { id: 'w2', name: 'Priya Patel',   initials: 'PP', color: '#475569' },
+  { id: 'w3', name: 'Amit Verma',    initials: 'AV', color: '#16a34a' },
+  { id: 'w4', name: 'Sneha Gupta',   initials: 'SG', color: '#d97706' },
 ];
 
 // Floor plan positions — (left, top) in px on a 360-wide canvas (height ~480)
@@ -51,11 +51,11 @@ const FLOOR_POSITIONS = {
 // ─── Status Config ────────────────────────────────────────────────────────────
 
 const STATUS = {
-  empty:        { label: 'Empty',        color: '#00B341', bg: '#EDFBF3', icon: 'checkmark-circle-outline' },
-  occupied:     { label: 'Occupied',     color: '#2563eb', bg: '#EBF3FF', icon: 'people'                   },
-  reserved:     { label: 'Reserved',     color: '#F5A623', bg: '#FFF8EB', icon: 'calendar-outline'         },
-  bill_pending: { label: 'Bill Pending', color: '#EE0000', bg: '#FFEBEB', icon: 'receipt-outline'          },
-  cleaning:     { label: 'Cleaning',     color: '#888888', bg: '#F5F5F5', icon: 'construct-outline'        },
+  empty:        { label: 'Empty',        color: '#16a34a', bg: '#f0fdf4', icon: 'checkmark-circle-outline' },
+  occupied:     { label: 'Occupied',     color: '#2563eb', bg: '#eff6ff', icon: 'people'                   },
+  reserved:     { label: 'Reserved',     color: '#d97706', bg: '#fffbeb', icon: 'calendar-outline'         },
+  bill_pending: { label: 'Bill Pending', color: '#dc2626', bg: '#fef2f2', icon: 'receipt-outline'          },
+  cleaning:     { label: 'Cleaning',     color: '#94a3b8', bg: '#f1f5f9', icon: 'construct-outline'        },
 };
 
 const ALL_STATUSES = ['empty', 'occupied', 'reserved', 'bill_pending', 'cleaning'];
@@ -94,15 +94,15 @@ const getWaiter = (waiterId) => WAITERS.find(w => w.id === waiterId) || null;
 function TablesSkeleton() {
   return (
     <View style={{ padding: 20, gap: 16 }}>
-      <SkeletonBox width="55%" height={26} borderRadius={6} color="#F0F0F0" />
+      <SkeletonBox width="55%" height={26} borderRadius={6} color="#f1f5f9" />
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         {[0, 1, 2, 3].map(i => (
-          <SkeletonBox key={i} width={72} height={36} borderRadius={999} color="#F0F0F0" />
+          <SkeletonBox key={i} width={72} height={36} borderRadius={999} color="#f1f5f9" />
         ))}
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {[0, 1, 2, 3, 4, 5].map(i => (
-          <SkeletonBox key={i} width="47%" height={110} borderRadius={16} color="#F0F0F0" />
+          <SkeletonBox key={i} width="47%" height={110} borderRadius={16} color="#f1f5f9" />
         ))}
       </View>
     </View>
@@ -157,7 +157,7 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
 
       {/* Capacity */}
       <View style={styles.capacityRow}>
-        <Ionicons name="people-outline" size={12} color="#888888" />
+        <Ionicons name="people-outline" size={12} color="#94a3b8" />
         <Text style={styles.capacityText}>{table.capacity} seats</Text>
       </View>
 
@@ -165,7 +165,7 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
       {isActive && (
         <View style={styles.cardContent}>
           <View style={styles.cardRow}>
-            <Ionicons name="time-outline" size={11} color="#888888" />
+            <Ionicons name="time-outline" size={11} color="#94a3b8" />
             <Text style={styles.cardMeta}>{formatElapsed(table.sinceMs)}</Text>
             <Text style={styles.dot}>·</Text>
             <Text style={styles.cardMeta}>👥 {table.covers}</Text>
@@ -179,7 +179,7 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
         <View style={styles.cardContent}>
           <Text style={styles.guestName} numberOfLines={1}>{table.guestName}</Text>
           <View style={styles.cardRow}>
-            <Ionicons name="time-outline" size={11} color="#888888" />
+            <Ionicons name="time-outline" size={11} color="#94a3b8" />
             <Text style={styles.cardMeta}>At {table.reservedAt}</Text>
           </View>
         </View>
@@ -259,10 +259,10 @@ function QuickActionsSheet({ table, visible, onClose, onAction }) {
   const st = STATUS[table.status] || STATUS.empty;
 
   const actions = [
-    { key: 'empty',    icon: 'checkmark-circle-outline', label: 'Mark Empty',    color: '#00B341' },
-    { key: 'cleaning', icon: 'construct-outline',        label: 'Mark Cleaning', color: '#888888' },
+    { key: 'empty',    icon: 'checkmark-circle-outline', label: 'Mark Empty',    color: '#16a34a' },
+    { key: 'cleaning', icon: 'construct-outline',        label: 'Mark Cleaning', color: '#94a3b8' },
     { key: 'assign',   icon: 'person-add-outline',       label: 'Assign Waiter', color: '#2563eb' },
-    { key: 'bill',     icon: 'receipt-outline',          label: 'Generate Bill', color: '#EE0000' },
+    { key: 'bill',     icon: 'receipt-outline',          label: 'Generate Bill', color: '#dc2626' },
   ];
 
   return (
@@ -332,7 +332,7 @@ function TableDetailModal({
             <Text style={styles.sheetTitle}>Table {table.number}</Text>
             {isActive && table.sinceMs && (
               <Text style={styles.sheetSubtitle}>
-                <Ionicons name="time-outline" size={11} color="#888" /> Occupied {elapsed} min
+                <Ionicons name="time-outline" size={11} color="#94a3b8" /> Occupied {elapsed} min
               </Text>
             )}
           </View>
@@ -342,7 +342,7 @@ function TableDetailModal({
               <Text style={[styles.statusBadgeText, { color: st.color }]}>{st.label}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={18} color="#444" />
+              <Ionicons name="close" size={18} color="#475569" />
             </TouchableOpacity>
           </View>
         </View>
@@ -352,7 +352,7 @@ function TableDetailModal({
           <View style={styles.detailGrid}>
             <View style={styles.detailRow}>
               <View style={styles.detailLeft}>
-                <Ionicons name="person-outline" size={14} color="#888" />
+                <Ionicons name="person-outline" size={14} color="#94a3b8" />
                 <Text style={styles.detailLabel}>Waiter</Text>
               </View>
               <TouchableOpacity
@@ -365,9 +365,9 @@ function TableDetailModal({
                     <Text style={styles.detailValue}>{waiter.name}</Text>
                   </View>
                 ) : (
-                  <Text style={[styles.detailValue, { color: '#888' }]}>Unassigned</Text>
+                  <Text style={[styles.detailValue, { color: '#94a3b8' }]}>Unassigned</Text>
                 )}
-                <Ionicons name="chevron-down" size={13} color="#888" style={{ marginLeft: 4 }} />
+                <Ionicons name="chevron-down" size={13} color="#94a3b8" style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             </View>
 
@@ -377,7 +377,7 @@ function TableDetailModal({
                   style={styles.waiterOption}
                   onPress={() => { onAssignWaiter(table.id, null); setShowWaiterPicker(false); }}
                 >
-                  <Text style={[styles.waiterOptionText, { color: '#888' }]}>None</Text>
+                  <Text style={[styles.waiterOptionText, { color: '#94a3b8' }]}>None</Text>
                 </TouchableOpacity>
                 {WAITERS.map(w => (
                   <TouchableOpacity
@@ -398,7 +398,7 @@ function TableDetailModal({
             {/* Covers stepper */}
             <View style={styles.detailRow}>
               <View style={styles.detailLeft}>
-                <Ionicons name="people-outline" size={14} color="#888" />
+                <Ionicons name="people-outline" size={14} color="#94a3b8" />
                 <Text style={styles.detailLabel}>Covers</Text>
               </View>
               <View style={styles.stepper}>
@@ -406,21 +406,21 @@ function TableDetailModal({
                   style={styles.stepBtn}
                   onPress={() => onUpdateCovers(table.id, Math.max(0, table.covers - 1))}
                 >
-                  <Ionicons name="remove" size={14} color="#000" />
+                  <Ionicons name="remove" size={14} color="#0f172a" />
                 </TouchableOpacity>
                 <Text style={styles.stepValue}>{table.covers}</Text>
                 <TouchableOpacity
                   style={styles.stepBtn}
                   onPress={() => onUpdateCovers(table.id, Math.min(table.capacity, table.covers + 1))}
                 >
-                  <Ionicons name="add" size={14} color="#000" />
+                  <Ionicons name="add" size={14} color="#0f172a" />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.detailRow}>
               <View style={styles.detailLeft}>
-                <Ionicons name="people-circle-outline" size={14} color="#888" />
+                <Ionicons name="people-circle-outline" size={14} color="#94a3b8" />
                 <Text style={styles.detailLabel}>Capacity</Text>
               </View>
               <Text style={styles.detailValue}>{table.capacity} seats</Text>
@@ -429,7 +429,7 @@ function TableDetailModal({
             {table.amount > 0 && (
               <View style={styles.detailRow}>
                 <View style={styles.detailLeft}>
-                  <Ionicons name="cash-outline" size={14} color="#888" />
+                  <Ionicons name="cash-outline" size={14} color="#94a3b8" />
                   <Text style={styles.detailLabel}>Amount</Text>
                 </View>
                 <Text style={[styles.detailValue, { color: '#2563eb', fontWeight: '700' }]}>
@@ -441,7 +441,7 @@ function TableDetailModal({
             {table.reservedAt && (
               <View style={styles.detailRow}>
                 <View style={styles.detailLeft}>
-                  <Ionicons name="time-outline" size={14} color="#888" />
+                  <Ionicons name="time-outline" size={14} color="#94a3b8" />
                   <Text style={styles.detailLabel}>
                     {table.status === 'reserved' ? 'Reserved at' : 'Seated since'}
                   </Text>
@@ -453,7 +453,7 @@ function TableDetailModal({
             {table.guestName && (
               <View style={styles.detailRow}>
                 <View style={styles.detailLeft}>
-                  <Ionicons name="person-circle-outline" size={14} color="#888" />
+                  <Ionicons name="person-circle-outline" size={14} color="#94a3b8" />
                   <Text style={styles.detailLabel}>Guest</Text>
                 </View>
                 <Text style={styles.detailValue}>{table.guestName}</Text>
@@ -557,7 +557,7 @@ function TableDetailModal({
               style={styles.btnOutline}
               onPress={() => { onClose(); router.push('/orders'); }}
             >
-              <Ionicons name="list-outline" size={15} color="#000" />
+              <Ionicons name="list-outline" size={15} color="#0f172a" />
               <Text style={styles.btnOutlineText}>View Full Order</Text>
             </TouchableOpacity>
 
@@ -590,22 +590,22 @@ function TableDetailModal({
 
             {(table.status === 'bill_pending' || table.status === 'cleaning') && (
               <TouchableOpacity
-                style={[styles.btnOutline, { flex: 1, borderColor: '#888' }]}
+                style={[styles.btnOutline, { flex: 1, borderColor: '#94a3b8' }]}
                 onPress={() => { onUpdateStatus(table.id, 'cleaning'); onClose(); }}
               >
-                <Ionicons name="construct-outline" size={15} color="#888" />
-                <Text style={[styles.btnOutlineText, { color: '#888' }]}>Mark Cleaning</Text>
+                <Ionicons name="construct-outline" size={15} color="#94a3b8" />
+                <Text style={[styles.btnOutlineText, { color: '#94a3b8' }]}>Mark Cleaning</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {table.status === 'cleaning' && (
             <TouchableOpacity
-              style={[styles.btnOutline, { borderColor: '#00B341', marginHorizontal: 0, marginBottom: 10 }]}
+              style={[styles.btnOutline, { borderColor: '#16a34a', marginHorizontal: 0, marginBottom: 10 }]}
               onPress={() => { onUpdateStatus(table.id, 'empty'); onClose(); }}
             >
-              <Ionicons name="checkmark-circle-outline" size={15} color="#00B341" />
-              <Text style={[styles.btnOutlineText, { color: '#00B341' }]}>Mark Cleaned</Text>
+              <Ionicons name="checkmark-circle-outline" size={15} color="#16a34a" />
+              <Text style={[styles.btnOutlineText, { color: '#16a34a' }]}>Mark Cleaned</Text>
             </TouchableOpacity>
           )}
 
@@ -946,7 +946,7 @@ export default function TablesScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F7F7F7" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -958,18 +958,18 @@ export default function TablesScreen() {
               style={[styles.toggleBtn, viewMode === 'grid' && styles.toggleBtnActive]}
               onPress={() => setViewMode('grid')}
             >
-              <Ionicons name="grid-outline" size={16} color={viewMode === 'grid' ? '#fff' : '#444'} />
+              <Ionicons name="grid-outline" size={16} color={viewMode === 'grid' ? '#fff' : '#475569'} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toggleBtn, viewMode === 'floor' && styles.toggleBtnActive]}
               onPress={() => setViewMode('floor')}
             >
-              <Ionicons name="map-outline" size={16} color={viewMode === 'floor' ? '#fff' : '#444'} />
+              <Ionicons name="map-outline" size={16} color={viewMode === 'floor' ? '#fff' : '#475569'} />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.iconBtn} onPress={onRefresh}>
-            <Ionicons name="refresh-outline" size={20} color="#000" />
+            <Ionicons name="refresh-outline" size={20} color="#0f172a" />
           </TouchableOpacity>
 
           <View style={styles.occupiedBadge}>
@@ -1076,7 +1076,7 @@ export default function TablesScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
   },
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -1086,14 +1086,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.5,
   },
   headerRight: {
@@ -1105,12 +1105,12 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
     justifyContent: 'center',
   },
   occupiedBadge: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
     borderRadius: 999,
     paddingHorizontal: 9,
     paddingVertical: 4,
@@ -1124,7 +1124,7 @@ const styles = StyleSheet.create({
   // ── View toggle ─────────────────────────────────────────────────────────────
   viewToggle: {
     flexDirection: 'row',
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 10,
     padding: 2,
   },
@@ -1143,7 +1143,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
     maxHeight: 44,
   },
   summaryContainer: {
@@ -1176,11 +1176,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#CCE0FF',
+    borderBottomColor: '#dbeafe',
   },
   mergeBarText: {
     flex: 1,
@@ -1191,14 +1191,14 @@ const styles = StyleSheet.create({
   mergeBarCancel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#EE0000',
+    color: '#dc2626',
   },
 
   // ── Filter pills ─────────────────────────────────────────────────────────────
   pillsRow: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
     maxHeight: 52,
   },
   pillsContainer: {
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
   pillInactive: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   pillText: {
     fontSize: 12,
@@ -1232,7 +1232,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   pillTextInactive: {
-    color: '#444444',
+    color: '#475569',
   },
   pillCount: {
     borderRadius: 999,
@@ -1243,15 +1243,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   pillCountActive: {
-    backgroundColor: '#333333',
+    backgroundColor: '#1e293b',
   },
   pillCountInactive: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
   },
   pillCountText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#888888',
+    color: '#94a3b8',
   },
 
   // ── Grid ─────────────────────────────────────────────────────────────────────
@@ -1274,7 +1274,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderLeftWidth: 4,
     padding: 14,
     shadowColor: '#000000',
@@ -1291,7 +1291,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
   },
   cardMergeSource: {
-    borderColor: '#F5A623',
+    borderColor: '#d97706',
     borderWidth: 2,
     borderStyle: 'dashed',
     borderLeftWidth: 4,
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
   tableNum: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.5,
   },
   statusBadge: {
@@ -1328,7 +1328,7 @@ const styles = StyleSheet.create({
   },
   capacityText: {
     fontSize: 11,
-    color: '#888888',
+    color: '#94a3b8',
   },
   cardContent: {
     gap: 3,
@@ -1340,24 +1340,24 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     fontSize: 11,
-    color: '#888888',
+    color: '#94a3b8',
   },
   dot: {
     fontSize: 10,
-    color: '#CCCCCC',
+    color: '#cbd5e1',
     marginHorizontal: 1,
   },
   amountText: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.4,
     marginTop: 2,
   },
   guestName: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
   centerStatus: {
     flex: 1,
@@ -1381,7 +1381,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
     borderRadius: 999,
     paddingHorizontal: 5,
     paddingVertical: 2,
@@ -1406,11 +1406,11 @@ const styles = StyleSheet.create({
   floorCanvas: {
     width: 400,
     height: 360,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     margin: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     position: 'relative',
   },
   floorLegend: {
@@ -1434,7 +1434,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 10,
-    color: '#444444',
+    color: '#475569',
     fontWeight: '500',
   },
   floorCard: {
@@ -1482,7 +1482,7 @@ const styles = StyleSheet.create({
   sheetHandle: {
     width: 36,
     height: 4,
-    backgroundColor: '#DDDDDD',
+    backgroundColor: '#cbd5e1',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 14,
@@ -1496,26 +1496,26 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.4,
   },
   sheetSubtitle: {
     fontSize: 11,
-    color: '#888888',
+    color: '#94a3b8',
     marginTop: 2,
   },
   closeBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   // ── Detail grid ──────────────────────────────────────────────────────────────
   detailGrid: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 4,
@@ -1527,7 +1527,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
+    borderBottomColor: '#f1f5f9',
   },
   detailLeft: {
     flexDirection: 'row',
@@ -1536,12 +1536,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: '#888888',
+    color: '#94a3b8',
   },
   detailValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
+    color: '#0f172a',
   },
 
   // ── Waiter picker ────────────────────────────────────────────────────────────
@@ -1553,7 +1553,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     marginBottom: 8,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -1569,15 +1569,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: '#f1f5f9',
   },
   waiterOptionActive: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
   },
   waiterOptionText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#000000',
+    color: '#0f172a',
   },
 
   // ── Stepper ──────────────────────────────────────────────────────────────────
@@ -1585,7 +1585,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 0,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -1600,14 +1600,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
 
   // ── Status chips ─────────────────────────────────────────────────────────────
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#888888',
+    color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 10,
@@ -1628,7 +1628,7 @@ const styles = StyleSheet.create({
 
   // ── Orders list ──────────────────────────────────────────────────────────────
   ordersList: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 4,
@@ -1640,18 +1640,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
+    borderBottomColor: '#f1f5f9',
   },
   orderName: {
     flex: 1,
     fontSize: 13,
-    color: '#444444',
+    color: '#475569',
     marginRight: 10,
   },
   orderPrice: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
+    color: '#0f172a',
   },
   orderTotal: {
     borderBottomWidth: 0,
@@ -1660,7 +1660,7 @@ const styles = StyleSheet.create({
   orderTotalLabel: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
   },
   orderTotalValue: {
     fontSize: 15,
@@ -1689,7 +1689,7 @@ const styles = StyleSheet.create({
   btnOutlineText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
   },
   btnSolid: {
     flex: 1,
@@ -1718,7 +1718,7 @@ const styles = StyleSheet.create({
   quickItem: {
     width: '47%',
     alignItems: 'center',
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 16,
     paddingVertical: 18,
     gap: 8,
@@ -1733,7 +1733,7 @@ const styles = StyleSheet.create({
   quickLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000000',
+    color: '#0f172a',
     textAlign: 'center',
   },
 

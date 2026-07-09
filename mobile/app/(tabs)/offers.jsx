@@ -42,14 +42,14 @@ const { width: SCREEN_W } = Dimensions.get('window');
 // keys are kept only for optimistic/local cards created before the server round-trips.
 const TYPE_COLORS = {
   percentage: '#2563eb',
-  flat: '#00B341',
-  bogo: '#9B59B6',
-  buy_x_get_y: '#F5A623',
+  flat: '#16a34a',
+  bogo: '#2563eb',
+  buy_x_get_y: '#d97706',
   // legacy display strings
-  'Happy Hour': '#F5A623',
+  'Happy Hour': '#d97706',
   'Combo': '#2563eb',
-  'Coupon': '#9B59B6',
-  'Flat Discount': '#00B341',
+  'Coupon': '#2563eb',
+  'Flat Discount': '#16a34a',
 };
 
 const TYPE_ICONS = {
@@ -140,7 +140,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Create Offer</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color="#000" />
+              <Ionicons name="close" size={22} color="#0f172a" />
             </TouchableOpacity>
           </View>
 
@@ -173,7 +173,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                       <Ionicons
                         name={TYPE_ICONS[t] || 'pricetag-outline'}
                         size={24}
-                        color={form.offerType === t ? '#fff' : (TYPE_COLORS[t] || '#444')}
+                        color={form.offerType === t ? '#fff' : (TYPE_COLORS[t] || '#475569')}
                       />
                       <Text style={[styles.typeCardText, form.offerType === t && styles.typeCardTextSelected]}>
                         {t}
@@ -185,7 +185,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. Happy Hour Special"
-                  placeholderTextColor="#888"
+                  placeholderTextColor="#94a3b8"
                   value={form.name}
                   onChangeText={v => update('name', v)}
                 />
@@ -196,7 +196,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                       <TextInput
                         style={[styles.input, { flex: 1, marginBottom: 0 }]}
                         placeholder="e.g. SUMMER30"
-                        placeholderTextColor="#888"
+                        placeholderTextColor="#94a3b8"
                         value={form.couponCode}
                         onChangeText={v => update('couponCode', v.toUpperCase())}
                         autoCapitalize="characters"
@@ -232,7 +232,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                 <TextInput
                   style={styles.input}
                   placeholder={form.discountType === 'percent' ? '20' : '100'}
-                  placeholderTextColor="#888"
+                  placeholderTextColor="#94a3b8"
                   value={form.discountValue}
                   onChangeText={v => update('discountValue', v)}
                   keyboardType="numeric"
@@ -241,7 +241,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                 <TextInput
                   style={styles.input}
                   placeholder="300 (optional)"
-                  placeholderTextColor="#888"
+                  placeholderTextColor="#94a3b8"
                   value={form.minOrder}
                   onChangeText={v => update('minOrder', v)}
                   keyboardType="numeric"
@@ -257,14 +257,14 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     placeholder="From: 01 May 2026"
-                    placeholderTextColor="#888"
+                    placeholderTextColor="#94a3b8"
                     value={form.dateFrom}
                     onChangeText={v => update('dateFrom', v)}
                   />
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     placeholder="To: 31 May 2026"
-                    placeholderTextColor="#888"
+                    placeholderTextColor="#94a3b8"
                     value={form.dateTo}
                     onChangeText={v => update('dateTo', v)}
                   />
@@ -274,14 +274,14 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     placeholder="From: 3:00 PM"
-                    placeholderTextColor="#888"
+                    placeholderTextColor="#94a3b8"
                     value={form.timeFrom}
                     onChangeText={v => update('timeFrom', v)}
                   />
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     placeholder="To: 6:00 PM"
-                    placeholderTextColor="#888"
+                    placeholderTextColor="#94a3b8"
                     value={form.timeTo}
                     onChangeText={v => update('timeTo', v)}
                   />
@@ -290,7 +290,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. 100 (leave blank for unlimited)"
-                  placeholderTextColor="#888"
+                  placeholderTextColor="#94a3b8"
                   value={form.usageLimit}
                   onChangeText={v => update('usageLimit', v)}
                   keyboardType="numeric"
@@ -378,7 +378,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
 
 function OfferCard({ offer, onToggle, expanded, onExpand }) {
   const { symbol } = useCurrency();
-  const typeColor = TYPE_COLORS[offer.type] || '#444';
+  const typeColor = TYPE_COLORS[offer.type] || '#475569';
   // Support both normalized API shape (type + value) and legacy UI shape (discountType + discountValue)
   const discountLabel = (() => {
     const val = offer.value ?? offer.discountValue ?? 0;
@@ -417,7 +417,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
           <Switch
             value={isActive}
             onValueChange={() => onToggle(offer.id)}
-            trackColor={{ false: '#EAEAEA', true: '#2563eb20' }}
+            trackColor={{ false: '#e2e8f0', true: '#2563eb20' }}
             thumbColor={isActive ? '#2563eb' : '#fff'}
             style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
           />
@@ -428,11 +428,11 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
 
         <View style={styles.offerMeta}>
           <View style={styles.offerMetaItem}>
-            <Ionicons name="time-outline" size={13} color="#888" />
+            <Ionicons name="time-outline" size={13} color="#94a3b8" />
             <Text style={styles.offerMetaText}>{timeRange}</Text>
           </View>
           <View style={styles.offerMetaItem}>
-            <Ionicons name="calendar-outline" size={13} color="#888" />
+            <Ionicons name="calendar-outline" size={13} color="#94a3b8" />
             <Text style={styles.offerMetaText}>{dateRange}</Text>
           </View>
         </View>
@@ -449,7 +449,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
                     styles.usageFill,
                     {
                       width: `${Math.min(usagePct, 100)}%`,
-                      backgroundColor: usagePct > 85 ? '#EE0000' : '#2563eb',
+                      backgroundColor: usagePct > 85 ? '#dc2626' : '#2563eb',
                     },
                   ]}
                 />
@@ -463,13 +463,13 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
 
         {(offer.code ?? offer.coupon_code) ? (
           <View style={styles.couponBadgeRow}>
-            <Ionicons name="pricetag-outline" size={12} color="#9B59B6" />
+            <Ionicons name="pricetag-outline" size={12} color="#2563eb" />
             <Text style={styles.couponBadgeText}>{offer.code ?? offer.coupon_code}</Text>
           </View>
         ) : null}
 
         <View style={styles.expandToggle}>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#888" />
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#94a3b8" />
           <Text style={styles.expandText}>{expanded ? 'Hide details' : 'Show details'}</Text>
         </View>
       </TouchableOpacity>
@@ -648,7 +648,7 @@ export default function OffersScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Offers & Discounts</Text>
         <TouchableOpacity style={styles.headerBtn}>
-          <Ionicons name="options-outline" size={20} color="#000" />
+          <Ionicons name="options-outline" size={20} color="#0f172a" />
         </TouchableOpacity>
       </View>
 
@@ -665,7 +665,7 @@ export default function OffersScreen() {
           entering={enter ? FadeInDown.delay(0).springify() : undefined}
           style={styles.happyHourBar}>
           <View style={styles.happyHourLeft}>
-            <Ionicons name="beer-outline" size={22} color="#F5A623" style={{ marginRight: 10 }} />
+            <Ionicons name="beer-outline" size={22} color="#d97706" style={{ marginRight: 10 }} />
             <View>
               <Text style={styles.happyHourTitle}>Happy Hour</Text>
               <Text style={styles.happyHourSub}>{happyHourSub}</Text>
@@ -674,8 +674,8 @@ export default function OffersScreen() {
           <Switch
             value={happyHourOn}
             onValueChange={() => happyHourOffer && handleToggle(happyHourOffer.id)}
-            trackColor={{ false: '#EAEAEA', true: '#F5A62330' }}
-            thumbColor={happyHourOn ? '#F5A623' : '#fff'}
+            trackColor={{ false: '#e2e8f0', true: '#d9770630' }}
+            thumbColor={happyHourOn ? '#d97706' : '#fff'}
           />
         </Animated.View>
 
@@ -687,14 +687,14 @@ export default function OffersScreen() {
               {todayActiveDeals.map((o) => (
                 <View
                   key={o.id}
-                  style={[styles.dealChip, { backgroundColor: (TYPE_COLORS[o.type] || '#444') + '18' }]}>
+                  style={[styles.dealChip, { backgroundColor: (TYPE_COLORS[o.type] || '#475569') + '18' }]}>
                   <Ionicons
                     name={TYPE_ICONS[o.type] || 'pricetag-outline'}
                     size={13}
-                    color={TYPE_COLORS[o.type] || '#444'}
+                    color={TYPE_COLORS[o.type] || '#475569'}
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={[styles.dealChipText, { color: TYPE_COLORS[o.type] || '#444' }]}>
+                  <Text style={[styles.dealChipText, { color: TYPE_COLORS[o.type] || '#475569' }]}>
                     {o.name}
                   </Text>
                 </View>
@@ -713,12 +713,12 @@ export default function OffersScreen() {
             <Text style={styles.summaryLbl}>Active Offers</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Ionicons name="refresh-outline" size={20} color="#F5A623" />
+            <Ionicons name="refresh-outline" size={20} color="#d97706" />
             <Text style={styles.summaryVal}>{todayRedemptions}</Text>
             <Text style={styles.summaryLbl}>Redemptions Today</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Ionicons name="trending-down-outline" size={20} color="#EE0000" />
+            <Ionicons name="trending-down-outline" size={20} color="#dc2626" />
             <Text style={styles.summaryVal}>{symbol}{(todayImpact / 1000).toFixed(1)}K</Text>
             <Text style={styles.summaryLbl}>Discount Given</Text>
           </View>
@@ -759,7 +759,7 @@ export default function OffersScreen() {
         {/* Error state */}
         {showError && (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={40} color="#EE0000" />
+            <Ionicons name="alert-circle-outline" size={40} color="#dc2626" />
             <Text style={styles.errorText}>Failed to load offers</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
               <Text style={styles.retryBtnText}>Retry</Text>
@@ -815,7 +815,7 @@ export default function OffersScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F7F7' },
+  root: { flex: 1, backgroundColor: '#f8fafc' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 20 },
 
@@ -826,9 +826,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
     paddingTop: 8,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#000' },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a' },
   headerBtn: {
     width: 38,
     height: 38,
@@ -847,18 +847,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F5A62310',
+    backgroundColor: '#d9770610',
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1.5,
-    borderColor: '#F5A62330',
+    borderColor: '#d9770630',
   },
   happyHourLeft: { flexDirection: 'row', alignItems: 'center' },
-  happyHourTitle: { fontSize: 15, fontWeight: '700', color: '#000' },
-  happyHourSub: { fontSize: 12, color: '#888', marginTop: 2 },
+  happyHourTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  happyHourSub: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
 
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 10 },
 
   dealChipsRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   dealChip: {
@@ -884,8 +884,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  summaryVal: { fontSize: 18, fontWeight: '700', color: '#000' },
-  summaryLbl: { fontSize: 10, color: '#888', textAlign: 'center' },
+  summaryVal: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  summaryLbl: { fontSize: 10, color: '#94a3b8', textAlign: 'center' },
 
   filterRow: { flexDirection: 'row', gap: 8 },
   filterPill: {
@@ -894,10 +894,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#fff',
     borderWidth: 1.5,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   filterPillActive: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
-  filterPillText: { fontSize: 13, fontWeight: '600', color: '#444' },
+  filterPillText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   filterPillTextActive: { color: '#fff' },
 
   offerCard: {
@@ -926,51 +926,51 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
-  offerName: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 2 },
-  offerDiscount: { fontSize: 22, fontWeight: '800', color: '#000', marginBottom: 10 },
+  offerName: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
+  offerDiscount: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 10 },
   offerMeta: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   offerMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  offerMetaText: { fontSize: 12, color: '#888' },
+  offerMetaText: { fontSize: 12, color: '#94a3b8' },
   offerBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   offerUsage: { flex: 1, marginRight: 12 },
-  offerUsageText: { fontSize: 12, color: '#444', marginBottom: 4 },
-  usageBg: { height: 5, borderRadius: 3, backgroundColor: '#EAEAEA', width: '100%' },
+  offerUsageText: { fontSize: 12, color: '#475569', marginBottom: 4 },
+  usageBg: { height: 5, borderRadius: 3, backgroundColor: '#e2e8f0', width: '100%' },
   usageFill: { height: 5, borderRadius: 3 },
   applyBadge: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  applyBadgeText: { fontSize: 11, color: '#444', fontWeight: '600' },
+  applyBadgeText: { fontSize: 11, color: '#475569', fontWeight: '600' },
   expandToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
-  expandText: { fontSize: 12, color: '#888' },
+  expandText: { fontSize: 12, color: '#94a3b8' },
 
   expandedSection: { marginTop: 4 },
-  expandDivider: { height: 1, backgroundColor: '#EAEAEA', marginVertical: 12 },
-  expandSubTitle: { fontSize: 12, fontWeight: '700', color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  expandDivider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 12 },
+  expandSubTitle: { fontSize: 12, fontWeight: '700', color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   itemChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   itemChip: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  itemChipText: { fontSize: 12, color: '#444' },
-  conditionsText: { fontSize: 13, color: '#444', marginBottom: 12 },
+  itemChipText: { fontSize: 12, color: '#475569' },
+  conditionsText: { fontSize: 13, color: '#475569', marginBottom: 12 },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 5,
   },
-  historyDate: { fontSize: 13, color: '#888', flex: 1 },
-  historyCount: { fontSize: 13, color: '#444', fontWeight: '600', flex: 1, textAlign: 'center' },
-  historyAmt: { fontSize: 13, color: '#00B341', fontWeight: '700', flex: 1, textAlign: 'right' },
+  historyDate: { fontSize: 13, color: '#94a3b8', flex: 1 },
+  historyCount: { fontSize: 13, color: '#475569', fontWeight: '600', flex: 1, textAlign: 'center' },
+  historyAmt: { fontSize: 13, color: '#16a34a', fontWeight: '700', flex: 1, textAlign: 'right' },
 
   fab: {
     position: 'absolute',
@@ -1006,7 +1006,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#e2e8f0',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -1016,7 +1016,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: '#000' },
+  sheetTitle: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
 
   stepRow: { flexDirection: 'row', alignItems: 'center' },
   stepIndicatorWrap: { flexDirection: 'row', alignItems: 'center', flex: 1 },
@@ -1024,27 +1024,27 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepDotActive: { backgroundColor: '#2563eb' },
-  stepDotText: { fontSize: 13, fontWeight: '700', color: '#888' },
+  stepDotText: { fontSize: 13, fontWeight: '700', color: '#94a3b8' },
   stepDotTextActive: { color: '#fff' },
-  stepLine: { flex: 1, height: 2, backgroundColor: '#EAEAEA', marginHorizontal: 4 },
+  stepLine: { flex: 1, height: 2, backgroundColor: '#e2e8f0', marginHorizontal: 4 },
   stepLineActive: { backgroundColor: '#2563eb' },
-  stepLabel: { fontSize: 13, color: '#888', marginTop: 8, marginBottom: 4 },
+  stepLabel: { fontSize: 13, color: '#94a3b8', marginTop: 8, marginBottom: 4 },
 
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 8, marginTop: 12 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8, marginTop: 12 },
   input: {
     borderWidth: 1.5,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: '#000',
-    backgroundColor: '#F7F7F7',
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
     marginBottom: 4,
   },
   rowInputs: { flexDirection: 'row', gap: 10 },
@@ -1070,11 +1070,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1.5,
-    borderColor: '#EAEAEA',
-    backgroundColor: '#F7F7F7',
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
   typeCardSelected: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
-  typeCardText: { fontSize: 13, fontWeight: '600', color: '#444' },
+  typeCardText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   typeCardTextSelected: { color: '#fff' },
 
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
@@ -1083,41 +1083,41 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#EAEAEA',
-    backgroundColor: '#F7F7F7',
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
   pillActive: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
-  pillText: { fontSize: 13, fontWeight: '600', color: '#444' },
+  pillText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   pillTextActive: { color: '#fff' },
 
   summaryBox: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 14,
     padding: 14,
     marginTop: 12,
     gap: 6,
   },
-  summaryBoxTitle: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryBoxTitle: { fontSize: 13, fontWeight: '700', color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   summaryBoxRow: { fontSize: 13 },
-  summaryKey: { color: '#888', fontWeight: '600' },
-  summaryVal: { color: '#000' },
+  summaryKey: { color: '#94a3b8', fontWeight: '600' },
+  summaryVal: { color: '#0f172a' },
 
   sheetFooter: {
     flexDirection: 'row',
     gap: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#EAEAEA',
+    borderTopColor: '#e2e8f0',
   },
   backBtn: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  backBtnText: { fontSize: 15, fontWeight: '600', color: '#444' },
+  backBtnText: { fontSize: 15, fontWeight: '600', color: '#475569' },
   nextBtn: {
     flex: 2,
     backgroundColor: '#2563eb',
@@ -1125,11 +1125,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  nextBtnDisabled: { backgroundColor: '#EAEAEA' },
+  nextBtnDisabled: { backgroundColor: '#e2e8f0' },
   nextBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   createBtn: {
     flex: 2,
-    backgroundColor: '#00B341',
+    backgroundColor: '#16a34a',
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
@@ -1144,7 +1144,7 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 6,
   },
-  couponBadgeText: { fontSize: 12, color: '#9B59B6', fontWeight: '700' },
+  couponBadgeText: { fontSize: 12, color: '#2563eb', fontWeight: '700' },
 
   errorContainer: {
     alignItems: 'center',
@@ -1152,7 +1152,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     gap: 12,
   },
-  errorText: { fontSize: 15, color: '#444', fontWeight: '600' },
+  errorText: { fontSize: 15, color: '#475569', fontWeight: '600' },
   retryBtn: {
     backgroundColor: '#2563eb',
     paddingHorizontal: 24,

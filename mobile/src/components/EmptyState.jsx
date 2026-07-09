@@ -42,20 +42,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000000',
+    color: '#0f172a',
     textAlign: 'center',
     letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 14,
-    color: '#888888',
+    color: '#94a3b8',
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 20,
   },
   btn: {
     marginTop: 20,
-    backgroundColor: '#000000',
+    backgroundColor: '#2563eb',
     borderRadius: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,

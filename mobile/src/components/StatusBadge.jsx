@@ -2,14 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const STATUS_MAP = {
-  pending:    { color: '#F5A623', label: 'PENDING' },
-  preparing:  { color: '#5B5EF4', label: 'PREPARING' },
-  ready:      { color: '#10C98A', label: 'READY' },
-  delivered:  { color: '#5A7090', label: 'DELIVERED' },
-  cancelled:  { color: '#F05252', label: 'CANCELLED' },
+  pending:    { color: '#d97706', label: 'PENDING' },
+  preparing:  { color: '#2563eb', label: 'PREPARING' },
+  ready:      { color: '#16a34a', label: 'READY' },
+  delivered:  { color: '#475569', label: 'DELIVERED' },
+  cancelled:  { color: '#dc2626', label: 'CANCELLED' },
 };
 
-const DEFAULT = { color: '#A8B8D0', label: 'UNKNOWN' };
+const DEFAULT = { color: '#94a3b8', label: 'UNKNOWN' };
 
 /**
  * StatusBadge

@@ -33,8 +33,8 @@ const MenuItem = React.memo(({ item, colors }) => {
   <PressCard style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.available && s.cardDisabled]}>
     <View style={s.cardRow}>
       {/* Veg/Non-veg indicator */}
-      <View style={[s.vegDot, { borderColor: item.veg ? '#00B341' : '#EE0000' }]}>
-        <View style={[s.vegDotInner, { backgroundColor: item.veg ? '#00B341' : '#EE0000' }]} />
+      <View style={[s.vegDot, { borderColor: item.veg ? '#16a34a' : '#dc2626' }]}>
+        <View style={[s.vegDotInner, { backgroundColor: item.veg ? '#16a34a' : '#dc2626' }]} />
       </View>
       <View style={s.cardInfo}>
         <Text style={[s.itemName, { color: colors.text }, !item.available && { color: colors.textMuted }]}>{item.name}</Text>
@@ -43,13 +43,13 @@ const MenuItem = React.memo(({ item, colors }) => {
       <View style={s.cardRight}>
         <Text style={[s.itemPrice, { color: colors.text }]}>{symbol}{item.price}</Text>
         <View style={[s.availBadge, {
-          backgroundColor: item.available ? '#EDFBF3' : '#FFF0F0',
+          backgroundColor: item.available ? '#f0fdf4' : '#fef2f2',
         }]}>
           <View style={[s.availDot, {
-            backgroundColor: item.available ? '#00B341' : '#EE0000',
+            backgroundColor: item.available ? '#16a34a' : '#dc2626',
           }]} />
           <Text style={[s.availText, {
-            color: item.available ? '#007A2E' : '#8B0000',
+            color: item.available ? '#15803d' : '#dc2626',
           }]}>
             {item.available ? 'Active' : 'Off'}
           </Text>
@@ -134,9 +134,9 @@ export default function MenuOverviewScreen() {
       <View style={[s.statsRow, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         {[
           { label: 'Total', value: stats.total, color: colors.text },
-          { label: 'Active', value: stats.available, color: '#00B341' },
-          { label: 'Off', value: stats.unavailable, color: '#EE0000' },
-          { label: 'Veg', value: stats.veg, color: '#00B341' },
+          { label: 'Active', value: stats.available, color: '#16a34a' },
+          { label: 'Off', value: stats.unavailable, color: '#dc2626' },
+          { label: 'Veg', value: stats.veg, color: '#16a34a' },
         ].map(st => (
           <View key={st.label} style={s.statPill}>
             <Text style={[s.statVal, { color: st.color }]}>{st.value}</Text>
@@ -157,7 +157,7 @@ export default function MenuOverviewScreen() {
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color="#BBB" />
+            <Ionicons name="close-circle" size={18} color="#94a3b8" />
           </TouchableOpacity>
         )}
       </View>
@@ -187,10 +187,10 @@ export default function MenuOverviewScreen() {
       ) : filtered.length === 0 ? (
         <ScrollView
           contentContainerStyle={s.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f172a" />}
         >
           <View style={s.emptyState}>
-            <Ionicons name="restaurant-outline" size={48} color="#DDD" />
+            <Ionicons name="restaurant-outline" size={48} color="#cbd5e1" />
             <Text style={s.emptyTitle}>No items found</Text>
           </View>
         </ScrollView>
@@ -200,7 +200,7 @@ export default function MenuOverviewScreen() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => <MenuItem item={item} colors={colors} />}
           contentContainerStyle={s.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f172a" />}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
@@ -218,7 +218,7 @@ export default function MenuOverviewScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -227,9 +227,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -237,11 +237,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   statPill: { alignItems: 'center' },
   statVal: { fontSize: 18, fontWeight: '800' },
-  statLabel: { ...TYPE.caption, color: '#888', marginTop: 2 },
+  statLabel: { ...TYPE.caption, color: '#94a3b8', marginTop: 2 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,9 +253,9 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#000' },
+  searchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
   catScroll: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -265,11 +265,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     marginRight: 8,
   },
   catPillActive: { backgroundColor: '#2563eb' },
-  catText: { ...TYPE.smallMed, color: '#888' },
+  catText: { ...TYPE.smallMed, color: '#94a3b8' },
   catTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 8 },
   card: {
@@ -277,7 +277,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   cardDisabled: { opacity: 0.6 },
   cardRow: { flexDirection: 'row', alignItems: 'center' },
@@ -291,10 +291,10 @@ const s = StyleSheet.create({
   },
   vegDotInner: { width: 8, height: 8, borderRadius: 4 },
   cardInfo: { flex: 1, marginLeft: 12 },
-  itemName: { ...TYPE.bodyMed, color: '#000' },
-  itemCat: { ...TYPE.caption, color: '#888', marginTop: 2 },
+  itemName: { ...TYPE.bodyMed, color: '#0f172a' },
+  itemCat: { ...TYPE.caption, color: '#94a3b8', marginTop: 2 },
   cardRight: { alignItems: 'flex-end', gap: 4 },
-  itemPrice: { ...TYPE.amount, color: '#000' },
+  itemPrice: { ...TYPE.amount, color: '#0f172a' },
   availBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -310,5 +310,5 @@ const s = StyleSheet.create({
     paddingVertical: 80,
     gap: 10,
   },
-  emptyTitle: { ...TYPE.h3, color: '#888' },
+  emptyTitle: { ...TYPE.h3, color: '#94a3b8' },
 });

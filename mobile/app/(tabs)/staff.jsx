@@ -29,23 +29,23 @@ import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const C = {
-  bg: '#F7F7F7',
-  surface: '#FFFFFF',
-  border: '#EAEAEA',
+  bg: '#f8fafc',
+  surface: '#ffffff',
+  border: '#e2e8f0',
   text1: '#0f172a',
-  text2: '#444444',
-  text3: '#888888',
-  gold: '#F5A623',
+  text2: '#475569',
+  text3: '#94a3b8',
+  gold: '#d97706',
   indigo: '#2563eb',
-  success: '#00B341',
-  error: '#EE0000',
+  success: '#16a34a',
+  error: '#dc2626',
 };
 
 const ROLE_COLORS = {
-  Manager:  { bg: '#EDE9FE', text: '#7C3AED' },
-  Chef:     { bg: '#FFF3E0', text: '#E65100' },
-  Waiter:   { bg: '#E3F2FD', text: '#1565C0' },
-  Cashier:  { bg: '#E8F5E9', text: '#2E7D32' },
+  Manager:  { bg: '#eff6ff', text: '#2563eb' },
+  Chef:     { bg: '#fffbeb', text: '#b45309' },
+  Waiter:   { bg: '#f0f9ff', text: '#0369a1' },
+  Cashier:  { bg: '#f0fdf4', text: '#15803d' },
 };
 
 const SHIFT_FILTERS = ['All', 'On Shift', 'Off Shift', 'Managers'];
@@ -179,7 +179,7 @@ function Avatar({ name, role, size = 44 }) {
     .map((w) => w[0])
     .join('')
     .toUpperCase();
-  const rc = ROLE_COLORS[role] || { bg: '#F0F0F0', text: C.text3 };
+  const rc = ROLE_COLORS[role] || { bg: '#f1f5f9', text: C.text3 };
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: rc.bg }]}>
       <Text style={[styles.avatarText, { color: rc.text, fontSize: size * 0.36 }]}>{initials}</Text>
@@ -190,9 +190,9 @@ function Avatar({ name, role, size = 44 }) {
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const map = {
-    on_shift:  { label: 'On Shift',  bg: '#EDFBF3', color: C.success },
-    off_shift: { label: 'Off Shift', bg: '#F5F5F5', color: C.text3   },
-    on_leave:  { label: 'On Leave',  bg: '#FFF8EB', color: C.gold    },
+    on_shift:  { label: 'On Shift',  bg: '#f0fdf4', color: C.success },
+    off_shift: { label: 'Off Shift', bg: '#f1f5f9', color: C.text3   },
+    on_leave:  { label: 'On Leave',  bg: '#fffbeb', color: C.gold    },
   };
   const s = map[status] || map.off_shift;
   return (
@@ -205,7 +205,7 @@ function StatusBadge({ status }) {
 // ─── Staff Card ───────────────────────────────────────────────────────────────
 function StaffCard({ member, onClockToggle, onLongPress }) {
   const canToggle = member.status !== 'on_leave';
-  const rc = ROLE_COLORS[member.role] || { bg: '#F0F0F0', text: C.text3 };
+  const rc = ROLE_COLORS[member.role] || { bg: '#f1f5f9', text: C.text3 };
 
   return (
     <PressCard
@@ -250,7 +250,7 @@ function StaffCard({ member, onClockToggle, onLongPress }) {
           <TouchableOpacity
             style={[
               styles.clockBtn,
-              { backgroundColor: member.status === 'on_shift' ? '#FFF0F0' : '#EDFBF3' },
+              { backgroundColor: member.status === 'on_shift' ? '#fef2f2' : '#f0fdf4' },
             ]}
             onPress={() => onClockToggle(member.id)}
             activeOpacity={0.75}
@@ -430,7 +430,7 @@ function AttendanceTimeline({ staff }) {
       <Text style={styles.sectionTitle}>Today's Clock-ins</Text>
       <View style={styles.timelineCard}>
         {onShiftToday.map((s, idx) => {
-          const rc = ROLE_COLORS[s.role] || { bg: '#F0F0F0', text: C.text3 };
+          const rc = ROLE_COLORS[s.role] || { bg: '#f1f5f9', text: C.text3 };
           return (
             <View key={s.id} style={[styles.timelineRow, idx < onShiftToday.length - 1 && styles.timelineRowBorder]}>
               <View style={[styles.timelineDot, { backgroundColor: rc.bg }]}>
@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,

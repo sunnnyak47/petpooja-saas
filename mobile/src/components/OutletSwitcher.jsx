@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     maxWidth: 200,
   },
-  name: { fontSize: 13, fontWeight: '600', color: '#000', flexShrink: 1 },
+  name: { fontSize: 13, fontWeight: '600', color: '#0f172a', flexShrink: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '60%',
   },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#000', marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -90,6 +90,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   rowSelected: { backgroundColor: '#F0FFF4' },
-  rowName: { fontSize: 15, color: '#000' },
+  rowName: { fontSize: 15, color: '#0f172a' },
   rowAddr: { fontSize: 12, color: '#888', marginTop: 2 },
 });

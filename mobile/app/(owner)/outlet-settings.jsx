@@ -163,8 +163,8 @@ export default function OutletSettingsScreen() {
               <Ionicons name="print-outline" size={16} color={colors.textMuted} />
             </View>
             <Text style={[s.rowLabel, { color: colors.text }]}>Status</Text>
-            <View style={[s.printerBadge, { backgroundColor: printerSettings.enabled ? '#E6F9ED' : '#F3F3F3' }]}>
-              <Text style={[s.printerBadgeText, { color: printerSettings.enabled ? '#00B341' : '#888' }]}>
+            <View style={[s.printerBadge, { backgroundColor: printerSettings.enabled ? '#dcfce7' : '#f1f5f9' }]}>
+              <Text style={[s.printerBadgeText, { color: printerSettings.enabled ? '#16a34a' : '#94a3b8' }]}>
                 {printerSettings.enabled
                   ? printerSettings.type === 'bluetooth' ? 'Bluetooth' : 'AirPrint'
                   : 'Disabled'}
@@ -182,7 +182,7 @@ export default function OutletSettingsScreen() {
               onPress={() => updatePrinterSettings({ enabled: !printerSettings.enabled })}
               style={[
                 s.pillToggle,
-                { backgroundColor: printerSettings.enabled ? '#6366f1' : '#E0E0E0' },
+                { backgroundColor: printerSettings.enabled ? '#2563eb' : '#e2e8f0' },
               ]}
               activeOpacity={0.8}
             >
@@ -204,7 +204,7 @@ export default function OutletSettingsScreen() {
                 onPress={() => updatePrinterSettings({ autoPrintKot: !printerSettings.autoPrintKot })}
                 style={[
                   s.pillToggle,
-                  { backgroundColor: printerSettings.autoPrintKot ? '#6366f1' : '#E0E0E0' },
+                  { backgroundColor: printerSettings.autoPrintKot ? '#2563eb' : '#e2e8f0' },
                 ]}
                 activeOpacity={0.8}
               >
@@ -253,7 +253,7 @@ export default function OutletSettingsScreen() {
               onPress={handleTestPrint}
               activeOpacity={0.8}
             >
-              <Ionicons name="print-outline" size={16} color="#6366f1" style={{ marginRight: 6 }} />
+              <Ionicons name="print-outline" size={16} color="#2563eb" style={{ marginRight: 6 }} />
               <Text style={s.testPrintText}>Test Print</Text>
             </TouchableOpacity>
           )}
@@ -275,7 +275,7 @@ export default function OutletSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -284,9 +284,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   scroll: { paddingBottom: 20 },
   outletCard: {
     alignItems: 'center',
@@ -294,22 +294,22 @@ const s = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   outletIcon: {
     width: 56,
     height: 56,
     borderRadius: 14,
-    backgroundColor: '#EBF4FF',
+    backgroundColor: '#eff6ff',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-  outletName: { ...TYPE.h3, color: '#000', textAlign: 'center' },
-  outletAddr: { ...TYPE.small, color: '#888', textAlign: 'center', marginTop: 4 },
+  outletName: { ...TYPE.h3, color: '#0f172a', textAlign: 'center' },
+  outletAddr: { ...TYPE.small, color: '#94a3b8', textAlign: 'center', marginTop: 4 },
   sectionLabel: {
     ...TYPE.label,
-    color: '#888',
+    color: '#94a3b8',
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 8,
@@ -318,7 +318,7 @@ const s = StyleSheet.create({
     backgroundColor: '#FFF',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   row: {
     flexDirection: 'row',
@@ -326,18 +326,18 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F7F7',
+    borderBottomColor: '#f8fafc',
   },
   rowIcon: { width: 28, alignItems: 'center' },
-  rowLabel: { ...TYPE.body, color: '#000', flex: 1, marginLeft: 8 },
-  rowValue: { ...TYPE.smallMed, color: '#444' },
+  rowLabel: { ...TYPE.body, color: '#0f172a', flex: 1, marginLeft: 8 },
+  rowValue: { ...TYPE.smallMed, color: '#475569' },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     margin: 16,
     padding: 14,
-    backgroundColor: '#EBF4FF',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
   },
   noteText: { ...TYPE.small, color: '#2563eb', flex: 1, lineHeight: 18 },
@@ -380,16 +380,16 @@ const s = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
-    backgroundColor: '#F7F7F7',
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
   typeChipActive: {
-    backgroundColor: '#6366f1',
-    borderColor: '#6366f1',
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
   },
   typeChipText: {
     ...TYPE.small,
-    color: '#555',
+    color: '#475569',
     fontWeight: '600',
   },
   typeChipTextActive: {
@@ -404,12 +404,12 @@ const s = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#6366f1',
-    backgroundColor: '#F3F0FF',
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
   },
   testPrintText: {
     ...TYPE.smallMed,
-    color: '#6366f1',
+    color: '#2563eb',
     fontWeight: '700',
   },
   centerState: {
@@ -419,7 +419,7 @@ const s = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 40,
   },
-  stateText: { ...TYPE.body, color: '#888', textAlign: 'center' },
+  stateText: { ...TYPE.body, color: '#94a3b8', textAlign: 'center' },
   retryBtn: {
     marginTop: 8,
     paddingHorizontal: 24,

@@ -20,19 +20,19 @@ const SLIDES = [
   },
   {
     icon: 'notifications',
-    color: '#EE0000',
+    color: '#dc2626',
     title: 'Smart Alerts',
     desc: 'Get instant notifications for voids, refunds, cash variances, and stock issues. Never miss a red flag.',
   },
   {
     icon: 'document-text',
-    color: '#00B341',
+    color: '#16a34a',
     title: 'Export Reports',
     desc: 'Generate PDF reports for sales, staff, and EOD reconciliation. Share instantly via WhatsApp or email.',
   },
   {
     icon: 'moon',
-    color: '#F5A623',
+    color: '#d97706',
     title: 'Built for You',
     desc: 'Dark mode, biometric login, offline support, and multi-outlet switching. Your restaurant, your way.',
   },
@@ -113,15 +113,15 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFF' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   topRow: { alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 8 },
-  skipText: { fontSize: 15, color: '#888', fontWeight: '600' },
+  skipText: { fontSize: 15, color: '#94a3b8', fontWeight: '600' },
   slide: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
   iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
   title: { fontSize: 26, fontWeight: '800', color: '#0f172a', textAlign: 'center' },
-  desc: { fontSize: 16, color: '#666', textAlign: 'center', marginTop: 12, lineHeight: 24 },
+  desc: { fontSize: 16, color: '#475569', textAlign: 'center', marginTop: 12, lineHeight: 24 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#DDD' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#e2e8f0' },
   dotActive: { backgroundColor: '#2563eb', width: 24 },
   nextBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

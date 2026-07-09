@@ -44,6 +44,22 @@ function round2(v) {
   return Math.round((num(v) + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Resolves the waiter/staff display name for an order.
+ * Uses ONLY the order's staff relation (order.staff.full_name) — never the
+ * outlet name. Orders created from an owner account whose user full_name IS
+ * the outlet/business name would otherwise render "Waiter: <outlet name>",
+ * so that case is treated as "no waiter" and the UI hides the row ('' is
+ * falsy everywhere order.waiter is rendered).
+ */
+function waiterName(o) {
+  const name = typeof o.staff?.full_name === 'string' ? o.staff.full_name.trim() : '';
+  if (!name) return '';
+  const outletName = typeof o.outlet?.name === 'string' ? o.outlet.name.trim() : '';
+  if (outletName && name.toLowerCase() === outletName.toLowerCase()) return '';
+  return name;
+}
+
 /** Sum of already-tendered successful payments on an order (partial/split bills). */
 function paidSoFar(payments) {
   if (!Array.isArray(payments)) return 0;
@@ -72,7 +88,7 @@ export function normalizeOpenOrder(o) {
     orderType: o.order_type || 'dine_in',
     tableId: o.table_id || o.table?.id || null,
     tableNumber: o.table?.table_number ?? null,
-    waiter: o.staff?.full_name || '',
+    waiter: waiterName(o),
     customerName: o.customer?.full_name || o.customer_name || '',
     createdAt: o.created_at || null,
     invoiceNumber: o.invoice_number || null,

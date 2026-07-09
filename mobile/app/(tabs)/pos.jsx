@@ -79,7 +79,10 @@ const ORDER_TYPES = [
   { key: 'delivery',  label: 'Delivery',  icon: 'bicycle-outline' },
 ];
 
-const TAX_RATE = 0.05; // 5% GST flat estimate displayed to staff (server recalculates)
+// GST estimate rates shown to staff (server recalculates the real tax).
+// AU outlets: 10% GST; default (IN): 5% GST.
+const TAX_RATE_DEFAULT = 0.05;
+const TAX_RATE_AU = 0.10;
 
 // ─── Food type indicator ──────────────────────────────────────────────────────
 function FoodTypeDot({ type }) {
@@ -223,11 +226,11 @@ function TablePickerModal({ visible, tables, selectedId, onSelect, onClose, onQR
           {/* QR scan shortcut */}
           {onQRScan && (
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, backgroundColor: '#EEF2FF', marginHorizontal: 16, marginBottom: 8 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, backgroundColor: '#eff6ff', marginHorizontal: 16, marginBottom: 8 }}
               onPress={() => { onClose(); onQRScan(); }}
             >
-              <Ionicons name="qr-code-outline" size={20} color="#6366f1" />
-              <Text style={{ color: '#6366f1', fontWeight: '600', fontSize: 14 }}>Scan Table QR</Text>
+              <Ionicons name="qr-code-outline" size={20} color="#2563eb" />
+              <Text style={{ color: '#2563eb', fontWeight: '600', fontSize: 14 }}>Scan Table QR</Text>
             </TouchableOpacity>
           )}
           {available.length === 0 ? (
@@ -283,7 +286,9 @@ export default function POSScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { outletId } = useOutlet();
-  const { symbol } = useCurrency();
+  const { symbol, isAU } = useCurrency();
+  const estTaxRate = isAU ? TAX_RATE_AU : TAX_RATE_DEFAULT;
+  const estTaxLabel = isAU ? 'Est. Tax (10% GST)' : 'Est. Tax (5% GST)';
 
   // Menu + tables offline data
   const { categories, items, isLoading: menuLoading, refresh: refreshMenu } = useOfflineMenu(outletId);
@@ -334,8 +339,8 @@ export default function POSScreen() {
     [cart]
   );
   const cartTax = useMemo(
-    () => Math.round(cartSubtotal * TAX_RATE),
-    [cartSubtotal]
+    () => Math.round(cartSubtotal * estTaxRate),
+    [cartSubtotal, estTaxRate]
   );
   const cartTotal = cartSubtotal + cartTax;
 
@@ -836,10 +841,10 @@ export default function POSScreen() {
 
           {/* KOT auto-print toggle */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 14, color: '#666' }}>Auto-print KOT</Text>
+            <Text style={{ fontSize: 14, color: '#475569' }}>Auto-print KOT</Text>
             <TouchableOpacity
               onPress={() => setAutoPrintKot((v) => !v)}
-              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: autoPrintKot ? '#6366f1' : '#E0E0E0', justifyContent: 'center', paddingHorizontal: 2 }}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: autoPrintKot ? '#2563eb' : '#e2e8f0', justifyContent: 'center', paddingHorizontal: 2 }}
               activeOpacity={0.8}
             >
               <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', transform: [{ translateX: autoPrintKot ? 18 : 0 }] }} />
@@ -855,7 +860,7 @@ export default function POSScreen() {
               <Text style={styles.totalValue}>{symbol}{cartSubtotal}</Text>
             </View>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Est. Tax (5% GST)</Text>
+              <Text style={styles.totalLabel}>{estTaxLabel}</Text>
               <Text style={styles.totalValue}>{symbol}{cartTax}</Text>
             </View>
             <View style={[styles.totalRow, styles.totalGrandRow]}>
@@ -909,7 +914,7 @@ export default function POSScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-// Web-app matched: slate-50 page bg, indigo-500 accent, slate-900 text,
+// Web-app matched: slate-50 page bg, blue-600 accent, slate-900 text,
 // rounded-xl/-2xl borders, Inter-like system font, slate-200 borders.
 const styles = StyleSheet.create({
   container: {

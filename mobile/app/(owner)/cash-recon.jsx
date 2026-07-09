@@ -34,13 +34,13 @@ const CONTENT_W = Math.min(SCREEN_W, 480);
 function StatusDot({ status }) {
   const colors = {
     open: '#2563eb',
-    closed: '#888',
-    balanced: '#00B341',
-    short: '#EE0000',
-    over: '#F5A623',
+    closed: '#94a3b8',
+    balanced: '#16a34a',
+    short: '#dc2626',
+    over: '#d97706',
   };
   return (
-    <View style={[st.dot, { backgroundColor: colors[status] || '#888' }]} />
+    <View style={[st.dot, { backgroundColor: colors[status] || '#94a3b8' }]} />
   );
 }
 
@@ -70,10 +70,10 @@ export default function CashReconScreen() {
   const payments = useMemo(() => {
     const total = preview.totalSales || 1;
     return [
-      { label: 'Cash', amount: preview.cashSales || 0, icon: 'cash', color: '#00B341' },
+      { label: 'Cash', amount: preview.cashSales || 0, icon: 'cash', color: '#16a34a' },
       { label: 'UPI', amount: preview.upiSales || 0, icon: 'phone-portrait', color: '#2563eb' },
-      { label: 'Card', amount: preview.cardSales || 0, icon: 'card', color: '#F5A623' },
-      { label: 'Online', amount: preview.onlineSales || 0, icon: 'globe', color: '#888' },
+      { label: 'Card', amount: preview.cardSales || 0, icon: 'card', color: '#d97706' },
+      { label: 'Online', amount: preview.onlineSales || 0, icon: 'globe', color: '#94a3b8' },
     ].map((p) => ({ ...p, pct: Math.round((p.amount / total) * 100) }));
   }, [preview]);
 
@@ -166,7 +166,7 @@ export default function CashReconScreen() {
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f172a" />}
       >
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -178,13 +178,13 @@ export default function CashReconScreen() {
           ))
         ) : tab === 'today' && !previewData ? (
           <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-            <Ionicons name="cash-outline" size={48} color="#CCC" />
-            <Text style={{ fontSize: 15, color: '#888', marginTop: 8 }}>No session data yet</Text>
+            <Ionicons name="cash-outline" size={48} color="#cbd5e1" />
+            <Text style={{ fontSize: 15, color: '#94a3b8', marginTop: 8 }}>No session data yet</Text>
           </View>
         ) : tab === 'today' ? (
           <>
             {/* Status Badge */}
-            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#2563eb' : '#00B341', backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.statusCard, { borderLeftColor: preview.status === 'open' ? '#2563eb' : '#16a34a', backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.statusRow}>
                 <StatusDot status={preview.status} />
                 <Text style={[s.statusLabel, { color: colors.text }]}>
@@ -231,10 +231,10 @@ export default function CashReconScreen() {
             <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[s.sectionTitle, { color: colors.text }]}>Deductions</Text>
               {[
-                { label: 'Voids', val: preview.voids, icon: 'close-circle', color: '#EE0000' },
-                { label: 'Refunds', val: preview.refunds, icon: 'return-down-back', color: '#F5A623' },
-                { label: 'Discounts', val: preview.discounts, icon: 'pricetag', color: '#F5A623' },
-                { label: 'Tips Collected', val: preview.tips, icon: 'heart', color: '#00B341' },
+                { label: 'Voids', val: preview.voids, icon: 'close-circle', color: '#dc2626' },
+                { label: 'Refunds', val: preview.refunds, icon: 'return-down-back', color: '#d97706' },
+                { label: 'Discounts', val: preview.discounts, icon: 'pricetag', color: '#d97706' },
+                { label: 'Tips Collected', val: preview.tips, icon: 'heart', color: '#16a34a' },
               ].map((d) => (
                 <View key={d.label} style={[s.deductRow, { borderBottomColor: colors.borderLight }]}>
                   <View style={s.deductLeft}>
@@ -253,8 +253,8 @@ export default function CashReconScreen() {
             {/* History cards */}
             {history.length === 0 && (
               <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-                <Ionicons name="document-text-outline" size={48} color="#CCC" />
-                <Text style={{ fontSize: 15, color: '#888', marginTop: 8 }}>No EOD history yet</Text>
+                <Ionicons name="document-text-outline" size={48} color="#cbd5e1" />
+                <Text style={{ fontSize: 15, color: '#94a3b8', marginTop: 8 }}>No EOD history yet</Text>
               </View>
             )}
             {history.map((day) => {
@@ -267,11 +267,11 @@ export default function CashReconScreen() {
                   <View style={s.histTop}>
                     <Text style={[s.histDate, { color: colors.text }]}>{day.date}</Text>
                     <View style={[s.histBadge, {
-                      backgroundColor: isBalanced ? '#EDFBF3' : isShort ? '#FFF0F0' : '#FFF8EB',
+                      backgroundColor: isBalanced ? '#f0fdf4' : isShort ? '#fef2f2' : '#fffbeb',
                     }]}>
                       <StatusDot status={day.status} />
                       <Text style={[s.histBadgeText, {
-                        color: isBalanced ? '#007A2E' : isShort ? '#EE0000' : '#F5A623',
+                        color: isBalanced ? '#15803d' : isShort ? '#dc2626' : '#d97706',
                       }]}>
                         {isBalanced ? 'Balanced' : isShort ? `Short ${symbol}${Math.abs(day.variance)}` : `Over ${symbol}${day.variance}`}
                       </Text>
@@ -314,7 +314,7 @@ const st = StyleSheet.create({
 });
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,9 +323,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   tabBar: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -337,11 +337,11 @@ const s = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
   },
   tabActive: { backgroundColor: '#2563eb' },
-  tabText: { ...TYPE.smallMed, color: '#888' },
+  tabText: { ...TYPE.smallMed, color: '#94a3b8' },
   tabTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 12 },
   card: {
@@ -349,14 +349,14 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   statusCard: {
     backgroundColor: '#FFF',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderLeftWidth: 4,
   },
   statusRow: {
@@ -364,26 +364,26 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  statusLabel: { ...TYPE.bodyMed, color: '#000' },
-  statusMeta: { ...TYPE.small, color: '#888', marginTop: 6 },
+  statusLabel: { ...TYPE.bodyMed, color: '#0f172a' },
+  statusMeta: { ...TYPE.small, color: '#94a3b8', marginTop: 6 },
   heroCard: {
     backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  heroEyebrow: { ...TYPE.label, color: '#888' },
-  heroAmount: { ...TYPE.amountXl, color: '#000', marginTop: 4 },
+  heroEyebrow: { ...TYPE.label, color: '#94a3b8' },
+  heroAmount: { ...TYPE.amountXl, color: '#0f172a', marginTop: 4 },
   heroMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 10,
     gap: 10,
   },
-  heroMetaItem: { ...TYPE.small, color: '#444' },
-  heroDivider: { width: 1, height: 14, backgroundColor: '#EAEAEA' },
-  sectionTitle: { ...TYPE.bodyMed, color: '#000', marginBottom: 14 },
+  heroMetaItem: { ...TYPE.small, color: '#475569' },
+  heroDivider: { width: 1, height: 14, backgroundColor: '#e2e8f0' },
+  sectionTitle: { ...TYPE.bodyMed, color: '#0f172a', marginBottom: 14 },
   payRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,34 +396,34 @@ const s = StyleSheet.create({
     gap: 6,
     width: 80,
   },
-  payLabel: { ...TYPE.small, color: '#000' },
+  payLabel: { ...TYPE.small, color: '#0f172a' },
   payBarWrap: {
     flex: 1,
     height: 8,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 4,
     overflow: 'hidden',
   },
   payBar: { height: 8, borderRadius: 4 },
-  payAmount: { ...TYPE.smallMed, color: '#000', width: 52, textAlign: 'right' },
-  payPct: { ...TYPE.caption, color: '#888', width: 30, textAlign: 'right' },
+  payAmount: { ...TYPE.smallMed, color: '#0f172a', width: 52, textAlign: 'right' },
+  payPct: { ...TYPE.caption, color: '#94a3b8', width: 30, textAlign: 'right' },
   deductRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F7F7',
+    borderBottomColor: '#f8fafc',
   },
   deductLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  deductLabel: { ...TYPE.body, color: '#000' },
+  deductLabel: { ...TYPE.body, color: '#0f172a' },
   deductVal: { ...TYPE.bodyMed },
   histCard: {
     backgroundColor: '#FFF',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   histTop: {
     flexDirection: 'row',
@@ -431,7 +431,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  histDate: { ...TYPE.bodyMed, color: '#000' },
+  histDate: { ...TYPE.bodyMed, color: '#0f172a' },
   histBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,16 +446,16 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
   },
   histCol: { alignItems: 'center', flex: 1 },
-  histLabel: { ...TYPE.caption, color: '#888', marginBottom: 4 },
-  histVal: { ...TYPE.smallMed, color: '#000' },
+  histLabel: { ...TYPE.caption, color: '#94a3b8', marginBottom: 4 },
+  histVal: { ...TYPE.smallMed, color: '#0f172a' },
   histFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#f1f5f9',
   },
-  histClosedBy: { ...TYPE.caption, color: '#888' },
-  histClosedAt: { ...TYPE.caption, color: '#888' },
+  histClosedBy: { ...TYPE.caption, color: '#94a3b8' },
+  histClosedAt: { ...TYPE.caption, color: '#94a3b8' },
 });

@@ -7,7 +7,6 @@
  *   --text-primary:   #0f172a  (slate-900, headings)
  *   --text-secondary: #475569  (slate-600, body)
  *   --accent:         #2563eb  (blue-600, dashboard primary)
- *   --brand:          #6366f1  (indigo-500, POS / brand color)
  *   --success:        #16a34a  (green-600)
  *   --warning:        #d97706  (amber-600)
  *   --danger:         #dc2626  (red-600)
@@ -35,24 +34,24 @@ export const T = {
   textOnDark:    '#ffffff',   // text on solid dark/accent buttons
 
   // ── Accents ──────────────────────────────────────────────────────────────
-  accent:        '#6366f1',   // indigo-500 — POS / brand primary
-  accentDark:    '#4f46e5',   // indigo-600 — pressed/hover
-  accentSoft:    '#eef2ff',   // indigo-50 — soft background tint
-  accentBlue:    '#2563eb',   // blue-600 — dashboard primary (legacy)
+  accent:        '#2563eb',   // blue-600 — MS-RM primary
+  accentDark:    '#1d4ed8',   // blue-700 — pressed/hover
+  accentSoft:    '#eff6ff',   // blue-50 — soft background tint
+  accentBlue:    '#2563eb',   // blue-600 — dashboard primary (alias)
 
   // ── Status ───────────────────────────────────────────────────────────────
-  success:       '#10b981',   // emerald-500
-  successDark:   '#059669',   // emerald-600
-  successBg:     '#d1fae5',   // emerald-100
-  successText:   '#047857',   // emerald-700
+  success:       '#16a34a',   // green-600
+  successDark:   '#15803d',   // green-700
+  successBg:     '#dcfce7',   // green-100
+  successText:   '#15803d',   // green-700
 
-  warning:       '#f59e0b',   // amber-500
-  warningDark:   '#d97706',   // amber-600
+  warning:       '#d97706',   // amber-600
+  warningDark:   '#b45309',   // amber-700
   warningBg:     '#fef3c7',   // amber-100
   warningText:   '#b45309',   // amber-700
 
-  danger:        '#ef4444',   // red-500
-  dangerDark:    '#dc2626',   // red-600
+  danger:        '#dc2626',   // red-600
+  dangerDark:    '#b91c1c',   // red-700
   dangerBg:      '#fee2e2',   // red-100
   dangerText:    '#b91c1c',   // red-700
 
@@ -61,7 +60,7 @@ export const T = {
 
   // Veg / non-veg / egg indicators (used at item level)
   veg:           '#16a34a',   // green-600
-  egg:           '#f59e0b',   // amber-500
+  egg:           '#d97706',   // amber-600
   nonVeg:        '#dc2626',   // red-600
 
   // ── Shadows ──────────────────────────────────────────────────────────────
@@ -146,7 +145,7 @@ export const fontForWeight = (w) => ({
 export const tableStatus = {
   available: { border: '#22c55e', bg: 'rgba(34,197,94,0.12)',  text: '#22c55e', label: 'Free' },
   occupied:  { border: '#3b82f6', bg: 'rgba(59,130,246,0.15)', text: '#60a5fa', label: 'Busy' },
-  reserved:  { border: '#6366f1', bg: 'rgba(99,102,241,0.12)', text: '#818cf8', label: 'Reserved' },
+  reserved:  { border: '#0ea5e9', bg: 'rgba(14,165,233,0.12)', text: '#7dd3fc', label: 'Reserved' },
   blocked:   { border: '#52525b', bg: 'rgba(82,82,91,0.15)',   text: '#71717a', label: 'Inactive' },
   held:      { border: '#eab308', bg: 'rgba(234,179,8,0.12)',  text: '#facc15', label: 'Held' },
   part_paid: { border: '#f97316', bg: 'rgba(249,115,22,0.12)', text: '#fb923c', label: 'Part Paid' },
@@ -159,7 +158,7 @@ export const orderStatus = {
   confirmed: { base: '#3b82f6', text: '#93c5fd' },
   preparing: { base: '#f97316', text: '#fdba74' },
   ready:     { base: '#10b981', text: '#6ee7b7' },
-  served:    { base: '#a855f7', text: '#d8b4fe' },
+  served:    { base: '#64748b', text: '#cbd5e1' },
   billed:    { base: '#06b6d4', text: '#67e8f9' },
   paid:      { base: '#22c55e', text: '#86efac' },
   cancelled: { base: '#ef4444', text: '#fca5a5' },
@@ -167,6 +166,6 @@ export const orderStatus = {
 
 export const kotStatus = { pending: '#fbbf24', preparing: '#60a5fa', ready: '#10b981' };
 
-export const chartColors = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+export const chartColors = ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#64748b', '#06b6d4'];
 
 export default T;

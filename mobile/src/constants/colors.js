@@ -1,119 +1,119 @@
 export const Colors = {
-  // Core Brand (dark navy — used as dark theme)
-  primary:       '#0A1628',
-  primaryMid:    '#0F2040',
-  primaryLight:  '#162D55',
+  // Core Brand (MS-RM slate — used as dark theme)
+  primary:       '#0f172a',   // slate-900
+  primaryMid:    '#1e293b',   // slate-800
+  primaryLight:  '#334155',   // slate-700
 
   // Backgrounds (dark theme)
-  bg:            '#080F1E',
-  surface:       '#0F1D35',
-  surface2:      '#162840',
-  border:        '#1E3A5F',
+  bg:            '#0f172a',   // slate-900
+  surface:       '#1e293b',   // slate-800
+  surface2:      '#334155',   // slate-700
+  border:        '#334155',   // slate-700
 
-  // Gold Accent
-  gold:          '#C9A84C',
-  goldBright:    '#F0C040',
-  goldLight:     '#F5E6B8',
-  goldDim:       '#8A6F2E',
+  // Accent (legacy "gold" keys — re-pointed to MS-RM blue)
+  gold:          '#2563eb',   // blue-600
+  goldBright:    '#3b82f6',   // blue-500
+  goldLight:     '#93c5fd',   // blue-300
+  goldDim:       '#1e40af',   // blue-800
 
-  // Indigo
-  indigo:        '#5B5EF4',
-  indigoLight:   '#8B8EF8',
-  indigoDim:     '#2D2F8A',
+  // Blue accent (legacy "indigo" keys — re-pointed to MS-RM blue)
+  indigo:        '#2563eb',   // blue-600
+  indigoLight:   '#60a5fa',   // blue-400
+  indigoDim:     '#1e40af',   // blue-800
 
   // Semantic
-  success:       '#10C98A',
-  successDim:    '#0A6E4A',
-  successBg:     '#0D3D2A',
-  warning:       '#F5A623',
-  warningDim:    '#7A5010',
-  warningBg:     '#3D280A',
-  error:         '#F05252',
-  errorDim:      '#7A1818',
-  errorBg:       '#3D0D0D',
-  info:          '#38B2F5',
-  infoBg:        '#0D2A3D',
+  success:       '#16a34a',   // green-600
+  successDim:    '#15803d',   // green-700
+  successBg:     'rgba(22,163,74,0.15)',
+  warning:       '#d97706',   // amber-600
+  warningDim:    '#b45309',   // amber-700
+  warningBg:     'rgba(217,119,6,0.15)',
+  error:         '#dc2626',   // red-600
+  errorDim:      '#b91c1c',   // red-700
+  errorBg:       'rgba(220,38,38,0.15)',
+  info:          '#3b82f6',   // blue-500
+  infoBg:        'rgba(59,130,246,0.15)',
 
-  // Text
-  text1:         '#F0F4FF',
-  text2:         '#A8B8D0',
-  text3:         '#5A7090',
-  text4:         '#3A5070',
+  // Text (on dark surfaces)
+  text1:         '#f1f5f9',   // slate-100
+  text2:         '#94a3b8',   // slate-400
+  text3:         '#64748b',   // slate-500
+  text4:         '#475569',   // slate-600
   textWhite:     '#FFFFFF',
-  textGold:      '#C9A84C',
+  textGold:      '#60a5fa',   // blue-400 — accent text on dark
 
   // Chart palette
-  chart1:        '#5B5EF4',
-  chart2:        '#10C98A',
-  chart3:        '#F5A623',
-  chart4:        '#F05252',
-  chart5:        '#38B2F5',
+  chart1:        '#2563eb',   // blue-600
+  chart2:        '#16a34a',   // green-600
+  chart3:        '#d97706',   // amber-600
+  chart4:        '#dc2626',   // red-600
+  chart5:        '#0891b2',   // cyan-600
 
   // Legacy
   white:         '#FFFFFF',
-  card:          '#0F1D35',
-  cardDark:      '#0F2040',
-  borderDark:    '#1E3A5F',
+  card:          '#1e293b',   // slate-800
+  cardDark:      '#0f172a',   // slate-900
+  borderDark:    '#334155',   // slate-700
 };
 
 // Gradient presets — pass directly to LinearGradient colors prop
 export const Gradients = {
-  gold:    ['#C9A84C', '#F0C040'],
-  indigo:  ['#2D2F8A', '#5B5EF4'],
-  success: ['#0A6E4A', '#10C98A'],
-  surface: ['#0F1D35', '#162840'],
-  header:  ['#0A1628', '#0F2040'],
+  gold:    ['#2563eb', '#3b82f6'],
+  indigo:  ['#1e40af', '#2563eb'],
+  success: ['#15803d', '#16a34a'],
+  surface: ['#1e293b', '#334155'],
+  header:  ['#0f172a', '#1e293b'],
 };
 
-// ─── Light Theme (Vercel × Apple) ─────────────────────────────────────────────
+// ─── Light Theme (MS-RM slate/blue — matches web themes.js) ──────────────────
 export const LC = {
   // Backgrounds
-  bg:           '#FFFFFF',
-  bg2:          '#F7F7F7',
-  bg3:          '#F0F0F0',
-  card:         '#FFFFFF',
-  cardBorder:   '#EAEAEA',
-  cardShadow:   'rgba(0,0,0,0.06)',
+  bg:           '#f8fafc',   // slate-50 — page background
+  bg2:          '#f1f5f9',   // slate-100
+  bg3:          '#e2e8f0',   // slate-200
+  card:         '#ffffff',
+  cardBorder:   '#e2e8f0',   // slate-200
+  cardShadow:   'rgba(15,23,42,0.06)',
 
   // Text
-  text1:        '#000000',
-  text2:        '#444444',
-  text3:        '#888888',
-  text4:        '#BBBBBB',
+  text1:        '#0f172a',   // slate-900
+  text2:        '#475569',   // slate-600
+  text3:        '#64748b',   // slate-500
+  text4:        '#94a3b8',   // slate-400
 
-  // Accent (Vercel signature blue)
-  accent:       '#0070F3',
-  accentLight:  '#EBF4FF',
-  accentDark:   '#0051B5',
+  // Accent (MS-RM blue-600)
+  accent:       '#2563eb',
+  accentLight:  '#eff6ff',   // blue-50
+  accentDark:   '#1d4ed8',   // blue-700
 
   // Status
-  success:      '#00B341',
-  successBg:    '#EDFBF3',
-  successText:  '#007A2E',
-  warning:      '#F5A623',
-  warningBg:    '#FFF8EB',
-  warningText:  '#7A5010',
-  error:        '#EE0000',
-  errorBg:      '#FFF0F0',
-  errorText:    '#8B0000',
-  info:         '#0070F3',
-  infoBg:       '#EBF4FF',
+  success:      '#16a34a',   // green-600
+  successBg:    '#f0fdf4',   // green-50
+  successText:  '#15803d',   // green-700
+  warning:      '#d97706',   // amber-600
+  warningBg:    '#fffbeb',   // amber-50
+  warningText:  '#b45309',   // amber-700
+  error:        '#dc2626',   // red-600
+  errorBg:      '#fef2f2',   // red-50
+  errorText:    '#b91c1c',   // red-700
+  info:         '#2563eb',   // blue-600
+  infoBg:       '#eff6ff',   // blue-50
 
   // Tab bar
-  tabBg:        '#FFFFFF',
-  tabBorder:    '#EAEAEA',
-  tabActive:    '#000000',
-  tabInactive:  '#999999',
+  tabBg:        '#ffffff',
+  tabBorder:    '#e2e8f0',
+  tabActive:    '#2563eb',
+  tabInactive:  '#94a3b8',
 
   // Separator
-  separator:    '#EAEAEA',
-  overlay:      'rgba(0,0,0,0.04)',
+  separator:    '#e2e8f0',
+  overlay:      'rgba(15,23,42,0.04)',
 };
 
 // Glass effect helpers — rgba values for transparent/frosted UI layers
 export const Glass = {
-  card:      'rgba(15, 29, 53, 0.72)',   // semi-transparent surface bg
-  border:    'rgba(30, 58, 95, 0.55)',   // subtle frosted border
+  card:      'rgba(30, 41, 59, 0.72)',    // slate-800 semi-transparent surface
+  border:    'rgba(51, 65, 85, 0.55)',    // slate-700 frosted border
   highlight: 'rgba(255, 255, 255, 0.06)', // top-edge gloss sheen
 };
 

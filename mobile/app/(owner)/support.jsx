@@ -12,6 +12,8 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
+import api from '../../src/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
@@ -48,8 +50,8 @@ export default function SupportScreen() {
             style={[s.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => Linking.openURL('tel:+919876543210')}
           >
-            <View style={[s.contactIcon, { backgroundColor: '#EDFBF3' }]}>
-              <Ionicons name="call" size={22} color="#00B341" />
+            <View style={[s.contactIcon, { backgroundColor: '#dcfce7' }]}>
+              <Ionicons name="call" size={22} color="#16a34a" />
             </View>
             <Text style={[s.contactLabel, { color: colors.text }]}>Call Support</Text>
             <Text style={[s.contactSub, { color: colors.textMuted }]}>24/7 helpline</Text>
@@ -57,13 +59,13 @@ export default function SupportScreen() {
 
           <PressCard
             style={[s.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => Linking.openURL('mailto:support@petpooja.com')}
+            onPress={() => Linking.openURL('mailto:support@ms-rm.com')}
           >
-            <View style={[s.contactIcon, { backgroundColor: '#EBF4FF' }]}>
+            <View style={[s.contactIcon, { backgroundColor: '#eff6ff' }]}>
               <Ionicons name="mail" size={22} color="#2563eb" />
             </View>
             <Text style={[s.contactLabel, { color: colors.text }]}>Email Us</Text>
-            <Text style={[s.contactSub, { color: colors.textMuted }]}>support@petpooja.com</Text>
+            <Text style={[s.contactSub, { color: colors.textMuted }]}>support@ms-rm.com</Text>
           </PressCard>
         </View>
 
@@ -94,10 +96,9 @@ export default function SupportScreen() {
         <Text style={[s.sectionTitle, { color: colors.text }]}>System Info</Text>
         <View style={[s.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {[
-            { label: 'App Version', value: '1.0.0' },
-            { label: 'Expo SDK', value: '54' },
-            { label: 'Backend', value: 'petpooja-saas.onrender.com' },
-            { label: 'API Status', value: 'Connected', color: '#00B341' },
+            { label: 'App Version', value: Constants.expoConfig?.version || '—' },
+            { label: 'Expo SDK', value: Constants.expoConfig?.sdkVersion?.split('.')[0] || '54' },
+            { label: 'Backend', value: (api.defaults.baseURL || '').replace(/^https?:\/\//, '').replace(/\/api\/?$/, '') || '—' },
           ].map(row => (
             <View key={row.label} style={[s.infoRow, { borderBottomColor: colors.borderLight }]}>
               <Text style={[s.infoLabel, { color: colors.textMuted }]}>{row.label}</Text>
@@ -113,7 +114,7 @@ export default function SupportScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -122,9 +123,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   scroll: { padding: 16, gap: 14 },
   contactGrid: { flexDirection: 'row', gap: 12 },
   contactCard: {
@@ -134,7 +135,7 @@ const s = StyleSheet.create({
     padding: 18,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   contactIcon: {
     width: 48,
@@ -144,37 +145,37 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
-  contactLabel: { ...TYPE.bodyMed, color: '#000' },
-  contactSub: { ...TYPE.caption, color: '#888', marginTop: 2 },
-  sectionTitle: { ...TYPE.bodyMed, color: '#000', marginTop: 8 },
+  contactLabel: { ...TYPE.bodyMed, color: '#0f172a' },
+  contactSub: { ...TYPE.caption, color: '#94a3b8', marginTop: 2 },
+  sectionTitle: { ...TYPE.bodyMed, color: '#0f172a', marginTop: 8 },
   faqCard: {
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   faqHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  faqQ: { ...TYPE.bodyMed, color: '#000', flex: 1, marginRight: 10 },
-  faqA: { ...TYPE.small, color: '#444', marginTop: 10, lineHeight: 20 },
+  faqQ: { ...TYPE.bodyMed, color: '#0f172a', flex: 1, marginRight: 10 },
+  faqA: { ...TYPE.small, color: '#475569', marginTop: 10, lineHeight: 20 },
   infoCard: {
     backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F7F7',
+    borderBottomColor: '#f8fafc',
   },
-  infoLabel: { ...TYPE.small, color: '#888' },
-  infoValue: { ...TYPE.smallMed, color: '#000' },
+  infoLabel: { ...TYPE.small, color: '#94a3b8' },
+  infoValue: { ...TYPE.smallMed, color: '#0f172a' },
 });

@@ -22,14 +22,14 @@ import { useOutlet } from '../../src/context/OutletContext';
 
 const ACTION_TYPES = {
   login: { icon: 'log-in', color: '#2563eb', label: 'Login' },
-  logout: { icon: 'log-out', color: '#888', label: 'Logout' },
-  void: { icon: 'close-circle', color: '#EE0000', label: 'Void' },
-  refund: { icon: 'return-down-back', color: '#F5A623', label: 'Refund' },
-  discount: { icon: 'pricetag', color: '#F5A623', label: 'Discount' },
+  logout: { icon: 'log-out', color: '#94a3b8', label: 'Logout' },
+  void: { icon: 'close-circle', color: '#dc2626', label: 'Void' },
+  refund: { icon: 'return-down-back', color: '#d97706', label: 'Refund' },
+  discount: { icon: 'pricetag', color: '#d97706', label: 'Discount' },
   price_change: { icon: 'create', color: '#2563eb', label: 'Price Change' },
-  settings: { icon: 'settings', color: '#888', label: 'Settings' },
-  order: { icon: 'receipt', color: '#00B341', label: 'Order' },
-  stock: { icon: 'layers', color: '#F5A623', label: 'Stock' },
+  settings: { icon: 'settings', color: '#94a3b8', label: 'Settings' },
+  order: { icon: 'receipt', color: '#16a34a', label: 'Order' },
+  stock: { icon: 'layers', color: '#d97706', label: 'Stock' },
   clock: { icon: 'time', color: '#2563eb', label: 'Clock' },
 };
 
@@ -137,7 +137,7 @@ export default function ActivityLogScreen() {
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f172a" />}
       >
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
@@ -151,7 +151,7 @@ export default function ActivityLogScreen() {
           ))
         ) : filtered.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="document-text-outline" size={48} color="#DDD" />
+            <Ionicons name="document-text-outline" size={48} color="#cbd5e1" />
             <Text style={s.emptyTitle}>No activity found</Text>
             <Text style={s.emptyDesc}>Try a different filter</Text>
           </View>
@@ -172,7 +172,7 @@ export default function ActivityLogScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -181,9 +181,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   filterScroll: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -194,16 +194,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     marginRight: 8,
   },
   pillActive: { backgroundColor: '#2563eb' },
-  pillText: { ...TYPE.smallMed, color: '#888' },
+  pillText: { ...TYPE.smallMed, color: '#94a3b8' },
   pillTextActive: { color: '#FFF' },
   scroll: { padding: 16 },
   dateHeader: {
     ...TYPE.label,
-    color: '#888',
+    color: '#94a3b8',
     marginTop: 16,
     marginBottom: 10,
   },
@@ -211,7 +211,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f1f5f9',
   },
   iconCircle: {
     width: 36,
@@ -226,9 +226,9 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  logUser: { ...TYPE.bodyMed, color: '#000' },
-  logTime: { ...TYPE.caption, color: '#888' },
-  logDesc: { ...TYPE.small, color: '#444', marginTop: 2 },
+  logUser: { ...TYPE.bodyMed, color: '#0f172a' },
+  logTime: { ...TYPE.caption, color: '#94a3b8' },
+  logDesc: { ...TYPE.small, color: '#475569', marginTop: 2 },
   actionBadge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
@@ -242,6 +242,6 @@ const s = StyleSheet.create({
     paddingVertical: 80,
     gap: 10,
   },
-  emptyTitle: { ...TYPE.h3, color: '#000' },
-  emptyDesc: { ...TYPE.small, color: '#888' },
+  emptyTitle: { ...TYPE.h3, color: '#0f172a' },
+  emptyDesc: { ...TYPE.small, color: '#94a3b8' },
 });

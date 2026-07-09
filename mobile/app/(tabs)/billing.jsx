@@ -48,7 +48,7 @@ function orderLabel(order) {
     : (order.orderType || 'order').replace(/_/g, ' ');
 }
 
-function formatWhatsAppBill({ order, symbol, locale, methodLabel }) {
+function formatWhatsAppBill({ order, symbol, locale, methodLabel, isAU }) {
   const sym = symbol || '';
   const loc = locale || 'en-IN';
   const itemLines = order.items
@@ -63,7 +63,7 @@ function formatWhatsAppBill({ order, symbol, locale, methodLabel }) {
     (order.discount > 0 ? `Discount: -${sym}${order.discount.toFixed(2)}\n` : '') +
     (order.cgst > 0 ? `CGST: ${sym}${order.cgst.toFixed(2)}\n` : '') +
     (order.sgst > 0 ? `SGST: ${sym}${order.sgst.toFixed(2)}\n` : '') +
-    (order.igst > 0 ? `IGST: ${sym}${order.igst.toFixed(2)}\n` : '') +
+    (order.igst > 0 ? `${isAU ? 'GST' : 'IGST'}: ${sym}${order.igst.toFixed(2)}\n` : '') +
     `*GRAND TOTAL: ${sym}${order.grandTotal.toFixed(2)}*\n` +
     (methodLabel ? `Payment: ${methodLabel}\n` : '') +
     `\nThank you for dining with us! 🙏`
@@ -83,11 +83,11 @@ function BillingSkeleton() {
     <View style={{ padding: 20, gap: 12 }}>
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 4 }}>
         {[0, 1, 2].map(i => (
-          <SkeletonBox key={i} width="30%" height={72} borderRadius={16} color="#F0F0F0" />
+          <SkeletonBox key={i} width="30%" height={72} borderRadius={16} color="#f1f5f9" />
         ))}
       </View>
       {[0, 1, 2, 4].map(i => (
-        <SkeletonBox key={i} width="100%" height={100} borderRadius={16} color="#F0F0F0" />
+        <SkeletonBox key={i} width="100%" height={100} borderRadius={16} color="#f1f5f9" />
       ))}
     </View>
   );
@@ -126,17 +126,17 @@ function OpenBillCard({ order, onPress }) {
         </Text>
         <View style={styles.tableMetaRow}>
           <View style={styles.metaBadge}>
-            <Ionicons name="restaurant-outline" size={12} color="#888" />
+            <Ionicons name="restaurant-outline" size={12} color="#94a3b8" />
             <Text style={styles.metaText}>{order.items.length} items</Text>
           </View>
           {order.createdAt ? (
             <View style={styles.metaBadge}>
-              <Ionicons name="time-outline" size={12} color="#888" />
+              <Ionicons name="time-outline" size={12} color="#94a3b8" />
               <Text style={styles.metaText}>{fmtTime(order.createdAt, locale)}</Text>
             </View>
           ) : null}
           <View style={styles.metaBadge}>
-            <Ionicons name="pricetag-outline" size={12} color="#888" />
+            <Ionicons name="pricetag-outline" size={12} color="#94a3b8" />
             <Text style={styles.metaText}>{order.status}</Text>
           </View>
         </View>
@@ -152,13 +152,13 @@ function OpenBillCard({ order, onPress }) {
 // ─── Settled Bill Row (in-session) ────────────────────────────────────────────
 
 function SettledBillRow({ bill }) {
-  const modeColor = bill.payMode === 'UPI' ? '#2563eb' : bill.payMode === 'Card' ? '#7B61FF' : '#00B341';
+  const modeColor = bill.payMode === 'UPI' ? '#2563eb' : bill.payMode === 'Card' ? '#2563eb' : '#16a34a';
   const { symbol, locale } = useCurrency();
   return (
     <View style={styles.settledRow}>
       <View style={styles.settledLeft}>
         <View style={styles.settledCircle}>
-          <Ionicons name="checkmark" size={14} color="#00B341" />
+          <Ionicons name="checkmark" size={14} color="#16a34a" />
         </View>
         <View>
           <Text style={styles.settledTable}>{bill.label}</Text>
@@ -179,7 +179,7 @@ function SettledBillRow({ bill }) {
 
 function BillModal({ order, visible, onClose, onSettle, isSettling }) {
   const insets = useSafeAreaInsets();
-  const { symbol, locale } = useCurrency();
+  const { symbol, locale, isAU } = useCurrency();
   const [paymentMode, setPaymentMode] = useState('cash');
   const [amountTendered, setAmountTendered] = useState('');
 
@@ -207,7 +207,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
   };
 
   const handleWhatsApp = () => {
-    const text = formatWhatsAppBill({ order, symbol, locale, methodLabel: paymentMode.toUpperCase() });
+    const text = formatWhatsAppBill({ order, symbol, locale, isAU, methodLabel: paymentMode.toUpperCase() });
     Linking.openURL(`whatsapp://send?text=${text}`).catch(() =>
       Alert.alert('WhatsApp not available', 'Please install WhatsApp to share the bill.')
     );
@@ -244,7 +244,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
               onPress={onClose}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="close" size={22} color="#000" />
+              <Ionicons name="close" size={22} color="#0f172a" />
             </TouchableOpacity>
           </View>
 
@@ -252,23 +252,23 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             {/* Bill Info strip */}
             <View style={styles.billInfoStrip}>
               <View style={styles.billInfoItem}>
-                <Ionicons name="receipt-outline" size={13} color="#888" />
+                <Ionicons name="receipt-outline" size={13} color="#94a3b8" />
                 <Text style={styles.billInfoText}>#{order.orderNumber}</Text>
               </View>
               <View style={styles.billInfoItem}>
-                <Ionicons name="calendar-outline" size={13} color="#888" />
+                <Ionicons name="calendar-outline" size={13} color="#94a3b8" />
                 <Text style={styles.billInfoText}>{fmtDateTime(order.createdAt, locale)}</Text>
               </View>
             </View>
             <View style={styles.billInfoStrip}>
               <View style={styles.billInfoItem}>
-                <Ionicons name="person-outline" size={13} color="#888" />
+                <Ionicons name="person-outline" size={13} color="#94a3b8" />
                 <Text style={styles.billInfoText}>
                   {order.waiter ? `Waiter: ${order.waiter}` : (order.customerName || 'Walk-in')}
                 </Text>
               </View>
               <View style={styles.billInfoItem}>
-                <Ionicons name="pricetag-outline" size={13} color="#888" />
+                <Ionicons name="pricetag-outline" size={13} color="#94a3b8" />
                 <Text style={styles.billInfoText}>{order.status}{order.invoiceNumber ? ` · ${order.invoiceNumber}` : ''}</Text>
               </View>
             </View>
@@ -279,7 +279,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             <Text style={styles.sectionHeading}>Order Items</Text>
             {order.items.length === 0 ? (
               <View style={styles.emptyItems}>
-                <Ionicons name="cart-outline" size={28} color="#CCC" />
+                <Ionicons name="cart-outline" size={28} color="#cbd5e1" />
                 <Text style={styles.emptyItemsText}>This order has no items.</Text>
               </View>
             ) : (
@@ -304,8 +304,8 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             </View>
             {order.discount > 0 && (
               <View style={styles.calcRow}>
-                <Text style={[styles.calcLabel, { color: '#00B341' }]}>Discount</Text>
-                <Text style={[styles.calcValue, { color: '#00B341' }]}>−{symbol}{order.discount.toFixed(2)}</Text>
+                <Text style={[styles.calcLabel, { color: '#16a34a' }]}>Discount</Text>
+                <Text style={[styles.calcValue, { color: '#16a34a' }]}>−{symbol}{order.discount.toFixed(2)}</Text>
               </View>
             )}
             {order.cgst > 0 && (
@@ -322,7 +322,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             )}
             {order.igst > 0 && (
               <View style={styles.calcRow}>
-                <Text style={styles.calcLabel}>IGST</Text>
+                <Text style={styles.calcLabel}>{isAU ? 'GST' : 'IGST'}</Text>
                 <Text style={styles.calcValue}>{symbol}{order.igst.toFixed(2)}</Text>
               </View>
             )}
@@ -359,7 +359,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
                   activeOpacity={0.75}
                   onPress={() => setPaymentMode(pm.id)}
                 >
-                  <Ionicons name={pm.icon} size={18} color={paymentMode === pm.id ? '#FFF' : '#444'} />
+                  <Ionicons name={pm.icon} size={18} color={paymentMode === pm.id ? '#FFF' : '#475569'} />
                   <Text style={[styles.payPillLabel, paymentMode === pm.id && styles.payPillLabelSelected]}>
                     {pm.label}
                   </Text>
@@ -375,7 +375,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
                   <TextInput
                     style={styles.cashInput}
                     placeholder={`${symbol}${Math.ceil(grandTotal)}`}
-                    placeholderTextColor="#AAA"
+                    placeholderTextColor="#94a3b8"
                     keyboardType="numeric"
                     value={amountTendered}
                     onChangeText={setAmountTendered}
@@ -393,7 +393,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             {/* UPI QR placeholder */}
             {paymentMode === 'upi' && (
               <View style={styles.qrBox}>
-                <Ionicons name="qr-code" size={48} color="#CCC" />
+                <Ionicons name="qr-code" size={48} color="#cbd5e1" />
                 <Text style={styles.qrBoxText}>Show QR to customer</Text>
                 <Text style={styles.qrBoxSub}>Scan &amp; Pay {symbol}{grandTotal.toFixed(2)}</Text>
               </View>
@@ -424,7 +424,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             </PressCard>
 
             <TouchableOpacity style={styles.actionBtnPrint} onPress={handlePrintReceipt} activeOpacity={0.8}>
-              <Ionicons name="print-outline" size={18} color="#6366f1" />
+              <Ionicons name="print-outline" size={18} color="#2563eb" />
               <Text style={styles.actionBtnPrintText}>Print Receipt</Text>
             </TouchableOpacity>
 
@@ -512,7 +512,7 @@ export default function BillingScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F7F7F7" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -539,22 +539,22 @@ export default function BillingScreen() {
           >
             {/* Quick Stats */}
             <View style={styles.statsRow}>
-              <StatCard label="Session Revenue" value={`${symbol}${totalRevenue.toLocaleString(locale)}`} accent="#00B341" />
+              <StatCard label="Session Revenue" value={`${symbol}${totalRevenue.toLocaleString(locale)}`} accent="#16a34a" />
               <StatCard label="Bills Settled" value={String(settledBills.length)} accent="#2563eb" />
-              <StatCard label="Outstanding" value={`${symbol}${Math.round(outstandingAmt).toLocaleString(locale)}`} accent="#F5A623" />
+              <StatCard label="Outstanding" value={`${symbol}${Math.round(outstandingAmt).toLocaleString(locale)}`} accent="#d97706" />
             </View>
 
             {/* Open Bills */}
             <Text style={styles.listSectionTitle}>Open Bills</Text>
             {isError ? (
               <View style={styles.emptyTablesCard}>
-                <Ionicons name="cloud-offline-outline" size={36} color="#F5A623" />
+                <Ionicons name="cloud-offline-outline" size={36} color="#d97706" />
                 <Text style={styles.emptyTablesTitle}>Couldn't load orders</Text>
                 <Text style={styles.emptyTablesSub}>Pull down to retry</Text>
               </View>
             ) : openOrders.length === 0 ? (
               <View style={styles.emptyTablesCard}>
-                <Ionicons name="checkmark-circle" size={36} color="#00B341" />
+                <Ionicons name="checkmark-circle" size={36} color="#16a34a" />
                 <Text style={styles.emptyTablesTitle}>All settled up!</Text>
                 <Text style={styles.emptyTablesSub}>No open bills waiting for payment</Text>
               </View>
@@ -604,7 +604,7 @@ export default function BillingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
   },
 
   // Header
@@ -619,12 +619,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#888888',
+    color: '#94a3b8',
     marginTop: 2,
   },
   headerBadge: {
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -670,12 +670,12 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     textAlign: 'center',
   },
   statLabel: {
     fontSize: 9,
-    color: '#888888',
+    color: '#94a3b8',
     marginTop: 3,
     textAlign: 'center',
     fontWeight: '600',
@@ -687,14 +687,14 @@ const styles = StyleSheet.create({
   listSectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     marginBottom: 12,
     letterSpacing: -0.2,
   },
   listSectionCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#888888',
+    color: '#94a3b8',
   },
 
   // Table Card
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -734,12 +734,12 @@ const styles = StyleSheet.create({
   subtotalText: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#000000',
+    color: '#0f172a',
     letterSpacing: -0.6,
     marginBottom: 1,
   },
-  tableTitle: { fontSize: 14, fontWeight: '700', color: '#000000', textTransform: 'capitalize' },
-  tableWaiter: { fontSize: 12, color: '#888888', marginTop: 1 },
+  tableTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a', textTransform: 'capitalize' },
+  tableWaiter: { fontSize: 12, color: '#94a3b8', marginTop: 1 },
   tableMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -751,12 +751,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  metaText: { fontSize: 11, color: '#888888', textTransform: 'capitalize' },
+  metaText: { fontSize: 11, color: '#94a3b8', textTransform: 'capitalize' },
   generateBtn: {
     backgroundColor: '#2563eb',
     borderRadius: 10,
@@ -776,18 +776,18 @@ const styles = StyleSheet.create({
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     marginBottom: 12,
   },
-  emptyTablesTitle: { fontSize: 16, fontWeight: '700', color: '#000', marginTop: 12 },
-  emptyTablesSub: { fontSize: 13, color: '#888', marginTop: 4 },
+  emptyTablesTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 12 },
+  emptyTablesSub: { fontSize: 13, color: '#94a3b8', marginTop: 4 },
 
   // Settled Bills
   settledCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     overflow: 'hidden',
     shadowColor: '#000000',
     shadowOpacity: 0.06,
@@ -807,22 +807,22 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E6F9ED',
+    backgroundColor: '#f0fdf4',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  settledTable: { fontSize: 14, fontWeight: '700', color: '#000', textTransform: 'capitalize' },
-  settledMeta: { fontSize: 12, color: '#888', marginTop: 1 },
+  settledTable: { fontSize: 14, fontWeight: '700', color: '#0f172a', textTransform: 'capitalize' },
+  settledMeta: { fontSize: 12, color: '#94a3b8', marginTop: 1 },
   settledRight: { alignItems: 'flex-end', gap: 4 },
-  settledTotal: { fontSize: 15, fontWeight: '800', color: '#000' },
+  settledTotal: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
   payModePill: {
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   payModePillText: { fontSize: 10, fontWeight: '700' },
-  settledDivider: { height: 1, backgroundColor: '#F4F4F4', marginHorizontal: 16 },
-  noSettledText: { fontSize: 13, color: '#888', textAlign: 'center', paddingVertical: 16 },
+  settledDivider: { height: 1, backgroundColor: '#f1f5f9', marginHorizontal: 16 },
+  noSettledText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingVertical: 16 },
 
   // ── MODAL ──────────────────────────────────────────────────────────────────
 
@@ -840,19 +840,19 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   modalRestaurant: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#888888',
+    color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#000000', marginTop: 2, textTransform: 'capitalize' },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginTop: 2, textTransform: 'capitalize' },
   closeBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     justifyContent: 'center', alignItems: 'center',
   },
   modalBody: { flex: 1, paddingHorizontal: 20 },
@@ -864,18 +864,18 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   billInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  billInfoText: { fontSize: 12, color: '#888888' },
+  billInfoText: { fontSize: 12, color: '#94a3b8' },
 
   separator: {
     height: 1,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#e2e8f0',
     marginVertical: 14,
   },
 
   sectionHeading: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#888888',
+    color: '#94a3b8',
     letterSpacing: 0.8,
     marginBottom: 10,
     textTransform: 'uppercase',
@@ -887,37 +887,37 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     gap: 8,
   },
-  emptyItemsText: { fontSize: 13, color: '#AAA' },
+  emptyItemsText: { fontSize: 13, color: '#94a3b8' },
 
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: '#F4F4F4',
+    borderBottomColor: '#f1f5f9',
     gap: 8,
   },
-  itemName: { fontSize: 14, color: '#000000', fontWeight: '600' },
-  itemUnitPrice: { fontSize: 11, color: '#888888', marginTop: 1 },
+  itemName: { fontSize: 14, color: '#0f172a', fontWeight: '600' },
+  itemUnitPrice: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
   qtyControl: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 8,
     overflow: 'hidden',
   },
   qtyBtn: {
     width: 28, height: 28,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
   },
   qtyText: {
     width: 28, textAlign: 'center',
-    fontSize: 13, fontWeight: '700', color: '#000',
+    fontSize: 13, fontWeight: '700', color: '#0f172a',
   },
   itemTotal: {
-    fontSize: 14, fontWeight: '800', color: '#000000',
+    fontSize: 14, fontWeight: '800', color: '#0f172a',
     width: 80, textAlign: 'right',
   },
   removeItemBtn: {
@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
   },
   addDiscountLink: { fontSize: 13, fontWeight: '700', color: '#2563eb' },
   discountPanel: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
@@ -948,23 +948,23 @@ const styles = StyleSheet.create({
   },
   discountModeTab: {
     flex: 1, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: '#EAEAEA',
+    backgroundColor: '#e2e8f0',
     alignItems: 'center',
   },
   discountModeTabActive: { backgroundColor: '#2563eb' },
-  discountModeTabText: { fontSize: 12, fontWeight: '700', color: '#444' },
+  discountModeTabText: { fontSize: 12, fontWeight: '700', color: '#475569' },
   discountModeTabTextActive: { color: '#FFF' },
   discountInputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   discountTextInput: {
     flex: 1,
     backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 14,
-    color: '#000',
+    color: '#0f172a',
   },
   discountApplyBtn: {
     backgroundColor: '#2563eb',
@@ -976,20 +976,20 @@ const styles = StyleSheet.create({
   discountApplied: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#E6F9ED',
+    backgroundColor: '#f0fdf4',
     borderRadius: 10,
     padding: 10,
     marginBottom: 8,
   },
-  discountAppliedLabel: { fontSize: 13, fontWeight: '700', color: '#00B341' },
+  discountAppliedLabel: { fontSize: 13, fontWeight: '700', color: '#16a34a' },
 
   // Calc rows
   calcRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 6,
   },
-  calcLabel: { fontSize: 13, color: '#444444' },
-  calcValue: { fontSize: 13, fontWeight: '600', color: '#000000' },
+  calcLabel: { fontSize: 13, color: '#475569' },
+  calcValue: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
   grandTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center',
@@ -1010,12 +1010,12 @@ const styles = StyleSheet.create({
   // Split Bill
   splitBillBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F3F0FF',
+    backgroundColor: '#eff6ff',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  splitBillBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#7B61FF' },
+  splitBillBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#2563eb' },
 
   // Payment
   payGrid: {
@@ -1023,54 +1023,54 @@ const styles = StyleSheet.create({
   },
   payPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1.5, borderColor: '#EAEAEA',
+    borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 9,
     backgroundColor: '#FFFFFF',
   },
-  payPillSelected: { backgroundColor: '#2563eb', borderColor: '#e2e8f0' },
-  payPillLabel: { fontSize: 13, fontWeight: '700', color: '#444444' },
+  payPillSelected: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  payPillLabel: { fontSize: 13, fontWeight: '700', color: '#475569' },
   payPillLabelSelected: { color: '#FFFFFF' },
 
   // Cash change
   cashRow: {
     flexDirection: 'row', gap: 12, alignItems: 'flex-end', marginBottom: 10,
   },
-  cashLabel: { fontSize: 12, color: '#888', fontWeight: '600', marginBottom: 4 },
+  cashLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600', marginBottom: 4 },
   cashInput: {
-    backgroundColor: '#F7F7F7',
-    borderWidth: 1, borderColor: '#EAEAEA', borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 15, color: '#000',
+    fontSize: 15, color: '#0f172a',
   },
   changeBox: {
-    backgroundColor: '#E6F9ED',
+    backgroundColor: '#f0fdf4',
     borderRadius: 10,
     padding: 10,
     alignItems: 'center',
     minWidth: 80,
   },
-  changeLabel: { fontSize: 10, color: '#00B341', fontWeight: '700', textTransform: 'uppercase' },
-  changeValue: { fontSize: 16, fontWeight: '800', color: '#00B341', marginTop: 2 },
+  changeLabel: { fontSize: 10, color: '#16a34a', fontWeight: '700', textTransform: 'uppercase' },
+  changeValue: { fontSize: 16, fontWeight: '800', color: '#16a34a', marginTop: 2 },
 
   // QR box
   qrBox: {
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#EAEAEA', borderRadius: 16, borderStyle: 'dashed',
+    borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 16, borderStyle: 'dashed',
     paddingVertical: 28, marginBottom: 10, gap: 8,
   },
-  qrBoxText: { fontSize: 14, fontWeight: '700', color: '#444' },
-  qrBoxSub: { fontSize: 12, color: '#888' },
+  qrBoxText: { fontSize: 14, fontWeight: '700', color: '#475569' },
+  qrBoxSub: { fontSize: 12, color: '#94a3b8' },
 
   // Extra payments
   extraPayBox: {
-    backgroundColor: '#F7F7F7', borderRadius: 12, padding: 10, gap: 6, marginBottom: 10,
+    backgroundColor: '#f8fafc', borderRadius: 12, padding: 10, gap: 6, marginBottom: 10,
   },
   extraPayRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  extraPayLabel: { flex: 1, fontSize: 13, color: '#444', fontWeight: '600' },
-  extraPayAmt: { fontSize: 13, fontWeight: '700', color: '#000' },
+  extraPayLabel: { flex: 1, fontSize: 13, color: '#475569', fontWeight: '600' },
+  extraPayAmt: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
 
   // Action buttons
   actionBtnPrimary: {
@@ -1085,16 +1085,16 @@ const styles = StyleSheet.create({
   actionBtnWhatsappText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
   actionBtnPrint: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#F3F0FF', borderRadius: 14, minHeight: 52, marginBottom: 10,
-    borderWidth: 1.5, borderColor: '#6366f1',
+    backgroundColor: '#eff6ff', borderRadius: 14, minHeight: 52, marginBottom: 10,
+    borderWidth: 1.5, borderColor: '#2563eb',
   },
-  actionBtnPrintText: { fontSize: 15, fontWeight: '700', color: '#6366f1' },
+  actionBtnPrintText: { fontSize: 15, fontWeight: '700', color: '#2563eb' },
   actionBtnHold: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#FFFFFF', borderRadius: 14, minHeight: 52,
-    borderWidth: 1.5, borderColor: '#EAEAEA',
+    borderWidth: 1.5, borderColor: '#e2e8f0',
   },
-  actionBtnHoldText: { fontSize: 15, fontWeight: '700', color: '#444444' },
+  actionBtnHoldText: { fontSize: 15, fontWeight: '700', color: '#475569' },
 
   // ── ITEM PICKER MODAL ───────────────────────────────────────────────────────
 
@@ -1105,54 +1105,54 @@ const styles = StyleSheet.create({
   pickerHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: '#EAEAEA',
+    borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
-  pickerTitle: { fontSize: 18, fontWeight: '800', color: '#000' },
+  pickerTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: 20, marginVertical: 12,
-    backgroundColor: '#F7F7F7',
-    borderRadius: 12, borderWidth: 1, borderColor: '#EAEAEA',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0',
     paddingHorizontal: 12, paddingVertical: 10,
   },
-  searchInput: { flex: 1, fontSize: 14, color: '#000' },
+  searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
   pickerRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F4F4F4',
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
     gap: 10,
   },
-  pickerItemName: { fontSize: 14, fontWeight: '600', color: '#000' },
-  pickerItemCat: { fontSize: 11, color: '#888', marginTop: 1 },
-  pickerItemPrice: { fontSize: 14, fontWeight: '700', color: '#000', marginRight: 8 },
+  pickerItemName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  pickerItemCat: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
+  pickerItemPrice: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginRight: 8 },
   pickerAddBtn: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center', alignItems: 'center',
   },
 
   // ── SPLIT BILL MODAL ────────────────────────────────────────────────────────
 
-  splitLabel: { fontSize: 13, fontWeight: '700', color: '#444', marginBottom: 8 },
+  splitLabel: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 8 },
   stepperRow: {
     flexDirection: 'row', alignItems: 'center', gap: 16,
     marginBottom: 16, alignSelf: 'flex-start',
   },
   stepperBtn: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#F7F7F7', borderWidth: 1, borderColor: '#EAEAEA',
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
     justifyContent: 'center', alignItems: 'center',
   },
-  stepperVal: { fontSize: 22, fontWeight: '800', color: '#000', minWidth: 30, textAlign: 'center' },
+  stepperVal: { fontSize: 22, fontWeight: '800', color: '#0f172a', minWidth: 30, textAlign: 'center' },
   splitModeRow: {
     flexDirection: 'row', gap: 8, marginBottom: 16,
   },
   splitModeBtn: {
     flex: 1, paddingVertical: 10, borderRadius: 999,
-    backgroundColor: '#EAEAEA', alignItems: 'center',
+    backgroundColor: '#e2e8f0', alignItems: 'center',
   },
-  splitModeBtnActive: { backgroundColor: '#7B61FF' },
-  splitModeBtnText: { fontSize: 13, fontWeight: '700', color: '#444' },
+  splitModeBtnActive: { backgroundColor: '#2563eb' },
+  splitModeBtnText: { fontSize: 13, fontWeight: '700', color: '#475569' },
   splitModeBtnTextActive: { color: '#FFF' },
   equalSplitBox: { gap: 6 },
   equalSplitRow: {
@@ -1161,23 +1161,23 @@ const styles = StyleSheet.create({
   },
   personBadge: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#F3F0FF',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center', alignItems: 'center',
   },
-  personBadgeText: { fontSize: 12, fontWeight: '800', color: '#7B61FF' },
-  personName: { flex: 1, fontSize: 14, color: '#000', fontWeight: '600' },
-  personAmount: { fontSize: 15, fontWeight: '800', color: '#000' },
+  personBadgeText: { fontSize: 12, fontWeight: '800', color: '#2563eb' },
+  personName: { flex: 1, fontSize: 14, color: '#0f172a', fontWeight: '600' },
+  personAmount: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
   customSplitItemRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F4F4F4',
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
   },
-  customSplitItemName: { flex: 1, fontSize: 13, color: '#000', fontWeight: '600' },
+  customSplitItemName: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '600' },
   assignBtn: {
     width: 32, height: 32, borderRadius: 8,
-    backgroundColor: '#F7F7F7', borderWidth: 1, borderColor: '#EAEAEA',
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
     justifyContent: 'center', alignItems: 'center',
   },
-  assignBtnActive: { backgroundColor: '#7B61FF', borderColor: '#7B61FF' },
-  assignBtnText: { fontSize: 11, fontWeight: '800', color: '#444' },
+  assignBtnActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  assignBtnText: { fontSize: 11, fontWeight: '800', color: '#475569' },
   assignBtnTextActive: { color: '#FFF' },
 });

@@ -23,15 +23,15 @@ import { useTheme } from '../../src/context/ThemeContext';
 
 const ROLE_COLORS = {
   owner: '#2563eb',
-  super_admin: '#F5A623',
-  manager: '#00B341',
-  cashier: '#888',
+  super_admin: '#d97706',
+  manager: '#16a34a',
+  cashier: '#94a3b8',
 };
 
 function SettingsRow({ icon, label, value, onPress, danger, chevron = true, colors }) {
   return (
     <TouchableOpacity style={[s.row, { borderBottomColor: colors.borderLight }]} onPress={onPress} activeOpacity={0.7} disabled={!onPress}>
-      <View style={[s.rowIcon, { backgroundColor: danger ? '#FFF0F0' : colors.pillBg }]}>
+      <View style={[s.rowIcon, { backgroundColor: danger ? '#fef2f2' : colors.pillBg }]}>
         <Ionicons name={icon} size={18} color={danger ? colors.error : colors.text} />
       </View>
       <Text style={[s.rowLabel, { color: colors.text }, danger && { color: colors.error }]}>{label}</Text>
@@ -59,7 +59,7 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const roleColor = ROLE_COLORS[user?.role] || '#888';
+  const roleColor = ROLE_COLORS[user?.role] || '#94a3b8';
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
@@ -80,7 +80,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Text style={[s.userName, { color: colors.text }]}>{user?.full_name || 'Owner'}</Text>
-          <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email || 'owner@petpooja.com'}</Text>
+          <Text style={[s.userEmail, { color: colors.textMuted }]}>{user?.email || 'owner@ms-rm.com'}</Text>
           <View style={[s.roleBadge, { backgroundColor: roleColor + '15' }]}>
             <Text style={[s.roleText, { color: roleColor }]}>
               {(user?.role || 'owner').replace('_', ' ').toUpperCase()}
@@ -145,7 +145,7 @@ export default function ProfileScreen() {
               <Switch
                 value={isEnabled}
                 onValueChange={(val) => toggleBiometric(val)}
-                trackColor={{ false: '#E0E0E0', true: colors.switchTrack }}
+                trackColor={{ false: '#e2e8f0', true: colors.switchTrack }}
                 thumbColor="#FFF"
               />
             </View>
@@ -171,7 +171,7 @@ export default function ProfileScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,16 +180,16 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   scroll: { paddingBottom: 20 },
   avatarCard: {
     alignItems: 'center',
     paddingVertical: 30,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
   avatar: {
     width: 80,
@@ -199,8 +199,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarLetter: { fontSize: 32, fontWeight: '800' },
-  userName: { ...TYPE.h2, color: '#000', marginTop: 12 },
-  userEmail: { ...TYPE.small, color: '#888', marginTop: 4 },
+  userName: { ...TYPE.h2, color: '#0f172a', marginTop: 12 },
+  userEmail: { ...TYPE.small, color: '#94a3b8', marginTop: 4 },
   roleBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -210,7 +210,7 @@ const s = StyleSheet.create({
   roleText: { ...TYPE.caption, fontWeight: '700', letterSpacing: 1 },
   sectionLabel: {
     ...TYPE.label,
-    color: '#888',
+    color: '#94a3b8',
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 8,
@@ -219,7 +219,7 @@ const s = StyleSheet.create({
     backgroundColor: '#FFF',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   row: {
     flexDirection: 'row',
@@ -227,7 +227,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F7F7',
+    borderBottomColor: '#f8fafc',
     gap: 12,
   },
   rowIcon: {
@@ -237,6 +237,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowLabel: { ...TYPE.body, color: '#000', flex: 1 },
-  rowValue: { ...TYPE.small, color: '#888' },
+  rowLabel: { ...TYPE.body, color: '#0f172a', flex: 1 },
+  rowValue: { ...TYPE.small, color: '#94a3b8' },
 });

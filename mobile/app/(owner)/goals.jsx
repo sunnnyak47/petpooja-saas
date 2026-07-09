@@ -34,7 +34,7 @@ const DEFAULT_GOALS = {
 };
 
 
-function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#2563eb', trackColor = '#F0F0F0' }) {
+function ProgressRing({ progress, size = 120, strokeWidth = 10, color = '#2563eb', trackColor = '#f1f5f9' }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - Math.min(progress, 1));
@@ -120,7 +120,7 @@ export default function GoalsScreen() {
     setRefreshing(false);
   }, []);
 
-  const goalColor = progress >= 1 ? '#00B341' : progress >= 0.7 ? '#2563eb' : progress >= 0.4 ? '#F5A623' : '#EE0000';
+  const goalColor = progress >= 1 ? '#16a34a' : progress >= 0.7 ? '#2563eb' : progress >= 0.4 ? '#d97706' : '#dc2626';
 
   if (isError) {
     return (
@@ -170,7 +170,7 @@ export default function GoalsScreen() {
 
       <ScrollView
         contentContainerStyle={s.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f172a" />}
       >
         {isLoading ? (
           <>
@@ -212,7 +212,7 @@ export default function GoalsScreen() {
 
               {progress >= 1 && (
                 <View style={s.achievedBadge}>
-                  <Ionicons name="trophy" size={16} color="#F5A623" />
+                  <Ionicons name="trophy" size={16} color="#d97706" />
                   <Text style={s.achievedText}>Target achieved!</Text>
                 </View>
               )}
@@ -298,7 +298,7 @@ export default function GoalsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F7F7' },
+  safe: { flex: 1, backgroundColor: '#f8fafc' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,9 +307,9 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { ...TYPE.h2, color: '#000' },
+  headerTitle: { ...TYPE.h2, color: '#0f172a' },
   periodRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -321,11 +321,11 @@ const s = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
   },
   periodPillActive: { backgroundColor: '#2563eb' },
-  periodText: { ...TYPE.smallMed, color: '#888' },
+  periodText: { ...TYPE.smallMed, color: '#94a3b8' },
   periodTextActive: { color: '#FFF' },
   scroll: { padding: 16, gap: 14 },
   heroCard: {
@@ -334,11 +334,11 @@ const s = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
   heroLabel: {
     ...TYPE.bodyMed,
-    color: '#888',
+    color: '#94a3b8',
     marginTop: 16,
   },
   heroNumbers: {
@@ -348,31 +348,31 @@ const s = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#f1f5f9',
   },
   heroCol: { alignItems: 'center', flex: 1 },
-  heroValue: { ...TYPE.amount, color: '#000' },
-  heroSub: { ...TYPE.caption, color: '#888', marginTop: 2 },
-  heroDivider: { width: 1, backgroundColor: '#F0F0F0', alignSelf: 'stretch' },
+  heroValue: { ...TYPE.amount, color: '#0f172a' },
+  heroSub: { ...TYPE.caption, color: '#94a3b8', marginTop: 2 },
+  heroDivider: { width: 1, backgroundColor: '#f1f5f9', alignSelf: 'stretch' },
   achievedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 14,
-    backgroundColor: '#FFF8EB',
+    backgroundColor: '#fffbeb',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
   },
-  achievedText: { ...TYPE.smallMed, color: '#F5A623' },
+  achievedText: { ...TYPE.smallMed, color: '#d97706' },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
   },
-  sectionTitle: { ...TYPE.bodyMed, color: '#000', marginBottom: 14 },
+  sectionTitle: { ...TYPE.bodyMed, color: '#0f172a', marginBottom: 14 },
   editorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -381,7 +381,7 @@ const s = StyleSheet.create({
   targetInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: '#e2e8f0',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -400,34 +400,34 @@ const s = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
-  compLabel: { ...TYPE.small, color: '#444', width: 80 },
+  compLabel: { ...TYPE.small, color: '#475569', width: 80 },
   compBarWrap: {
     flex: 1,
     height: 10,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 5,
     overflow: 'hidden',
   },
   compBar: { height: 10, borderRadius: 5 },
-  compVal: { ...TYPE.smallMed, color: '#000', width: 50, textAlign: 'right' },
+  compVal: { ...TYPE.smallMed, color: '#0f172a', width: 50, textAlign: 'right' },
   targetRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F7F7',
+    borderBottomColor: '#f8fafc',
     gap: 10,
   },
   targetLeft: { width: 90 },
-  targetName: { ...TYPE.smallMed, color: '#000' },
-  targetMeta: { ...TYPE.caption, color: '#888', marginTop: 2 },
+  targetName: { ...TYPE.smallMed, color: '#0f172a' },
+  targetMeta: { ...TYPE.caption, color: '#94a3b8', marginTop: 2 },
   targetBarWrap: {
     flex: 1,
     height: 8,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#f1f5f9',
     borderRadius: 4,
     overflow: 'hidden',
   },
   targetBar: { height: 8, borderRadius: 4 },
-  targetPct: { ...TYPE.smallMed, color: '#000', width: 36, textAlign: 'right' },
+  targetPct: { ...TYPE.smallMed, color: '#0f172a', width: 36, textAlign: 'right' },
 });
