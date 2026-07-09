@@ -47,7 +47,8 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -56,7 +57,14 @@
     },
     "plugins": [
       "expo-router",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/adaptive-icon.png",
+          "color": "#2563eb"
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "https://petpooja-saas.onrender.com/api",
@@ -64,7 +72,13 @@
       "eas": {
         "projectId": "934fae42-3d3a-4767-8bc1-a13992144aec"
       },
-      "privacyPolicyUrl": "https://petpooja.com/privacy-policy"
+      "privacyPolicyUrl": "https://petpooja.com/privacy-policy",
+      "sentryDsn": "",
+      "_notes": {
+        "sentryDsn": "Leave empty to disable Sentry. Set the real DSN here (or via EXPO_PUBLIC_SENTRY_DSN env) to enable crash reporting. A value containing 'placeholder' is treated as unset.",
+        "fcmGoogleServices": "Android push (FCM): drop google-services.json at mobile/google-services.json and reference it via android.googleServicesFile before building. No file is committed here yet.",
+        "apnsPushKey": "iOS push (APNs): configure the .p8 push key / credentials in EAS (eas credentials) — not stored in the repo. Requires an Apple Developer account."
+      }
     },
     "owner": "sunnyak47",
     "primaryColor": "#2563eb",

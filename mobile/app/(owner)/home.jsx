@@ -26,7 +26,6 @@ import { useTheme } from '../../src/context/ThemeContext';
 import PressCard from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useOwnerDashboard, useAlertBadges, useLowStock } from '../../src/hooks/useOwnerApi';
-import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { OutletSwitcher } from '../../src/components/OutletSwitcher';
@@ -181,12 +180,15 @@ export default function OwnerHomeScreen() {
   const { data: stockData, refetch: refetchStock } = useLowStock(outletId);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [liveStats, setLiveStats] = useState(null);
 
-  // Wire real-time owner stats
-  useRealtimeOwner(outletId, useCallback((stats) => {
-    setLiveStats(stats);
-  }, []));
+  // Realtime is owned by the single RealtimeBridge mounted in (owner)/_layout.
+  // That shared WebSocket invalidates the owner-dashboard query on ORDER_UPDATE,
+  // so this screen refreshes through React Query rather than opening its own
+  // socket. Previously this screen mounted useRealtimeOwner a SECOND time, giving
+  // every outlet two WebSockets + two reconnect timers. The backend never emits
+  // LIVE_STATS, so there is no live payload to consume here — liveStats stays null
+  // and the dashboard query is the single source of truth.
+  const liveStats = null;
 
   // Merge live stats over API data so animated counter and order counts update in real-time
   const d = useMemo(() => ({

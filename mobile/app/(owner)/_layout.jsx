@@ -1,5 +1,5 @@
 import { Tabs, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { View, TouchableOpacity, StyleSheet, Platform, Text } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -9,6 +9,7 @@ import { LC } from '../../src/constants/colors';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useRealtimeOwner } from '../../src/hooks/useRealtimeOwner';
 import { useNotifications } from '../../src/hooks/useNotifications';
+import { useAlertBadges } from '../../src/hooks/useOwnerApi';
 import { useOutlet } from '../../src/context/OutletContext';
 import { OfflineBanner } from '../../src/components/OfflineBanner';
 import { analytics } from '../../src/lib/analytics';
@@ -84,28 +85,20 @@ export default function OwnerLayout() {
   const { user, loading } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  const { outletId } = useOutlet();
+
+  // Alert badge count — derived from the real fraud-stats query that already
+  // backs the owner alert screens (GET /fraud/stats via useAlertBadges). The
+  // shared RealtimeBridge below invalidates this query on ALERT_NEW, so the
+  // badge refreshes in real time. The previous 30s poll hit
+  // GET /notifications/unread-count, which does not exist on the backend → a
+  // swallowed 404 every 30s and a permanently-0 badge.
+  const { data: alertBadges } = useAlertBadges(outletId);
+  const unreadAlerts = alertBadges?.totalAlerts || 0;
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [user, loading]);
-
-  // Poll unread alert count — lightweight badge refresh
-  useEffect(() => {
-    if (!user) return;
-
-    let active = true;
-    const fetchCount = async () => {
-      try {
-        const api = require('../../src/lib/api').default;
-        const res = await api.get('/notifications/unread-count');
-        if (active) setUnreadAlerts(res.data?.count ?? 0);
-      } catch (_) {}
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 30_000);
-    return () => { active = false; clearInterval(interval); };
-  }, [user]);
 
   // Flush any locally-stored analytics events on mount
   useEffect(() => { analytics.flushStored(); }, []);
