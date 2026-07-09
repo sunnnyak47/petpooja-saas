@@ -1,14 +1,17 @@
 /**
- * useCurrency — React hook that returns currency formatting helpers
- * bound to the logged-in user's outlet region (AU or IN).
+ * useCurrency — React hook that returns currency formatting helpers bound to the
+ * SELECTED OUTLET's region (AU or IN). Currency must follow the outlet, not the
+ * logged-in user: an owner's user row often carries no single outlet, so an AU
+ * outlet would otherwise wrongly render ₹ instead of $.
  *
  * Usage:
  *   const { symbol, locale, region, fmt, fmtFull, fmtDate, isAU } = useCurrency();
  */
 import { useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useOutlet } from '../context/OutletContext';
 import {
-  getCurrencyConfig,
+  getCurrencyConfigForOutlet,
   fmtCompact,
   fmtFull as _fmtFull,
   fmtDate as _fmtDate,
@@ -17,12 +20,14 @@ import {
 
 export function useCurrency() {
   const { user } = useAuth();
-  const config = getCurrencyConfig(user);
+  const { currentOutlet } = useOutlet();
+  const config = getCurrencyConfigForOutlet(currentOutlet, user);
 
-  const fmt = useCallback((v) => fmtCompact(v, user), [user]);
-  const fmtFull = useCallback((v) => _fmtFull(v, user), [user]);
-  const fmtDate = useCallback((v, opts) => _fmtDate(v, user, opts), [user]);
-  const fmtNum = useCallback((v) => fmtNumber(v, user), [user]);
+  // Pass the RESOLVED config (not user) so all formatting follows the outlet.
+  const fmt = useCallback((v) => fmtCompact(v, config), [config]);
+  const fmtFull = useCallback((v) => _fmtFull(v, config), [config]);
+  const fmtDate = useCallback((v, opts) => _fmtDate(v, config, opts), [config]);
+  const fmtNum = useCallback((v) => fmtNumber(v, config), [config]);
 
   return {
     ...config,

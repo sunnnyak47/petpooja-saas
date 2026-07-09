@@ -72,9 +72,11 @@ export async function prefetchOutletData(outletId, options = {}) {
     let menuItemCount = 0;
     try {
       // Backend serves menu as two endpoints (categories + items).
+      // limit=500 — the backend defaults to 20 (parsePagination), which silently
+      // truncated large menus (e.g. a 94-item / 16-category outlet showed 20).
       const [catResp, itemResp] = await Promise.all([
-        api.get(`/menu/categories?outlet_id=${outletId}`),
-        api.get(`/menu/items?outlet_id=${outletId}`),
+        api.get(`/menu/categories?outlet_id=${outletId}&limit=500`),
+        api.get(`/menu/items?outlet_id=${outletId}&limit=500`),
       ]);
 
       // API interceptor unwraps axios .data → each is { success, data, message }

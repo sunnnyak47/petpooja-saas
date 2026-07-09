@@ -169,9 +169,10 @@ function _isOrderReadyForRetry(orderId) {
 async function _pullMenu() {
   // Backend serves menu as TWO endpoints (categories + items), not a single
   // `/menu`. API interceptor unwraps axios response.data → we get the envelope.
+  // limit=500 — backend defaults to 20 (parsePagination), which truncated large menus.
   const [catRes, itemRes] = await Promise.all([
-    api.get(`/menu/categories?outlet_id=${_outletId}`),
-    api.get(`/menu/items?outlet_id=${_outletId}`),
+    api.get(`/menu/categories?outlet_id=${_outletId}&limit=500`),
+    api.get(`/menu/items?outlet_id=${_outletId}&limit=500`),
   ]);
 
   if (!catRes?.success || !itemRes?.success) {
