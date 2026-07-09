@@ -1191,7 +1191,7 @@ export function useOutletDetails(outletId) {
           cgst: raw.cgst_rate ? `${raw.cgst_rate}%` : '—',
           sgst: raw.sgst_rate ? `${raw.sgst_rate}%` : '—',
           serviceCharge: raw.service_charge_rate ? `${raw.service_charge_rate}%` : '—',
-          currency: raw.currency || '₹ (INR)',
+          currency: raw.currency || '—',
           timezone: raw.timezone || 'Asia/Kolkata',
           tables: raw.table_count || 0,
           terminals: raw.terminal_count || 0,

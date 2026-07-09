@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import api from '../../src/lib/api';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const C = {
@@ -276,6 +277,7 @@ function StaffCard({ member, onClockToggle, onLongPress }) {
 
 // ─── Add/Edit Modal ───────────────────────────────────────────────────────────
 function StaffModal({ visible, editingMember, onClose, onSave }) {
+  const { symbol } = useCurrency();
   const [form, setForm] = useState(EMPTY_FORM);
 
   React.useEffect(() => {
@@ -397,7 +399,7 @@ function StaffModal({ visible, editingMember, onClose, onSave }) {
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>Monthly Salary (₹)</Text>
+            <Text style={styles.fieldLabel}>Monthly Salary ({symbol})</Text>
             <TextInput
               style={styles.textInput}
               value={form.salary}

@@ -49,6 +49,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useDashboard } from '../../src/hooks/useApi';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { PressCard } from '../../src/components/PressCard';
 import { TYPE } from '../../src/constants/typography';
@@ -70,12 +71,12 @@ const CONTENT_W = Math.min(SCREEN_W, 480);
 const HERO_W = CONTENT_W - CARD_PAD * 2;
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
-function fmt(v) {
+function fmt(v, sym = '') {
   const n = parseFloat(v);
   if (!n || isNaN(n)) return '—';
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 100000) return `${sym}${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `${sym}${(n / 1000).toFixed(1)}k`;
+  return `${sym}${Math.round(n)}`;
 }
 
 function getGreeting() {
@@ -126,6 +127,7 @@ function useCounter(target, duration = 1200) {
 // ─── Hero Revenue Card ────────────────────────────────────────────────────────
 function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, hourlyRevenue }) {
   const { colors, styles } = useThemedStyles();
+  const { symbol } = useCurrency();
   const displayRevenue = useCounter(revenue, 1400);
   const displayOrders = useCounter(totalOrders, 1000);
   const displayAvg = useCounter(Math.round(avgOrderValue), 1200);
@@ -140,7 +142,7 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
       {/* Big revenue number + growth badge */}
       <View style={styles.heroRevenueRow}>
         <Text style={styles.heroRevenue}>
-          ₹{displayRevenue.toLocaleString('en-IN')}
+          {symbol}{displayRevenue.toLocaleString('en-IN')}
         </Text>
         <View style={styles.growthBadge}>
           <Text style={styles.growthText}>
@@ -160,7 +162,7 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
         </View>
         <View style={styles.heroStatDivider} />
         <View style={styles.heroStatItem}>
-          <Text style={styles.heroStatValue}>₹{displayAvg.toLocaleString('en-IN')}</Text>
+          <Text style={styles.heroStatValue}>{symbol}{displayAvg.toLocaleString('en-IN')}</Text>
           <Text style={styles.heroStatLabel}>Avg Value</Text>
         </View>
         <View style={styles.heroStatDivider} />
@@ -225,12 +227,13 @@ function HourlyMiniChart({ data = [] }) {
 // ─── Stats Row (4 horizontal scroll pills) ───────────────────────────────────
 function StatsRow({ totalOrders, pendingOrders, avgOrderValue, completedOrders }) {
   const { styles } = useThemedStyles();
+  const { symbol } = useCurrency();
   const [activeIdx, setActiveIdx] = useState(0);
 
   const pills = [
     { label: 'Orders',    value: String(totalOrders) },
     { label: 'Pending',   value: String(pendingOrders) },
-    { label: 'Avg Value', value: fmt(avgOrderValue) },
+    { label: 'Avg Value', value: fmt(avgOrderValue, symbol) },
     { label: 'Covers',    value: String(completedOrders) },
   ];
 
@@ -362,6 +365,7 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
 // ─── Revenue Bar Chart (7 bars, hourly) ───────────────────────────────────────
 function RevenueBarChart({ data = [] }) {
   const { colors, styles } = useThemedStyles();
+  const { symbol } = useCurrency();
   const HOURS = ['10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
   const max = Math.max(...data, 1);
   const CHART_H = 100;
@@ -422,7 +426,7 @@ function RevenueBarChart({ data = [] }) {
             { left: activeIdx * gap + (gap - barW) / 2 - 12 },
           ]}
         >
-          <Text style={styles.tooltipText}>{fmt(data[activeIdx])}</Text>
+          <Text style={styles.tooltipText}>{fmt(data[activeIdx], symbol)}</Text>
         </View>
       )}
     </View>
@@ -438,6 +442,7 @@ const RANK_STYLES = [
 
 function DishItem({ item, index }) {
   const { colors, styles } = useThemedStyles();
+  const { symbol } = useCurrency();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const rs = RANK_STYLES[index] || { bg: colors.borderLight, text: colors.textMuted };
@@ -461,7 +466,7 @@ function DishItem({ item, index }) {
           </Text>
         </View>
         <Text style={styles.dishRevenue}>
-          {fmt(item.revenue ?? item.total_revenue ?? item.amount)}
+          {fmt(item.revenue ?? item.total_revenue ?? item.amount, symbol)}
         </Text>
       </Animated.View>
     </TouchableOpacity>

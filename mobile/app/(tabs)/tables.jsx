@@ -20,6 +20,7 @@ import SkeletonBox from '../../src/components/SkeletonBox';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import QRScanner from '../../src/components/QRScanner';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -70,8 +71,8 @@ const FILTER_PILLS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const formatAmount = (n) =>
-  n >= 1000 ? `₹${(n / 1000).toFixed(1)}k` : `₹${n}`;
+const formatAmount = (n, symbol = '') =>
+  n >= 1000 ? `${symbol}${(n / 1000).toFixed(1)}k` : `${symbol}${n}`;
 
 const elapsedMins = (sinceMs) => {
   if (!sinceMs) return 0;
@@ -123,6 +124,7 @@ function WaiterBadge({ waiterId, size = 22 }) {
 // ─── GridTableCard ────────────────────────────────────────────────────────────
 
 function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }) {
+  const { symbol } = useCurrency();
   const st = STATUS[table.status] || STATUS.empty;
   const isOccupied = table.status === 'occupied';
   const isBill = table.status === 'bill_pending';
@@ -168,7 +170,7 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
             <Text style={styles.dot}>·</Text>
             <Text style={styles.cardMeta}>👥 {table.covers}</Text>
           </View>
-          <Text style={styles.amountText}>{formatAmount(table.amount)}</Text>
+          <Text style={styles.amountText}>{formatAmount(table.amount, symbol)}</Text>
         </View>
       )}
 
@@ -300,6 +302,7 @@ function TableDetailModal({
   onAssignWaiter, onMerge, tables, mergeMode, setMergeMode,
 }) {
   const router = useRouter();
+  const { symbol } = useCurrency();
   const [elapsed, setElapsed] = useState(0);
   const [showWaiterPicker, setShowWaiterPicker] = useState(false);
 
@@ -430,7 +433,7 @@ function TableDetailModal({
                   <Text style={styles.detailLabel}>Amount</Text>
                 </View>
                 <Text style={[styles.detailValue, { color: '#2563eb', fontWeight: '700' }]}>
-                  ₹{table.amount.toLocaleString()}
+                  {symbol}{table.amount.toLocaleString()}
                 </Text>
               </View>
             )}
@@ -494,12 +497,12 @@ function TableDetailModal({
                 {table.orders.map((o, i) => (
                   <View key={i} style={styles.orderItem}>
                     <Text style={styles.orderName} numberOfLines={1}>{o.name}</Text>
-                    <Text style={styles.orderPrice}>₹{(o.price * o.qty).toLocaleString()}</Text>
+                    <Text style={styles.orderPrice}>{symbol}{(o.price * o.qty).toLocaleString()}</Text>
                   </View>
                 ))}
                 <View style={[styles.orderItem, styles.orderTotal]}>
                   <Text style={styles.orderTotalLabel}>Total</Text>
-                  <Text style={styles.orderTotalValue}>₹{orderTotal.toLocaleString()}</Text>
+                  <Text style={styles.orderTotalValue}>{symbol}{orderTotal.toLocaleString()}</Text>
                 </View>
               </View>
             </>

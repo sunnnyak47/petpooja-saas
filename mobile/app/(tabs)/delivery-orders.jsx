@@ -31,6 +31,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { T, R, FS, FW } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useOrders, useUpdateOrderStatus } from '../../src/hooks/useApi';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Platform brand colours (kept as-is — these are external brand identities)
 const ZOMATO = '#e23744';
@@ -252,6 +253,7 @@ function RejectModal({ visible, onClose, onConfirm, loading }) {
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 function OrderCard({ order, onAccept, onReject, onMarkReady, onAutoAccept, isUpdating }) {
+  const { symbol } = useCurrency();
   const sm        = statusMeta(order.status);
   const pc        = platformColor(order.platform);
   const isNew     = order.status === 'new';
@@ -298,7 +300,7 @@ function OrderCard({ order, onAccept, onReject, onMarkReady, onAutoAccept, isUpd
 
       {/* Total */}
       <View style={styles.orderFooterRow}>
-        <Text style={styles.orderTotal}>₹{(order.total || 0).toLocaleString('en-IN')}</Text>
+        <Text style={styles.orderTotal}>{symbol}{(order.total || 0).toLocaleString('en-IN')}</Text>
       </View>
 
       {/* Countdown bar for new orders */}
@@ -357,6 +359,7 @@ function OrderCard({ order, onAccept, onReject, onMarkReady, onAutoAccept, isUpd
 export default function DeliveryOrdersScreen() {
   const insets    = useSafeAreaInsets();
   const { user }  = useAuth();
+  const { symbol } = useCurrency();
   const outletId  = user?.outlet_id;
 
   const [activeTab,    setActiveTab]    = useState('ALL');
@@ -486,7 +489,7 @@ export default function DeliveryOrdersScreen() {
             <View style={[styles.summaryIcon, { backgroundColor: T.successBg }]}>
               <Ionicons name="cash-outline" size={16} color={T.success} />
             </View>
-            <Text style={styles.summaryValue}>₹{todayRevenue.toLocaleString('en-IN')}</Text>
+            <Text style={styles.summaryValue}>{symbol}{todayRevenue.toLocaleString('en-IN')}</Text>
             <Text style={styles.summaryLabel}>Today's Revenue</Text>
           </View>
           <View style={[styles.summaryCard, { flex: 1 }]}>
@@ -535,23 +538,23 @@ export default function DeliveryOrdersScreen() {
             <View style={styles.breakdownRow}>
               <View style={[styles.breakdownDot, { backgroundColor: ZOMATO }]} />
               <Text style={styles.breakdownLabel}>Zomato</Text>
-              <Text style={styles.breakdownAmount}>₹{zomatoRev.toLocaleString('en-IN')}</Text>
+              <Text style={styles.breakdownAmount}>{symbol}{zomatoRev.toLocaleString('en-IN')}</Text>
             </View>
             <View style={styles.breakdownRow}>
               <View style={[styles.breakdownDot, { backgroundColor: SWIGGY }]} />
               <Text style={styles.breakdownLabel}>Swiggy</Text>
-              <Text style={styles.breakdownAmount}>₹{swiggyRev.toLocaleString('en-IN')}</Text>
+              <Text style={styles.breakdownAmount}>{symbol}{swiggyRev.toLocaleString('en-IN')}</Text>
             </View>
             <View style={styles.breakdownRow}>
               <View style={[styles.breakdownDot, { backgroundColor: DIRECT }]} />
               <Text style={styles.breakdownLabel}>Direct</Text>
-              <Text style={styles.breakdownAmount}>₹{directRev.toLocaleString('en-IN')}</Text>
+              <Text style={styles.breakdownAmount}>{symbol}{directRev.toLocaleString('en-IN')}</Text>
             </View>
             <View style={[styles.breakdownRow, styles.breakdownTotal]}>
               <Ionicons name="wallet-outline" size={14} color={T.textSecondary} />
               <Text style={[styles.breakdownLabel, { fontWeight: FW.bold, color: T.textPrimary }]}>Total</Text>
               <Text style={[styles.breakdownAmount, { fontWeight: FW.bold, color: T.textPrimary }]}>
-                ₹{(zomatoRev + swiggyRev + directRev).toLocaleString('en-IN')}
+                {symbol}{(zomatoRev + swiggyRev + directRev).toLocaleString('en-IN')}
               </Text>
             </View>
           </View>

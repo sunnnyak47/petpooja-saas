@@ -54,6 +54,7 @@ import Animated, {
 
 import { useAuth } from '../../src/context/AuthContext';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useCreateOfflineOrder } from '../../src/hooks/useCreateOfflineOrder';
@@ -121,6 +122,7 @@ function SkeletonItem() {
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 function ItemCard({ item, qty, onAdd, onRemove }) {
+  const { symbol } = useCurrency();
   const price = item.price ?? item.selling_price ?? 0;
   const scale = useSharedValue(1);
 
@@ -146,7 +148,7 @@ function ItemCard({ item, qty, onAdd, onRemove }) {
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name || item.item_name}
         </Text>
-        <Text style={styles.itemPrice}>₹{price}</Text>
+        <Text style={styles.itemPrice}>{symbol}{price}</Text>
       </View>
 
       {qty > 0 ? (
@@ -170,13 +172,14 @@ function ItemCard({ item, qty, onAdd, onRemove }) {
 
 // ─── Cart item row ────────────────────────────────────────────────────────────
 function CartItemRow({ item, onAdd, onRemove, onRemoveAll }) {
+  const { symbol } = useCurrency();
   const price = item.price ?? 0;
   return (
     <View style={styles.cartItemRow}>
       <FoodTypeDot type={item.food_type} />
       <View style={{ flex: 1, marginHorizontal: 10 }}>
         <Text style={styles.cartItemName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.cartItemPrice}>₹{price} × {item.qty}</Text>
+        <Text style={styles.cartItemPrice}>{symbol}{price} × {item.qty}</Text>
       </View>
       <View style={styles.cartQtyRow}>
         <TouchableOpacity
@@ -199,7 +202,7 @@ function CartItemRow({ item, onAdd, onRemove, onRemoveAll }) {
           <Ionicons name="add" size={15} color={T.textSecondary} />
         </TouchableOpacity>
       </View>
-      <Text style={styles.cartItemTotal}>₹{price * item.qty}</Text>
+      <Text style={styles.cartItemTotal}>{symbol}{price * item.qty}</Text>
     </View>
   );
 }
@@ -280,6 +283,7 @@ export default function POSScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { outletId } = useOutlet();
+  const { symbol } = useCurrency();
 
   // Menu + tables offline data
   const { categories, items, isLoading: menuLoading, refresh: refreshMenu } = useOfflineMenu(outletId);
@@ -729,7 +733,7 @@ export default function POSScreen() {
               {cartCount === 1 ? '1 item' : `${cartCount} items`}
             </Text>
             <Text style={styles.cartBarDot}>•</Text>
-            <Text style={styles.cartBarTotal}>₹{cartSubtotal}</Text>
+            <Text style={styles.cartBarTotal}>{symbol}{cartSubtotal}</Text>
           </View>
           <TouchableOpacity
             style={styles.cartBarBtn}
@@ -848,15 +852,15 @@ export default function POSScreen() {
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>₹{cartSubtotal}</Text>
+              <Text style={styles.totalValue}>{symbol}{cartSubtotal}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Est. Tax (5% GST)</Text>
-              <Text style={styles.totalValue}>₹{cartTax}</Text>
+              <Text style={styles.totalValue}>{symbol}{cartTax}</Text>
             </View>
             <View style={[styles.totalRow, styles.totalGrandRow]}>
               <Text style={styles.totalGrandLabel}>Total</Text>
-              <Text style={styles.totalGrandValue}>₹{cartTotal}</Text>
+              <Text style={styles.totalGrandValue}>{symbol}{cartTotal}</Text>
             </View>
           </View>
 

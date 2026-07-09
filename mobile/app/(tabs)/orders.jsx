@@ -24,6 +24,7 @@ import Animated, {
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrders, useUpdateOrderStatus } from '../../src/hooks/useApi';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -321,6 +322,7 @@ function ActionMenu({ visible, status, onMarkReady, onCancel, onPrintKOT, onDism
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
 const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLongAction, index, expanded, onToggle }) {
+  const { symbol }  = useCurrency();
   const status     = (order.status || 'pending').toLowerCase();
   const meta       = STATUS_META[status] || STATUS_META.delivered;
   // Phase 3 — contextual CTA (null for billed/completed)
@@ -397,8 +399,8 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
           </View>
           {/* Phase 4 — amount typography */}
           <Text style={styles.amount}>
-            ₹{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}
-          </Text>
+            {symbol}{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}
+</Text>
           <Text style={[styles.chevron, expanded && styles.chevronUp]}>›</Text>
         </PressCard>
 
@@ -421,7 +423,7 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
                   </Text>
                   {(item.item_total ?? item.unit_price ?? item.price) != null && (
                     <Text style={styles.itemPrice}>
-                      ₹{Number(item.item_total ?? item.unit_price ?? item.price).toFixed(0)}
+                      {symbol}{Number(item.item_total ?? item.unit_price ?? item.price).toFixed(0)}
                     </Text>
                   )}
                 </View>
@@ -431,7 +433,7 @@ const OrderCard = React.memo(function OrderCard({ item: order, onAdvance, onLong
             {/* Footer: total + advance button */}
             <View style={styles.cardFooter}>
               <Text style={styles.totalLabel}>
-                Total: <Text style={styles.amount}>₹{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}</Text>
+                Total: <Text style={styles.amount}>{symbol}{Number(order.grand_total ?? order.total_amount ?? order.total ?? 0).toFixed(0)}</Text>
               </Text>
               {/* Phase 2 + 3: PressCard on advance button, contextual CTA label */}
               {canAdvance && (

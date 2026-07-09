@@ -20,6 +20,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useExpenses, useCreateExpense, useDeleteExpense } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ const barStyles = StyleSheet.create({
 // ─── Add Expense Modal ────────────────────────────────────────────────────────
 
 function AddExpenseModal({ visible, onClose, onSave }) {
+  const { symbol } = useCurrency();
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Groceries');
@@ -148,9 +150,9 @@ function AddExpenseModal({ visible, onClose, onSave }) {
             <Text style={modalStyles.title}>Add Expense</Text>
 
             {/* Amount */}
-            <Text style={modalStyles.label}>Amount (₹)</Text>
+            <Text style={modalStyles.label}>Amount ({symbol})</Text>
             <View style={modalStyles.inputWrap}>
-              <Text style={modalStyles.rupeePrefix}>₹</Text>
+              <Text style={modalStyles.rupeePrefix}>{symbol}</Text>
               <TextInput
                 style={modalStyles.input}
                 keyboardType="numeric"
@@ -365,6 +367,7 @@ const modalStyles = StyleSheet.create({
 // ─── Expense Row ──────────────────────────────────────────────────────────────
 
 function ExpenseRow({ expense, onDelete }) {
+  const { symbol } = useCurrency();
   const [swiped, setSwiped] = useState(false);
   const cm = catMeta(expense.category);
 
@@ -387,7 +390,7 @@ function ExpenseRow({ expense, onDelete }) {
         <View style={expStyles.rowInfo}>
           <View style={expStyles.rowTop}>
             <Text style={expStyles.desc} numberOfLines={1}>{expense.description}</Text>
-            <Text style={expStyles.amount}>₹{expense.amount.toLocaleString()}</Text>
+            <Text style={expStyles.amount}>{symbol}{expense.amount.toLocaleString()}</Text>
           </View>
           <View style={expStyles.rowBottom}>
             <View style={[expStyles.catBadge, { backgroundColor: cm.color + '18' }]}>
@@ -464,6 +467,7 @@ const expStyles = StyleSheet.create({
 export default function ExpensesScreen() {
   const insets = useSafeAreaInsets();
   const { outletId } = useOutlet();
+  const { symbol } = useCurrency();
 
   // Month navigation — start at current month
   const now = new Date();
@@ -584,7 +588,7 @@ export default function ExpensesScreen() {
           <Ionicons name={overBudget ? 'alert-circle' : 'warning-outline'} size={16} color={overBudget ? C.error : C.gold} />
           <Text style={[styles.alertText, overBudget && styles.alertTextRed]}>
             {overBudget
-              ? `Over budget by ₹${(total - budget).toLocaleString()}`
+              ? `Over budget by ${symbol}${(total - budget).toLocaleString()}`
               : `${Math.round(budgetPct * 100)}% of budget used — spend carefully`}
           </Text>
         </View>
@@ -614,7 +618,7 @@ export default function ExpensesScreen() {
               <View style={[styles.sumIcon, { backgroundColor: '#FFF0F0' }]}>
                 <Ionicons name="trending-down-outline" size={16} color={C.error} />
               </View>
-              <Text style={styles.sumValue}>₹{total.toLocaleString()}</Text>
+              <Text style={styles.sumValue}>{symbol}{total.toLocaleString()}</Text>
               <Text style={styles.sumLabel}>Total Expenses</Text>
             </View>
 
@@ -637,7 +641,7 @@ export default function ExpensesScreen() {
                   <View style={[styles.sumIcon, { backgroundColor: '#EBF4FF', alignSelf: 'center' }]}>
                     <Ionicons name="create-outline" size={16} color={C.indigo} />
                   </View>
-                  <Text style={styles.sumValue}>₹{budget.toLocaleString()}</Text>
+                  <Text style={styles.sumValue}>{symbol}{budget.toLocaleString()}</Text>
                   <Text style={styles.sumLabel}>Budget (tap to edit)</Text>
                 </TouchableOpacity>
               )}
@@ -652,7 +656,7 @@ export default function ExpensesScreen() {
                 />
               </View>
               <Text style={[styles.sumValue, { color: overBudget ? C.error : C.success }]}>
-                {overBudget ? '-' : '+'}₹{Math.abs(budget - total).toLocaleString()}
+                {overBudget ? '-' : '+'}{symbol}{Math.abs(budget - total).toLocaleString()}
               </Text>
               <Text style={styles.sumLabel}>{overBudget ? 'Over budget' : 'Under budget'}</Text>
             </View>
@@ -669,7 +673,7 @@ export default function ExpensesScreen() {
                   <View key={cat.key} style={[styles.catPill, { backgroundColor: cat.color + '18', borderColor: cat.color + '40' }]}>
                     <Ionicons name={cat.icon} size={14} color={cat.color} />
                     <Text style={[styles.catPillLabel, { color: cat.color }]}>{cat.label}</Text>
-                    <Text style={[styles.catPillAmt, { color: cat.color }]}>₹{cat.total.toLocaleString()}</Text>
+                    <Text style={[styles.catPillAmt, { color: cat.color }]}>{symbol}{cat.total.toLocaleString()}</Text>
                   </View>
                 ))}
               </View>

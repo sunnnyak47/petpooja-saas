@@ -36,6 +36,7 @@ import Animated, {
 import { PressCard } from '../../src/components/PressCard';
 import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { useCreateMenuItem, useUpdateMenuItem, useDeleteMenuItem } from '../../src/hooks/useApi';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
@@ -433,6 +434,7 @@ function MenuItemCard({
   onSelectToggle,
 }) {
   const isWeb = Platform.OS === 'web';
+  const { symbol } = useCurrency();
   const opacity = useSharedValue(isWeb ? 1 : 0);
   const translateY = useSharedValue(isWeb ? 0 : 18);
 
@@ -556,7 +558,7 @@ function MenuItemCard({
 
           {/* Right: price + toggle */}
           <View style={styles.cardRight}>
-            <Text style={styles.priceText}>₹{item.price}</Text>
+            <Text style={styles.priceText}>{symbol}{item.price}</Text>
             {!selectionMode && (
               <Switch
                 value={item.available}
@@ -575,6 +577,7 @@ function MenuItemCard({
 
 // ─── Variant / Add-on Row ─────────────────────────────────────────────────────
 function LineItemRow({ item, onDelete, onChangeName, onChangePrice }) {
+  const { symbol } = useCurrency();
   return (
     <View style={ms.lineItemRow}>
       <TextInput
@@ -585,7 +588,7 @@ function LineItemRow({ item, onDelete, onChangeName, onChangePrice }) {
         onChangeText={onChangeName}
       />
       <View style={ms.priceInputWrap}>
-        <Text style={ms.rupeePrefix}>₹</Text>
+        <Text style={ms.rupeePrefix}>{symbol}</Text>
         <TextInput
           style={[ms.input, ms.priceInput]}
           placeholder="0"
@@ -606,6 +609,7 @@ function LineItemRow({ item, onDelete, onChangeName, onChangePrice }) {
 function MenuItemModal({ visible, item, categories, onClose, onSave, onDelete }) {
   const isEdit = !!item;
   const insets = useSafeAreaInsets();
+  const { symbol } = useCurrency();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -798,7 +802,7 @@ function MenuItemModal({ visible, item, categories, onClose, onSave, onDelete })
             <View style={ms.fieldGroup}>
               <Text style={ms.fieldLabel}>BASE PRICE</Text>
               <View style={ms.priceInputWrap}>
-                <Text style={ms.rupeePrefix}>₹</Text>
+                <Text style={ms.rupeePrefix}>{symbol}</Text>
                 <TextInput
                   style={[ms.input, ms.priceInput]}
                   placeholder="0"
@@ -933,7 +937,7 @@ function MenuItemModal({ visible, item, categories, onClose, onSave, onDelete })
             <View style={ms.fieldGroup}>
               <View style={ms.sectionHeader}>
                 <Text style={ms.sectionTitle}>ADD-ONS</Text>
-                <Text style={ms.sectionSub}>e.g. Extra Cheese +₹30</Text>
+                <Text style={ms.sectionSub}>e.g. Extra Cheese +30</Text>
               </View>
               {addons.map((a) => (
                 <LineItemRow

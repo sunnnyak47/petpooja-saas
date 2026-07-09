@@ -27,6 +27,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { T, R, FS, FW } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { useEOD, useCloseDay } from '../../src/hooks/useApi';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -141,6 +142,7 @@ function SummaryCard({ label, value, icon, color }) {
 }
 
 function PaymentRow({ label, icon, amount, total, color }) {
+  const { symbol } = useCurrency();
   const pct = total > 0 ? (amount / total) * 100 : 0;
   return (
     <View style={styles.paymentRow}>
@@ -154,7 +156,7 @@ function PaymentRow({ label, icon, amount, total, color }) {
         </View>
       </View>
       <View style={styles.paymentRight}>
-        <Text style={styles.paymentAmount}>₹{amount.toLocaleString('en-IN')}</Text>
+        <Text style={styles.paymentAmount}>{symbol}{amount.toLocaleString('en-IN')}</Text>
         <View style={styles.barBg}>
           <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
         </View>
@@ -164,6 +166,7 @@ function PaymentRow({ label, icon, amount, total, color }) {
 }
 
 function OrderTypeRow({ label, icon, orders, revenue, color }) {
+  const { symbol } = useCurrency();
   return (
     <View style={styles.orderTypeRow}>
       <View style={[styles.orderTypeIcon, { backgroundColor: color + '1a' }]}>
@@ -171,7 +174,7 @@ function OrderTypeRow({ label, icon, orders, revenue, color }) {
       </View>
       <Text style={styles.orderTypeLabel}>{label}</Text>
       <Text style={styles.orderTypeOrders}>{orders} orders</Text>
-      <Text style={styles.orderTypeRevenue}>₹{revenue.toLocaleString('en-IN')}</Text>
+      <Text style={styles.orderTypeRevenue}>{symbol}{revenue.toLocaleString('en-IN')}</Text>
     </View>
   );
 }
@@ -199,6 +202,7 @@ function HourlyChart({ data }) {
 }
 
 function CompareRow({ label, today, yesterday }) {
+  const { symbol } = useCurrency();
   const diff = today - yesterday;
   const pct  = yesterday > 0 ? ((diff / yesterday) * 100).toFixed(1) : '0.0';
   const up   = diff >= 0;
@@ -208,7 +212,7 @@ function CompareRow({ label, today, yesterday }) {
       <View style={styles.compareRight}>
         <Text style={styles.compareVal}>
           {typeof today === 'number' && today > 999
-            ? '₹' + today.toLocaleString('en-IN')
+            ? symbol + today.toLocaleString('en-IN')
             : today}
         </Text>
         <View style={[styles.compareBadge, { backgroundColor: up ? T.successBg : T.dangerBg }]}>
@@ -237,6 +241,7 @@ export default function EODScreen() {
   // user.outlet_id, which can differ after an owner switches outlet and is null
   // for an owner with no home outlet (which would blank EOD entirely).
   const { outletId }  = useOutlet();
+  const { symbol }    = useCurrency();
 
   const todayDate     = new Date();
   const todayStr      = toDateStr(todayDate);
@@ -280,17 +285,17 @@ export default function EODScreen() {
     if (!data) return '';
     return (
       `*MS-RM EOD Report — ${displayDate(currentDate)}*\n\n` +
-      `Revenue: ₹${data.revenue.toLocaleString('en-IN')}\n` +
+      `Revenue: ${symbol}${data.revenue.toLocaleString('en-IN')}\n` +
       `Orders: ${data.orders}\n` +
-      `Avg Order: ₹${data.avgOrderValue}\n\n` +
+      `Avg Order: ${symbol}${data.avgOrderValue}\n\n` +
       `*Payments*\n` +
-      `Cash: ₹${data.payments.cash.toLocaleString('en-IN')}\n` +
-      `Card: ₹${data.payments.card.toLocaleString('en-IN')}\n` +
-      `UPI: ₹${data.payments.upi.toLocaleString('en-IN')}\n` +
-      `Online: ₹${data.payments.zomato.toLocaleString('en-IN')}\n\n` +
+      `Cash: ${symbol}${data.payments.cash.toLocaleString('en-IN')}\n` +
+      `Card: ${symbol}${data.payments.card.toLocaleString('en-IN')}\n` +
+      `UPI: ${symbol}${data.payments.upi.toLocaleString('en-IN')}\n` +
+      `Online: ${symbol}${data.payments.zomato.toLocaleString('en-IN')}\n\n` +
       `Top Item: ${data.topItems[0]?.name ?? '-'} (${data.topItems[0]?.qty ?? 0} sold)`
     );
-  }, [currentDate, data]);
+  }, [currentDate, data, symbol]);
 
   const handleWhatsApp = useCallback(() => {
     const text = encodeURIComponent(buildShareText());
@@ -397,7 +402,7 @@ export default function EODScreen() {
             >
               <SummaryCard
                 label="Revenue"
-                value={'₹' + (data.revenue / 1000).toFixed(1) + 'K'}
+                value={symbol + (data.revenue / 1000).toFixed(1) + 'K'}
                 icon="cash-outline"
                 color={T.accent}
               />
@@ -409,7 +414,7 @@ export default function EODScreen() {
               />
               <SummaryCard
                 label="Avg Order"
-                value={'₹' + data.avgOrderValue}
+                value={symbol + data.avgOrderValue}
                 icon="trending-up-outline"
                 color={T.success}
               />
@@ -503,7 +508,7 @@ export default function EODScreen() {
                         <Text style={styles.rankName}>{item.name}</Text>
                         <View style={styles.rankMeta}>
                           <Text style={styles.rankQty}>{item.qty} sold</Text>
-                          <Text style={styles.rankRev}>₹{item.revenue.toLocaleString('en-IN')}</Text>
+                          <Text style={styles.rankRev}>{symbol}{item.revenue.toLocaleString('en-IN')}</Text>
                         </View>
                       </View>
                     </View>
@@ -529,7 +534,7 @@ export default function EODScreen() {
                         <Text style={styles.rankName}>{item.name}</Text>
                         <View style={styles.rankMeta}>
                           <Text style={[styles.rankQty, { color: T.danger }]}>{item.qty} sold</Text>
-                          <Text style={styles.rankRev}>₹{item.revenue.toLocaleString('en-IN')}</Text>
+                          <Text style={styles.rankRev}>{symbol}{item.revenue.toLocaleString('en-IN')}</Text>
                         </View>
                       </View>
                     </View>
@@ -592,14 +597,14 @@ export default function EODScreen() {
                             <Text style={styles.wasteName}>{w.item}</Text>
                             <Text style={styles.wasteQty}>{w.qty}</Text>
                           </View>
-                          <Text style={styles.wasteCost}>₹{w.cost}</Text>
+                          <Text style={styles.wasteCost}>{symbol}{w.cost}</Text>
                         </View>
                       </View>
                     ))}
                     <View style={styles.wasteTotalRow}>
                       <Text style={styles.wasteTotalLabel}>Total Waste Cost</Text>
                       <Text style={styles.wasteTotalVal}>
-                        ₹{data.waste.reduce((a, w) => a + w.cost, 0)}
+                        {symbol}{data.waste.reduce((a, w) => a + w.cost, 0)}
                       </Text>
                     </View>
                   </>

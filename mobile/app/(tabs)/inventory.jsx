@@ -38,6 +38,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInventory, useUpdateInventory, useCreateInventoryItem, useAdjustStock } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -164,6 +165,7 @@ function StockBar({ current, minQty, maxQty }) {
 
 // ─── Inventory Row ────────────────────────────────────────────────────────────
 function InventoryRow({ item, index, onUpdate, onEdit }) {
+  const { symbol } = useCurrency();
   const isWeb = Platform.OS === 'web';
   const [expanded, setExpanded] = useState(false);
   const expandH = useSharedValue(0);
@@ -264,7 +266,7 @@ function InventoryRow({ item, index, onUpdate, onEdit }) {
           </Text>
           <Text style={styles.rowUnit}>{item.unit ?? 'pcs'}</Text>
           {item.price != null && (
-            <Text style={styles.rowPrice}>₹{parseFloat(item.price).toFixed(0)}</Text>
+            <Text style={styles.rowPrice}>{symbol}{parseFloat(item.price).toFixed(0)}</Text>
           )}
         </View>
       </PressCard>
@@ -316,6 +318,7 @@ const ITEM_CATEGORIES = ['Vegetables', 'Grains', 'Dairy', 'Proteins', 'Spices', 
 // ─── EditItemModal ────────────────────────────────────────────────────────────
 function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
   const isEdit = !!item;
+  const { symbol } = useCurrency();
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -471,7 +474,7 @@ function EditItemModal({ visible, item, onClose, onSave, isSaving }) {
                 />
               </View>
               <View style={[modalStyles.fieldGroup, { flex: 1 }]}>
-                <Text style={modalStyles.fieldLabel}>Price / Unit (₹)</Text>
+                <Text style={modalStyles.fieldLabel}>Price / Unit ({symbol})</Text>
                 <TextInput
                   style={modalStyles.input}
                   placeholder="0"
@@ -543,6 +546,7 @@ export default function InventoryScreen() {
   const [editingItem, setEditingItem] = useState(null); // null = add mode
 
   const { outletId } = useOutlet();
+  const { symbol } = useCurrency();
   const { data: rawData, isLoading, refetch, isRefetching } = useInventory();
   const { mutate: updateInventory, isPending: isPatching } = useUpdateInventory();
   const { mutate: createInventoryItem, isPending: isCreating } = useCreateInventoryItem();
@@ -819,7 +823,7 @@ export default function InventoryScreen() {
         />
         <SummaryCard
           label="Total Value"
-          value={`₹${totalValue >= 1000 ? (totalValue / 1000).toFixed(1) + 'k' : totalValue.toFixed(0)}`}
+          value={`${symbol}${totalValue >= 1000 ? (totalValue / 1000).toFixed(1) + 'k' : totalValue.toFixed(0)}`}
           color={C.gold}
           icon="wallet-outline"
           pulse={false}

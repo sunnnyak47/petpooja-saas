@@ -49,7 +49,7 @@ function orderLabel(order) {
 }
 
 function formatWhatsAppBill({ order, symbol, locale, methodLabel }) {
-  const sym = symbol || '₹';
+  const sym = symbol || '';
   const loc = locale || 'en-IN';
   const itemLines = order.items
     .map((i) => `  • ${i.name} x${i.qty}  ${sym}${i.total.toLocaleString(loc)}`)

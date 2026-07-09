@@ -44,6 +44,7 @@ import Svg, {
   Line,
 } from 'react-native-svg';
 import { useReports } from '../../src/hooks/useApi';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import { useTheme } from '../../src/context/ThemeContext';
 import { chartColors } from '../../src/constants/theme';
 
@@ -73,12 +74,12 @@ function hexToRgb(hex) {
   return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
 }
 
-function fmt(n) {
-  if (!n) return '₹0';
+function fmt(n, sym = '') {
+  if (!n) return `${sym}0`;
   const num = parseFloat(n);
-  if (num >= 100000) return `₹${(num / 100000).toFixed(1)}L`;
-  if (num >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
-  return `₹${num.toFixed(0)}`;
+  if (num >= 100000) return `${sym}${(num / 100000).toFixed(1)}L`;
+  if (num >= 1000) return `${sym}${(num / 1000).toFixed(1)}K`;
+  return `${sym}${num.toFixed(0)}`;
 }
 
 function fmtShort(n) {
@@ -265,6 +266,7 @@ function makeKpiStyles(colors) {
 
 function RevenueChart({ data, labels }) {
   const { colors } = useTheme();
+  const { symbol } = useCurrency();
   const [tooltip, setTooltip] = useState(null);
   const drawProgress = useSharedValue(0);
   const [pathMeta, setPathMeta] = useState(null);
@@ -449,7 +451,7 @@ function RevenueChart({ data, labels }) {
               fontWeight="700"
               fill={colors.accent}
             >
-              {fmt(tooltip.val)}
+              {fmt(tooltip.val, symbol)}
             </SvgText>
           </G>
         )}
@@ -584,6 +586,7 @@ function makeDnStyles(colors) {
 
 function TopItemRow({ item, index, maxRevenue }) {
   const { colors } = useTheme();
+  const { symbol } = useCurrency();
   const ti = useMemo(() => makeTiStyles(colors), [colors]);
   const barProgress = useSharedValue(0);
 
@@ -614,7 +617,7 @@ function TopItemRow({ item, index, maxRevenue }) {
           <Text style={ti.name} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={ti.revenue}>{fmt(item.revenue)}</Text>
+          <Text style={ti.revenue}>{fmt(item.revenue, symbol)}</Text>
         </View>
         <View style={ti.barTrack}>
           <Animated.View style={[ti.barFill, barStyle]} />
@@ -768,6 +771,7 @@ function makeShStyles(colors) {
 
 export default function ReportsScreen() {
   const { colors } = useTheme();
+  const { symbol } = useCurrency();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const accentRgb = useMemo(() => hexToRgb(colors.accent), [colors.accent]);
   const insets = useSafeAreaInsets();
@@ -908,7 +912,7 @@ export default function ReportsScreen() {
                 <KpiCard
                   index={0}
                   label="Revenue"
-                  value={fmt(data.total_revenue)}
+                  value={fmt(data.total_revenue, symbol)}
                   change={data.revenue_change ?? 0}
                 />
                 <KpiCard
@@ -920,7 +924,7 @@ export default function ReportsScreen() {
                 <KpiCard
                   index={2}
                   label="Avg Order"
-                  value={fmt(data.avg_order_value)}
+                  value={fmt(data.avg_order_value, symbol)}
                   change={data.avg_order_change ?? 0}
                 />
                 <KpiCard

@@ -35,6 +35,7 @@ import {
   useCancelPurchaseOrder,
 } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import api from '../../src/lib/api';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -106,6 +107,7 @@ function StatCard({ label, value, icon, iconColor }) {
 
 // ─── PO Card ──────────────────────────────────────────────────────────────────
 function POCard({ po, index, onMarkReceived, onCancel }) {
+  const { symbol } = useCurrency();
   const cfg = statusCfg(po.status);
   const total = parseFloat(po.total_amount || 0);
   // List response includes `_count.po_items`; the detail response includes a `po_items`
@@ -144,7 +146,7 @@ function POCard({ po, index, onMarkReceived, onCancel }) {
       <View style={[styles.cardRow, { marginTop: 6 }]}>
         <Text style={styles.itemPreview}>
           {itemCount > 0 ? `${itemCount} item${itemCount !== 1 ? 's' : ''}` : 'No items'}
-          {total > 0 ? ` · ₹${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}
+          {total > 0 ? ` · ${symbol}${total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}
         </Text>
         <Text style={styles.dateText}>{date}</Text>
       </View>
@@ -199,6 +201,7 @@ const EMPTY_ITEM = () => ({ name: '', qty: '', price: '' });
 
 function CreatePOModal({ visible, onClose, onCreate, outletId }) {
   const insets = useSafeAreaInsets();
+  const { symbol } = useCurrency();
   // Backend links a PO to a supplier by supplier_id (uuid FK) — a free-text name is
   // never persisted. So we fetch the outlet's suppliers and let the user pick one.
   const [suppliers, setSuppliers] = useState([]);
@@ -358,7 +361,7 @@ function CreatePOModal({ visible, onClose, onCreate, outletId }) {
                   style={[styles.input, styles.itemPriceInput]}
                   value={item.price}
                   onChangeText={v => updateItem(idx, 'price', v)}
-                  placeholder="₹"
+                  placeholder={symbol}
                   placeholderTextColor={T.text3}
                   keyboardType="numeric"
                 />
@@ -379,7 +382,7 @@ function CreatePOModal({ visible, onClose, onCreate, outletId }) {
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>
-                ₹{total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                {symbol}{total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </Text>
             </View>
 
@@ -425,6 +428,7 @@ function FAB({ onPress }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PurchaseOrdersScreen() {
   const insets = useSafeAreaInsets();
+  const { symbol } = useCurrency();
   const [modalVisible, setModalVisible] = useState(false);
 
   const { outletId } = useOutlet();
@@ -534,7 +538,7 @@ export default function PurchaseOrdersScreen() {
       />
       <StatCard
         label="Month Spend"
-        value={`₹${stats.monthSpend >= 1000
+        value={`${symbol}${stats.monthSpend >= 1000
           ? (stats.monthSpend / 1000).toFixed(1) + 'K'
           : stats.monthSpend.toFixed(0)}`}
         icon="wallet-outline"
@@ -547,7 +551,7 @@ export default function PurchaseOrdersScreen() {
         iconColor={T.deliveredColor}
       />
     </View>
-  ), [stats]);
+  ), [stats, symbol]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -561,7 +565,7 @@ export default function PurchaseOrdersScreen() {
           <View style={styles.pendingBadge}>
             <Text style={styles.pendingBadgeLabel}>Pending Spend</Text>
             <Text style={styles.pendingBadgeAmount}>
-              ₹{totalPending >= 1000
+              {symbol}{totalPending >= 1000
                 ? (totalPending / 1000).toFixed(1) + 'K'
                 : totalPending.toFixed(0)}
             </Text>

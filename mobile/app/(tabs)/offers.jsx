@@ -31,6 +31,7 @@ import SkeletonBox from '../../src/components/SkeletonBox';
 import EmptyState from '../../src/components/EmptyState';
 import { useDiscounts, useCreateDiscount, useUpdateDiscount, useDeleteDiscount } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -78,6 +79,7 @@ const OFFER_TYPES = ['Happy Hour', 'Combo', 'Coupon', 'Flat Discount'];
 const APPLY_ON = ['All', 'Dine-in', 'Takeaway', 'Delivery'];
 
 function CreateOfferModal({ visible, onClose, onCreate }) {
+  const { symbol } = useCurrency();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     offerType: '',
@@ -115,7 +117,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
       usageCount: 0,
       active: true,
       appliedOn: form.appliedOn,
-      conditions: form.minOrder ? `Min order ₹${form.minOrder}` : '',
+      conditions: form.minOrder ? `Min order ${symbol}${form.minOrder}` : '',
       items: ['All Menu'],
       redemptionHistory: [],
     });
@@ -219,13 +221,13 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                       style={[styles.pill, form.discountType === dt && styles.pillActive]}
                       onPress={() => update('discountType', dt)}>
                       <Text style={[styles.pillText, form.discountType === dt && styles.pillTextActive]}>
-                        {dt === 'percent' ? '% Percentage' : '₹ Flat Amount'}
+                        {dt === 'percent' ? '% Percentage' : `${symbol} Flat Amount`}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
                 <Text style={styles.fieldLabel}>
-                  {form.discountType === 'percent' ? 'Discount (%)' : 'Discount Amount (₹)'}
+                  {form.discountType === 'percent' ? 'Discount (%)' : `Discount Amount (${symbol})`}
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -235,7 +237,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                   onChangeText={v => update('discountValue', v)}
                   keyboardType="numeric"
                 />
-                <Text style={styles.fieldLabel}>Minimum Order Value (₹)</Text>
+                <Text style={styles.fieldLabel}>Minimum Order Value ({symbol})</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="300 (optional)"
@@ -326,7 +328,7 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
                       {form.discountValue
                         ? form.discountType === 'percent'
                           ? `${form.discountValue}% OFF`
-                          : `₹${form.discountValue} OFF`
+                          : `${symbol}${form.discountValue} OFF`
                         : '—'}
                     </Text>
                   </Text>
@@ -375,13 +377,14 @@ function CreateOfferModal({ visible, onClose, onCreate }) {
 // ─── Offer Card ───────────────────────────────────────────────────────────────
 
 function OfferCard({ offer, onToggle, expanded, onExpand }) {
+  const { symbol } = useCurrency();
   const typeColor = TYPE_COLORS[offer.type] || '#444';
   // Support both normalized API shape (type + value) and legacy UI shape (discountType + discountValue)
   const discountLabel = (() => {
     const val = offer.value ?? offer.discountValue ?? 0;
     // Backend `type` enum: percentage | flat | bogo | buy_x_get_y
     if (offer.type === 'flat' || offer.discountType === 'flat') {
-      return `₹${val} OFF`;
+      return `${symbol}${val} OFF`;
     }
     if (offer.type === 'bogo' || offer.type === 'buy_x_get_y') {
       return 'Buy 1 Get 1';
@@ -399,7 +402,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
   const dateRange = offer.dateRange
     ?? (offer.start_date && offer.end_date ? `${offer.start_date} – ${offer.end_date}` : 'Ongoing');
   const appliedOn = offer.appliedOn ?? 'All';
-  const conditions = offer.conditions ?? (offer.min_order_value ? `Min order ₹${offer.min_order_value}` : '');
+  const conditions = offer.conditions ?? (offer.min_order_value ? `Min order ${symbol}${offer.min_order_value}` : '');
   const items = offer.items ?? ['All Menu'];
   const redemptionHistory = offer.redemptionHistory ?? [];
 
@@ -495,7 +498,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
                 <View key={i} style={styles.historyRow}>
                   <Text style={styles.historyDate}>{r.date}</Text>
                   <Text style={styles.historyCount}>{r.count} uses</Text>
-                  <Text style={styles.historyAmt}>₹{r.savings.toLocaleString('en-IN')} saved</Text>
+                  <Text style={styles.historyAmt}>{symbol}{r.savings.toLocaleString('en-IN')} saved</Text>
                 </View>
               ))}
             </>
@@ -511,6 +514,7 @@ function OfferCard({ offer, onToggle, expanded, onExpand }) {
 export default function OffersScreen() {
   const insets = useSafeAreaInsets();
   const { outletId } = useOutlet();
+  const { symbol } = useCurrency();
 
   // ─── API hooks ────────────────────────────────────────────────────────────
   const { data, isLoading, isError, refetch } = useDiscounts({ outlet_id: outletId });
@@ -715,7 +719,7 @@ export default function OffersScreen() {
           </View>
           <View style={styles.summaryCard}>
             <Ionicons name="trending-down-outline" size={20} color="#EE0000" />
-            <Text style={styles.summaryVal}>₹{(todayImpact / 1000).toFixed(1)}K</Text>
+            <Text style={styles.summaryVal}>{symbol}{(todayImpact / 1000).toFixed(1)}K</Text>
             <Text style={styles.summaryLbl}>Discount Given</Text>
           </View>
         </Animated.View>

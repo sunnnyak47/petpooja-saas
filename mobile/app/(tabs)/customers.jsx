@@ -30,6 +30,7 @@ import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import { T, R, FS, FW } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
+import { useCurrency } from '../../src/hooks/useCurrency';
 import {
   useCustomers,
   useCreateCustomer,
@@ -527,6 +528,7 @@ function CrmStat({ label, value, icon, color }) {
 }
 
 function CustomerCard({ customer: c, index, expanded, onExpand, onCall, onWhatsApp, onEdit }) {
+  const { symbol } = useCurrency();
   // loyaltyBalance is the scalar current_balance extracted in normalizeCustomer.
   // NEVER read c.loyalty_points here — it is a relation OBJECT and crashes inside <Text>.
   const loyaltyPts     = c.loyaltyBalance ?? 0;
@@ -574,7 +576,7 @@ function CustomerCard({ customer: c, index, expanded, onExpand, onCall, onWhatsA
         </View>
         <View style={styles.custStatDivider} />
         <View style={styles.custStatItem}>
-          <Text style={styles.custStatVal}>₹{(c.totalSpent || 0).toLocaleString('en-IN')}</Text>
+          <Text style={styles.custStatVal}>{symbol}{(c.totalSpent || 0).toLocaleString('en-IN')}</Text>
           <Text style={styles.custStatLabel}>Spent</Text>
         </View>
         <View style={styles.custStatDivider} />
@@ -633,7 +635,7 @@ function CustomerCard({ customer: c, index, expanded, onExpand, onCall, onWhatsA
                   <View style={{ flex: 1 }}>
                     <Text style={styles.orderItems} numberOfLines={2}>{o.items}</Text>
                     <Text style={styles.orderMeta}>
-                      {formatDate(o.date)} · ₹{(o.amount || 0).toLocaleString('en-IN')}
+                      {formatDate(o.date)} · {symbol}{(o.amount || 0).toLocaleString('en-IN')}
                     </Text>
                   </View>
                 </View>
