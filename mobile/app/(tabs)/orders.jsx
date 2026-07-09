@@ -499,7 +499,7 @@ export default function Orders() {
   const { mutate: updateStatusMutation } = useUpdateOrderStatus();
 
   const apiOrders     = data?.data || data?.orders || (Array.isArray(data) ? data : null);
-  const baseOrders    = apiOrders && apiOrders.length > 0 ? apiOrders : MOCK_ORDERS;
+  const baseOrders    = apiOrders || []; // real orders or empty — never demo data
   const displayOrders = localOrders !== null ? localOrders : baseOrders;
 
   useEffect(() => {

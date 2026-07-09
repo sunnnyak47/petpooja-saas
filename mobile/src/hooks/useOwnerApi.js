@@ -610,9 +610,9 @@ export function useOwnerAlerts(outletId, filters = {}) {
           return 0;
         });
 
-        return merged.length > 0 ? merged : MOCK_ALERTS;
+        return merged; // real fraud + low-stock alerts, or empty — never demo alerts
       } catch {
-        return MOCK_ALERTS;
+        return [];
       }
     },
     enabled: !!outletId,

@@ -157,7 +157,7 @@ export default function LoginScreen() {
           <View style={styles.separator} />
 
           <Text style={styles.statsText}>
-            284 orders today · ₹1.7L revenue · 5 active tables
+            Orders · Tables · Inventory · Reports — one dashboard
           </Text>
         </Animated.View>
 

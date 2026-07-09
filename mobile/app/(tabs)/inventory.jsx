@@ -560,7 +560,7 @@ export default function InventoryScreen() {
       if (Array.isArray(rawData)) items = rawData;
       else if (Array.isArray(rawData.data)) items = rawData.data;
     }
-    return items.length > 0 ? items : MOCK_INVENTORY;
+    return items; // real inventory or empty — never demo data
   }, [rawData]);
 
   const lowStockItems = useMemo(

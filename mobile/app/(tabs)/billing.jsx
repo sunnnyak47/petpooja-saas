@@ -231,7 +231,7 @@ function SettledBillRow({ bill }) {
 function ItemPickerModal({ visible, onClose, onAdd, menuItems }) {
   const [search, setSearch] = useState('');
   const { symbol } = useCurrency();
-  const sourceItems = menuItems && menuItems.length > 0 ? menuItems : MENU_ITEMS;
+  const sourceItems = menuItems && menuItems.length > 0 ? menuItems : []; // real menu only, no demo items
   const filtered = useMemo(
     () => sourceItems.filter(m => m.name.toLowerCase().includes(search.toLowerCase())),
     [search, sourceItems]
@@ -904,8 +904,9 @@ export default function BillingScreen() {
   const { items: offlineMenuItems } = useOfflineMenu(outletId);
   const { tables: offlineTables } = useOfflineTables(outletId);
 
-  // Use offline data with fallbacks to hardcoded arrays
-  const activeTables = offlineTables && offlineTables.length > 0 ? offlineTables : INITIAL_TABLES;
+  // Real synced offline data only — no demo/hardcoded fallback. An empty outlet
+  // shows a truthful empty billing screen, never fabricated tables/menu.
+  const activeTables = offlineTables && offlineTables.length > 0 ? offlineTables : [];
   const activeMenuItems = offlineMenuItems && offlineMenuItems.length > 0
     ? offlineMenuItems.map(item => ({
         id: item.id,
@@ -913,9 +914,9 @@ export default function BillingScreen() {
         price: item.price || item.unit_price || 0,
         category: item.category || item.category_name || 'Uncategorized',
       }))
-    : MENU_ITEMS;
+    : [];
 
-  const [tables, setTables] = useState(INITIAL_TABLES);
+  const [tables, setTables] = useState([]);
   // Settled bills accumulate in-session as tables are settled (handleSettle).
   // No mock seed — starts empty and renders the "no settled bills" empty state.
   const [settledBills, setSettledBills] = useState([]);

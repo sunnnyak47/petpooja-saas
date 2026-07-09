@@ -1173,10 +1173,11 @@ export default function MenuItemsScreen() {
     }
   }, [offlineItems, offlineCategories]);
 
-  // Fallback to mock data if offline data is empty
+  // No mock/demo fallback: show the real synced menu or a proper empty state —
+  // never fabricated data (an owner must not see fake menu items).
   useEffect(() => {
     if ((!offlineItems || offlineItems.length === 0) && !menuLoading) {
-      setItems(MOCK_MENU);
+      setItems([]);
     }
   }, [menuLoading, offlineItems]);
 
