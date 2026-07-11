@@ -26,7 +26,10 @@ function resolveOutletTaxConfig(outlet) {
   const hoCountry = ho?.country_code;
   const isAU = hoCountry === 'AU' || ho?.region === 'AU'
     || outlet.currency === 'AUD' || ho?.currency === 'AUD' || outlet.country === 'Australia';
-  const countryCode = hoCountry || (isAU ? 'AU' : 'IN');
+  // ANY AU signal must win over a mis-seeded head_office.country_code='IN'
+  // (matches getOutletTaxConfig) — otherwise a genuine AU outlet is taxed as
+  // India (5% CGST/SGST) instead of a single 10% GST.
+  const countryCode = isAU ? 'AU' : (hoCountry || 'IN');
   // AU GST is inclusive by law — ALWAYS true for AU, even if the DB column was left false
   // (self-signup defaulted gst_inclusive=false). ?? would keep that false, so use an
   // explicit ternary. Non-AU honours the stored flag (defaults false).
