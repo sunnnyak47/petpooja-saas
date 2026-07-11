@@ -2872,3 +2872,37 @@ model Lead {
   @@index([status, created_at(sort: Desc)])
   @@map("leads")
 }
+
+// ─── Staff Chat (internal messaging, per outlet) ─────────────────────────────
+model StaffMessage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id  String   @db.Uuid
+  user_id    String   @db.Uuid
+  user_name  String
+  body       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  is_deleted Boolean  @default(false)
+
+  @@index([outlet_id, created_at])
+  @@map("staff_message")
+}
+
+// ─── Documents (licenses & files, per outlet/head office) ────────────────────
+model Document {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id      String?   @db.Uuid
+  head_office_id String?   @db.Uuid
+  name           String
+  category       String    @default("Other")
+  file_url       String
+  file_type      String?
+  file_size      Int?
+  expires_at     DateTime? @db.Timestamptz(6)
+  uploaded_by    String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  is_deleted     Boolean   @default(false)
+
+  @@index([outlet_id])
+  @@index([head_office_id])
+  @@map("document")
+}

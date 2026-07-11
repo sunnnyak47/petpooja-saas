@@ -320,6 +320,55 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="recipe-manager"
+          options={{
+            title: 'RECIPE MANAGER',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="multi-branch"
+          options={{
+            title: 'MULTI-BRANCH',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="gst-reports"
+          options={{
+            title: 'GST REPORTS',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="cctv-feed"
+          options={{
+            title: 'CCTV FEED',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="waste-log"
+          options={{
+            title: 'WASTE LOG',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="staff-chat"
+          options={{
+            title: 'STAFF CHAT',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="documents"
+          options={{
+            title: 'DOCUMENTS',
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   );

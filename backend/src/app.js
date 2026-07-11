@@ -351,6 +351,10 @@ app.use('/api/aggregator-reconciliation', require('./modules/integrations/aggreg
 app.use('/api/delivery', require('./modules/delivery/dispatch.routes'));
 app.use('/api/auto86', require('./modules/integrations/auto86.routes'));
 app.use('/api/channel-analytics', require('./modules/integrations/channel-analytics.routes'));
+// Internal staff chat — /api/chat
+app.use('/api/chat', require('./modules/chat/chat.routes'));
+// Outlet document library — /api/documents
+app.use('/api/documents', require('./modules/documents/documents.routes'));
 // Mock & test routes — NEVER expose in production
 if (appConfig.env !== 'production') {
   app.use('/mock', mockRoutes);
