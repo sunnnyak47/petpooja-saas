@@ -32,6 +32,15 @@ contextBridge.exposeInMainWorld('electron', {
   setConfig: (key, value) =>
     ipcRenderer.invoke('set-config', key, value),
 
+  /**
+   * Push the renderer's JWT + outlet id into the main-process sync engine
+   * (called by authSlice.setCredentials after login, and with nulls on logout).
+   * Without this the background sync engine has no token/outlet and 401s.
+   * @param {{ token: string|null, outletId: string|null }} auth
+   */
+  setAuth: ({ token, outletId }) =>
+    ipcRenderer.invoke('db-set-auth', { token, outletId }),
+
   // ─── Connectivity ──────────────────────────────────────────────
   /** Get current online status (boolean) */
   getOnlineStatus: () =>
@@ -208,9 +217,34 @@ contextBridge.exposeInMainWorld('electron', {
   dbGetUnsyncedOrders: () =>
     ipcRenderer.invoke('db-get-unsynced-orders'),
 
-  /** Mark an order as synced to cloud */
-  dbMarkOrderSynced: (orderId) =>
-    ipcRenderer.invoke('db-mark-order-synced', orderId),
+  /** Mark an order as synced to cloud (optionally recording the cloud order number) */
+  dbMarkOrderSynced: (orderId, cloudOrderNumber) =>
+    ipcRenderer.invoke('db-mark-order-synced', orderId, cloudOrderNumber),
+
+  /** Get the next sequential offline invoice number for an outlet */
+  dbNextInvoiceNumber: (outletId) =>
+    ipcRenderer.invoke('db-next-invoice-number', outletId),
+
+  /** Get the end-of-day summary computed from local orders */
+  dbEodSummary: (outletId, date) =>
+    ipcRenderer.invoke('db-eod-summary', outletId, date),
+
+  /** Get the count of orders not yet uploaded to cloud */
+  dbUnsyncedCount: () =>
+    ipcRenderer.invoke('db-unsynced-count'),
+
+  // ─── Local Database: Customers ────────────────────────────────
+  /** Search cached customers by name or phone */
+  dbSearchCustomers: (outletId, query) =>
+    ipcRenderer.invoke('db-search-customers', outletId, query),
+
+  /** Create a walk-in customer locally (queued for cloud sync) */
+  dbCreateCustomer: (data) =>
+    ipcRenderer.invoke('db-create-customer', data),
+
+  /** Save customers from cloud sync (lookup cache) */
+  dbSaveCustomersSync: (customers) =>
+    ipcRenderer.invoke('db-save-customers-sync', customers),
 
   // ─── Local Database: KOT ─────────────────────────────────────
   /** Create a KOT with items and mark order items as sent */
@@ -246,6 +280,10 @@ contextBridge.exposeInMainWorld('electron', {
   /** Get the absolute path to the local SQLite DB file */
   dbGetPath: () =>
     ipcRenderer.invoke('db-get-path'),
+
+  /** Get the stable device id used to namespace offline numbers */
+  dbGetDeviceId: () =>
+    ipcRenderer.invoke('db-get-device-id'),
 
   /** Get outlet data for offline bill header */
   dbGetOutlet: (outletId) =>

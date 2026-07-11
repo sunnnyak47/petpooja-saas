@@ -1696,19 +1696,467 @@ async function mergeOrder(sourceOrderId, targetOrderId, userId) {
   });
 }
 
+/**
+ * syncOfflineOrders — replays orders captured by the offline desktop POS (v2 contract).
+ *
+ * Semantics (price-at-sale wins — prices are NEVER re-derived from the menu):
+ * - Idempotent on the client UUID: the cloud order is created WITH the client id,
+ *   so a retried batch finds the existing row and returns 'exists' + its cloud
+ *   order_number instead of duplicating.
+ * - The client's financial snapshot is trusted verbatim (subtotal/tax/discount/total);
+ *   when cgst+sgst are 0 but tax_amount > 0 the tax lands in igst (AU single-GST).
+ * - Table keep-both policy: an occupied table never fails the sync — the order is
+ *   created without seizing the table and the result carries conflict:'table_occupied'.
+ * - Paid orders also get a Payment row mirroring processPayment's shape.
+ * - KOTs are NOT created (they were printed offline); items land is_kot_sent:true.
+ * - Per-order try/catch: one bad order can never fail the batch.
+ *
+ * @param {Array<object>} orders - Offline order payloads (see syncOfflineOrdersSchema)
+ * @param {string} userId - Authenticated user performing the sync (becomes staff_id)
+ * @returns {Promise<Array<{id: string, status: 'synced'|'exists'|'failed', order_number?: string, conflict?: string, error?: string}>>}
+ */
 async function syncOfflineOrders(orders, userId) {
   const prisma = getDbClient();
   const results = [];
-  for (const orderData of orders) {
+
+  // Normalise an offline status to the cloud lifecycle: a live/created order
+  // lands as 'confirmed'; everything else (held/ready/billed/paid/cancelled/
+  // completed) passes through unchanged (Order.status is a free VarChar).
+  const mapStatus = (s) => (s === 'active' || s === 'created') ? 'confirmed' : (s || 'confirmed');
+  // Stable item-id contract: only override the OrderItem PK when the client sent
+  // a real UUID. Custom/open items may carry an empty or non-uuid id, in which
+  // case we fall back to Prisma's gen_random_uuid() default.
+  const isUuid = (v) => typeof v === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  // Forward-only lifecycle rank — a re-synced order may only advance, never
+  // regress. created/confirmed/held=1 < ready=2 < billed=3 < paid/completed=4
+  // < cancelled=5 (terminal).
+  const statusRank = (s) => ({
+    created: 1, confirmed: 1, active: 1, held: 1,
+    ready: 2, billed: 3, paid: 4, completed: 4, cancelled: 5,
+  }[s] || 1);
+
+  for (const o of orders || []) {
     try {
-      const existing = orderData.id ? await prisma.order.findUnique({ where: { id: orderData.id } }) : null;
-      if (existing) { results.push({ id: orderData.id, status: 'exists' }); continue; }
-      const order = await createOrder(orderData, userId);
-      results.push({ id: order.id, status: 'synced' });
+      // Outlet is needed for the order_number, the region-aware tax split and
+      // (when a new Customer is minted) the owning tenant. Fetch it WITH
+      // head_office so resolveOutletTaxConfig sees every AU/IN signal.
+      const outlet = await prisma.outlet.findFirst({
+        where: { id: o.outlet_id, is_deleted: false },
+        select: {
+          id: true, code: true, head_office_id: true,
+          currency: true, country: true, state: true,
+          head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } },
+        },
+      });
+      if (!outlet) {
+        results.push({ id: o.id, status: 'failed', error: 'Outlet not found' });
+        continue;
+      }
+
+      // ── Idempotency + forward-only merge ────────────────────────────────
+      // The client UUID is the primary key. A retried batch finds the existing
+      // row; if the incoming state is strictly MORE advanced we replay the
+      // forward transition (never regress, never double-create a Payment).
+      const existing = await prisma.order.findUnique({
+        where: { id: o.id },
+        select: { id: true, order_number: true, status: true, is_paid: true, grand_total: true, outlet_id: true },
+      });
+      if (existing) {
+        const incomingStatus = mapStatus(o.status);
+        const statusAdvances = statusRank(incomingStatus) > statusRank(existing.status);
+        const becomesPaid = incomingStatus === 'paid' || incomingStatus === 'completed';
+
+        // ── Item-merge on idempotent replay ─────────────────────────────────
+        // A lost 2xx can make the desktop resend an order it already created,
+        // sometimes with items added after the first successful sync. Insert any
+        // incoming item whose client order_items.id is NOT already an OrderItem
+        // on this order; never touch or delete existing items. Guarded on
+        // item.id presence, so a legacy id-less replay stays a pure no-op.
+        const incomingWithIds = (o.items || []).filter((it) => it && isUuid(it.id));
+        let itemsToInsert = [];
+        if (incomingWithIds.length) {
+          const existingItems = await prisma.orderItem.findMany({
+            where: { order_id: existing.id },
+            select: { id: true },
+          });
+          const haveIds = new Set(existingItems.map((r) => r.id));
+          itemsToInsert = incomingWithIds.filter((it) => !haveIds.has(it.id));
+        }
+
+        let merged = false;
+        if (statusAdvances || itemsToInsert.length) {
+          // Financial snapshot + region-aware tax split — computed only when at
+          // least one item is inserted (the order financial columns are then
+          // re-asserted to the incoming payload so cloud totals stay correct).
+          let cgst = 0, sgst = 0, igst = 0, itemGstRate = 0;
+          let subtotal = 0, discountAmount = 0, totalTax = 0, grandTotal = 0, roundOff = 0;
+          let itemTotals = [], itemsSum = 0, insertIds = new Set();
+          const stationByItem = new Map();
+          if (itemsToInsert.length) {
+            subtotal = round2(Number(o.subtotal) || 0);
+            discountAmount = round2(Number(o.discount_amount) || 0);
+            totalTax = round2(Number(o.tax_amount) || 0);
+            grandTotal = round2(Number(o.total_amount) || 0);
+            roundOff = round2(Number(o.round_off) || 0);
+
+            const { country_code: cc, gst_inclusive: gi, default_gst_rate: dgr } =
+              resolveOutletTaxConfig(outlet);
+            const clientCgst = round2(Number(o.cgst_amount) || 0);
+            const clientSgst = round2(Number(o.sgst_amount) || 0);
+            itemGstRate = dgr;
+            if (cc === 'AU') {
+              igst = totalTax;
+              itemGstRate = 10;
+            } else if (clientCgst + clientSgst > 0) {
+              cgst = clientCgst;
+              sgst = clientSgst;
+            } else if (gi && totalTax > 0) {
+              cgst = round2(totalTax / 2);
+              sgst = round2(totalTax - cgst);
+            }
+
+            const allItems = o.items || [];
+            itemTotals = allItems.map((i) => round2(Number(i.total_price) || 0));
+            itemsSum = round2(itemTotals.reduce((a, b) => a + b, 0));
+            insertIds = new Set(itemsToInsert.map((it) => it.id));
+
+            // Best-effort station lookup for the inserted items (cosmetic).
+            try {
+              const menuIds = [...new Set(itemsToInsert.map((i) => i.menu_item_id).filter(Boolean))];
+              if (menuIds.length) {
+                const menuRows = await prisma.menuItem.findMany({
+                  where: { id: { in: menuIds } },
+                  select: { id: true, kitchen_station: true },
+                });
+                menuRows.forEach((mi) => stationByItem.set(mi.id, mi.kitchen_station || 'KITCHEN'));
+              }
+            } catch (_) { /* station lookup must not block the merge */ }
+          }
+
+          await prisma.$transaction(async (tx) => {
+            // Status / payment forward-merge — only when the state advances.
+            if (statusAdvances) {
+              const updateData = { status: incomingStatus };
+              if (o.invoice_number) updateData.invoice_number = o.invoice_number;
+              if (becomesPaid) {
+                updateData.is_paid = true;
+                updateData.paid_at = o.paid_at ? new Date(o.paid_at) : new Date();
+              }
+              await tx.order.update({ where: { id: existing.id }, data: updateData });
+
+              // Create exactly ONE Payment when the order first becomes paid and
+              // none exists yet — mirrors processPayment's row shape.
+              if (becomesPaid) {
+                const payExists = await tx.payment.findFirst({
+                  where: { order_id: existing.id, is_deleted: false },
+                  select: { id: true },
+                });
+                if (!payExists) {
+                  await tx.payment.create({
+                    data: {
+                      outlet_id: existing.outlet_id,
+                      order_id: existing.id,
+                      method: o.payment_method || 'cash',
+                      // Device price-at-sale is authoritative (matches the create
+                      // path + the item-merge re-assert below). Using the stale
+                      // existing.grand_total here undercharged by exactly the value
+                      // of any items added offline after the first sync.
+                      amount: round2(Number(o.total_amount) || Number(existing.grand_total) || 0),
+                      status: 'success',
+                      processed_by: userId,
+                      processed_at: o.paid_at ? new Date(o.paid_at) : new Date(),
+                      gateway_response: {
+                        offline_captured: true,
+                        ...(o.payment_note ? { note: o.payment_note } : {}),
+                      },
+                    },
+                  });
+                }
+              }
+
+              await tx.orderStatusHistory.create({
+                data: { order_id: existing.id, from_status: existing.status || null, to_status: incomingStatus, changed_by: userId },
+              });
+            }
+
+            // Item-merge — insert only the NEW items (never modify/delete an
+            // existing one). item_tax is a proportional share of the payload
+            // total_tax over the FULL incoming item set (the last payload item
+            // absorbs the rounding remainder), exactly as the create path does;
+            // only ids not yet present are actually inserted.
+            if (itemsToInsert.length) {
+              const allItems = o.items || [];
+              let remainingTax = totalTax;
+              for (let idx = 0; idx < allItems.length; idx++) {
+                const it = allItems[idx];
+                const itemTotal = itemTotals[idx];
+                const isLast = idx === allItems.length - 1;
+                const share = itemsSum > 0
+                  ? (isLast ? round2(remainingTax) : round2(totalTax * (itemTotal / itemsSum)))
+                  : 0;
+                remainingTax = round2(remainingTax - share);
+                // Skip items already present (or id-less) — idempotent replay.
+                if (!isUuid(it.id) || !insertIds.has(it.id)) continue;
+                await tx.orderItem.create({
+                  data: {
+                    id: it.id, // client order_items.id — dedupes on the PK across retries
+                    order_id: existing.id,
+                    menu_item_id: it.menu_item_id,
+                    variant_id: it.variant_id || null,
+                    name: it.item_name,
+                    variant_name: it.variant_name || null,
+                    quantity: it.quantity,
+                    unit_price: round2(Number(it.unit_price) || 0),
+                    addons_total: round2(Number(it.addon_total) || 0),
+                    item_total: itemTotal,
+                    gst_rate: itemGstRate,
+                    item_tax: share,
+                    kitchen_station: stationByItem.get(it.menu_item_id) || 'KITCHEN',
+                    notes: it.notes || null,
+                    is_kot_sent: true,
+                    status: 'sent',
+                  },
+                });
+              }
+
+              // ≥1 item inserted → re-assert the order financial columns to the
+              // incoming payload snapshot so cloud totals track the device.
+              await tx.order.update({
+                where: { id: existing.id },
+                data: {
+                  subtotal,
+                  taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
+                  cgst,
+                  sgst,
+                  igst,
+                  total_tax: totalTax,
+                  discount_amount: discountAmount,
+                  round_off: roundOff,
+                  grand_total: grandTotal,
+                  total_amount: grandTotal,
+                },
+              });
+            }
+          }, { maxWait: 8000, timeout: 20000 });
+          merged = true;
+        }
+        results.push({ id: o.id, status: 'exists', order_number: existing.order_number, merged });
+        continue;
+      }
+
+      // Best-effort kitchen_station lookup — cosmetic only. Deliberately NO
+      // availability or price validation: the device already sold at these numbers.
+      const stationByItem = new Map();
+      try {
+        const menuIds = [...new Set((o.items || []).map((i) => i.menu_item_id).filter(Boolean))];
+        if (menuIds.length) {
+          const menuRows = await prisma.menuItem.findMany({
+            where: { id: { in: menuIds } },
+            select: { id: true, kitchen_station: true },
+          });
+          menuRows.forEach((mi) => stationByItem.set(mi.id, mi.kitchen_station || 'KITCHEN'));
+        }
+      } catch (_) { /* station lookup failing must not block the sync */ }
+
+      // ── Customer resolution — never let an untrusted client id fail the order.
+      // The desktop mints LOCAL Customer UUIDs that don't exist in the cloud, so
+      // a blind pass-through P2003s forever. Verify the id; else find-or-create
+      // by phone (Customer.phone is globally unique); else drop it to null.
+      const custPhone = o.customer_phone ? String(o.customer_phone).slice(0, 15) : null;
+      let resolvedCustomerId = null;
+      if (o.customer_id) {
+        const existingCust = await prisma.customer.findUnique({
+          where: { id: o.customer_id }, select: { id: true },
+        });
+        if (existingCust) resolvedCustomerId = existingCust.id;
+      }
+      if (!resolvedCustomerId && custPhone) {
+        // Upsert is race-safe on the unique phone; an order-less customer stays
+        // scoped to its tenant via head_office_id (see Customer model comment).
+        const cust = await prisma.customer.upsert({
+          where: { phone: custPhone },
+          update: {},
+          create: {
+            phone: custPhone,
+            full_name: o.customer_name ? String(o.customer_name).slice(0, 150) : null,
+            head_office_id: outlet.head_office_id || null,
+          },
+          select: { id: true },
+        });
+        resolvedCustomerId = cust.id;
+      }
+
+      // ── Financial mapping — trust the client's captured-at-sale numbers ──
+      const subtotal = round2(Number(o.subtotal) || 0);
+      const discountAmount = round2(Number(o.discount_amount) || 0);
+      const totalTax = round2(Number(o.tax_amount) || 0);
+      const grandTotal = round2(Number(o.total_amount) || 0);
+      const roundOff = round2(Number(o.round_off) || 0);
+
+      // Region-aware tax split (NOT the old cgst==0→IGST heuristic — an IN
+      // gst_inclusive order also has cgst==0). Resolve the outlet region once:
+      //  • AU → single 10% GST, the whole tax lands in igst.
+      //  • IN → trust the client CGST/SGST split when present; otherwise, for a
+      //    gst_inclusive order, derive the split from tax_amount.
+      const { country_code: countryCode, gst_inclusive: gstInclusive, default_gst_rate: defaultGstRate } =
+        resolveOutletTaxConfig(outlet);
+      const clientCgst = round2(Number(o.cgst_amount) || 0);
+      const clientSgst = round2(Number(o.sgst_amount) || 0);
+      let cgst = 0, sgst = 0, igst = 0, itemGstRate = defaultGstRate;
+      if (countryCode === 'AU') {
+        igst = totalTax;
+        itemGstRate = 10;
+      } else if (clientCgst + clientSgst > 0) {
+        cgst = clientCgst;
+        sgst = clientSgst;
+      } else if (gstInclusive && totalTax > 0) {
+        cgst = round2(totalTax / 2);
+        sgst = round2(totalTax - cgst);
+      }
+
+      // Status map: created/active (offline live orders) land as 'confirmed';
+      // held/ready/billed/paid/cancelled/completed are kept as-is.
+      const status = mapStatus(o.status);
+      const isPaid = status === 'paid';
+      const isTerminal = status === 'paid' || status === 'cancelled' || status === 'completed';
+
+      const items = o.items || [];
+      const itemTotals = items.map((i) => round2(Number(i.total_price) || 0));
+      const itemsSum = round2(itemTotals.reduce((a, b) => a + b, 0));
+
+      const offlineTag = o.order_number ? ` [offline:${o.order_number}]` : '';
+      const notes = `${o.notes || ''}${offlineTag}`.trim() || null;
+
+      const txResult = await prisma.$transaction(async (tx) => {
+        const dailySequence = await nextDailySequence(tx, o.outlet_id);
+        const orderNumber = generateOrderNumber(outlet.code, dailySequence);
+
+        const created = await tx.order.create({
+          data: {
+            id: o.id, // client UUID — the idempotency key
+            outlet_id: o.outlet_id,
+            order_number: orderNumber,
+            order_type: o.order_type || 'dine_in',
+            status,
+            table_id: o.table_id || null,
+            customer_id: resolvedCustomerId,
+            staff_id: userId,
+            customer_name: o.customer_name ? String(o.customer_name).slice(0, 150) : null,
+            customer_phone: custPhone,
+            subtotal,
+            // Clamp so a discount larger than the subtotal can't persist a
+            // negative taxable_amount (matches createOrder).
+            taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
+            discount_amount: discountAmount,
+            discount_type: discountAmount > 0 ? 'flat' : null,
+            cgst,
+            sgst,
+            igst,
+            total_tax: totalTax,
+            total_amount: grandTotal,
+            round_off: roundOff,
+            grand_total: grandTotal,
+            source: o.source || 'pos',
+            notes,
+            daily_sequence: dailySequence,
+            invoice_number: o.invoice_number || null,
+            is_paid: isPaid,
+            paid_at: isPaid ? (o.paid_at ? new Date(o.paid_at) : new Date()) : null,
+            ...(o.created_at ? { created_at: new Date(o.created_at) } : {}),
+          },
+        });
+
+        // Items — client prices verbatim; item_tax is a proportional share of
+        // total_tax by item_total (last item absorbs the rounding remainder so
+        // the shares always sum exactly to total_tax).
+        let remainingTax = totalTax;
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          const itemTotal = itemTotals[idx];
+          const isLast = idx === items.length - 1;
+          const share = itemsSum > 0
+            ? (isLast ? round2(remainingTax) : round2(totalTax * (itemTotal / itemsSum)))
+            : 0;
+          remainingTax = round2(remainingTax - share);
+          await tx.orderItem.create({
+            data: {
+              // Idempotent across retries: create WITH the client's local
+              // order_items.id when it's a valid uuid; else let Prisma generate.
+              ...(isUuid(it.id) ? { id: it.id } : {}),
+              order_id: created.id,
+              menu_item_id: it.menu_item_id,
+              variant_id: it.variant_id || null,
+              name: it.item_name,
+              variant_name: it.variant_name || null,
+              quantity: it.quantity,
+              unit_price: round2(Number(it.unit_price) || 0),
+              addons_total: round2(Number(it.addon_total) || 0),
+              item_total: itemTotal,
+              gst_rate: itemGstRate, // region-resolved (AU 10% / IN default)
+              item_tax: share,
+              kitchen_station: stationByItem.get(it.menu_item_id) || 'KITCHEN',
+              notes: it.notes || null,
+              is_kot_sent: true, // KOTs were printed on the offline device
+              status: 'sent',
+            },
+          });
+        }
+
+        // Paid offline → record the tender. Mirrors processPayment's row shape
+        // (status 'success' — revenue/refund reconciliation keys on it, not 'completed').
+        if (isPaid) {
+          await tx.payment.create({
+            data: {
+              outlet_id: o.outlet_id,
+              order_id: created.id,
+              method: o.payment_method || 'cash',
+              amount: grandTotal,
+              status: 'success',
+              processed_by: userId,
+              processed_at: o.paid_at ? new Date(o.paid_at) : new Date(),
+              gateway_response: {
+                offline_captured: true,
+                ...(o.payment_note ? { note: o.payment_note } : {}),
+              },
+            },
+          });
+        }
+
+        await tx.orderStatusHistory.create({
+          data: { order_id: created.id, from_status: null, to_status: status, changed_by: userId },
+        });
+
+        // Table keep-both policy: conditional seize, and an occupied table is a
+        // soft conflict — the order is already created above, we just don't touch
+        // the table and surface conflict:'table_occupied' to the client.
+        let conflict;
+        if (!isTerminal && o.table_id) {
+          const seized = await tx.table.updateMany({
+            where: { id: o.table_id, current_order_id: null, status: { not: 'occupied' } },
+            data: { status: 'occupied', current_order_id: created.id },
+          });
+          if (seized.count === 0) conflict = 'table_occupied';
+        }
+
+        return { orderNumber, conflict };
+      }, {
+        // Same headroom as punchKOT: a big offline ticket writes many rows
+        // sequentially in one interactive tx over Render↔DB latency.
+        maxWait: 8000,
+        timeout: 20000,
+      });
+
+      const result = { id: o.id, status: 'synced', order_number: txResult.orderNumber };
+      if (txResult.conflict) result.conflict = txResult.conflict;
+      results.push(result);
     } catch (err) {
-      results.push({ id: orderData.id, status: 'failed', error: err.message });
+      // One bad order must never fail the batch.
+      logger.warn('syncOfflineOrders: order failed to sync', { id: o?.id, error: err.message });
+      results.push({ id: o?.id, status: 'failed', error: err.message });
     }
   }
+
   return results;
 }
 

@@ -83,6 +83,17 @@ function initSchema() {
       updated_at            TEXT
     );
 
+    -- ── Customers (offline lookup cache + queued creates) ──────
+    CREATE TABLE IF NOT EXISTS customers (
+      id         TEXT PRIMARY KEY,
+      outlet_id  TEXT NOT NULL,
+      name       TEXT,
+      phone      TEXT,
+      email      TEXT,
+      synced     INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     -- ── Menu Categories ────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS menu_categories (
       id            TEXT PRIMARY KEY,
@@ -279,7 +290,165 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_sync_conflicts_record ON sync_conflicts(table_name, record_id);
     CREATE INDEX IF NOT EXISTS idx_menu_items_outlet  ON menu_items(outlet_id, is_available);
     CREATE INDEX IF NOT EXISTS idx_menu_items_cat     ON menu_items(category_id);
+    CREATE INDEX IF NOT EXISTS idx_customers_outlet   ON customers(outlet_id, phone);
+    CREATE INDEX IF NOT EXISTS idx_customers_unsynced ON customers(synced);
   `)
+
+  migrateSchema(database)
+}
+
+/**
+ * Additive column migrations for databases created by older app versions.
+ * SQLite has no ADD COLUMN IF NOT EXISTS, so each ALTER is individually
+ * try/caught — "duplicate column name" simply means it already ran.
+ */
+function migrateSchema(database) {
+  const alters = [
+    // Region awareness — without these the offline biller cannot know the
+    // outlet is Australian and silently falls back to Indian 5% CGST/SGST.
+    `ALTER TABLE outlets ADD COLUMN code         TEXT`,
+    `ALTER TABLE outlets ADD COLUMN country_code TEXT`,
+    `ALTER TABLE outlets ADD COLUMN region       TEXT`,
+    `ALTER TABLE outlets ADD COLUMN currency     TEXT`,
+    `ALTER TABLE outlets ADD COLUMN abn          TEXT`,
+    `ALTER TABLE outlets ADD COLUMN gst_inclusive INTEGER DEFAULT 0`,
+    // Sync fidelity — the cloud allocates its own order number on sync; keep
+    // it alongside the offline one so receipts remain traceable both ways.
+    `ALTER TABLE orders ADD COLUMN cloud_order_number TEXT`,
+    // Record-&-reconcile payments taken on a standalone terminal while offline.
+    `ALTER TABLE orders ADD COLUMN payment_note TEXT`,
+    `ALTER TABLE orders ADD COLUMN customer_id  TEXT`,
+    // Discount fidelity — POS sends discount_type/discount_value (percentage or
+    // flat); keep them so the offline biller derives the same amount as cloud
+    // and receipts can show the discount basis.
+    `ALTER TABLE orders ADD COLUMN discount_type  TEXT`,
+    `ALTER TABLE orders ADD COLUMN discount_value REAL`,
+    // Rupee round-off carried on the order so the offline total matches the
+    // cloud computeGrandTotal (nearest-whole-rupee for exclusive IN orders).
+    `ALTER TABLE orders ADD COLUMN round_off      REAL DEFAULT 0`,
+    // Poison/dead-letter counter — orders that keep failing to sync are parked
+    // after N attempts instead of blocking the queue forever.
+    `ALTER TABLE orders ADD COLUMN sync_attempts  INTEGER DEFAULT 0`,
+  ]
+  for (const sql of alters) {
+    try { database.exec(sql) } catch (e) {
+      if (!/duplicate column name/i.test(e.message)) throw e
+    }
+  }
+}
+
+// ─────────────────────────────────────
+// TAX ENGINE (mirrors backend resolveOutletTaxConfig + computeOrderTotals)
+// ─────────────────────────────────────
+/**
+ * Derives the tax configuration from the cached outlet row.
+ * MUST match backend/src/utils/outlet.js: ANY AU signal wins, AU GST is
+ * ALWAYS 10% inclusive (single line, no CGST/SGST split); India defaults to
+ * the outlet gst_rate (5%) added on top as CGST+SGST halves.
+ *
+ * @param {object|null} outlet - Row from OutletDB.get (may be null pre-sync)
+ * @returns {{ isAU: boolean, rate: number, inclusive: boolean }}
+ */
+function resolveTaxConfig(outlet) {
+  const o = outlet || {}
+  const isAU = o.country_code === 'AU' || o.region === 'AU'
+    || o.currency === 'AUD' || o.country === 'Australia'
+  if (isAU) return { isAU: true, rate: 10, inclusive: true }
+  return { isAU: false, rate: Number(o.gst_rate) || 5, inclusive: !!o.gst_inclusive }
+}
+
+/**
+ * Computes order totals for the offline biller.
+ * AU (inclusive): tax is carved OUT of the item prices — total equals the
+ *   discounted subtotal; single GST amount, cgst/sgst stay 0.
+ * IN (exclusive default): CGST+SGST halves added ON TOP of the discounted base.
+ *
+ * @param {number} subtotal - Sum of line totals (menu prices)
+ * @param {number} discount - Absolute discount amount
+ * @param {{ isAU: boolean, rate: number, inclusive: boolean }} cfg
+ * @returns {{ subtotal, discount, cgst, sgst, tax, total }}
+ */
+function computeTotals(subtotal, discount, cfg) {
+  const r2 = (n) => Math.round(n * 100) / 100
+  const base = Math.max(0, subtotal - (discount || 0))
+  if (cfg.inclusive) {
+    // Tax already inside the price: tax = base × r/(100+r); total unchanged.
+    // Inclusive (AU 10%) carries no rupee round-off.
+    const tax = r2(base * cfg.rate / (100 + cfg.rate))
+    return { subtotal: r2(subtotal), discount: r2(discount || 0), cgst: 0, sgst: 0, tax, total: r2(base), round_off: 0 }
+  }
+  const tax = r2(base * cfg.rate / 100)
+  const half = r2(tax / 2)
+  // Exclusive (IN): round the grand total to the nearest whole rupee and carry
+  // the delta as round_off — mirrors the cloud computeGrandTotal.
+  const rawTotal = base + tax
+  const total = Math.round(rawTotal)
+  const round_off = r2(total - rawTotal)
+  return { subtotal: r2(subtotal), discount: r2(discount || 0), cgst: half, sgst: r2(tax - half), tax, total, round_off }
+}
+
+// ─────────────────────────────────────
+// DEVICE ID + LOCAL SEQUENCES (collision-proof offline numbering)
+// ─────────────────────────────────────
+/**
+ * Stable 4-char device id, generated once per install. Namespaces every
+ * offline order/invoice number so two tills can never mint the same number
+ * — and the "D" segment guarantees no clash with cloud numbers
+ * (`CODE-YYYYMMDD-0001`), whose third segment is always purely numeric.
+ * @returns {string}
+ */
+function getDeviceId() {
+  let id = SettingsDB.get('device_id')
+  if (!id) {
+    id = crypto.randomBytes(2).toString('hex').toUpperCase()
+    SettingsDB.set('device_id', id)
+  }
+  return id
+}
+
+/**
+ * Atomic per-key daily counter backed by the settings table.
+ * @param {string} key - e.g. 'order_seq' or 'invoice_seq'
+ * @returns {number} next sequence (>= 1)
+ */
+function nextLocalSequence(key) {
+  const day = new Date().toISOString().slice(0, 10)
+  const fullKey = `${key}_${day}`
+  const tx = getDB().transaction(() => {
+    const cur = SettingsDB.get(fullKey) || 0
+    const next = cur + 1
+    SettingsDB.set(fullKey, next)
+    return next
+  })
+  return tx()
+}
+
+/**
+ * Builds an offline order number: `CODE-YYYYMMDD-D{device}-{seq}`.
+ * @param {object|null} outlet
+ * @returns {string}
+ */
+function nextOfflineOrderNumber(outlet) {
+  const code = (outlet?.code || (outlet?.name || 'POS').slice(0, 3)).toUpperCase()
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const seq = String(nextLocalSequence('order_seq')).padStart(3, '0')
+  return `${code}-${dateStr}-D${getDeviceId()}-${seq}`
+}
+
+/**
+ * Builds an offline invoice number: `FY-CODE-D{device}-{seq}` (sequential,
+ * replaces the old Date.now() slice which was neither sequential nor unique).
+ * @param {object|null} outlet
+ * @returns {string}
+ */
+function nextOfflineInvoiceNumber(outlet) {
+  const now = new Date()
+  const fy = now.getMonth() >= 3
+    ? `FY${String(now.getFullYear()).slice(2)}${String(now.getFullYear() + 1).slice(2)}`
+    : `FY${String(now.getFullYear() - 1).slice(2)}${String(now.getFullYear()).slice(2)}`
+  const code = (outlet?.code || (outlet?.name || 'POS').slice(0, 3)).toUpperCase()
+  const seq = String(nextLocalSequence('invoice_seq')).padStart(4, '0')
+  return `${fy}-${code}-D${getDeviceId()}-${seq}`
 }
 
 // ─────────────────────────────────────
@@ -413,26 +582,40 @@ const OrderDB = {
       const addonTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price || 0) * (a.quantity || 1)), 0)
       subtotal += (Number(item.unit_price || 0) + addonTotal) * (item.quantity || 1)
     }
-    const cgst = subtotal * 0.025
-    const sgst = subtotal * 0.025
-    const total = subtotal + cgst + sgst
 
-    // Generate a local order number
-    const orderNumber = orderData.order_number || `OFF-${Date.now().toString().slice(-6)}`
+    // Region-aware totals (AU: single 10% GST inclusive; IN: CGST/SGST on top)
+    // — replaces the hardcoded Indian 2.5%+2.5% that mis-billed AU outlets.
+    // Discount is applied BEFORE tax (previously stored but never subtracted).
+    const outlet = OutletDB.get(orderData.outlet_id)
+    const cfg = resolveTaxConfig(outlet)
+    // POS sends discount_type ('percentage'|'flat') + discount_value, NOT a
+    // pre-computed discount_amount. Derive the absolute amount here (clamped to
+    // [0, subtotal]) so the offline biller subtracts it before tax.
+    const disc = orderData.discount_amount ?? (orderData.discount_type === 'percentage'
+      ? subtotal * (Number(orderData.discount_value) || 0) / 100
+      : (Number(orderData.discount_value) || 0))
+    const discountAmount = Math.min(Math.max(disc, 0), subtotal)
+    const { cgst, sgst, tax, total, round_off } = computeTotals(subtotal, discountAmount, cfg)
+
+    // Device-namespaced local order number — can never collide with another
+    // till or with cloud-generated numbers.
+    const orderNumber = orderData.order_number || nextOfflineOrderNumber(outlet)
 
     database.transaction(() => {
       // 1. Insert order header
       database.prepare(`
         INSERT INTO orders (
           id, outlet_id, order_number, table_id, table_number,
-          order_type, source, status, customer_name, customer_phone,
+          order_type, source, status, customer_id, customer_name, customer_phone,
           covers, notes, subtotal, tax_amount, cgst_amount, sgst_amount,
-          service_charge, discount_amount, total_amount, synced, created_at, updated_at
+          service_charge, discount_amount, discount_type, discount_value,
+          round_off, total_amount, synced, created_at, updated_at
         ) VALUES (
           @id, @outlet_id, @order_number, @table_id, @table_number,
-          @order_type, @source, @status, @customer_name, @customer_phone,
+          @order_type, @source, @status, @customer_id, @customer_name, @customer_phone,
           @covers, @notes, @subtotal, @tax_amount, @cgst_amount, @sgst_amount,
-          @service_charge, @discount_amount, @total_amount, 0, @created_at, @updated_at
+          @service_charge, @discount_amount, @discount_type, @discount_value,
+          @round_off, @total_amount, 0, @created_at, @updated_at
         )
       `).run({
         id,
@@ -443,16 +626,20 @@ const OrderDB = {
         order_type: orderData.order_type || 'dine_in',
         source: orderData.source || 'pos',
         status: orderData.status || 'active',
+        customer_id: orderData.customer_id || null,
         customer_name: orderData.customer_name || null,
         customer_phone: orderData.customer_phone || null,
         covers: orderData.covers || 1,
         notes: orderData.notes || null,
         subtotal,
-        tax_amount: cgst + sgst,
+        tax_amount: tax,
         cgst_amount: cgst,
         sgst_amount: sgst,
         service_charge: orderData.service_charge || 0,
-        discount_amount: orderData.discount_amount || 0,
+        discount_amount: discountAmount,
+        discount_type: orderData.discount_type || null,
+        discount_value: orderData.discount_value != null ? Number(orderData.discount_value) : null,
+        round_off,
         total_amount: total,
         created_at: now,
         updated_at: now,
@@ -546,13 +733,18 @@ const OrderDB = {
    */
   updateStatus(orderId, status, extra = {}) {
     const now = new Date().toISOString()
-    const fields = ['status = @status', 'updated_at = @updated_at']
+    // Re-flag the order for upload: a payment/status change made after the first
+    // sync must re-upload (backend forward-merge handles the 'exists' replay).
+    const fields = ['status = @status', 'updated_at = @updated_at', 'synced = 0', 'sync_error = NULL']
     const params = { orderId, status, updated_at: now }
 
     if (extra.invoice_number) { fields.push('invoice_number = @invoice_number'); params.invoice_number = extra.invoice_number }
     if (extra.billed_at)      { fields.push('billed_at = @billed_at');           params.billed_at = extra.billed_at }
     if (extra.paid_at)        { fields.push('paid_at = @paid_at');               params.paid_at = extra.paid_at }
     if (extra.payment_method) { fields.push('payment_method = @payment_method'); params.payment_method = extra.payment_method }
+    // Record-&-reconcile: card/UPI taken on a standalone terminal while offline
+    // is flagged so the manager can match it against the terminal settlement.
+    if (extra.payment_note)   { fields.push('payment_note = @payment_note');     params.payment_note = extra.payment_note }
 
     getDB().prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
     SyncDB.enqueue('orders', orderId, 'UPDATE', { id: orderId, status, updated_at: now, ...extra })
@@ -599,22 +791,28 @@ const OrderDB = {
       created_at: now,
     })
 
-    // Recalculate order totals atomically
+    // Recalculate order totals atomically — region-aware (AU 10% inclusive vs
+    // IN CGST/SGST on top) and honouring any discount already on the order.
     const rows = getDB().prepare(`
       SELECT SUM(line_total) as subtotal FROM order_items WHERE order_id = ?
     `).get(itemData.order_id)
+    const orderRow = getDB().prepare(`
+      SELECT outlet_id, discount_amount FROM orders WHERE id = ?
+    `).get(itemData.order_id)
 
     const subtotal = rows.subtotal || 0
-    const cgst = subtotal * 0.025
-    const sgst = subtotal * 0.025
-    const total = subtotal + cgst + sgst
+    const cfg = resolveTaxConfig(OutletDB.get(orderRow?.outlet_id || outletId))
+    const { cgst, sgst, tax, total, round_off } = computeTotals(subtotal, Number(orderRow?.discount_amount || 0), cfg)
 
+    // Re-flag for upload (synced = 0, sync_error = NULL): an item added after
+    // the first sync must re-upload so the cloud copy stays in step.
     getDB().prepare(`
       UPDATE orders
       SET subtotal = ?, cgst_amount = ?, sgst_amount = ?,
-          tax_amount = ?, total_amount = ?, updated_at = ?
+          tax_amount = ?, round_off = ?, total_amount = ?, updated_at = ?,
+          synced = 0, sync_error = NULL
       WHERE id = ?
-    `).run(subtotal, cgst, sgst, cgst + sgst, total, now, itemData.order_id)
+    `).run(subtotal, cgst, sgst, tax, round_off, total, now, itemData.order_id)
 
     return id
   },
@@ -663,23 +861,47 @@ const OrderDB = {
    * @returns {object[]}
    */
   getUnsyncedOrders() {
+    // Park poison orders (>= 10 failed attempts) so they can't block the queue;
+    // fewest-attempts first, then oldest, so healthy orders always drain first.
     return getDB().prepare(`
-      SELECT * FROM orders WHERE synced = 0 ORDER BY created_at ASC LIMIT 50
+      SELECT * FROM orders
+      WHERE synced = 0 AND sync_attempts < 10
+      ORDER BY sync_attempts ASC, created_at ASC LIMIT 50
     `).all()
   },
 
   /**
-   * Marks an order as successfully synced to the cloud.
-   * @param {string} orderId
+   * Returns orders that exceeded the sync-attempt ceiling (dead-letter) for a
+   * future manual-review UI. These are excluded from getUnsyncedOrders().
+   * @returns {object[]}
    */
-  markSynced(orderId) {
-    getDB().prepare(`
-      UPDATE orders SET synced = 1, sync_error = NULL WHERE id = ?
-    `).run(orderId)
+  getStuckOrders() {
+    return getDB().prepare(`
+      SELECT * FROM orders
+      WHERE synced = 0 AND sync_attempts >= 10
+      ORDER BY created_at ASC
+    `).all()
   },
 
   /**
-   * Records the latest sync error on an order without changing business state.
+   * Marks an order as successfully synced to the cloud, recording the
+   * cloud-allocated order number so receipts stay traceable both ways.
+   * @param {string} orderId
+   * @param {string|null} cloudOrderNumber
+   */
+  markSynced(orderId, cloudOrderNumber = null) {
+    getDB().prepare(`
+      UPDATE orders SET synced = 1, sync_error = NULL,
+        cloud_order_number = COALESCE(?, cloud_order_number)
+      WHERE id = ?
+    `).run(cloudOrderNumber, orderId)
+  },
+
+  /**
+   * Records the latest sync error on an order WITHOUT changing business state
+   * and WITHOUT touching the dead-letter counter. This is the TRANSIENT path:
+   * transport blips (404/5xx/network/401) leave sync_attempts untouched so a
+   * flaky connection can never park a healthy order in the dead-letter bucket.
    * @param {string} orderId
    * @param {string} error
    */
@@ -687,6 +909,73 @@ const OrderDB = {
     getDB().prepare(`
       UPDATE orders SET sync_error = ? WHERE id = ?
     `).run(error, orderId)
+  },
+
+  /**
+   * Records a PERMANENT sync failure and advances the dead-letter counter.
+   * This is the only path that increments sync_attempts — reserved for orders
+   * the backend actively rejected (a per-order 'failed' in a 200 batch, or an
+   * order that still 400/422s when re-sent alone). getUnsyncedOrders() parks
+   * a row once sync_attempts >= 10, so it stops blocking the queue.
+   * @param {string} orderId
+   * @param {string} error
+   */
+  markSyncPermanentFailure(orderId, error) {
+    getDB().prepare(`
+      UPDATE orders SET sync_error = ?, sync_attempts = sync_attempts + 1 WHERE id = ?
+    `).run(error, orderId)
+  },
+
+  /**
+   * End-of-day summary computed from LOCAL orders — lets the manager close
+   * the day during an outage. Includes the unsynced count so EOD can warn
+   * "N orders not yet uploaded" before the day is treated as final.
+   * @param {string} outletId
+   * @param {string} [date] - YYYY-MM-DD (defaults to today)
+   * @returns {object}
+   */
+  eodSummary(outletId, date) {
+    const day = date || new Date().toISOString().slice(0, 10)
+    const totals = getDB().prepare(`
+      SELECT
+        COUNT(*)                                                   AS order_count,
+        COALESCE(SUM(total_amount), 0)                             AS gross_sales,
+        COALESCE(SUM(tax_amount), 0)                               AS total_tax,
+        COALESCE(SUM(discount_amount), 0)                          AS total_discount,
+        SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) AS collected,
+        SUM(CASE WHEN synced = 0 THEN 1 ELSE 0 END)                AS unsynced_count
+      FROM orders
+      WHERE outlet_id = ? AND date(created_at) = date(?)
+        AND status != 'cancelled'
+    `).get(outletId, day)
+
+    // cancelled_count must be computed OVER cancelled rows — the totals query
+    // excludes them, so a CASE there would always read 0.
+    const cancelled = getDB().prepare(`
+      SELECT COUNT(*) AS cancelled_count
+      FROM orders
+      WHERE outlet_id = ? AND date(created_at) = date(?)
+        AND status = 'cancelled'
+    `).get(outletId, day)
+    totals.cancelled_count = cancelled?.cancelled_count || 0
+
+    const byMethod = getDB().prepare(`
+      SELECT payment_method AS method,
+             COUNT(*) AS count,
+             COALESCE(SUM(total_amount), 0) AS amount,
+             SUM(CASE WHEN payment_note IS NOT NULL THEN 1 ELSE 0 END) AS offline_captured
+      FROM orders
+      WHERE outlet_id = ? AND date(created_at) = date(?) AND status = 'paid'
+      GROUP BY payment_method
+    `).all(outletId, day)
+
+    return { date: day, ...totals, by_payment_method: byMethod, is_offline_summary: true }
+  },
+
+  /** Count of orders not yet uploaded (for the status bar + EOD warning). */
+  getUnsyncedCount() {
+    const row = getDB().prepare(`SELECT COUNT(*) AS n FROM orders WHERE synced = 0`).get()
+    return row?.n || 0
   },
 
   /**
@@ -854,7 +1143,117 @@ const TableDB = {
       INSERT OR REPLACE INTO tables (id, outlet_id, table_number, area_name, capacity, status)
       VALUES (@id, @outlet_id, @table_number, @area_name, @capacity, @status)
     `)
-    for (const table of tables) insert.run(table)
+    // Cloud rows carry seating_capacity and a nested area:{ name }, and omit the
+    // exact column names the prepared statement binds — coerce every named
+    // param so better-sqlite3 never throws 'Missing named parameter'.
+    getDB().transaction((list) => {
+      for (const t of list) {
+        insert.run({
+          id: t.id,
+          outlet_id: t.outlet_id,
+          table_number: t.table_number,
+          area_name: t.area?.name ?? t.area_name ?? null,
+          capacity: t.seating_capacity ?? t.capacity ?? 4,
+          status: t.status ?? 'available',
+        })
+      }
+    })(tables)
+  },
+}
+
+// ─────────────────────────────────────
+// CUSTOMERS (offline lookup cache + queued creates)
+// ─────────────────────────────────────
+const CustomerDB = {
+
+  /**
+   * Searches cached customers by name or phone (for POS attach while offline).
+   * @param {string} outletId
+   * @param {string} query
+   * @returns {object[]}
+   */
+  search(outletId, query) {
+    const q = `%${(query || '').trim()}%`
+    return getDB().prepare(`
+      SELECT * FROM customers
+      WHERE outlet_id = ? AND (name LIKE ? OR phone LIKE ?)
+      ORDER BY created_at DESC LIMIT 20
+    `).all(outletId, q, q)
+  },
+
+  /**
+   * Creates a walk-in customer locally; synced to cloud by name+phone
+   * (find-or-create server-side), so no UUID coupling is needed.
+   * @param {{ outlet_id, name, phone, email? }} data
+   * @returns {object} the created row
+   */
+  createLocal(data) {
+    const id = crypto.randomUUID()
+    getDB().prepare(`
+      INSERT INTO customers (id, outlet_id, name, phone, email, synced)
+      VALUES (?, ?, ?, ?, ?, 0)
+    `).run(id, data.outlet_id, data.name || null, data.phone || null, data.email || null)
+    SyncDB.enqueue('customers', id, 'INSERT', { id, ...data })
+    return { id, ...data }
+  },
+
+  /**
+   * Bulk-saves customers from a cloud sync payload (lookup cache).
+   * @param {object[]} customers
+   */
+  saveFromSync(customers) {
+    const insert = getDB().prepare(`
+      INSERT OR REPLACE INTO customers (id, outlet_id, name, phone, email, synced)
+      VALUES (@id, @outlet_id, @name, @phone, @email, 1)
+    `)
+    getDB().transaction((list) => {
+      for (const c of list) {
+        insert.run({
+          id: c.id,
+          outlet_id: c.outlet_id,
+          name: c.name || c.full_name || null,
+          phone: c.phone || null,
+          email: c.email || null,
+        })
+      }
+    })(customers)
+  },
+
+  /** Returns locally-created customers not yet uploaded. */
+  getUnsynced() {
+    return getDB().prepare(`SELECT * FROM customers WHERE synced = 0`).all()
+  },
+
+  /** Marks a locally-created customer as uploaded. */
+  markSynced(id) {
+    getDB().prepare(`UPDATE customers SET synced = 1 WHERE id = ?`).run(id)
+  },
+
+  /** Returns a single cached customer row by id (or null). */
+  getById(id) {
+    return getDB().prepare(`SELECT * FROM customers WHERE id = ?`).get(id) || null
+  },
+
+  /**
+   * Rewrites a locally-created customer's id to the server-allocated cloud id,
+   * repointing any orders that reference it — in ONE transaction — so the order
+   * FK never fails on upload. Marks the row synced. If the cloud id matches the
+   * local id (or is falsy) this is just a markSynced.
+   * @param {string} localId
+   * @param {string|null} cloudId
+   */
+  remapId(localId, cloudId) {
+    if (!cloudId || cloudId === localId) {
+      this.markSynced(localId)
+      return
+    }
+    const database = getDB()
+    database.transaction(() => {
+      database.prepare(`UPDATE orders SET customer_id = @cloud WHERE customer_id = @local`)
+        .run({ cloud: cloudId, local: localId })
+      database.prepare(`UPDATE customers SET id = @cloud, synced = 1 WHERE id = @local`)
+        .run({ cloud: cloudId, local: localId })
+    })()
   },
 }
 
@@ -994,15 +1393,26 @@ const OutletDB = {
    * Save outlet data from cloud sync for offline bill header.
    */
   save(outlet) {
+    // Region signals (code/country/currency/abn) are what let the offline
+    // biller and receipt know an outlet is Australian — never drop them.
+    const ho = outlet.head_office || {}
     getDB().prepare(`
       INSERT OR REPLACE INTO outlets
-        (id, name, address, city, state, gstin, fssai, phone, logo_url, gst_rate, service_charge, synced_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        (id, name, address, city, state, gstin, fssai, phone, logo_url,
+         gst_rate, service_charge, code, country_code, region, currency, abn,
+         gst_inclusive, synced_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).run(
       outlet.id, outlet.name, outlet.address || null, outlet.city || null,
       outlet.state || null, outlet.gstin || null, outlet.fssai || null,
       outlet.phone || null, outlet.logo_url || null,
-      outlet.gst_rate || 5, outlet.service_charge || 0
+      outlet.gst_rate || 5, outlet.service_charge || 0,
+      outlet.code || null,
+      outlet.country_code || ho.country_code || (outlet.country === 'Australia' ? 'AU' : null),
+      outlet.region || ho.region || null,
+      outlet.currency || ho.currency || null,
+      outlet.abn || ho.abn || null,
+      (outlet.gst_inclusive ?? ho.gst_inclusive) ? 1 : 0
     )
   },
 
@@ -1032,5 +1442,12 @@ module.exports = {
   SyncDB,
   SettingsDB,
   OutletDB,
+  CustomerDB,
   getDBPath,
+  // Tax + numbering engine (exported for main-process IPC + tests)
+  resolveTaxConfig,
+  computeTotals,
+  getDeviceId,
+  nextOfflineOrderNumber,
+  nextOfflineInvoiceNumber,
 }

@@ -56,17 +56,21 @@ function generateInvoiceNumber(outlet) {
 function generateReceiptHTML(bill) {
   const items = bill.items || bill.order_items || []
   const outlet = bill.outlet || {}
-  const isAU = outlet.region === 'AU' || bill.currency === 'AUD'
+  const isAU = outlet.country_code === 'AU' || outlet.region === 'AU' || outlet.currency === 'AUD'
   const locale = isAU ? 'en-AU' : 'en-IN'
   const fmt = (n) => isAU
     ? `A$${parseFloat(n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : `₹${parseFloat(n || 0).toFixed(2)}`
-  const itemRows = items.map(i => `
+  const itemRows = items.map(i => {
+    // Use the stored line total so addons are included and rows sum to subtotal.
+    const amt = i.line_total ?? ((Number(i.unit_price || i.base_price || 0) + Number(i.addon_total || 0)) * i.quantity)
+    return `
     <tr>
       <td style="padding:3px 0;font-size:12px">${i.menu_item_name || i.name}</td>
       <td style="text-align:center;font-size:12px">${i.quantity}</td>
-      <td style="text-align:right;font-size:12px">${fmt((i.unit_price || i.base_price || 0) * i.quantity)}</td>
-    </tr>`).join('')
+      <td style="text-align:right;font-size:12px">${fmt(amt)}</td>
+    </tr>`
+  }).join('')
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Bill ${bill.invoice_number || ''}</title>
@@ -323,7 +327,14 @@ export const hybridAPI = {
     if (IS_ELECTRON) {
       const order = await invoke('db-get-order', orderId)
       const outlet = await invoke('db-get-outlet', order.outlet_id).catch(() => null)
-      const invoiceNumber = generateInvoiceNumber(outlet)
+      // Prefer the main-process sequential invoice number; fall back to the
+      // legacy timestamp-based generator if the IPC channel is unavailable.
+      let invoiceNumber
+      try {
+        invoiceNumber = await invoke('db-next-invoice-number', order.outlet_id)
+      } catch {
+        invoiceNumber = generateInvoiceNumber(outlet)
+      }
 
       await invoke('db-update-order-status', orderId, 'billed', {
         invoice_number: invoiceNumber,
@@ -359,13 +370,17 @@ export const hybridAPI = {
    * Electron: updates locally, frees table, opens cash drawer if cash.
    * Browser: calls cloud API.
    * @param {string} orderId
-   * @param {{ method: string, amount: number, reference?: string }} paymentData
+   * @param {{ method: string, amount: number, reference?: string, note?: string }} paymentData
    * @returns {{ success: boolean }}
    */
   async processPayment(orderId, paymentData) {
     if (IS_ELECTRON) {
       await invoke('db-update-order-status', orderId, 'paid', {
         payment_method: paymentData.method,
+        // Card/UPI taken while offline are captured on the physical terminal —
+        // record that so reconciliation can distinguish them after sync.
+        payment_note: paymentData.note
+          || (['card', 'upi', 'eftpos', 'card_pine_labs'].includes(paymentData.method) ? 'offline_captured_on_terminal' : null),
         paid_at: new Date().toISOString(),
       })
 
@@ -399,6 +414,64 @@ export const hybridAPI = {
     }
     const res = await api.get('/orders', { params: { outlet_id: outletId, ...filters } })
     return res.data?.data || []
+  },
+
+  // ── CUSTOMERS ────────────────────────────────────────────────────
+  /**
+   * Searches customers by name/phone.
+   * Electron: local SQLite. Browser: cloud REST API.
+   * @param {string} outletId
+   * @param {string} query
+   * @returns {Promise<object[]>}
+   */
+  async searchCustomers(outletId, query) {
+    if (IS_ELECTRON) {
+      return invoke('db-search-customers', outletId, query)
+    }
+    const res = await api.get('/customers', { params: { outlet_id: outletId, search: query } })
+    const data = res.data?.data
+    return Array.isArray(data) ? data : (data?.customers || [])
+  },
+
+  /**
+   * Creates a customer.
+   * Electron: local SQLite (synced to cloud later). Browser: cloud REST API.
+   * @param {object} data - customer payload (outlet_id, name, phone, etc.)
+   */
+  async createCustomer(data) {
+    if (IS_ELECTRON) {
+      return invoke('db-create-customer', data)
+    }
+    const res = await api.post('/customers', data)
+    return res.data?.data
+  },
+
+  // ── REPORTS ──────────────────────────────────────────────────────
+  /**
+   * Returns the end-of-day summary for an outlet and date.
+   * Electron: computed from local SQLite (includes unsynced_count).
+   * Browser: cloud EOD preview endpoint (same one EODReportPage uses).
+   * @param {string} outletId
+   * @param {string} date - YYYY-MM-DD
+   */
+  async eodSummary(outletId, date) {
+    if (IS_ELECTRON) {
+      return invoke('db-eod-summary', outletId, date)
+    }
+    const res = await api.get('/reports/eod/preview', { params: { outlet_id: outletId, date } })
+    return res.data?.data || res.data
+  },
+
+  /**
+   * Returns the number of local orders not yet synced to cloud.
+   * Browser has no local queue here, so it always reports 0.
+   * @returns {Promise<number>}
+   */
+  async getUnsyncedCount() {
+    if (IS_ELECTRON) {
+      return invoke('db-unsynced-count')
+    }
+    return 0
   },
 
   // ── CLOUD SYNC ───────────────────────────────────────────────────
@@ -436,24 +509,6 @@ export const hybridAPI = {
       await invoke('db-save-tables-sync', res.data?.data || [])
     } catch (err) {
       console.warn('[HybridAPI] Tables sync from cloud failed:', err.message)
-    }
-  },
-
-  /**
-   * Uploads unsynced local orders to the cloud.
-   * Run periodically when online.
-   */
-  async flushOrdersToCloud() {
-    if (!IS_ELECTRON) return
-
-    const unsynced = await invoke('db-get-unsynced-orders')
-    for (const order of unsynced) {
-      try {
-        await api.post('/orders/sync', order)
-        await invoke('db-mark-order-synced', order.id)
-      } catch (err) {
-        console.warn(`[HybridAPI] Failed to sync order ${order.id}:`, err.message)
-      }
     }
   },
 }

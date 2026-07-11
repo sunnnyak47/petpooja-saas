@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Wifi, WifiOff, Cloud, RefreshCw } from 'lucide-react';
-import hybridAPI from '../api/offlineAPI';
 
 const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
@@ -82,12 +81,9 @@ export default function useOfflineSync() {
     setSyncMessage('Syncing pending actions…');
 
     try {
-      // Electron: flush SQLite unsynced orders to cloud
-      if (IS_ELECTRON) {
-        await hybridAPI.flushOrdersToCloud().catch(() => {});
-      }
-
-      // Browser queue flush
+      // Electron desktop uploads via the main-process syncEngine, which is
+      // triggered by window.electron.syncNow() in the `online` handler above.
+      // Here we only flush the browser (non-Electron) localStorage queue.
       const cached = localStorage.getItem('pp_offline_queue');
       if (!cached) { setSyncMessage(''); return; }
       const queue = JSON.parse(cached);

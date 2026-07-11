@@ -156,29 +156,75 @@ const mergeOrderSchema = Joi.object({
     .required(),
 });
 
+// Offline-sync contract (v2) — the desktop POS replays orders captured while
+// offline. The client's numbers are authoritative (price-at-sale wins), so the
+// schema accepts the full financial snapshot instead of re-deriving anything.
+// Permissive by design: unknown-but-harmless fields are stripped (the validate
+// middleware runs with stripUnknown:true; .options here makes it explicit).
 const syncOfflineOrdersSchema = Joi.object({
   orders: Joi.array().items(Joi.object({
-    id: Joi.string(),
+    // Client-generated UUID — the idempotency key. The cloud order is created
+    // WITH this id so retries dedupe on the primary key.
+    id: Joi.string().uuid().required(),
     outlet_id: Joi.string().uuid().required(),
-    order_type: Joi.string().valid('dine_in', 'takeaway', 'delivery', 'online', 'qr_order'),
+    // Offline device order number (e.g. SIL9SW-20260711-DA1B2-003) — recorded
+    // in notes; the cloud allocates its own order_number.
+    order_number: Joi.string().max(60).allow('', null),
+    // Widened to the full source set: the offline POS may replay a recalled
+    // online/QR/kiosk ticket. Keep permissive so a well-formed offline order
+    // never 400s wholesale on order_type alone.
+    order_type: Joi.string()
+      .valid('dine_in', 'takeaway', 'delivery', 'online', 'qr_order', 'kiosk')
+      .default('dine_in'),
     table_id: Joi.string().uuid().allow(null),
+    table_number: Joi.alternatives().try(Joi.string().max(20), Joi.number()).allow(null),
+    source: Joi.string().valid('pos').default('pos'),
+    // The offline POS also emits 'created'/'held' (parked) and may replay
+    // 'ready'/'completed'. Accept the full lifecycle so a well-formed offline
+    // batch NEVER 400s wholesale on an unexpected-but-valid status.
+    status: Joi.string()
+      .valid('created', 'active', 'held', 'confirmed', 'ready', 'billed', 'paid', 'cancelled', 'completed')
+      .default('confirmed'),
     customer_id: Joi.string().uuid().allow(null),
-    source: Joi.string().valid('pos', 'qr', 'online', 'kiosk', 'app'),
-    notes: Joi.string().max(500).allow(''),
+    customer_name: Joi.string().max(150).allow('', null),
+    customer_phone: Joi.string().max(30).allow('', null),
+    covers: Joi.number().integer().min(0).allow(null),
+    notes: Joi.string().max(500).allow('', null),
+    subtotal: Joi.number().min(0).required(),
+    tax_amount: Joi.number().min(0).default(0),
+    cgst_amount: Joi.number().min(0).default(0),
+    sgst_amount: Joi.number().min(0).default(0),
+    discount_amount: Joi.number().min(0).default(0),
+    service_charge: Joi.number().min(0).default(0),
+    // Rounding adjustment captured on the device (may be negative when the bill
+    // was rounded down). Persisted verbatim — see syncOfflineOrders.
+    round_off: Joi.number().allow(null).default(0),
+    total_amount: Joi.number().min(0).required(),
+    payment_method: Joi.string().max(30).allow('', null),
+    payment_note: Joi.string().max(500).allow('', null),
+    invoice_number: Joi.string().max(50).allow('', null),
+    created_at: Joi.date().iso(),
+    billed_at: Joi.date().iso().allow(null),
+    paid_at: Joi.date().iso().allow(null),
     items: Joi.array().items(Joi.object({
-      menu_item_id: Joi.string().uuid().required(),
-      item_name: Joi.string(),
+      // Local order_items.id (client UUID) — the per-item idempotency key. When
+      // supplied the cloud OrderItem is created WITH this id so a retried batch
+      // dedupes on the primary key (a lost 2xx no longer duplicates items).
+      id: Joi.string().uuid().optional(),
+      // Relaxed off .uuid(): custom/open items may carry a non-uuid or empty id
+      // (the service treats the menu lookup as best-effort and never re-prices).
+      // Keep permissive so a well-formed offline order never 400s.
+      menu_item_id: Joi.string().allow('', null),
+      item_name: Joi.string().max(200).required(),
       variant_id: Joi.string().uuid().allow(null),
-      variant_name: Joi.string().allow('', null),
+      variant_name: Joi.string().max(100).allow('', null),
       quantity: Joi.number().integer().min(1).required(),
       unit_price: Joi.number().min(0).required(),
-      total_price: Joi.number().min(0),
+      addon_total: Joi.number().min(0).default(0),
+      total_price: Joi.number().min(0).required(),
       notes: Joi.string().max(200).allow('', null),
-      addons: Joi.array().default([]),
-    })).min(1).required(),
-    created_at: Joi.string(),
-    created_by: Joi.string().uuid(),
-  })).min(1).required(),
+    }).options({ stripUnknown: true })).min(1).required(),
+  }).options({ stripUnknown: true })).min(1).required(),
 });
 
 // Split bill & multi-tender — record one tender against an order. Mirrors

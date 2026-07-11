@@ -216,6 +216,12 @@ export default function App() {
     if (window.electron) {
       await window.electron.invoke('set-config', 'outlet_id', config.outlet_id);
       await window.electron.invoke('set-config', 'printerIp', config.printer_ip);
+      // Boot rehydration: Redux rehydrates the session from localStorage, but nothing
+      // pushes that token to the Electron main process until the next explicit login.
+      // Bridge the already-valid token now so getHeaders has it from the first sync
+      // cycle. Guarded by window.electron?.setAuth — no-op on the browser path.
+      const t = localStorage.getItem('accessToken');
+      if (t && window.electron?.setAuth) window.electron.setAuth({ token: t, outletId: config.outlet_id });
     }
     localStorage.setItem('msrm_setup_completed', 'true');
     setSetupComplete(true);

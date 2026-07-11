@@ -9,7 +9,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useCurrency } from '../hooks/useCurrency';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import api from '../lib/api';
+import hybridAPI from '../api/offlineAPI';
 import toast from 'react-hot-toast';
 import {
   ClipboardList, DollarSign, Banknote, Scale, Lock,
@@ -50,6 +52,39 @@ const AU_DENOMS = [
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
 const pct = (part, total) => total > 0 ? ((part / total) * 100).toFixed(1) : '0.0';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
+
+/**
+ * Maps the desktop offline day summary ({date, order_count, gross_sales, total_tax,
+ * total_discount, collected, cancelled_count, unsynced_count, by_payment_method,
+ * is_offline_summary}) into the snapshot shape this page already renders.
+ */
+function mapOfflineSummary(s) {
+  if (!s) return s;
+  const byMethod = Array.isArray(s.by_payment_method) ? s.by_payment_method : [];
+  const sumFor = (m) => byMethod
+    .filter(p => p.method === m)
+    .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  return {
+    total_orders:   s.order_count ?? 0,
+    total_revenue:  s.collected ?? s.gross_sales ?? 0,
+    total_tax:      s.total_tax ?? 0,
+    total_discount: s.total_discount ?? 0,
+    void_count:     s.cancelled_count ?? 0,
+    void_amount:    0,
+    refund_count:   0,
+    refund_amount:  0,
+    cash_system:    sumFor('cash'),
+    card_system:    sumFor('card'),
+    upi_system:     sumFor('upi'),
+    other_system:   byMethod
+      .filter(p => !['cash', 'card', 'upi'].includes(p.method))
+      .reduce((acc, p) => acc + Number(p.amount || 0), 0),
+    unsynced_count:     s.unsynced_count ?? 0,
+    is_offline_summary: true,
+  };
+}
 
 /* ─── Step indicator ────────────────────────────────────────────── */
 const STEPS = [
@@ -259,6 +294,10 @@ export default function EODReportPage() {
   const [activeView,  setActiveView]  = useState('wizard'); // wizard | history
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
 
+  // Desktop offline mode: source the day summary from local SQLite instead of cloud.
+  const isOnline = useOnlineStatus();
+  const offlineMode = IS_ELECTRON && !isOnline;
+
   // Wizard state
   const [openingCash,  setOpeningCash]  = useState('');
   const [denomCounts,  setDenomCounts]  = useState({});
@@ -270,8 +309,10 @@ export default function EODReportPage() {
   // the FIRST load (no cached data), so a manual refetch of an already-loaded report
   // left isLoading=false and the button gave no feedback — it looked broken.
   const { data: snap, isLoading: snapLoading, isFetching: snapFetching, refetch: refetchSnap } = useQuery({
-    queryKey: ['eod-snapshot', outletId, selectedDate],
-    queryFn:  () => api.get(`/reports/eod/preview?outlet_id=${outletId}&date=${selectedDate}`).then(r => r.data?.data || r.data),
+    queryKey: ['eod-snapshot', outletId, selectedDate, offlineMode],
+    queryFn:  () => offlineMode
+      ? hybridAPI.eodSummary(outletId, selectedDate).then(mapOfflineSummary)
+      : api.get(`/reports/eod/preview?outlet_id=${outletId}&date=${selectedDate}`).then(r => r.data?.data || r.data),
     enabled:  !!outletId,
     staleTime: 30_000,
   });
@@ -460,6 +501,15 @@ export default function EODReportPage() {
       {/* ════ WIZARD VIEW ════ */}
       {activeView === 'wizard' && (
         <>
+          {offlineMode && snap?.is_offline_summary && (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+              <AlertTriangle size={20} className="flex-shrink-0"/>
+              <span className="text-sm">
+                <strong>Offline day summary</strong> — {snap?.unsynced_count ?? 0} orders not yet synced to cloud; totals are provisional until sync completes.
+              </span>
+            </div>
+          )}
+
           {isLocked && (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-green-800">
               <Shield size={20}/> <strong>This report is locked and finalised.</strong>

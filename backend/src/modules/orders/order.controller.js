@@ -228,11 +228,11 @@ async function mergeOrder(req, res, next) {
   } catch (error) { next(error); }
 }
 
-/** POST /api/orders/sync */
+/** POST /api/orders/sync — v2 contract: responds { success, data: { results: [...] } } */
 async function syncOfflineOrders(req, res, next) {
   try {
-    const results = await orderService.syncOfflineOrders(req.body.orders || [req.body], req.user.id);
-    sendSuccess(res, results, 'Orders synced');
+    const results = await orderService.syncOfflineOrders(req.body.orders || [], req.user.id);
+    sendSuccess(res, { results }, 'Orders synced');
   } catch (error) { next(error); }
 }
 

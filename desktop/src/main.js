@@ -495,8 +495,9 @@ function setupIPC() {
   // Lazy-load localDB after app is ready (needs app.getPath)
   const {
     MenuDB, OrderDB, KotDB,
-    TableDB, SyncDB, SettingsDB, OutletDB,
+    TableDB, SyncDB, SettingsDB, OutletDB, CustomerDB,
     getDBPath,
+    nextOfflineInvoiceNumber, getDeviceId,
   } = require('./database/localDB')
 
   // Return full config store
@@ -505,6 +506,27 @@ function setupIPC() {
   // Persist a single config key
   ipcMain.handle('set-config', (_, key, value) => {
     store.set(key, value)
+    // Mirror the outlet id into the SQLite settings cache too — the sync engine
+    // reads SettingsDB.get('outlet_id') for downloadFromCloud (background sync
+    // without args), which electron-store alone doesn't feed.
+    if (key === 'outlet_id') SettingsDB.set('outlet_id', value)
+    return true
+  })
+
+  // ── AUTH BRIDGE (renderer JWT → main-process sync engine) ─────
+  /**
+   * The renderer pushes its JWT + outlet id here after login (and clears them
+   * on logout). The sync engine's getHeaders() reads SettingsDB.get('token')
+   * and downloadFromCloud reads SettingsDB.get('outlet_id'), so without this
+   * bridge background sync has no credentials and silently 401s.
+   */
+  ipcMain.handle('db-set-auth', (_, { token, outletId } = {}) => {
+    // Distinguish an explicit CLEAR (logout sends token: null) from an ABSENT
+    // field (a partial update that only carries outletId, say). Writing null on
+    // an explicit clear makes getHeaders() return {} and the sync cycles skip —
+    // otherwise a stale token would keep syncing after logout.
+    if (token !== undefined) SettingsDB.set('token', token || null)
+    if (outletId !== undefined) SettingsDB.set('outlet_id', outletId || null)
     return true
   })
 
@@ -682,10 +704,57 @@ function setupIPC() {
   })
 
   /**
-   * Marks an order as successfully synced to cloud.
+   * Marks an order as successfully synced to cloud, optionally recording
+   * the cloud-allocated order number for receipt traceability.
    */
-  ipcMain.handle('db-mark-order-synced', (_, orderId) => {
-    OrderDB.markSynced(orderId)
+  ipcMain.handle('db-mark-order-synced', (_, orderId, cloudOrderNumber) => {
+    OrderDB.markSynced(orderId, cloudOrderNumber)
+    return true
+  })
+
+  /**
+   * Generates the next sequential offline invoice number for an outlet
+   * (device-namespaced, collision-proof against other tills and cloud).
+   */
+  ipcMain.handle('db-next-invoice-number', (_, outletId) => {
+    return nextOfflineInvoiceNumber(OutletDB.get(outletId))
+  })
+
+  /**
+   * Returns the end-of-day summary computed from local orders,
+   * including the unsynced count for the EOD warning.
+   */
+  ipcMain.handle('db-eod-summary', (_, outletId, date) => {
+    return OrderDB.eodSummary(outletId, date)
+  })
+
+  /**
+   * Returns the count of orders not yet uploaded to cloud.
+   */
+  ipcMain.handle('db-unsynced-count', () => {
+    return OrderDB.getUnsyncedCount()
+  })
+
+  // ── LOCAL DB: CUSTOMERS ───────────────────────────────────────
+  /**
+   * Searches cached customers by name or phone for offline POS attach.
+   */
+  ipcMain.handle('db-search-customers', (_, outletId, query) => {
+    return CustomerDB.search(outletId, query)
+  })
+
+  /**
+   * Creates a walk-in customer locally and queues it for cloud sync.
+   */
+  ipcMain.handle('db-create-customer', (_, data) => {
+    return CustomerDB.createLocal(data)
+  })
+
+  /**
+   * Bulk-saves customers from a cloud sync payload (lookup cache).
+   */
+  ipcMain.handle('db-save-customers-sync', (_, customers) => {
+    CustomerDB.saveFromSync(customers)
     return true
   })
 
@@ -750,6 +819,13 @@ function setupIPC() {
    */
   ipcMain.handle('db-get-path', () => {
     return getDBPath()
+  })
+
+  /**
+   * Returns the stable 4-char device id used to namespace offline numbers.
+   */
+  ipcMain.handle('db-get-device-id', () => {
+    return getDeviceId()
   })
 
   // ── LOCAL DB: OUTLET ─────────────────────────────────────────
@@ -1022,6 +1098,21 @@ async function buildKOTPrint(printer, kot) {
  * @param {object} bill - Full bill data from backend
  */
 async function buildBillPrint(printer, bill) {
+  // Region + amount normalisation. The OFFLINE biller passes a local order row
+  // (total_amount / cgst_amount / sgst_amount / tax_amount) which may be an AU
+  // outlet, while the cloud bill uses grand_total / cgst / sgst. Read both, and
+  // detect AU so we print a single 'GST (10%)' line in A$ instead of Indian
+  // CGST/SGST in ₹.
+  const o = bill.outlet || {}
+  const isAU = o.country_code === 'AU' || o.region === 'AU'
+    || o.currency === 'AUD' || bill.currency === 'AUD'
+  const sym = isAU ? 'A$' : 'Rs'
+  const subtotalAmt = bill.subtotal ?? 0
+  const cgstAmt = bill.cgst ?? bill.cgst_amount ?? 0
+  const sgstAmt = bill.sgst ?? bill.sgst_amount ?? 0
+  const taxAmt = bill.tax_amount ?? bill.igst ?? (cgstAmt + sgstAmt)
+  const grandTotal = bill.grand_total ?? bill.total_amount ?? 0
+
   printer.alignCenter()
   printer.bold(true)
   printer.setTextSize(1, 1)
@@ -1041,37 +1132,48 @@ async function buildBillPrint(printer, bill) {
   printer.drawLine()
 
   ;(bill.items || []).forEach((item) => {
-    const total = ((item.unit_price || 0) * (item.quantity || 1)).toFixed(2)
+    // Use the stored line_total (already includes addons) rather than
+    // unit_price × qty, which drops addon money from the printed amount.
+    const lineTotal = (item.line_total ?? item.total_price
+      ?? ((item.unit_price || 0) * (item.quantity || 1))).toFixed(2)
     printer.tableCustom([
       { text: item.name, align: 'LEFT', width: 0.55 },
       { text: `${item.quantity}x`, align: 'CENTER', width: 0.1 },
-      { text: `Rs${total}`, align: 'RIGHT', width: 0.35 },
+      { text: `${sym}${lineTotal}`, align: 'RIGHT', width: 0.35 },
     ])
   })
 
   printer.drawLine()
   printer.tableCustom([
     { text: 'Subtotal', align: 'LEFT', width: 0.6 },
-    { text: `Rs${(bill.subtotal || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+    { text: `${sym}${(subtotalAmt || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
   ])
-  printer.tableCustom([
-    { text: 'CGST (2.5%)', align: 'LEFT', width: 0.6 },
-    { text: `Rs${(bill.cgst || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
-  ])
-  printer.tableCustom([
-    { text: 'SGST (2.5%)', align: 'LEFT', width: 0.6 },
-    { text: `Rs${(bill.sgst || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
-  ])
+  if (isAU) {
+    // AU: single inclusive GST line, no CGST/SGST split.
+    printer.tableCustom([
+      { text: 'GST (10%)', align: 'LEFT', width: 0.6 },
+      { text: `${sym}${(taxAmt || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+    ])
+  } else {
+    printer.tableCustom([
+      { text: 'CGST', align: 'LEFT', width: 0.6 },
+      { text: `${sym}${(cgstAmt || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+    ])
+    printer.tableCustom([
+      { text: 'SGST', align: 'LEFT', width: 0.6 },
+      { text: `${sym}${(sgstAmt || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+    ])
+  }
   if (bill.service_charge) {
     printer.tableCustom([
       { text: 'Service Charge', align: 'LEFT', width: 0.6 },
-      { text: `Rs${(bill.service_charge || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+      { text: `${sym}${(bill.service_charge || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
     ])
   }
   printer.bold(true)
   printer.tableCustom([
     { text: 'TOTAL', align: 'LEFT', width: 0.6 },
-    { text: `Rs${(bill.grand_total || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
+    { text: `${sym}${(grandTotal || 0).toFixed(2)}`, align: 'RIGHT', width: 0.4 },
   ])
   printer.bold(false)
   printer.drawLine()

@@ -135,6 +135,14 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', newAccessToken);
         localStorage.setItem('refreshToken', newRefreshToken);
 
+        // Bridge the refreshed token to the Electron main process. Without this,
+        // SettingsDB('token') keeps the ORIGINAL login token and every syncEngine
+        // request 401s ~15 min into the shift. Token-only: outletId is left
+        // unchanged (the main handler no-ops undefined fields). No-op on web.
+        if (typeof window !== 'undefined' && window.electron?.setAuth) {
+          try { window.electron.setAuth({ token: newAccessToken }); } catch (_) {}
+        }
+
         // Notify all queued requests
         onRefreshed(newAccessToken);
 

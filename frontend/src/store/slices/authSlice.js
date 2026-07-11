@@ -32,6 +32,16 @@ const authSlice = createSlice({
       localStorage.setItem('accessToken', action.payload.accessToken);
       localStorage.setItem('refreshToken', action.payload.refreshToken);
       localStorage.setItem('user', JSON.stringify(action.payload.user));
+      // Desktop auth bridge: hand the renderer JWT + outlet to the main-process
+      // sync engine. No-op in the browser (window.electron is undefined).
+      if (typeof window !== 'undefined' && window.electron?.setAuth) {
+        try {
+          window.electron.setAuth({
+            token: action.payload.accessToken,
+            outletId: action.payload.user?.outlet_id || action.payload.user?.outlet?.id,
+          });
+        } catch (_) { /* ignore */ }
+      }
     },
     logout(state) {
       state.user = null;
@@ -41,6 +51,12 @@ const authSlice = createSlice({
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      // Desktop auth bridge: clear the main-process sync engine credentials.
+      if (typeof window !== 'undefined' && window.electron?.setAuth) {
+        try {
+          window.electron.setAuth({ token: null, outletId: null });
+        } catch (_) { /* ignore */ }
+      }
     },
     setLoading(state, action) {
       state.loading = action.payload;
