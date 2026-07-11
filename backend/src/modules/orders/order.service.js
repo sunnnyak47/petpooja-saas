@@ -82,27 +82,54 @@ async function getOutletTaxConfig(prismaClient, outletId) {
 async function nextDailySequence(tx, outletId, now = new Date()) {
   // Key on the UTC date so it matches generateOrderNumber's date component.
   const day = now.toISOString().slice(0, 10);
+  // UTC day bounds → index-friendly range scan on orders(outlet_id, created_at),
+  // and identical bucketing to order_number's UTC date component.
+  const startMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const dayStart = new Date(startMs).toISOString();
+  const dayEnd = new Date(startMs + 86400000).toISOString();
   try {
-    const counter = await tx.outletDailyCounter.upsert({
-      where: { outlet_id_day: { outlet_id: outletId, day } },
-      create: { outlet_id: outletId, day, seq: 1 },
-      update: { seq: { increment: 1 } },
-    });
-    return counter.seq;
+    // Atomically allocate the next sequence, FLOORED at today's true high-water
+    // mark. order_number is derived deterministically from this value
+    // (`${code}-${YYYYMMDD}-${seq}`) and is globally @unique, so a blind counter+1
+    // re-emits an existing order_number — and the duplicate-key error rolls back
+    // the whole order tx, reverting the increment and wedging the counter forever
+    // — whenever the counter lags the real max (e.g. it was seeded from COUNT()
+    // while soft-deleted/cancelled orders left gaps). GREATEST(counter+1,
+    // MAX(daily_sequence)+1, COUNT(*)+1) can never return an already-used seq, so
+    // a lagging counter self-heals on the next order instead of erroring forever.
+    // The `counter.seq + 1` term is the race-safe primary (serialized by the row
+    // lock on ON CONFLICT); the floor CTE is the self-heal for a stale counter.
+    const rows = await tx.$queryRawUnsafe(
+      `WITH floor AS (
+         SELECT GREATEST(COALESCE(MAX(daily_sequence), 0), COUNT(*)) + 1 AS n
+         FROM orders
+         WHERE outlet_id = $1::uuid
+           AND created_at >= $3::timestamptz AND created_at < $4::timestamptz
+       )
+       INSERT INTO outlet_daily_counters (outlet_id, day, seq)
+       SELECT $1::uuid, $2, GREATEST(1, floor.n) FROM floor
+       ON CONFLICT (outlet_id, day) DO UPDATE
+         SET seq = GREATEST(outlet_daily_counters.seq + 1, EXCLUDED.seq)
+       RETURNING seq`,
+      outletId, day, dayStart, dayEnd,
+    );
+    return Number(rows[0].seq);
   } catch (err) {
-    // Fallback: legacy local-midnight count()+1 (pre-migration safety net).
-    // IMPORTANT: use the non-transactional client here — when the upsert above fails
-    // because outlet_daily_counters doesn't exist yet, PostgreSQL marks the tx as
-    // aborted; any subsequent query on `tx` would fail with "current transaction is
-    // aborted". Using getDbClient() bypasses that aborted state entirely.
-    logger.warn('OutletDailyCounter unavailable — falling back to count()+1', { error: err.message });
+    // Last-resort fallback (counter table genuinely unavailable). Use the
+    // MAX(daily_sequence)/COUNT high-water mark — NOT the legacy count()+1, which
+    // under-counted when soft-deleted orders left gaps and produced the duplicate
+    // order_number in the first place. Non-transactional client: a failed upsert
+    // above marks `tx` aborted, so any further `tx` query would itself error.
+    logger.warn('OutletDailyCounter upsert failed — falling back to MAX(daily_sequence)+1', { error: err.message });
     const prisma = getDbClient();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayOrderCount = await prisma.order.count({
-      where: { outlet_id: outletId, created_at: { gte: todayStart } },
-    });
-    return todayOrderCount + 1;
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT GREATEST(COALESCE(MAX(daily_sequence), 0), COUNT(*)) + 1 AS n
+       FROM orders
+       WHERE outlet_id = $1::uuid
+         AND created_at >= $2::timestamptz AND created_at < $3::timestamptz`,
+      outletId, dayStart, dayEnd,
+    );
+    return Number(rows[0].n);
   }
 }
 

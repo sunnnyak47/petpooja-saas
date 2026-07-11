@@ -816,9 +816,15 @@ async function startApp() {
         SELECT
           outlet_id,
           TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
-          COUNT(*)::INTEGER AS seq
+          -- High-water mark, NOT COUNT(): order_number is derived from
+          -- daily_sequence and is globally @unique, and soft-deleted/cancelled
+          -- orders keep their row + number. COUNT() (and especially
+          -- COUNT(is_deleted=false)) sits below the real max whenever there are
+          -- gaps, seeding the counter too low so the next order re-emits an
+          -- existing order_number → duplicate-key 500 on PUNCH KOT. Include
+          -- deleted rows: their order_numbers still occupy the unique index.
+          GREATEST(COALESCE(MAX(daily_sequence), 0), COUNT(*))::INTEGER AS seq
         FROM orders
-        WHERE is_deleted = false
         GROUP BY outlet_id, TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD')
         ON CONFLICT (outlet_id, day) DO UPDATE
           SET seq = GREATEST(outlet_daily_counters.seq, EXCLUDED.seq)
