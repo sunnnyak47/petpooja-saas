@@ -425,6 +425,11 @@ async function createOrder(data, staffId) {
       }
 
       return newOrder;
+    }, {
+      // Same headroom as punchKOT: a large ticket does one insert per item inside
+      // this interactive tx; don't let Prisma's default 5s ceiling abort it → 500.
+      maxWait: 8000,
+      timeout: 20000,
     });
 
     // Emit socket in background — don't block the HTTP response
@@ -1978,6 +1983,15 @@ async function punchKOT(data, staffId) {
       }
       createdKots.push({ ...kot, items: stationItems });
     }
+  }, {
+    // A big ticket writes ~3 rows per item (order-item + KOT-item + kot_id update)
+    // sequentially inside this one interactive transaction. Prisma's default 5s
+    // ceiling aborts a large order (~30 items ≈ 90 DB round-trips over Render↔DB
+    // latency) with a transaction-timeout (P2028) → generic 500 "Internal server
+    // error" on PUNCH KOT. Give large tickets room to commit. (maxWait = time to
+    // acquire a pool connection; timeout = max time the tx body may run.)
+    maxWait: 8000,
+    timeout: 20000,
   });
 
   // ── 5. Emit sockets async — don't block response ─────────────────────────
