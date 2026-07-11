@@ -103,6 +103,20 @@ const SECTIONS = [
     title: 'Tools & More',
     data: [
       {
+        icon: 'bar-chart',
+        color: '#2563eb',
+        title: 'Menu Analytics',
+        desc: 'Item performance',
+        route: '/(tabs)/menu-analytics',
+      },
+      {
+        icon: 'gift',
+        color: '#ec4899',
+        title: 'Loyalty & CRM',
+        desc: 'Rewards & campaigns',
+        route: '/(tabs)/loyalty-crm',
+      },
+      {
         icon: 'book',
         color: '#6366F1',
         title: 'Recipe Manager',

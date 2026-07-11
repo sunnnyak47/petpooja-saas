@@ -369,6 +369,20 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="menu-analytics"
+          options={{
+            title: 'MENU ANALYTICS',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="loyalty-crm"
+          options={{
+            title: 'LOYALTY & CRM',
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   );
