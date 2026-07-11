@@ -25,6 +25,7 @@ import { FlashList } from '@shopify/flash-list';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/context/ThemeContext';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -39,21 +40,6 @@ import {
   fileIconFor,
   DOC_CATEGORIES,
 } from '../../src/hooks/useDocuments';
-
-// ─── Design Tokens ───────────────────────────────────────────────────────────
-const C = {
-  bg: '#f8fafc',
-  surface: '#ffffff',
-  surface2: '#f8fafc',
-  border: '#e2e8f0',
-  indigo: '#2563eb',
-  success: '#16a34a',
-  warning: '#d97706',
-  error: '#dc2626',
-  text1: '#0f172a',
-  text2: '#475569',
-  text3: '#94a3b8',
-};
 
 const CATEGORY_META = {
   License:     { color: '#2563eb', icon: 'ribbon-outline' },
@@ -76,16 +62,18 @@ function buildRows(sections) {
 
 // ─── Expiry badge ─────────────────────────────────────────────────────────────
 function ExpiryBadge({ expiresAt }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { status, days } = getExpiryStatus(expiresAt);
   if (status === 'none') return null;
 
   let bg, fg, label;
   if (status === 'expired') {
-    bg = '#fef2f2'; fg = C.error; label = `Expired ${Math.abs(days)}d ago`;
+    bg = colors.error + '18'; fg = colors.error; label = `Expired ${Math.abs(days)}d ago`;
   } else if (status === 'soon') {
-    bg = '#fffbeb'; fg = C.warning; label = days === 0 ? 'Expires today' : `Expires in ${days}d`;
+    bg = colors.warning + '18'; fg = colors.warning; label = days === 0 ? 'Expires today' : `Expires in ${days}d`;
   } else {
-    bg = '#f0fdf4'; fg = C.success; label = 'Valid';
+    bg = colors.success + '18'; fg = colors.success; label = 'Valid';
   }
 
   return (
@@ -102,6 +90,8 @@ function ExpiryBadge({ expiresAt }) {
 
 // ─── Document row ─────────────────────────────────────────────────────────────
 function DocumentRow({ doc, onOpen, onDelete }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWeb = Platform.OS === 'web';
   const meta = CATEGORY_META[doc.category] || CATEGORY_META.Other;
   const icon = fileIconFor(doc.file_type, doc.name);
@@ -139,7 +129,7 @@ function DocumentRow({ doc, onOpen, onDelete }) {
           style={styles.deleteBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="trash-outline" size={18} color={C.text3} />
+          <Ionicons name="trash-outline" size={18} color={colors.textMuted} />
         </TouchableOpacity>
       </PressCard>
     </Animated.View>
@@ -148,6 +138,8 @@ function DocumentRow({ doc, onOpen, onDelete }) {
 
 // ─── Category header row ──────────────────────────────────────────────────────
 function CategoryHeader({ category, count }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const meta = CATEGORY_META[category] || CATEGORY_META.Other;
   return (
     <View style={styles.sectionHeader}>
@@ -162,11 +154,12 @@ function CategoryHeader({ category, count }) {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function DocumentsSkeleton() {
+  const { colors } = useTheme();
   return (
     <View style={{ padding: 16, gap: 12 }}>
-      <SkeletonBox width={140} height={20} borderRadius={6} color="#f1f5f9" />
+      <SkeletonBox width={140} height={20} borderRadius={6} color={colors.pillBg} />
       {[0, 1, 2, 3].map((i) => (
-        <SkeletonBox key={i} width="100%" height={80} borderRadius={16} color="#f1f5f9" />
+        <SkeletonBox key={i} width="100%" height={80} borderRadius={16} color={colors.pillBg} />
       ))}
     </View>
   );
@@ -174,6 +167,8 @@ function DocumentsSkeleton() {
 
 // ─── Upload sheet ─────────────────────────────────────────────────────────────
 function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
+  const { colors } = useTheme();
+  const modalStyles = useMemo(() => makeModalStyles(colors), [colors]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('License');
   const [expiry, setExpiry] = useState('');       // YYYY-MM-DD
@@ -241,7 +236,7 @@ function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
           <View style={modalStyles.sheetHeader}>
             <Text style={modalStyles.sheetTitle}>Upload Document</Text>
             <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn} hitSlop={8}>
-              <Ionicons name="close" size={20} color={C.text1} />
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -255,7 +250,7 @@ function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
               <Ionicons
                 name={file ? 'document-attach' : 'cloud-upload-outline'}
                 size={22}
-                color={C.indigo}
+                color={colors.accent}
               />
               <Text style={modalStyles.filePickerText} numberOfLines={1}>
                 {file ? file.name : 'Choose a file (PDF, image)…'}
@@ -268,7 +263,7 @@ function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
               <TextInput
                 style={modalStyles.input}
                 placeholder="e.g. FSSAI License 2026"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={name}
                 onChangeText={setName}
               />
@@ -300,9 +295,9 @@ function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
             <View style={modalStyles.fieldGroup}>
               <Text style={modalStyles.fieldLabel}>Expiry Date (optional)</Text>
               <TextInput
-                style={[modalStyles.input, !validExpiry && { borderColor: C.error }]}
+                style={[modalStyles.input, !validExpiry && { borderColor: colors.error }]}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={expiry}
                 onChangeText={setExpiry}
                 keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
@@ -329,6 +324,8 @@ function UploadSheet({ visible, onClose, onSubmit, isUploading }) {
 
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 function FAB({ onPress, bottomOffset }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const scale = useSharedValue(Platform.OS === 'web' ? 1 : 0);
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -348,6 +345,8 @@ function FAB({ onPress, bottomOffset }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DocumentsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { outletId } = useOutlet();
   const [search, setSearch] = useState('');
@@ -458,24 +457,24 @@ export default function DocumentsScreen() {
             </Text>
           </View>
           <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh-outline" size={20} color={C.text3} />
+            <Ionicons name="refresh-outline" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* Search */}
         <View style={styles.searchRow}>
-          <Ionicons name="search-outline" size={16} color={C.text3} style={{ marginRight: 8 }} />
+          <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search documents…"
-            placeholderTextColor={C.text3}
+            placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color={C.text3} />
+              <Ionicons name="close-circle" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -484,7 +483,7 @@ export default function DocumentsScreen() {
       {/* Expiry warning banner */}
       {expiringCount > 0 && (
         <View style={styles.warnBanner}>
-          <Ionicons name="alert-circle" size={16} color={C.error} />
+          <Ionicons name="alert-circle" size={16} color={colors.error} />
           <Text style={styles.warnBannerText}>
             {expiringCount} document{expiringCount > 1 ? 's' : ''} expiring soon or expired
           </Text>
@@ -515,8 +514,8 @@ export default function DocumentsScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor={C.indigo}
-              colors={[C.indigo]}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
           ListEmptyComponent={
@@ -547,54 +546,54 @@ export default function DocumentsScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
+const makeStyles = (colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
 
   header: {
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: C.text1, letterSpacing: 0.3 },
-  headerSubtitle: { fontSize: 13, fontWeight: '600', color: C.text3, marginTop: 3 },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: 0.3 },
+  headerSubtitle: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginTop: 3 },
   refreshBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: C.bg,
+    backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     marginTop: 2,
   },
 
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.bg,
+    backgroundColor: colors.bg,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  searchInput: { flex: 1, fontSize: 15, color: C.text1, padding: 0 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text, padding: 0 },
 
   warnBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.error + '18',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
     marginTop: 12,
     borderLeftWidth: 4,
-    borderLeftColor: C.error,
+    borderLeftColor: colors.error,
   },
-  warnBannerText: { fontSize: 13, fontWeight: '600', color: '#991b1b', flex: 1 },
+  warnBannerText: { fontSize: 13, fontWeight: '600', color: colors.error, flex: 1 },
 
   // Section header
   sectionHeader: {
@@ -605,24 +604,24 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingHorizontal: 2,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text2, letterSpacing: 0.3 },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.3 },
   sectionCountPill: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.pillBg,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 1,
     minWidth: 22,
     alignItems: 'center',
   },
-  sectionCountText: { fontSize: 11, fontWeight: '700', color: C.text2 },
+  sectionCountText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
 
   // Document row
   rowWrapper: {
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
@@ -644,10 +643,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowName: { fontSize: 15, fontWeight: '700', color: C.text1, letterSpacing: -0.2 },
+  rowName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 },
-  rowMetaText: { fontSize: 12, color: C.text3, fontWeight: '500' },
-  dotSep: { fontSize: 12, color: C.text3 },
+  rowMetaText: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+  dotSep: { fontSize: 12, color: colors.textMuted },
   badgeRow: { flexDirection: 'row', marginTop: 7 },
   expiryBadge: {
     flexDirection: 'row',
@@ -663,9 +662,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: C.bg,
+    backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -683,16 +682,16 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.indigo,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
 
-const modalStyles = StyleSheet.create({
+const makeModalStyles = (colors) => StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
@@ -700,7 +699,7 @@ const modalStyles = StyleSheet.create({
   handleBar: {
     width: 36,
     height: 4,
-    backgroundColor: C.border,
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -712,14 +711,14 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
-  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: C.text1 },
+  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: colors.text },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.pillBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -731,42 +730,42 @@ const modalStyles = StyleSheet.create({
     gap: 12,
     borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: C.indigo,
+    borderColor: colors.accent,
     borderRadius: 14,
-    backgroundColor: 'rgba(37,99,235,0.05)',
+    backgroundColor: colors.accent + '0d',
     paddingHorizontal: 16,
     paddingVertical: 18,
   },
-  filePickerText: { flex: 1, fontSize: 14, fontWeight: '600', color: C.indigo },
+  filePickerText: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.accent },
 
   fieldGroup: { gap: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: C.text2, marginBottom: 4 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 },
   input: {
     height: 44,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: C.text1,
-    backgroundColor: C.surface,
+    color: colors.text,
+    backgroundColor: colors.card,
   },
-  hint: { fontSize: 12, color: C.text3, marginTop: 4 },
+  hint: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
   pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryPill: {
     paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
-  categoryPillActive: { backgroundColor: C.indigo, borderColor: C.indigo },
-  categoryPillText: { fontSize: 12, fontWeight: '600', color: C.text2 },
+  categoryPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  categoryPillText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   categoryPillTextActive: { color: '#fff' },
   saveBtn: {
     height: 48,
-    backgroundColor: C.indigo,
+    backgroundColor: colors.accent,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

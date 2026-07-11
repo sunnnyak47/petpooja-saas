@@ -23,6 +23,7 @@ import Animated, {
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
 import { PressCard } from '../../src/components/PressCard';
@@ -39,21 +40,6 @@ import {
   WASTE_REASONS,
 } from '../../src/hooks/useWasteLog';
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
-const C = {
-  bg: '#f8fafc',
-  surface: '#ffffff',
-  surface2: '#f8fafc',
-  border: '#e2e8f0',
-  indigo: '#2563eb',
-  success: '#16a34a',
-  warning: '#d97706',
-  error: '#dc2626',
-  text1: '#0f172a',
-  text2: '#475569',
-  text3: '#94a3b8',
-};
-
 // FlashList works on a flat array; we flatten grouped data into header + entry rows.
 const ROW_HEADER = 'header';
 const ROW_ENTRY = 'entry';
@@ -69,15 +55,16 @@ function flattenGroups(groups) {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function WasteSkeleton() {
+  const { colors } = useTheme();
   return (
     <View style={{ padding: 16, gap: 12 }}>
       <View style={{ flexDirection: 'row', gap: 12, marginBottom: 4 }}>
-        <SkeletonBox width="48%" height={92} borderRadius={16} color="#f1f5f9" />
-        <SkeletonBox width="48%" height={92} borderRadius={16} color="#f1f5f9" />
+        <SkeletonBox width="48%" height={92} borderRadius={16} color={colors.pillBg} />
+        <SkeletonBox width="48%" height={92} borderRadius={16} color={colors.pillBg} />
       </View>
-      <SkeletonBox width={120} height={20} borderRadius={6} color="#f1f5f9" />
+      <SkeletonBox width={120} height={20} borderRadius={6} color={colors.pillBg} />
       {[0, 1, 2, 3].map((i) => (
-        <SkeletonBox key={i} width="100%" height={72} borderRadius={16} color="#f1f5f9" />
+        <SkeletonBox key={i} width="100%" height={72} borderRadius={16} color={colors.pillBg} />
       ))}
     </View>
   );
@@ -85,6 +72,8 @@ function WasteSkeleton() {
 
 // ─── Summary Stat Card ──────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, color, icon }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.statCard}>
       <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
@@ -99,6 +88,8 @@ function StatCard({ label, value, sub, color, icon }) {
 
 // ─── Day header row ─────────────────────────────────────────────────────────────
 function DayHeader({ group, symbol }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.dayHeader}>
       <Text style={styles.dayHeaderLabel}>{group.label}</Text>
@@ -118,6 +109,8 @@ function DayHeader({ group, symbol }) {
 
 // ─── Entry row ──────────────────────────────────────────────────────────────────
 function EntryRow({ entry, symbol }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const meta = reasonMeta(entry.reason);
   const isWeb = Platform.OS === 'web';
   return (
@@ -155,6 +148,8 @@ function EntryRow({ entry, symbol }) {
 
 // ─── FAB ────────────────────────────────────────────────────────────────────────
 function FAB({ onPress, bottomOffset }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const scale = useSharedValue(Platform.OS === 'web' ? 1 : 0);
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -174,6 +169,8 @@ function FAB({ onPress, bottomOffset }) {
 
 // ─── Record Waste Modal ──────────────────────────────────────────────────────────
 function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLoading }) {
+  const { colors } = useTheme();
+  const modalStyles = useMemo(() => makeModalStyles(colors), [colors]);
   const { symbol } = useCurrency();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
@@ -231,7 +228,7 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
           <View style={modalStyles.sheetHeader}>
             <Text style={modalStyles.sheetTitle}>Record Waste</Text>
             <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn} hitSlop={8}>
-              <Ionicons name="close" size={20} color={C.text1} />
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -258,16 +255,16 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
                         : ''}
                     </Text>
                   </View>
-                  <Ionicons name="swap-horizontal" size={18} color={C.indigo} />
+                  <Ionicons name="swap-horizontal" size={18} color={colors.accent} />
                 </TouchableOpacity>
               ) : (
                 <>
                   <View style={modalStyles.searchRow}>
-                    <Ionicons name="search-outline" size={16} color={C.text3} />
+                    <Ionicons name="search-outline" size={16} color={colors.textMuted} />
                     <TextInput
                       style={modalStyles.searchInput}
                       placeholder="Search items…"
-                      placeholderTextColor={C.text3}
+                      placeholderTextColor={colors.textMuted}
                       value={search}
                       onChangeText={setSearch}
                     />
@@ -313,7 +310,7 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
               <TextInput
                 style={modalStyles.input}
                 placeholder="0"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={quantity}
                 onChangeText={setQuantity}
                 keyboardType="decimal-pad"
@@ -345,7 +342,7 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
                       <Text
                         style={[
                           modalStyles.reasonPillText,
-                          { color: active ? '#fff' : C.text2 },
+                          { color: active ? '#fff' : colors.textSecondary },
                         ]}
                       >
                         {r}
@@ -359,7 +356,7 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
             {/* Estimated cost preview */}
             {selected && selected.costPerUnit > 0 && parseFloat(quantity) > 0 ? (
               <View style={modalStyles.costPreview}>
-                <Ionicons name="cash-outline" size={16} color={C.warning} />
+                <Ionicons name="cash-outline" size={16} color={colors.warning} />
                 <Text style={modalStyles.costPreviewText}>
                   Estimated loss: <Text style={modalStyles.costPreviewValue}>{symbol}{estCost.toFixed(estCost >= 100 ? 0 : 2)}</Text>
                 </Text>
@@ -386,6 +383,8 @@ function RecordWasteModal({ visible, onClose, onSubmit, isSaving, items, itemsLo
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function WasteLogScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { outletId } = useOutlet();
   const { symbol } = useCurrency();
@@ -459,7 +458,7 @@ export default function WasteLogScreen() {
             </Text>
           </View>
           <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh-outline" size={20} color={C.text3} />
+            <Ionicons name="refresh-outline" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       </View>
@@ -470,14 +469,14 @@ export default function WasteLogScreen() {
           label="Logged Today"
           value={today.count}
           sub={today.count === 1 ? 'entry' : 'entries'}
-          color={C.indigo}
+          color={colors.accent}
           icon="today-outline"
         />
         <StatCard
           label="Est. Waste Cost"
           value={today.hasCost ? `${symbol}${today.totalCost.toFixed(today.totalCost >= 100 ? 0 : 2)}` : '—'}
           sub={today.hasCost ? 'today' : 'no cost data'}
-          color={today.hasCost ? C.warning : C.text3}
+          color={today.hasCost ? colors.warning : colors.textMuted}
           icon="cash-outline"
         />
       </View>
@@ -498,8 +497,8 @@ export default function WasteLogScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            tintColor={C.indigo}
-            colors={[C.indigo]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
         ListEmptyComponent={
@@ -527,25 +526,25 @@ export default function WasteLogScreen() {
 }
 
 // ─── Styles ─────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
+const makeStyles = (colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
 
   header: {
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: C.text1, letterSpacing: 0.3 },
-  headerSub: { fontSize: 13, color: C.text3, marginTop: 4, fontWeight: '600' },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: 0.3 },
+  headerSub: { fontSize: 13, color: colors.textMuted, marginTop: 4, fontWeight: '600' },
   refreshBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: C.surface2,
+    backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     marginTop: 2,
   },
 
@@ -558,10 +557,10 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     paddingVertical: 16,
     paddingHorizontal: 14,
     gap: 4,
@@ -579,9 +578,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  statValue: { fontSize: 22, fontWeight: '800', color: C.text1, letterSpacing: -0.5 },
-  statLabel: { fontSize: 12, fontWeight: '700', color: C.text2 },
-  statSub: { fontSize: 11, color: C.text3, fontWeight: '600' },
+  statValue: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  statLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  statSub: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
 
   // Day header
   dayHeader: {
@@ -592,14 +591,14 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
   },
-  dayHeaderLabel: { fontSize: 14, fontWeight: '800', color: C.text1, letterSpacing: 0.2 },
+  dayHeaderLabel: { fontSize: 14, fontWeight: '800', color: colors.text, letterSpacing: 0.2 },
   dayHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dayHeaderCount: { fontSize: 12, fontWeight: '600', color: C.text3 },
+  dayHeaderCount: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   dayHeaderCost: {
     fontSize: 12,
     fontWeight: '800',
-    color: C.warning,
-    backgroundColor: '#fffbeb',
+    color: colors.warning,
+    backgroundColor: colors.warning + '18',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
@@ -610,10 +609,10 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: 10,
@@ -630,14 +629,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  entryName: { fontSize: 15, fontWeight: '700', color: C.text1, letterSpacing: -0.2 },
+  entryName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
   entryMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },
   reasonTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   reasonTagText: { fontSize: 11, fontWeight: '700' },
-  entryTime: { fontSize: 12, color: C.text3, fontWeight: '600' },
+  entryTime: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   entryRight: { alignItems: 'flex-end', minWidth: 60 },
-  entryQty: { fontSize: 16, fontWeight: '800', color: C.text1, letterSpacing: -0.3 },
-  entryCost: { fontSize: 12, color: C.warning, fontWeight: '700', marginTop: 3 },
+  entryQty: { fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+  entryCost: { fontSize: 12, color: colors.warning, fontWeight: '700', marginTop: 3 },
 
   // FAB
   fab: { position: 'absolute', right: 20 },
@@ -652,17 +651,17 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.indigo,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
 
 // ─── Modal Styles ───────────────────────────────────────────────────────────────
-const modalStyles = StyleSheet.create({
+const makeModalStyles = (colors) => StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '92%',
@@ -670,7 +669,7 @@ const modalStyles = StyleSheet.create({
   handleBar: {
     width: 36,
     height: 4,
-    backgroundColor: C.border,
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -682,44 +681,44 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
-  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: C.text1 },
+  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: colors.text },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.pillBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: { padding: 20, gap: 18, paddingBottom: 36 },
   fieldGroup: { gap: 8 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: C.text2 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
   input: {
     height: 44,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: C.text1,
-    backgroundColor: C.surface,
+    color: colors.text,
+    backgroundColor: colors.card,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: C.surface2,
+    backgroundColor: colors.bg,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     paddingHorizontal: 12,
     height: 44,
   },
-  searchInput: { flex: 1, fontSize: 15, color: C.text1, padding: 0 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text, padding: 0 },
   itemList: { borderRadius: 10 },
-  itemHint: { fontSize: 13, color: C.text3, paddingVertical: 10, textAlign: 'center' },
+  itemHint: { fontSize: 13, color: colors.textMuted, paddingVertical: 10, textAlign: 'center' },
   itemOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -727,22 +726,22 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.pillBg,
   },
-  itemOptionName: { flex: 1, fontSize: 14, fontWeight: '600', color: C.text1, marginRight: 10 },
-  itemOptionStock: { fontSize: 12, color: C.text3, fontWeight: '600' },
+  itemOptionName: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text, marginRight: 10 },
+  itemOptionStock: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   selectedItem: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: C.indigo,
-    backgroundColor: 'rgba(37,99,235,0.06)',
+    borderColor: colors.accent,
+    backgroundColor: colors.accent + '10',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  selectedItemName: { fontSize: 15, fontWeight: '700', color: C.text1 },
-  selectedItemSub: { fontSize: 12, color: C.text2, marginTop: 3, fontWeight: '600' },
+  selectedItemName: { fontSize: 15, fontWeight: '700', color: colors.text },
+  selectedItemSub: { fontSize: 12, color: colors.textSecondary, marginTop: 3, fontWeight: '600' },
   pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reasonPill: {
     flexDirection: 'row',
@@ -752,27 +751,27 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   reasonPillText: { fontSize: 12, fontWeight: '700' },
   costPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fffbeb',
+    backgroundColor: colors.warning + '18',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderLeftWidth: 4,
-    borderLeftColor: C.warning,
+    borderLeftColor: colors.warning,
   },
-  costPreviewText: { fontSize: 13, color: '#92400e', fontWeight: '600' },
-  costPreviewValue: { fontWeight: '800', color: '#92400e' },
+  costPreviewText: { fontSize: 13, color: colors.warning, fontWeight: '600' },
+  costPreviewValue: { fontWeight: '800', color: colors.warning },
   saveBtn: {
     flexDirection: 'row',
     height: 50,
-    backgroundColor: C.error,
+    backgroundColor: colors.error,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

@@ -20,26 +20,12 @@ import {
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/context/ThemeContext';
 import { useOutlet } from '../../src/context/OutletContext';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { useCameras, bustCache, isValidUrl } from '../../src/hooks/useCameras';
-
-// ─── Design Tokens (MS-RM light) ─────────────────────────────────────────────
-const C = {
-  bg: '#f8fafc',
-  surface: '#ffffff',
-  surface2: '#f8fafc',
-  border: '#e2e8f0',
-  accent: '#2563eb',
-  success: '#16a34a',
-  warning: '#d97706',
-  error: '#dc2626',
-  text1: '#0f172a',
-  text2: '#475569',
-  text3: '#94a3b8',
-};
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const GRID_GAP = 12;
@@ -52,6 +38,8 @@ const isWeb = Platform.OS === 'web';
 
 // ─── Snapshot preview — refreshes an <Image> on an interval ──────────────────
 function SnapshotPreview({ url, active }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tick, setTick] = useState(() => Date.now());
   const [errored, setErrored] = useState(false);
 
@@ -66,7 +54,7 @@ function SnapshotPreview({ url, active }) {
   if (!url || errored) {
     return (
       <View style={styles.previewFallback}>
-        <Ionicons name="videocam-off-outline" size={26} color={C.text3} />
+        <Ionicons name="videocam-off-outline" size={26} color={colors.textMuted} />
         <Text style={styles.previewFallbackText}>
           {errored ? 'Preview unavailable' : 'No snapshot'}
         </Text>
@@ -86,6 +74,8 @@ function SnapshotPreview({ url, active }) {
 
 // ─── Camera tile ─────────────────────────────────────────────────────────────
 function CameraTile({ camera, onLive, onEdit }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Animated.View
       entering={isWeb ? undefined : FadeIn.duration(220)}
@@ -120,7 +110,7 @@ function CameraTile({ camera, onLive, onEdit }) {
           {camera.name}
         </Text>
         <TouchableOpacity style={styles.tileLiveBtn} onPress={() => onLive(camera)}>
-          <Ionicons name="expand-outline" size={13} color={C.accent} />
+          <Ionicons name="expand-outline" size={13} color={colors.accent} />
           <Text style={styles.tileLiveText}>Live</Text>
         </TouchableOpacity>
       </View>
@@ -133,6 +123,8 @@ function CameraTile({ camera, onLive, onEdit }) {
 // delegated to the OS via Linking.openURL (VLC / browser / native player). The
 // modal itself shows the enlarged, faster-refreshing snapshot as a live proxy.
 function LiveModal({ camera, visible, onClose }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [tick, setTick] = useState(() => Date.now());
   const [errored, setErrored] = useState(false);
@@ -225,6 +217,8 @@ function LiveModal({ camera, visible, onClose }) {
 
 // ─── Add / Edit camera sheet ─────────────────────────────────────────────────
 function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
+  const { colors } = useTheme();
+  const modalStyles = useMemo(() => makeModalStyles(colors), [colors]);
   const isEdit = !!camera;
   const [name, setName] = useState('');
   const [streamUrl, setStreamUrl] = useState('');
@@ -283,7 +277,7 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
           <View style={modalStyles.sheetHeader}>
             <Text style={modalStyles.sheetTitle}>{isEdit ? 'Edit Camera' : 'Add Camera'}</Text>
             <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn} hitSlop={8}>
-              <Ionicons name="close" size={20} color={C.text1} />
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -298,7 +292,7 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
               <TextInput
                 style={[modalStyles.input, errors.name && modalStyles.inputError]}
                 placeholder="e.g. Kitchen Entrance"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={name}
                 onChangeText={setName}
                 returnKeyType="next"
@@ -312,7 +306,7 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
               <TextInput
                 style={[modalStyles.input, errors.streamUrl && modalStyles.inputError]}
                 placeholder="rtsp://192.168.1.10:554/stream1"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={streamUrl}
                 onChangeText={setStreamUrl}
                 autoCapitalize="none"
@@ -329,7 +323,7 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
               <TextInput
                 style={[modalStyles.input, errors.snapshotUrl && modalStyles.inputError]}
                 placeholder="http://192.168.1.10/snapshot.jpg"
-                placeholderTextColor={C.text3}
+                placeholderTextColor={colors.textMuted}
                 value={snapshotUrl}
                 onChangeText={setSnapshotUrl}
                 autoCapitalize="none"
@@ -361,7 +355,7 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
 
             {isEdit && (
               <TouchableOpacity style={modalStyles.deleteBtn} onPress={confirmDelete} activeOpacity={0.8}>
-                <Ionicons name="trash-outline" size={16} color={C.error} />
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
                 <Text style={modalStyles.deleteText}>Remove Camera</Text>
               </TouchableOpacity>
             )}
@@ -374,10 +368,12 @@ function CameraFormModal({ visible, camera, onClose, onSave, onDelete }) {
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 function CctvSkeleton() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.grid}>
       {[0, 1, 2, 3].map((i) => (
-        <SkeletonBox key={i} width={TILE_W} height={TILE_H + 44} borderRadius={16} color="#f1f5f9" />
+        <SkeletonBox key={i} width={TILE_W} height={TILE_H + 44} borderRadius={16} color={colors.pillBg} />
       ))}
     </View>
   );
@@ -385,6 +381,8 @@ function CctvSkeleton() {
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function CctvFeedScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { outletId, currentOutlet } = useOutlet();
   const { cameras, isLoading, error, addCamera, editCamera, removeCamera, reload } =
@@ -448,18 +446,18 @@ export default function CctvFeedScreen() {
 
         {cameras.length > 0 && (
           <View style={styles.searchRow}>
-            <Ionicons name="search-outline" size={16} color={C.text3} style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search cameras…"
-              placeholderTextColor={C.text3}
+              placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
               returnKeyType="search"
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={16} color={C.text3} />
+                <Ionicons name="close-circle" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -468,7 +466,7 @@ export default function CctvFeedScreen() {
 
       {error ? (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={16} color={C.error} />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
           <Text style={styles.errorBannerText}>{error}</Text>
         </View>
       ) : null}
@@ -486,8 +484,8 @@ export default function CctvFeedScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={C.accent}
-              colors={[C.accent]}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
         >
@@ -545,24 +543,24 @@ export default function CctvFeedScreen() {
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
+const makeStyles = (colors) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
 
   header: {
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: C.text1, letterSpacing: 0.3 },
-  headerSub: { fontSize: 13, color: C.text2, marginTop: 3, fontWeight: '500' },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: 0.3 },
+  headerSub: { fontSize: 13, color: colors.textSecondary, marginTop: 3, fontWeight: '500' },
   headerAddBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: C.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -570,29 +568,29 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.surface2,
+    backgroundColor: colors.bg,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  searchInput: { flex: 1, fontSize: 15, color: C.text1, padding: 0 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text, padding: 0 },
 
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.error + '18',
     marginHorizontal: 16,
     marginTop: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: C.error,
+    borderLeftColor: colors.error,
   },
-  errorBannerText: { fontSize: 13, color: '#991b1b', fontWeight: '600', flex: 1 },
+  errorBannerText: { fontSize: 13, color: colors.error, fontWeight: '600', flex: 1 },
 
   grid: {
     flexDirection: 'row',
@@ -604,10 +602,10 @@ const styles = StyleSheet.create({
   // Tile
   tile: {
     width: TILE_W,
-    backgroundColor: C.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 2 },
@@ -623,7 +621,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previewFallback: { alignItems: 'center', justifyContent: 'center', gap: 6 },
-  previewFallbackText: { fontSize: 11, color: C.text3, fontWeight: '600' },
+  previewFallbackText: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
   tileTopRow: {
     position: 'absolute',
     top: 8,
@@ -672,7 +670,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  tileName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text1, marginRight: 8 },
+  tileName: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text, marginRight: 8 },
   tileLiveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -680,11 +678,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(37,99,235,0.08)',
+    backgroundColor: colors.accent + '14',
     borderWidth: 1,
-    borderColor: C.accent,
+    borderColor: colors.accent,
   },
-  tileLiveText: { fontSize: 12, fontWeight: '700', color: C.accent },
+  tileLiveText: { fontSize: 12, fontWeight: '700', color: colors.accent },
 
   // FAB
   fab: { position: 'absolute', right: 20 },
@@ -699,7 +697,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -747,20 +745,20 @@ const styles = StyleSheet.create({
     gap: 8,
     height: 50,
     borderRadius: 12,
-    backgroundColor: C.accent,
+    backgroundColor: colors.accent,
   },
   liveOpenText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   liveHint: { fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 16 },
 });
 
 // ─── Modal styles ────────────────────────────────────────────────────────────
-const modalStyles = StyleSheet.create({
+const makeModalStyles = (colors) => StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
+  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
   handleBar: {
     width: 36,
     height: 4,
-    backgroundColor: C.border,
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 10,
@@ -772,37 +770,37 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: colors.border,
   },
-  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: C.text1 },
+  sheetTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: colors.text },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.pillBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: { padding: 20, gap: 16, paddingBottom: 36 },
   fieldGroup: { gap: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: C.text2, marginBottom: 4 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 },
   input: {
     minHeight: 44,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: C.text1,
-    backgroundColor: C.surface,
+    color: colors.text,
+    backgroundColor: colors.card,
   },
-  inputError: { borderColor: C.error },
-  errText: { fontSize: 12, color: C.error, fontWeight: '600', marginTop: 2 },
-  helpText: { fontSize: 12, color: C.text3, marginTop: 2, lineHeight: 16 },
+  inputError: { borderColor: colors.error },
+  errText: { fontSize: 12, color: colors.error, fontWeight: '600', marginTop: 2 },
+  helpText: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 16 },
   saveBtn: {
     height: 48,
-    backgroundColor: C.accent,
+    backgroundColor: colors.accent,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -817,8 +815,8 @@ const modalStyles = StyleSheet.create({
     height: 46,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
+    borderColor: colors.error + '40',
+    backgroundColor: colors.error + '18',
   },
-  deleteText: { fontSize: 14, fontWeight: '700', color: C.error },
+  deleteText: { fontSize: 14, fontWeight: '700', color: colors.error },
 });
