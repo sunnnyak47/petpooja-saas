@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getCurrencyConfigForOutlet } from '../../src/utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { TYPE } from '../../src/constants/typography';
@@ -44,6 +45,9 @@ export default function OutletSettingsScreen() {
   const { colors } = useTheme();
   const { data: outletData, isLoading, isError, refetch } = useOutletDetails(outletId);
   const outlet = outletData || {};
+  // Region drives which tax fields make sense: AU = ABN + single 10% GST;
+  // IN = GSTIN + FSSAI + CGST/SGST.
+  const isAU = getCurrencyConfigForOutlet(outlet).region === 'AU';
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -129,8 +133,14 @@ export default function OutletSettingsScreen() {
 
         <Text style={[s.sectionLabel, { color: colors.textMuted }]}>BUSINESS</Text>
         <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <InfoRow icon="document-text" label="GSTIN" value={outlet.gstin || '—'} colors={colors} />
-          <InfoRow icon="shield-checkmark" label="FSSAI" value={outlet.fssai || '—'} colors={colors} />
+          {isAU ? (
+            <InfoRow icon="document-text" label="ABN" value={outlet.abn || '—'} colors={colors} />
+          ) : (
+            <>
+              <InfoRow icon="document-text" label="GSTIN" value={outlet.gstin || '—'} colors={colors} />
+              <InfoRow icon="shield-checkmark" label="FSSAI" value={outlet.fssai || '—'} colors={colors} />
+            </>
+          )}
           <InfoRow icon="globe" label="Currency" value={outlet.currency || '—'} colors={colors} />
           <InfoRow icon="time" label="Timezone" value={outlet.timezone || '—'} colors={colors} />
         </View>
@@ -143,8 +153,14 @@ export default function OutletSettingsScreen() {
 
         <Text style={[s.sectionLabel, { color: colors.textMuted }]}>TAX CONFIGURATION</Text>
         <View style={[s.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <InfoRow icon="calculator" label="CGST" value={outlet.cgst || '—'} colors={colors} />
-          <InfoRow icon="calculator" label="SGST" value={outlet.sgst || '—'} colors={colors} />
+          {isAU ? (
+            <InfoRow icon="calculator" label="GST" value={outlet.gst || outlet.cgst || '10%'} colors={colors} />
+          ) : (
+            <>
+              <InfoRow icon="calculator" label="CGST" value={outlet.cgst || '—'} colors={colors} />
+              <InfoRow icon="calculator" label="SGST" value={outlet.sgst || '—'} colors={colors} />
+            </>
+          )}
           <InfoRow icon="card" label="Service Charge" value={outlet.serviceCharge || '—'} colors={colors} />
         </View>
 

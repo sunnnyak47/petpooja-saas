@@ -90,13 +90,19 @@ export function buildReceiptHtml({
   paymentMode,
   orderId,
   customerName,
+  // Region-aware receipt fields (default to India so existing callers are unchanged).
+  // An AU caller passes currencySymbol:'$', locale:'en-AU', taxIdLabel:'ABN', taxLabel:'GST'.
+  currencySymbol = '₹',
+  locale = 'en-IN',
+  taxIdLabel = 'GSTIN',
+  taxLabel = 'Tax (GST)',
 }) {
   const itemsHtml = items
     .map(
       (item) =>
         `<tr>
       <td>${item.name}${item.variant ? ` (${item.variant})` : ''} x${item.qty}</td>
-      <td class="right">&#8377;${(item.price * item.qty).toLocaleString('en-IN')}</td>
+      <td class="right">${currencySymbol}${(item.price * item.qty).toLocaleString(locale)}</td>
     </tr>`
     )
     .join('');
@@ -124,7 +130,7 @@ export function buildReceiptHtml({
     <div class="outlet">${outletName || 'Restaurant'}</div>
     <div class="sub">${outletAddress || ''}</div>
     ${outletPhone ? `<div class="sub">Tel: ${outletPhone}</div>` : ''}
-    ${outletGstin ? `<div class="sub">GSTIN: ${outletGstin}</div>` : ''}
+    ${outletGstin ? `<div class="sub">${taxIdLabel}: ${outletGstin}</div>` : ''}
   </div>
   <div class="sub" style="margin-bottom:6px">
     ${orderId ? `Bill #${orderId} &nbsp;` : ''}${table ? `Table: ${table} &nbsp;` : ''}${orderType || ''}
@@ -134,17 +140,17 @@ export function buildReceiptHtml({
     <tr><td colspan="2" class="divider"></td></tr>
     ${itemsHtml}
     <tr><td colspan="2" class="divider"></td></tr>
-    <tr><td>Subtotal</td><td class="right">&#8377;${subtotal?.toLocaleString('en-IN') || 0}</td></tr>
-    ${tax ? `<tr><td>Tax (GST)</td><td class="right">&#8377;${tax.toLocaleString('en-IN')}</td></tr>` : ''}
-    ${discount ? `<tr><td>Discount</td><td class="right">-&#8377;${discount.toLocaleString('en-IN')}</td></tr>` : ''}
+    <tr><td>Subtotal</td><td class="right">${currencySymbol}${subtotal?.toLocaleString(locale) || 0}</td></tr>
+    ${tax ? `<tr><td>${taxLabel}</td><td class="right">${currencySymbol}${tax.toLocaleString(locale)}</td></tr>` : ''}
+    ${discount ? `<tr><td>Discount</td><td class="right">-${currencySymbol}${discount.toLocaleString(locale)}</td></tr>` : ''}
     <tr><td colspan="2" class="divider"></td></tr>
-    <tr class="total-row"><td>TOTAL</td><td class="right">&#8377;${total?.toLocaleString('en-IN') || 0}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td class="right">${currencySymbol}${total?.toLocaleString(locale) || 0}</td></tr>
     <tr><td colspan="2" style="height:4px"></td></tr>
     <tr><td>Payment</td><td class="right">${paymentMode || 'Cash'}</td></tr>
   </table>
   <div class="footer">
     <div>Thank you for visiting!</div>
-    <div>${new Date().toLocaleString('en-IN')}</div>
+    <div>${new Date().toLocaleString(locale)}</div>
     <div style="margin-top:4px">Powered by MS-RM</div>
   </div>
 </body>

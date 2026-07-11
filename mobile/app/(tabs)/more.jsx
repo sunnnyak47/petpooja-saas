@@ -119,8 +119,8 @@ const SECTIONS = [
       {
         icon: 'document-text',
         color: '#F59E0B',
-        title: 'GST Reports',
-        desc: 'Tax filings & reports',
+        title: 'GST & BAS',
+        desc: 'Tax filings & returns',
         route: '/(tabs)/gst-reports',
       },
       {
@@ -235,13 +235,6 @@ export default function MoreScreen() {
           <Text style={styles.headerTitle}>More</Text>
           <Text style={styles.headerSubtitle}>All features in one place</Text>
         </View>
-        <PressCard
-          scaleDown={0.92}
-          onPress={() => router.push('/(tabs)/settings')}
-          style={styles.settingsBtn}
-        >
-          <Ionicons name="settings-outline" size={20} color="#555555" />
-        </PressCard>
       </View>
 
       {/* Content */}

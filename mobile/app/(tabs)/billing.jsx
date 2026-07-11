@@ -70,10 +70,17 @@ function formatWhatsAppBill({ order, symbol, locale, methodLabel, isAU }) {
   );
 }
 
-const PAYMENT_MODES = [
+// Region-aware tender types: India uses UPI, Australia uses EFTPOS (both are
+// valid backend payment methods per processPaymentSchema). Chosen by isAU.
+const PAYMENT_MODES_IN = [
   { id: 'cash', label: 'Cash', icon: 'cash-outline' },
   { id: 'card', label: 'Card', icon: 'card-outline' },
-  { id: 'upi', label: 'UPI', icon: 'qr-code-outline' },
+  { id: 'upi',  label: 'UPI',  icon: 'qr-code-outline' },
+];
+const PAYMENT_MODES_AU = [
+  { id: 'cash',   label: 'Cash',   icon: 'cash-outline' },
+  { id: 'card',   label: 'Card',   icon: 'card-outline' },
+  { id: 'eftpos', label: 'EFTPOS', icon: 'card-outline' },
 ];
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -224,6 +231,11 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
       total: order.grandTotal,
       paymentMode: paymentMode.toUpperCase(),
       orderId: order.invoiceNumber || order.orderNumber,
+      // Region-aware receipt: AU prints $ / en-AU / ABN / GST, IN prints ₹ / en-IN / GSTIN.
+      currencySymbol: symbol,
+      locale,
+      taxIdLabel: isAU ? 'ABN' : 'GSTIN',
+      taxLabel: isAU ? 'GST' : 'Tax (GST)',
     }).catch((err) => {
       console.warn('[Printer] Receipt print failed:', err?.message);
     });
@@ -352,7 +364,7 @@ function BillModal({ order, visible, onClose, onSettle, isSettling }) {
             {/* Payment Mode */}
             <Text style={styles.sectionHeading}>Payment Mode</Text>
             <View style={styles.payGrid}>
-              {PAYMENT_MODES.map((pm) => (
+              {(isAU ? PAYMENT_MODES_AU : PAYMENT_MODES_IN).map((pm) => (
                 <TouchableOpacity
                   key={pm.id}
                   style={[styles.payPill, paymentMode === pm.id && styles.payPillSelected]}

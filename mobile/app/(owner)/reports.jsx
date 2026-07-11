@@ -351,7 +351,7 @@ const PaymentRow = React.memo(({ payment, colors }) => {
 export default function ReportsScreen() {
   const { outletId, currentOutlet } = useOutlet();
   const { colors } = useTheme();
-  const { symbol, locale, dateLocale, fmt, fmtFull } = useCurrency();
+  const { symbol, locale, dateLocale, fmt, fmtFull, isAU } = useCurrency();
   const [range, setRange] = useState('7d');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -489,11 +489,16 @@ export default function ReportsScreen() {
                 },
                 {
                   heading: 'Tax Summary',
-                  rows: [
-                    { label: 'CGST', value: `${symbol}${(tax.cgst || 0).toLocaleString(locale)}` },
-                    { label: 'SGST', value: `${symbol}${(tax.sgst || 0).toLocaleString(locale)}` },
-                    { label: 'Total Tax', value: `${symbol}${(tax.total || 0).toLocaleString(locale)}` },
-                  ],
+                  // AU: single 10% GST (no CGST/SGST split). IN: CGST + SGST.
+                  rows: isAU
+                    ? [
+                        { label: 'GST', value: `${symbol}${(tax.total || 0).toLocaleString(locale)}` },
+                      ]
+                    : [
+                        { label: 'CGST', value: `${symbol}${(tax.cgst || 0).toLocaleString(locale)}` },
+                        { label: 'SGST', value: `${symbol}${(tax.sgst || 0).toLocaleString(locale)}` },
+                        { label: 'Total Tax', value: `${symbol}${(tax.total || 0).toLocaleString(locale)}` },
+                      ],
                 },
               ],
               tableData: items.length > 0 ? {
@@ -657,14 +662,23 @@ export default function ReportsScreen() {
               <Text style={[s.taxLabel, { color: colors.textSecondary }]}>Taxable Amount</Text>
               <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.taxableAmount)}</Text>
             </View>
-            <View style={s.taxRow}>
-              <Text style={[s.taxLabel, { color: colors.textSecondary }]}>CGST</Text>
-              <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.cgst)}</Text>
-            </View>
-            <View style={s.taxRow}>
-              <Text style={[s.taxLabel, { color: colors.textSecondary }]}>SGST</Text>
-              <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.sgst)}</Text>
-            </View>
+            {isAU ? (
+              <View style={s.taxRow}>
+                <Text style={[s.taxLabel, { color: colors.textSecondary }]}>GST (10%)</Text>
+                <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.total)}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.taxRow}>
+                  <Text style={[s.taxLabel, { color: colors.textSecondary }]}>CGST</Text>
+                  <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.cgst)}</Text>
+                </View>
+                <View style={s.taxRow}>
+                  <Text style={[s.taxLabel, { color: colors.textSecondary }]}>SGST</Text>
+                  <Text style={[s.taxValue, { color: colors.text }]}>{fmtFull(taxData.sgst)}</Text>
+                </View>
+              </>
+            )}
             <View style={[s.taxDivider, { backgroundColor: colors.border }]} />
             <View style={s.taxRow}>
               <Text style={[s.taxTotalLabel, { color: colors.text }]}>Total Tax</Text>
