@@ -9,8 +9,8 @@ import {
 
 const TYPE_META = {
   info:        { label: 'Info',        color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)', icon: Info },
-  warning:     { label: 'Warning',     color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: AlertTriangle },
-  maintenance: { label: 'Maintenance', color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: Wrench },
+  warning:     { label: 'Warning',     color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: AlertTriangle },
+  maintenance: { label: 'Maintenance', color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: Wrench },
   feature:     { label: 'Feature',     color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 14%, transparent)', icon: Sparkles },
 };
 

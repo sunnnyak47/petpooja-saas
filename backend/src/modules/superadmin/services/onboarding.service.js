@@ -645,6 +645,16 @@ Object.assign(superadminService, {
     { key: 'rostering',       label: 'Staff Rostering',           category: 'Advanced',   description: 'Schedule and manage staff rosters and shifts' },
     { key: 'integrations',    label: 'Integrations (Tally etc.)', category: 'Advanced',   description: 'Third-party accounting and delivery integrations' },
     { key: 'audit_log',       label: 'Audit Log',                 category: 'Advanced',   description: 'Full security and compliance activity log' },
+    // Finance & Compliance — newer region-specific modules (AU/IN). `region` is
+    // display metadata for the toggle card; the app also region-gates the nav.
+    { key: 'financials',       label: 'Financials (Xero)',   category: 'Finance & Compliance', description: 'Xero-synced financial reporting, P&L and balance sheet',    region: 'AU' },
+    { key: 'accounting',       label: 'Accounting',          category: 'Finance & Compliance', description: 'Double-entry ledgers, journals and chart of accounts',      region: 'AU' },
+    { key: 'payroll',          label: 'Payroll',             category: 'Finance & Compliance', description: 'Staff pay runs, wages, superannuation and payslips',        region: 'AU' },
+    { key: 'fixed_assets',     label: 'Fixed Assets',        category: 'Finance & Compliance', description: 'Asset register and depreciation schedules',                 region: 'AU' },
+    { key: 'budgets',          label: 'Budgets',             category: 'Finance & Compliance', description: 'Budget planning and actual-vs-budget variance tracking',    region: 'AU' },
+    { key: 'gst_returns',      label: 'GST / BAS Returns',   category: 'Finance & Compliance', description: 'Prepare and file GST (India) / BAS (Australia) returns',    region: 'IN' },
+    { key: 'customer_invoices',label: 'Tax Invoices',        category: 'Finance & Compliance', description: 'Issue B2B tax invoices to corporate customers' },
+    { key: 'menu_analytics',   label: 'Menu Analytics',      category: 'Analytics',            description: 'Item-level sales performance and profitability' },
   ],
 
   /** Build default features object — all features ON */

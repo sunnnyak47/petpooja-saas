@@ -6,10 +6,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '../../lib/api';
+import hybridAPI, { isNetworkError } from '../../api/offlineAPI';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import Modal from '../Modal';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Percent, Tag, Gift, Ticket, Lock, X, Check, Minus } from 'lucide-react';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
 /* ─── Constants ─────────────────────────────────────────────────────────── */
 
@@ -107,6 +111,7 @@ export default function DiscountModal({
   onSuccess,
 }) {
   const { format, symbol, isAU } = useCurrency();
+  const isOnline = useOnlineStatus();
   const flatPresets = isAU ? FLAT_PRESETS_AU : FLAT_PRESETS_IN;
 
   /* ── local state ── */
@@ -213,10 +218,28 @@ export default function DiscountModal({
     },
   });
 
+  // Offline write of the discount's final state to local SQLite (synced=0). Shared
+  // by the pure-offline branch and the online→offline network-error fallback.
+  const applyDiscountOffline = (payload) =>
+    hybridAPI.applyDiscount(orderId, {
+      type: payload.discount_type,
+      value: payload.discount_value,
+      reason: payload.discount_reason,
+    });
+
   // Apply discount to existing order
   const applyToOrderMutation = useMutation({
-    mutationFn: (payload) =>
-      api.post(`/orders/${orderId}/apply-discount`, payload).then(r => r.data),
+    mutationFn: async (payload) => {
+      if (IS_ELECTRON && !isOnline) return applyDiscountOffline(payload);
+      try {
+        return (await api.post(`/orders/${orderId}/apply-discount`, payload)).data;
+      } catch (err) {
+        // Backend briefly unreachable → apply the discount locally so a blip never
+        // blocks it. Real HTTP errors re-throw; browser (non-Electron) is untouched.
+        if (IS_ELECTRON && isNetworkError(err)) return applyDiscountOffline(payload);
+        throw err;
+      }
+    },
     onSuccess: () => {
       toast.success('Discount applied!');
       onSuccess?.();
@@ -229,12 +252,16 @@ export default function DiscountModal({
 
   // Remove discount from existing order
   const removeFromOrderMutation = useMutation({
-    mutationFn: () =>
-      api.post(`/orders/${orderId}/apply-discount`, {
-        discount_type: 'flat',
-        discount_value: 0,
-        discount_reason: 'Discount removed',
-      }).then(r => r.data),
+    mutationFn: async () => {
+      const payload = { discount_type: 'flat', discount_value: 0, discount_reason: 'Discount removed' };
+      if (IS_ELECTRON && !isOnline) return applyDiscountOffline(payload);
+      try {
+        return (await api.post(`/orders/${orderId}/apply-discount`, payload)).data;
+      } catch (err) {
+        if (IS_ELECTRON && isNetworkError(err)) return applyDiscountOffline(payload);
+        throw err;
+      }
+    },
     onSuccess: () => {
       toast.success('Discount removed');
       onSuccess?.();

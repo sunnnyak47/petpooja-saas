@@ -29,6 +29,7 @@ const CATEGORY_COLORS = {
   Growth:     { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
   Analytics:  { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
   Advanced:   { accent: 'var(--accent)', bg: 'color-mix(in srgb, var(--accent) 10%, transparent)' },
+  'Finance & Compliance': { accent: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 10%, transparent)' },
 };
 
 function ToggleSwitch({ enabled, onChange, disabled }) {
@@ -71,6 +72,12 @@ function FeatureCard({ feature, enabled, onChange, saving }) {
           <div className="min-w-0">
             <p className="text-sm font-medium truncate" style={{ color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
               {feature.label}
+              {feature.region && (
+                <span className="ml-1.5 text-[9px] font-bold px-1 py-0.5 rounded align-middle"
+                  style={{ background: 'color-mix(in srgb, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                  {feature.region}
+                </span>
+              )}
             </p>
             <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
               {feature.description}

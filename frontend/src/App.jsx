@@ -28,6 +28,8 @@ import AggregatorPage from './pages/AggregatorPage';
 import PrepTimeAnalyticsPage from './pages/PrepTimeAnalyticsPage';
 import EODReportPage from './pages/EODReportPage';
 import SuperAdminPage from './pages/SuperAdminPage';
+import PlatformAnalyticsPage from './pages/PlatformAnalyticsPage';
+import SupportPage from './pages/SupportPage';
 import SuperAdminLoginPage from './pages/SuperAdminLoginPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import ChainDetailPage from './pages/ChainDetailPage';
@@ -173,7 +175,10 @@ function PermissionGuard({ permission, children }) {
 function HomeRedirect() {
   const { user } = useSelector((s) => s.auth);
   if (user?.role === 'super_admin') {
-    return <SuperAdminPage />;
+    // SA-001: the super-admin landing is the platform Analytics dashboard, NOT the
+    // Restaurant-Chains list (that lives at /super-admin). Previously both routes
+    // rendered SuperAdminPage, so the two sidebar tabs showed the identical screen.
+    return <PlatformAnalyticsPage />;
   }
   // New restaurant owners who haven't completed onboarding
   const onboardingComplete =
@@ -335,6 +340,7 @@ export default function App() {
         {/* P4 Routes */}
         <Route path="subscription"       element={<SubscriptionPage />} />
         <Route path="menu-analytics"     element={<MenuAnalyticsPage />} />
+        <Route path="support"            element={<SupportPage />} />
         <Route path="live"               element={<LiveDashboardPage />} />
       </Route>
 

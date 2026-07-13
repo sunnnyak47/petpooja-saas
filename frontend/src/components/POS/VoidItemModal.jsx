@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '../../lib/api';
+import hybridAPI, { isNetworkError } from '../../api/offlineAPI';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import Modal from '../Modal';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Trash2, Gift, ChefHat, AlertTriangle, Check, X, Lock } from 'lucide-react';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
 const QUICK_REASONS = [
   'Wrong order',
@@ -16,6 +20,7 @@ const QUICK_REASONS = [
 
 export default function VoidItemModal({ isOpen, onClose, order, outletId, onSuccess }) {
   const { format } = useCurrency();
+  const isOnline = useOnlineStatus();
 
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [voidType, setVoidType] = useState('void');
@@ -48,10 +53,24 @@ export default function VoidItemModal({ isOpen, onClose, order, outletId, onSucc
   // PIN verification + void mutation combined
   const voidMutation = useMutation({
     mutationFn: async () => {
+      // Offline write of the item void's final state to local SQLite (synced=0).
+      const offlineVoid = () =>
+        hybridAPI.voidItem(order.id, selectedItemId, {
+          manager_pin: pin,
+          reason: reason.trim(),
+          void_type: voidType,
+        });
+
+      // Offline: the verify-pin endpoint is unreachable, so the manager PIN is
+      // accepted locally and the item is voided straight in local SQLite.
+      if (IS_ELECTRON && !isOnline) return offlineVoid();
+
       // Step 1: verify manager PIN
       try {
         await api.post('/staff/verify-pin', { pin, outlet_id: outletId });
       } catch (err) {
+        // A network blip on the PIN check → accept locally and void offline.
+        if (IS_ELECTRON && isNetworkError(err)) return offlineVoid();
         const msg =
           err?.response?.data?.message ||
           err?.response?.data?.error ||
@@ -60,13 +79,19 @@ export default function VoidItemModal({ isOpen, onClose, order, outletId, onSucc
       }
 
       // Step 2: submit void
-      const { data } = await api.post(`/orders/${order.id}/void-item`, {
-        item_id: selectedItemId,
-        manager_pin: pin,
-        reason: reason.trim(),
-        void_type: voidType,
-      });
-      return data;
+      try {
+        const { data } = await api.post(`/orders/${order.id}/void-item`, {
+          item_id: selectedItemId,
+          manager_pin: pin,
+          reason: reason.trim(),
+          void_type: voidType,
+        });
+        return data;
+      } catch (err) {
+        // Backend briefly unreachable → void locally so a blip never blocks it.
+        if (IS_ELECTRON && isNetworkError(err)) return offlineVoid();
+        throw err;
+      }
     },
     onSuccess: () => {
       const label = voidType === 'comp' ? 'Item comped' : 'Item voided';

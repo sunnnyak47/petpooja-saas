@@ -34,6 +34,22 @@ const invoke = (channel, ...args) => {
 }
 
 /**
+ * True when an Axios error is a transport-level failure — the request never got
+ * an HTTP response back (backend briefly unreachable, connection refused, DNS
+ * failure, or the request timed out). A real HTTP error (4xx/5xx) always carries
+ * `err.response`, so this returns false for those and the caller keeps showing
+ * the server's specific message instead of falling back offline.
+ * @param {any} err
+ * @returns {boolean}
+ */
+export const isNetworkError = (err) =>
+  !!err && !err.response && (
+    err.code === 'ERR_NETWORK' ||
+    err.message === 'Network Error' ||
+    err.code === 'ECONNABORTED'
+  )
+
+/**
  * Generates a unique invoice number using outlet+date+sequence.
  * Format: FY2526-<OUTLET_SHORT>-<SEQUENCE>
  * @param {object} outlet
@@ -369,18 +385,30 @@ export const hybridAPI = {
    * Processes payment for an order (status → paid).
    * Electron: updates locally, frees table, opens cash drawer if cash.
    * Browser: calls cloud API.
+   *
+   * Accepts method ∈ {cash, card, upi, eftpos, card_pine_labs, split} plus optional
+   * multi-tender `splits[]` and a `tip`. Card/UPI/EFTPOS captured while offline are
+   * flagged with a payment_note so reconciliation can tell them apart after sync.
    * @param {string} orderId
-   * @param {{ method: string, amount: number, reference?: string, note?: string }} paymentData
+   * @param {{ method: string, amount: number, reference?: string, note?: string,
+   *           payment_note?: string, splits?: object[], tip?: number }} paymentData
    * @returns {{ success: boolean }}
    */
   async processPayment(orderId, paymentData) {
+    const method = paymentData.method
+    // Terminal-captured tenders — flag the offline write so recon can distinguish them.
+    const isTerminalCapture = ['card', 'upi', 'eftpos', 'card_pine_labs'].includes(method)
     if (IS_ELECTRON) {
       await invoke('db-update-order-status', orderId, 'paid', {
-        payment_method: paymentData.method,
+        payment_method: method,
         // Card/UPI taken while offline are captured on the physical terminal —
         // record that so reconciliation can distinguish them after sync.
-        payment_note: paymentData.note
-          || (['card', 'upi', 'eftpos', 'card_pine_labs'].includes(paymentData.method) ? 'offline_captured_on_terminal' : null),
+        payment_note: paymentData.payment_note || paymentData.note
+          || (isTerminalCapture ? 'offline_captured_on_terminal' : null),
+        // Optional multi-tender splits + tip, recorded so the whole-order sync
+        // can rebuild the Payment row after connectivity returns.
+        payment_splits: paymentData.splits ? JSON.stringify(paymentData.splits) : null,
+        tip_amount: paymentData.tip ?? paymentData.tip_amount ?? null,
         paid_at: new Date().toISOString(),
       })
 
@@ -391,15 +419,150 @@ export const hybridAPI = {
       }
 
       // Open cash drawer for cash payments (non-blocking)
-      if (paymentData.method === 'cash') {
+      if (method === 'cash') {
         window.electron.openCashDrawer().catch(() => {})
       }
 
       return { success: true }
     }
 
+    // Browser/cloud: forward the full payment body (method + splits + tip + note).
     const res = await api.post(`/orders/${orderId}/payment`, paymentData)
     return res.data?.data
+  },
+
+  // ── KITCHEN KOTS (offline KDS) ───────────────────────────────────────────
+  /**
+   * Returns the outlet's active KOTs, shaped like the cloud /kitchen/kots row.
+   * Electron: local SQLite (db-get-kitchen-kots). Browser: cloud REST API.
+   * @param {string} outletId
+   * @returns {Promise<object[]>}
+   */
+  async getKitchenKOTs(outletId) {
+    if (IS_ELECTRON) {
+      const r = await invoke('db-get-kitchen-kots', outletId)
+      return Array.isArray(r) ? r : []
+    }
+    const res = await api.get('/kitchen/kots', { params: { outlet_id: outletId } })
+    const raw = res.data?.data ?? res.data ?? res
+    return Array.isArray(raw) ? raw : []
+  },
+
+  // ── ORDER MUTATIONS (offline-first) ──────────────────────────────────────
+  // Each writes the order's FINAL STATE to local SQLite and flips synced=0; the
+  // whole-order sync (POST /orders/sync forward-merge) reconciles it on reconnect.
+
+  /**
+   * Moves an order to a new table (frees old, seizes new).
+   * @param {string} orderId @param {string} newTableId
+   */
+  async transferTable(orderId, newTableId) {
+    if (IS_ELECTRON) return invoke('db-transfer-table', orderId, newTableId)
+    const res = await api.post(`/orders/${orderId}/transfer-table`, { new_table_id: newTableId })
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Merges a source order into a target order (moves items + KOTs, recomputes totals).
+   * @param {string} sourceOrderId @param {string} targetOrderId
+   */
+  async mergeOrders(sourceOrderId, targetOrderId) {
+    if (IS_ELECTRON) return invoke('db-merge-orders', sourceOrderId, targetOrderId)
+    const res = await api.post(`/orders/${sourceOrderId}/merge`, { target_order_id: targetOrderId })
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Splits the given order items into a NEW (device-namespaced) order.
+   * @param {string} orderId @param {{ items: string[] }} payload  order_item ids to move
+   */
+  async splitOrder(orderId, payload) {
+    if (IS_ELECTRON) return invoke('db-split-order', orderId, payload)
+    const res = await api.post(`/orders/${orderId}/split`, payload)
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Voids (cancels) an order, frees its table.
+   * @param {string} orderId @param {string} reason
+   */
+  async voidOrder(orderId, reason) {
+    if (IS_ELECTRON) return invoke('db-void-order', orderId, reason)
+    const res = await api.post(`/orders/${orderId}/cancel`, { reason })
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Voids a single order item and recomputes order totals.
+   * @param {string} orderId @param {string} itemId @param {object} [opts] cloud-only extras (void_type, reason, manager_pin)
+   */
+  async voidItem(orderId, itemId, opts = {}) {
+    if (IS_ELECTRON) return invoke('db-void-item', orderId, itemId)
+    const res = await api.post(`/orders/${orderId}/void-item`, { item_id: itemId, ...opts })
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Applies a discount to an order and recomputes totals.
+   * @param {string} orderId @param {{ type: string, value: number, reason?: string }} d
+   */
+  async applyDiscount(orderId, d) {
+    if (IS_ELECTRON) return invoke('db-apply-discount', orderId, d)
+    const res = await api.post(`/orders/${orderId}/apply-discount`, {
+      discount_type: d.type,
+      discount_value: d.value,
+      discount_reason: d.reason,
+    })
+    return res.data?.data ?? res.data
+  },
+
+  /**
+   * Comps an order (nets the total to 0).
+   * @param {string} orderId
+   */
+  async compOrder(orderId) {
+    if (IS_ELECTRON) return invoke('db-comp-order', orderId)
+    const res = await api.post(`/orders/${orderId}/apply-discount`, {
+      discount_type: 'comp',
+      discount_value: 100,
+      discount_reason: 'Complimentary',
+    })
+    return res.data?.data ?? res.data
+  },
+
+  /** Updates an order's notes. @param {string} orderId @param {string} notes */
+  async updateNotes(orderId, notes) {
+    if (IS_ELECTRON) return invoke('db-update-notes', orderId, notes)
+    const res = await api.patch(`/orders/${orderId}`, { notes })
+    return res.data?.data ?? res.data
+  },
+
+  /** Updates an order's covers (pax). @param {string} orderId @param {number} n */
+  async updateCovers(orderId, n) {
+    if (IS_ELECTRON) return invoke('db-update-covers', orderId, n)
+    const res = await api.patch(`/orders/${orderId}`, { covers: n })
+    return res.data?.data ?? res.data
+  },
+
+  /** Adds gratuity to an order. @param {string} orderId @param {number} amount */
+  async addGratuity(orderId, amount) {
+    if (IS_ELECTRON) return invoke('db-add-gratuity', orderId, amount)
+    const res = await api.patch(`/orders/${orderId}`, { gratuity_amount: amount })
+    return res.data?.data ?? res.data
+  },
+
+  /** Updates a KOT's status (offline KDS). @param {string} kotId @param {string} status */
+  async updateKotStatus(kotId, status) {
+    if (IS_ELECTRON) return invoke('db-update-kot-status', kotId, status)
+    const res = await api.patch(`/kitchen/kots/${kotId}/status`, { status })
+    return res.data?.data ?? res.data
+  },
+
+  /** Updates a KOT item's status (offline KDS). @param {string} kotId @param {string} itemId @param {string} status */
+  async updateKotItemStatus(kotId, itemId, status) {
+    if (IS_ELECTRON) return invoke('db-update-kot-item-status', kotId, itemId, status)
+    const res = await api.patch(`/kitchen/kots/${kotId}/items/${itemId}/status`, { status })
+    return res.data?.data ?? res.data
   },
 
   // ── ORDER HISTORY ────────────────────────────────────────────────

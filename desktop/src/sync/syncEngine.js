@@ -1,6 +1,6 @@
 const {
   OrderDB, KotDB, TableDB,
-  MenuDB, SyncDB, SettingsDB, OutletDB, CustomerDB
+  MenuDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB
 } = require('../database/localDB')
 const { app, BrowserWindow } = require('electron')
 
@@ -45,8 +45,12 @@ class SyncEngine {
    */
   notifySyncStatus(status, message, extra = {}) {
     let pending = 0
+    let outbox_pending = 0
     try { pending = OrderDB.getUnsyncedCount() } catch (_) { /* db not ready */ }
-    this.notifyRenderer('sync-status', { status, message, pending, ...extra })
+    // Generic write-outbox depth — the renderer status bar shows unsynced
+    // orders AND queued offline writes (menu/inventory/settings/… edits).
+    try { outbox_pending = OutboxDB.pendingCount() } catch (_) { /* db not ready */ }
+    this.notifyRenderer('sync-status', { status, message, pending, outbox_pending, ...extra })
   }
 
   // ─────────────────────────────
@@ -170,6 +174,77 @@ class SyncEngine {
   }
 
   // ─────────────────────────────
+  // GENERIC WRITE OUTBOX DRAIN
+  // The universal offline-write replay
+  // ─────────────────────────────
+  /**
+   * Replays queued offline writes (any module's failed axios mutation) FIFO.
+   * Each row is a raw request: method + axios path (url) + JSON body string.
+   * The stored url is the axios path (e.g. '/menu/categories'), so replay
+   * prefixes API_URL (already '…/api').
+   *
+   * Status handling mirrors the order-sync discipline so a flaky connection
+   * can never dead-letter a healthy write:
+   *   2xx              — replayed → markDone.
+   *   400/422          — backend permanently rejected it → markFailed PERMANENT
+   *                      (increments attempts toward the dead-letter ceiling).
+   *   401              — token stale → transient. STOP draining now (no attempts
+   *                      increment); the renderer's auth refresh pushes a fresh
+   *                      token and the next cycle resumes from this same row.
+   *   404/5xx/network  — transient transport → markFailed transient (attempts
+   *                      untouched); backoff retries.
+   * Skips entirely when offline or unauthenticated (hasAuth()).
+   */
+  async drainOutbox() {
+    if (!this.isOnline) return
+    // No token → not logged in → do not replay. Skip entirely: no fetch, no
+    // attempts increment — exactly like the order/customer upload paths.
+    if (!this.hasAuth()) return
+
+    let rows = []
+    try {
+      rows = OutboxDB.pending()
+    } catch (err) {
+      console.error('Outbox drain: failed to read pending rows:', err)
+      return
+    }
+    if (rows.length === 0) return
+
+    this.notifySyncStatus('uploading', `Replaying ${rows.length} offline writes...`)
+
+    for (const row of rows) {
+      try {
+        const res = await fetch(`${API_URL}${row.url}`, {
+          method: row.method || 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.getHeaders(),
+          },
+          // Stored as an already-serialized JSON string (or null for no body).
+          body: row.body != null ? row.body : undefined,
+        })
+
+        if (res.ok) {
+          OutboxDB.markDone(row.id)
+        } else if (res.status === 400 || res.status === 422) {
+          // Backend will never accept this write → dead-letter (attempts++).
+          OutboxDB.markFailed(row.id, `validation_rejected_http_${res.status}`, { permanent: true })
+        } else if (res.status === 401) {
+          // Token stale — transient. Stop now; resume from this row next cycle.
+          OutboxDB.markFailed(row.id, 'auth_stale_http_401')
+          break
+        } else {
+          // 404 / 5xx / other transport error — transient, attempts untouched.
+          OutboxDB.markFailed(row.id, `replay_failed_http_${res.status}`)
+        }
+      } catch (err) {
+        // Network throw — transient. Leave attempts untouched; next cycle retries.
+        OutboxDB.markFailed(row.id, `network_error: ${err.message || 'unknown'}`)
+      }
+    }
+  }
+
+  // ─────────────────────────────
   // UPLOAD TO CLOUD
   // Called when online detected
   // ─────────────────────────────
@@ -241,6 +316,15 @@ class SyncEngine {
       billed_at: order.billed_at || undefined,
       paid_at: order.paid_at || undefined,
       items,
+      // Emit the order's KOTs so offline KDS ready/served status changes reach
+      // the backend's kot-reconcile loop. Without this, a KOT marked ready or
+      // served while offline never propagates on sync.
+      kots: KotDB.getForOrder(order.id).map(k => ({
+        kot_number: k.kot_number,
+        station: k.station,
+        status: k.status,
+        items_count: k.items_count,
+      })),
     }
   }
 
@@ -672,6 +756,11 @@ class SyncEngine {
     try {
       // We get outlet_id dynamically from Settings to allow full background sync without args
       const currentOutletId = outletId || SettingsDB.get('outlet_id')
+
+      // Drain the generic write-outbox FIRST — any module's queued offline
+      // write (menu/inventory/settings/…) replays before the order/customer
+      // uploads so downstream reads reflect those writes.
+      await this.drainOutbox()
 
       await this.uploadPendingCustomers()
 

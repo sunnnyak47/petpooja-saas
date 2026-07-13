@@ -13,8 +13,8 @@ import {
 
 const TYPE_CFG = {
   INFO:        { color: '#64748b', bg: 'color-mix(in srgb, #64748b 14%, transparent)', icon: Info,          label: 'Information' },
-  WARNING:     { color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: AlertTriangle, label: 'Warning' },
-  MAINTENANCE: { color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: Clock,         label: 'Maintenance' },
+  WARNING:     { color: '#ef4444', bg: 'color-mix(in srgb, #ef4444 14%, transparent)', icon: AlertTriangle, label: 'Warning' },
+  MAINTENANCE: { color: '#f59e0b', bg: 'color-mix(in srgb, #f59e0b 14%, transparent)', icon: Clock,         label: 'Maintenance' },
   PROMO:       { color: '#16a34a', bg: 'color-mix(in srgb, #16a34a 14%, transparent)', icon: Gift,          label: 'Promotion' },
 };
 

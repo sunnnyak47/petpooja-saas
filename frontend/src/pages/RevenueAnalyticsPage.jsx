@@ -115,10 +115,14 @@ function MrrLabels({ data }) {
 
 export default function RevenueAnalyticsPage() {
   const { formatShort, symbol } = useCurrency();
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['revenue-analytics'],
     queryFn: () => api.get('/superadmin/revenue-analytics').then(r => r.data),
-    staleTime: 5 * 60_000,
+    // Realtime window: auto-refresh so values update live without a hard reload,
+    // and the Refresh button does a soft refetch (staleTime no longer blocks it).
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const fmt = (n) => {

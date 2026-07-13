@@ -51,6 +51,7 @@ const OUTLET_ID    = '11111111-1111-4111-8111-111111111111';
 const MENU_ITEM_ID = '22222222-2222-4222-8222-222222222222';
 const MENU_ITEM_2  = '55555555-5555-4555-8555-555555555555';
 const TABLE_ID     = '33333333-3333-4333-8333-333333333333';
+const TABLE_ID_2   = '33333333-3333-4333-8333-333333333334';
 const CLIENT_ID    = '44444444-4444-4444-8444-444444444441';
 const CLIENT_ID_2  = '44444444-4444-4444-8444-444444444442';
 const ITEM_ID_1    = '66666666-6666-4666-8666-666666666661';
@@ -90,7 +91,11 @@ function makeTx() {
       // Forward-merge path re-applies a newer offline state onto the cloud row.
       update: jest.fn(async ({ data }) => ({ ...data })),
     },
-    orderItem: { create: jest.fn(async ({ data }) => ({ ...data, id: `oi-${Math.random()}` })) },
+    orderItem: {
+      create: jest.fn(async ({ data }) => ({ ...data, id: `oi-${Math.random()}` })),
+      // Forward-merge soft-deletes cloud items the device no longer carries (split/merge).
+      updateMany: jest.fn(async () => ({ count: 1 })),
+    },
     payment: {
       create: jest.fn(async ({ data }) => ({ ...data, id: 'pay-1' })),
       // Forward-merge checks for an existing tender before creating one.
@@ -98,7 +103,11 @@ function makeTx() {
     },
     orderStatusHistory: { create: jest.fn(async ({ data }) => data) },
     table: { updateMany: jest.fn(async () => ({ count: 1 })) },
-    kOT: { create: jest.fn() }, // present only to assert KOTs are never created
+    kOT: {
+      create: jest.fn(), // present only to assert KOTs are never created on sync
+      // Forward-merge reconciles offline KDS statuses onto matching cloud KOTs.
+      updateMany: jest.fn(async () => ({ count: 1 })),
+    },
   };
 }
 
@@ -478,7 +487,13 @@ describe('syncOfflineOrders — v2 offline sync contract', () => {
     expect(tx.kOT.create).not.toHaveBeenCalled();
 
     // ── Idempotent re-run: both items now present → pure no-op, no duplicate.
+    // The cloud row now reflects the first merge (both items + re-asserted total
+    // 157.5), so re-sending the identical snapshot changes nothing.
     mockOrderItemFindMany.mockResolvedValue([{ id: ITEM_ID_1 }, { id: ITEM_ID_2 }]);
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 157.5, outlet_id: OUTLET_ID, table_id: null, notes: null,
+    });
     tx = makeTx();
     mockTransaction.mockClear();
     mockTransaction.mockImplementation(async (fn) => fn(tx));
@@ -490,6 +505,116 @@ describe('syncOfflineOrders — v2 offline sync contract', () => {
     expect(mockTransaction).not.toHaveBeenCalled();
     expect(tx.orderItem.create).not.toHaveBeenCalled();
     expect(tx.order.update).not.toHaveBeenCalled();
+  });
+
+  test('forward-merge (merge source): re-syncing an existing order as "merged" applies the status, frees its table, and never 400s the batch', async () => {
+    // The offline table-merge emptied this SOURCE ticket (its items moved onto
+    // the target order) and stamped it 'merged'. Previously 'merged' was absent
+    // from the schema enum → Joi 400'd the whole batch and the order dead-lettered.
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: TABLE_ID, notes: null,
+    });
+
+    // The device moved every line onto the target, so the source now carries ZERO
+    // items — the exact shape the offline merge produces. min(1) used to 400 it.
+    mockOrderItemFindMany.mockResolvedValue([{ id: ITEM_ID_1 }, { id: ITEM_ID_2 }]);
+    const mergedSource = baseOrder({
+      status: 'merged', items: [], subtotal: 0, tax_amount: 0, cgst_amount: 0, sgst_amount: 0, total_amount: 0,
+    });
+
+    const results = await orderService.syncOfflineOrders([mergedSource], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', order_number: 'SIL9SW-20260711-0007', merged: true })
+    );
+    // The merged status is applied to the existing row in place (no new order).
+    expect(tx.order.create).not.toHaveBeenCalled();
+    expect(tx.order.update.mock.calls[0][0].data.status).toBe('merged');
+
+    // The table the emptied source order held is released (mirrors the void branch).
+    expect(tx.table.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: TABLE_ID, current_order_id: CLIENT_ID }),
+      data: expect.objectContaining({ status: 'available', current_order_id: null }),
+    }));
+    // The source's stale cloud items are cleared so they don't double-count against
+    // the target (previously skipped — reconcile only ran when items were present).
+    expect(tx.orderItem.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ is_deleted: true }),
+    }));
+    // A merged (voided-into-another) order never becomes a Payment.
+    expect(tx.payment.create).not.toHaveBeenCalled();
+
+    // Validation accepts the EMPTY-items merged source — the batch is not 400'd.
+    const { error } = syncOfflineOrdersSchema.validate({ orders: [mergedSource] });
+    expect(error).toBeUndefined();
+  });
+
+  test('forward-merge (item removed): a cloud item the device no longer carries is soft-deleted and totals reconcile', async () => {
+    // First sync landed two items (grand 157.5). The waiter then split ITEM_ID_2
+    // onto another ticket offline, so this re-sync carries only the survivor —
+    // the dropped item must be soft-deleted so the items sum to the new total.
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 157.5, outlet_id: OUTLET_ID, table_id: null, notes: null,
+    });
+    mockOrderItemFindMany.mockResolvedValue([{ id: ITEM_ID_1 }, { id: ITEM_ID_2 }]);
+
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({
+        status: 'confirmed',
+        subtotal: 100, tax_amount: 5, cgst_amount: 2.5, sgst_amount: 2.5, total_amount: 105,
+        items: [
+          { id: ITEM_ID_1, menu_item_id: MENU_ITEM_ID, item_name: 'Paneer Tikka', quantity: 2, unit_price: 50, total_price: 100 },
+        ],
+      }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', merged: true })
+    );
+    // The dropped cloud item is soft-deleted (device item set is authoritative)…
+    expect(tx.orderItem.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ order_id: CLIENT_ID, id: { in: [ITEM_ID_2] } }),
+      data: expect.objectContaining({ is_deleted: true }),
+    }));
+    // …no new item is inserted (the survivor was already present)…
+    expect(tx.orderItem.create).not.toHaveBeenCalled();
+    // …and the order totals are re-asserted down to the device snapshot.
+    const upd = tx.order.update.mock.calls[0][0].data;
+    expect(upd).toEqual(expect.objectContaining({
+      subtotal: 100, taxable_amount: 100, total_tax: 5, grand_total: 105, total_amount: 105,
+    }));
+  });
+
+  test('forward-merge (item added): a genuinely-new item is still inserted and nothing is soft-deleted', async () => {
+    // Both device item ids are still present in the payload, so the removal
+    // reconcile is a no-op — only the new item is inserted (existing behaviour).
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: null, notes: null,
+    });
+    mockOrderItemFindMany.mockResolvedValue([{ id: ITEM_ID_1 }]);
+
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({
+        status: 'confirmed',
+        subtotal: 150, tax_amount: 7.5, cgst_amount: 3.75, sgst_amount: 3.75, total_amount: 157.5,
+        items: [
+          { id: ITEM_ID_1, menu_item_id: MENU_ITEM_ID, item_name: 'Paneer Tikka', quantity: 2, unit_price: 50, total_price: 100 },
+          { id: ITEM_ID_2, menu_item_id: MENU_ITEM_2, item_name: 'Naan', quantity: 2, unit_price: 25, total_price: 50 },
+        ],
+      }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', merged: true })
+    );
+    // Exactly the new item inserted WITH its client id…
+    expect(tx.orderItem.create).toHaveBeenCalledTimes(1);
+    expect(tx.orderItem.create.mock.calls[0][0].data.id).toBe(ITEM_ID_2);
+    // …and no live item is soft-deleted (both device ids remain present).
+    expect(tx.orderItem.updateMany).not.toHaveBeenCalled();
   });
 
   test('forward-merge underpayment guard: an order that gains an item AND becomes paid tenders the DEVICE total, not the stale cloud total', async () => {
@@ -588,5 +713,166 @@ describe('syncOfflineOrders — v2 offline sync contract', () => {
     const data = tx.order.create.mock.calls[0][0].data;
     expect(data.taxable_amount).toBe(0); // max(100 - 150, 0), not -50
     expect(data.discount_amount).toBe(150);
+  });
+
+  /* ── Full-state forward-merge (transfer / discount / void / split / KOT) ── */
+
+  test('forward-merge (transfer): re-syncing an existing order with a new table_id moves the table', async () => {
+    // The order already lives on TABLE_ID; the waiter transferred it to TABLE_ID_2
+    // offline, so the whole-order re-sync carries the new table_id.
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: TABLE_ID, notes: null,
+    });
+
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({ table_id: TABLE_ID_2 }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', order_number: 'SIL9SW-20260711-0007', merged: true })
+    );
+    expect(tx.order.create).not.toHaveBeenCalled();
+
+    // The order row is repointed to the new table in a single consolidated update.
+    expect(tx.order.update).toHaveBeenCalledTimes(1);
+    expect(tx.order.update.mock.calls[0][0].data.table_id).toBe(TABLE_ID_2);
+
+    // Old table freed (only while it still points at this order)…
+    expect(tx.table.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: TABLE_ID, current_order_id: CLIENT_ID }),
+      data: expect.objectContaining({ status: 'available', current_order_id: null }),
+    }));
+    // …new table conditionally seized (keep-both — never clobbers an occupied one).
+    expect(tx.table.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: TABLE_ID_2, current_order_id: null, status: { not: 'occupied' } }),
+      data: expect.objectContaining({ status: 'occupied', current_order_id: CLIENT_ID }),
+    }));
+  });
+
+  test('forward-merge (discount): re-syncing a discount re-asserts the discounted totals + discount snapshot', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: null, notes: null,
+    });
+
+    // Manager applied a flat 20 discount offline: subtotal 100, taxable 80,
+    // 5% GST on 80 = 4 (cgst 2 / sgst 2), grand 84.
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({
+        discount_type: 'flat', discount_value: 20, discount_amount: 20,
+        subtotal: 100, tax_amount: 4, cgst_amount: 2, sgst_amount: 2, total_amount: 84,
+      }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', merged: true })
+    );
+    expect(tx.order.update).toHaveBeenCalledTimes(1);
+    const upd = tx.order.update.mock.calls[0][0].data;
+    expect(upd).toEqual(expect.objectContaining({
+      subtotal: 100,
+      discount_amount: 20,
+      discount_type: 'flat',
+      discount_value: 20,
+      taxable_amount: 80, // max(100 - 20, 0)
+      cgst: 2, sgst: 2, igst: 0,
+      total_tax: 4,
+      grand_total: 84,
+      total_amount: 84,
+    }));
+    // A pure discount edit neither advances the lifecycle nor tenders a payment.
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  test('forward-merge (void): re-syncing an existing order as "cancelled" voids it and frees its table', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: TABLE_ID, notes: null,
+    });
+
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({ status: 'cancelled', notes: 'Walkout' }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', merged: true })
+    );
+    const upd = tx.order.update.mock.calls[0][0].data;
+    expect(upd.status).toBe('cancelled');
+    expect(upd.cancelled_by).toBe(USER_ID);
+    expect(upd.cancel_reason).toBe('Walkout');
+
+    // The table the cancelled order held is released…
+    expect(tx.table.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: TABLE_ID, current_order_id: CLIENT_ID }),
+      data: expect.objectContaining({ status: 'available', current_order_id: null }),
+    }));
+    // …and a void never becomes a Payment.
+    expect(tx.payment.create).not.toHaveBeenCalled();
+  });
+
+  test('split-order: the split-off second order syncs as a brand-new cloud order with its own number + items', async () => {
+    // A table bill was split offline; the child ticket carries one item under its
+    // own device-namespaced id. On sync it is a plain CREATE (findUnique → null).
+    const splitChild = baseOrder({
+      id: CLIENT_ID_2,
+      order_number: 'SIL9SW-20260711-DA1B2-004',
+      subtotal: 50, tax_amount: 2.5, cgst_amount: 1.25, sgst_amount: 1.25, total_amount: 52.5,
+      items: [
+        { id: ITEM_ID_2, menu_item_id: MENU_ITEM_2, item_name: 'Naan', quantity: 2, unit_price: 25, total_price: 50 },
+      ],
+    });
+
+    const results = await orderService.syncOfflineOrders([splitChild], USER_ID);
+
+    expect(results[0].status).toBe('synced');
+    expect(results[0].id).toBe(CLIENT_ID_2);
+    expect(results[0].order_number).toMatch(/^SIL9SW-\d{8}-0007$/);
+
+    const data = tx.order.create.mock.calls[0][0].data;
+    expect(data.id).toBe(CLIENT_ID_2); // created WITH the child ticket's client id
+    expect(data.subtotal).toBe(50);
+    expect(data.taxable_amount).toBe(50);
+    expect(data.grand_total).toBe(52.5);
+    expect(data.total_amount).toBe(52.5);
+    expect(data.notes).toContain('[offline:SIL9SW-20260711-DA1B2-004]');
+
+    // Its lone item lands with the client's price-at-sale snapshot + client id.
+    expect(tx.orderItem.create).toHaveBeenCalledTimes(1);
+    const item = tx.orderItem.create.mock.calls[0][0].data;
+    expect(item.id).toBe(ITEM_ID_2);
+    expect(item.name).toBe('Naan');
+    expect(item.item_total).toBe(50);
+  });
+
+  test('kots[]: an incoming KOT status is reconciled onto the matching cloud KOT by outlet_id+kot_number', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: CLIENT_ID, order_number: 'SIL9SW-20260711-0007', status: 'confirmed', is_paid: false,
+      grand_total: 105, outlet_id: OUTLET_ID, table_id: null, notes: null,
+    });
+
+    // The offline KDS marked KOT-42 ready; nothing else about the order changed.
+    const results = await orderService.syncOfflineOrders([
+      baseOrder({ kots: [{ kot_number: 'KOT-42', station: 'KITCHEN', status: 'ready', items_count: 1 }] }),
+    ], USER_ID);
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({ id: CLIENT_ID, status: 'exists', merged: true })
+    );
+    expect(tx.kOT.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ outlet_id: OUTLET_ID, kot_number: 'KOT-42' }),
+      data: expect.objectContaining({ status: 'ready' }),
+    }));
+    // A KOT-only re-sync touches neither the order body nor a payment.
+    expect(tx.order.create).not.toHaveBeenCalled();
+    expect(tx.order.update).not.toHaveBeenCalled();
+    expect(tx.payment.create).not.toHaveBeenCalled();
+
+    // Validation accepts the top-level kots[] array (no 400).
+    const { error } = syncOfflineOrdersSchema.validate({
+      orders: [baseOrder({ kots: [{ kot_number: 'KOT-42', station: 'KITCHEN', status: 'ready', items_count: 1 }] })],
+    });
+    expect(error).toBeUndefined();
   });
 });

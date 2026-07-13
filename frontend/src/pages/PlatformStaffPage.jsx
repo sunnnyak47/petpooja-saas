@@ -57,7 +57,17 @@ export default function PlatformStaffPage() {
   });
 
   const rows = Array.isArray(staff) ? staff : [];
-  const roleList = Array.isArray(roles) ? roles : [];
+  // Fallback so the role dropdown is NEVER blank — covers the /staff/roles
+  // endpoint being unavailable (Render deploy lag) or the acting account lacking
+  // scope to read it. Mirrors backend ASSIGNABLE_PLATFORM_ROLES.
+  const roleList = (Array.isArray(roles) && roles.length)
+    ? roles
+    : [
+        { name: 'platform_admin',   display_name: 'Platform Admin' },
+        { name: 'platform_support', display_name: 'Support Agent' },
+        { name: 'platform_billing', display_name: 'Billing Manager' },
+        { name: 'super_admin',      display_name: 'Super Admin' },
+      ];
   const invalidate = () => qc.invalidateQueries({ queryKey: ['platform-staff'] });
 
   const createMut = useMutation({

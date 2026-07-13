@@ -243,6 +243,22 @@ function initSchema() {
       created_at  TEXT DEFAULT (datetime('now'))
     );
 
+    -- ── Generic API Write Outbox ────────────────────────────────
+    -- Universal offline-write mechanism: any module's failed write (menu,
+    -- inventory, settings, …) is enqueued here as a raw axios request and
+    -- replayed FIFO by SyncEngine.drainOutbox() when connectivity restores.
+    CREATE TABLE IF NOT EXISTS api_outbox (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid        TEXT,
+      method      TEXT,
+      url         TEXT,
+      body        TEXT,
+      status      TEXT DEFAULT 'pending',
+      attempts    INTEGER DEFAULT 0,
+      last_error  TEXT,
+      created_at  TEXT DEFAULT (datetime('now'))
+    );
+
     -- ── Sync Conflict Audit ─────────────────────────────────────
     -- Durable record of offline/cloud conflicts resolved by SyncEngine.
     CREATE TABLE IF NOT EXISTS sync_conflicts (
@@ -286,6 +302,7 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_order_items_kot    ON order_items(order_id, kot_status);
     CREATE INDEX IF NOT EXISTS idx_kot_order          ON kot(order_id);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_pending ON sync_queue(attempts);
+    CREATE INDEX IF NOT EXISTS idx_api_outbox_pending ON api_outbox(status, attempts, id);
     CREATE INDEX IF NOT EXISTS idx_sync_conflicts_outlet ON sync_conflicts(outlet_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_sync_conflicts_record ON sync_conflicts(table_name, record_id);
     CREATE INDEX IF NOT EXISTS idx_menu_items_outlet  ON menu_items(outlet_id, is_available);
@@ -329,6 +346,19 @@ function migrateSchema(database) {
     // Poison/dead-letter counter — orders that keep failing to sync are parked
     // after N attempts instead of blocking the queue forever.
     `ALTER TABLE orders ADD COLUMN sync_attempts  INTEGER DEFAULT 0`,
+    // Discount reason (comp/void/manager override) — stored alongside the
+    // type/value so the reconciled cloud order and receipt keep the basis.
+    `ALTER TABLE orders ADD COLUMN discount_reason TEXT`,
+    // Gratuity/tip captured on the order; folded into the offline total_amount
+    // by recomputeOrderTotals so the local bill reflects it before sync.
+    `ALTER TABLE orders ADD COLUMN gratuity        REAL DEFAULT 0`,
+    // Table occupancy pointer — transfer/merge/void maintain it so the offline
+    // floor view knows which order seized a table (occupancy is also derived
+    // from the orders join, but this keeps the tables row self-describing).
+    `ALTER TABLE tables ADD COLUMN current_order_id TEXT`,
+    // Per-item KDS status so the offline kitchen display can mark a single line
+    // ready/served (defaults 'pending' to match a freshly-sent KOT line).
+    `ALTER TABLE kot_items ADD COLUMN status TEXT DEFAULT 'pending'`,
   ]
   for (const sql of alters) {
     try { database.exec(sql) } catch (e) {
@@ -385,6 +415,45 @@ function computeTotals(subtotal, discount, cfg) {
   const total = Math.round(rawTotal)
   const round_off = r2(total - rawTotal)
   return { subtotal: r2(subtotal), discount: r2(discount || 0), cgst: half, sgst: r2(tax - half), tax, total, round_off }
+}
+
+/**
+ * Re-derives an order's money columns from its CURRENT line items and the
+ * discount/gratuity already stored on the row, then re-flags it for upload
+ * (synced = 0). The single money path shared by every offline mutation that
+ * changes an order's contents or discount (void-item, split, merge, discount,
+ * comp, gratuity) so region-aware totals stay identical to OrderDB.create.
+ *
+ * Reads discount_amount + gratuity straight off the row — callers set those
+ * first, then call this to recompute subtotal → tax → round_off → total.
+ * Gratuity is added ON TOP of the rounded grand total (backend recomputes its
+ * own grand_total on sync; this keeps the OFFLINE bill/EOD correct meanwhile).
+ *
+ * @param {string} orderId
+ * @param {string} [ts] - ISO timestamp to stamp updated_at (defaults to now)
+ */
+function recomputeOrderTotals(orderId, ts) {
+  const database = getDB()
+  const now = ts || new Date().toISOString()
+  const order = database.prepare(`
+    SELECT outlet_id, discount_amount, gratuity FROM orders WHERE id = ?
+  `).get(orderId)
+  if (!order) return
+  const row = database.prepare(`
+    SELECT COALESCE(SUM(line_total), 0) AS subtotal FROM order_items WHERE order_id = ?
+  `).get(orderId)
+  const subtotal = row.subtotal || 0
+  const cfg = resolveTaxConfig(OutletDB.get(order.outlet_id))
+  const { cgst, sgst, tax, total, round_off } = computeTotals(subtotal, Number(order.discount_amount || 0), cfg)
+  const grat = Math.max(0, Number(order.gratuity || 0))
+  const grandTotal = Math.round((total + grat) * 100) / 100
+  database.prepare(`
+    UPDATE orders
+    SET subtotal = ?, cgst_amount = ?, sgst_amount = ?, tax_amount = ?,
+        round_off = ?, total_amount = ?, updated_at = ?,
+        synced = 0, sync_error = NULL
+    WHERE id = ?
+  `).run(subtotal, cgst, sgst, tax, round_off, grandTotal, now, orderId)
 }
 
 // ─────────────────────────────────────
@@ -732,6 +801,7 @@ const OrderDB = {
    * @param {object} extra - optional { invoice_number, billed_at, paid_at, payment_method }
    */
   updateStatus(orderId, status, extra = {}) {
+    const database = getDB()
     const now = new Date().toISOString()
     // Re-flag the order for upload: a payment/status change made after the first
     // sync must re-upload (backend forward-merge handles the 'exists' replay).
@@ -746,7 +816,30 @@ const OrderDB = {
     // is flagged so the manager can match it against the terminal settlement.
     if (extra.payment_note)   { fields.push('payment_note = @payment_note');     params.payment_note = extra.payment_note }
 
-    getDB().prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
+    // Offline cancel must retire the order like voidOrder does: stamp
+    // cancelled_at + cancellation_reason and free the table. Without this the
+    // table is left 'occupied' with a dangling current_order_id forever — an
+    // orphaned table the host can never re-seat. Reason is accepted via the
+    // extra bag (extra.reason / extra.cancellation_reason).
+    const isCancel = status === 'cancelled'
+    if (isCancel) {
+      fields.push('cancelled_at = @cancelled_at')
+      params.cancelled_at = now
+      fields.push('cancellation_reason = @cancellation_reason')
+      params.cancellation_reason = extra.reason ?? extra.cancellation_reason ?? null
+    }
+
+    if (isCancel) {
+      const row = database.prepare(`SELECT table_id FROM orders WHERE id = ?`).get(orderId)
+      database.transaction(() => {
+        database.prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
+        if (row?.table_id) {
+          database.prepare(`UPDATE tables SET status = 'available', current_order_id = NULL WHERE id = ?`).run(row.table_id)
+        }
+      })()
+    } else {
+      database.prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
+    }
     SyncDB.enqueue('orders', orderId, 'UPDATE', { id: orderId, status, updated_at: now, ...extra })
   },
 
@@ -849,7 +942,17 @@ const OrderDB = {
     let sql = `SELECT * FROM orders WHERE outlet_id = ?`
     const params = [outletId]
 
-    if (filters.status) { sql += ` AND status = ?`; params.push(filters.status) }
+    // Live Orders passes a COMMA-LIST of statuses ('created,confirmed,held,
+    // billed,ready'). The old `status = ?` matched that whole string literally
+    // and never hit a row, so offline Live Orders was ALWAYS empty. Split on ','
+    // and use IN(...) so each status is matched individually.
+    if (filters.status) {
+      const statuses = String(filters.status).split(',').map((s) => s.trim()).filter(Boolean)
+      if (statuses.length) {
+        sql += ` AND status IN (${statuses.map(() => '?').join(',')})`
+        params.push(...statuses)
+      }
+    }
     if (filters.date)   { sql += ` AND date(created_at) = date(?)`; params.push(filters.date) }
 
     sql += ` ORDER BY created_at DESC LIMIT 100`
@@ -1007,6 +1110,378 @@ const OrderDB = {
 
     getDB().prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = @orderId`).run(params)
   },
+
+  // ── OFFLINE POS ACTIONS (whole-order-state mutations) ─────────────
+  // Every method below writes the order's FINAL local state and sets synced = 0
+  // so syncEngine.uploadPendingOrders re-sends the full order via POST
+  // /orders/sync — the backend forward-merge reconciles it. We never replay
+  // each action as its own REST call. Money changes go through
+  // recomputeOrderTotals so region-aware totals match OrderDB.create.
+
+  /**
+   * Moves an order to a different table: repoints the order (table_id +
+   * table_number), frees the old table and seizes the new one. synced = 0.
+   * @param {string} orderId
+   * @param {string} newTableId
+   * @returns {object|null} the updated order (via getById)
+   */
+  transferTable(orderId, newTableId) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const order = database.prepare(`SELECT table_id, table_number FROM orders WHERE id = ?`).get(orderId)
+    if (!order) return null
+    const oldTableId = order.table_id
+    const newTable = newTableId
+      ? database.prepare(`SELECT table_number FROM tables WHERE id = ?`).get(newTableId)
+      : null
+
+    database.transaction(() => {
+      database.prepare(`
+        UPDATE orders
+        SET table_id = @newTableId,
+            table_number = @newNumber,
+            synced = 0, sync_error = NULL, updated_at = @now
+        WHERE id = @orderId
+      `).run({
+        newTableId: newTableId || null,
+        newNumber: newTable?.table_number ?? order.table_number ?? null,
+        now,
+        orderId,
+      })
+      // Free the old table (only if it isn't the same table).
+      if (oldTableId && oldTableId !== newTableId) {
+        database.prepare(`UPDATE tables SET status = 'available', current_order_id = NULL WHERE id = ?`).run(oldTableId)
+      }
+      // Seize the new table.
+      if (newTableId) {
+        database.prepare(`UPDATE tables SET status = 'occupied', current_order_id = ? WHERE id = ?`).run(orderId, newTableId)
+      }
+    })()
+
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Merges a source order into a target order: moves the source's items and
+   * KOTs onto the target, recomputes the target's totals, marks the source
+   * 'merged' and frees its table. Both orders end synced = 0.
+   * @param {string} sourceOrderId
+   * @param {string} targetOrderId
+   * @returns {object|null} the updated target order (via getById)
+   */
+  mergeOrders(sourceOrderId, targetOrderId) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const source = database.prepare(`SELECT outlet_id, table_id FROM orders WHERE id = ?`).get(sourceOrderId)
+    const target = database.prepare(`SELECT outlet_id FROM orders WHERE id = ?`).get(targetOrderId)
+    if (!source || !target || sourceOrderId === targetOrderId) return null
+
+    database.transaction(() => {
+      // Move items onto the target giving each a FRESH id (insert new + delete
+      // original), re-stamping outlet_id defensively. Keeping the source item
+      // ids would collide on the OrderItem PK in the cloud if the source order
+      // already synced → the target order dead-letters. Re-parent the KOTs
+      // (their own PK is untouched, so no collision there).
+      const srcItems = database.prepare(`SELECT * FROM order_items WHERE order_id = ?`).all(sourceOrderId)
+      const insertMoved = database.prepare(`
+        INSERT INTO order_items (
+          id, order_id, outlet_id, menu_item_id, menu_item_name,
+          variant_id, variant_name, quantity, unit_price, addon_total,
+          line_total, kot_status, notes, created_at
+        ) VALUES (
+          @id, @order_id, @outlet_id, @menu_item_id, @menu_item_name,
+          @variant_id, @variant_name, @quantity, @unit_price, @addon_total,
+          @line_total, @kot_status, @notes, @created_at
+        )
+      `)
+      for (const it of srcItems) {
+        insertMoved.run({ ...it, id: crypto.randomUUID(), order_id: targetOrderId, outlet_id: target.outlet_id })
+      }
+      database.prepare(`DELETE FROM order_items WHERE order_id = ?`).run(sourceOrderId)
+      database.prepare(`UPDATE kot SET order_id = @target WHERE order_id = @source`)
+        .run({ target: targetOrderId, source: sourceOrderId })
+
+      // Recompute the target from its new item set (honours target discount).
+      recomputeOrderTotals(targetOrderId, now)
+
+      // Retire the source: terminal 'merged' status, zeroed money, freed table.
+      database.prepare(`
+        UPDATE orders
+        SET status = 'merged', subtotal = 0, tax_amount = 0, cgst_amount = 0,
+            sgst_amount = 0, total_amount = 0, synced = 0, sync_error = NULL,
+            updated_at = @now
+        WHERE id = @source
+      `).run({ now, source: sourceOrderId })
+      if (source.table_id) {
+        database.prepare(`UPDATE tables SET status = 'available', current_order_id = NULL WHERE id = ?`).run(source.table_id)
+      }
+    })()
+
+    return OrderDB.getById(targetOrderId)
+  },
+
+  /**
+   * Item-split: creates a NEW local order (device-namespaced number) carrying
+   * the given order_item ids, moves those items onto it, and recomputes BOTH
+   * orders' totals. Both end synced = 0.
+   * @param {string} orderId - the source order
+   * @param {{ items: string[] }} payload - order_item ids to move to the new order
+   * @returns {{ source: object, newOrder: object }|null}
+   */
+  splitOrder(orderId, payload = {}) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const itemIds = (payload.items || payload.item_ids || []).filter(Boolean)
+    const source = database.prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId)
+    if (!source || !itemIds.length) return null
+
+    const outlet = OutletDB.get(source.outlet_id)
+    const newId = crypto.randomUUID()
+    const newNumber = nextOfflineOrderNumber(outlet)
+
+    database.transaction(() => {
+      // 1. New order header — mirrors OrderDB.create's column set; money starts
+      //    at 0 and is filled in by the recompute below.
+      database.prepare(`
+        INSERT INTO orders (
+          id, outlet_id, order_number, table_id, table_number,
+          order_type, source, status, customer_id, customer_name, customer_phone,
+          covers, notes, subtotal, tax_amount, cgst_amount, sgst_amount,
+          service_charge, discount_amount, discount_type, discount_value,
+          round_off, total_amount, synced, created_at, updated_at
+        ) VALUES (
+          @id, @outlet_id, @order_number, @table_id, @table_number,
+          @order_type, @source, @status, @customer_id, @customer_name, @customer_phone,
+          @covers, @notes, 0, 0, 0, 0, 0, 0, NULL, NULL,
+          0, 0, 0, @created_at, @updated_at
+        )
+      `).run({
+        id: newId,
+        outlet_id: source.outlet_id,
+        order_number: newNumber,
+        table_id: source.table_id || null,
+        table_number: source.table_number || null,
+        order_type: source.order_type || 'dine_in',
+        source: source.source || 'pos',
+        status: source.status || 'active',
+        customer_id: source.customer_id || null,
+        customer_name: source.customer_name || null,
+        customer_phone: source.customer_phone || null,
+        covers: source.covers || 1,
+        notes: source.notes || null,
+        created_at: now,
+        updated_at: now,
+      })
+
+      // 2. Move the selected items onto the new order. We INSERT a FRESH-id
+      //    copy of each moved line on the new order and DELETE the original from
+      //    the source — never reuse the source item id. If the source already
+      //    synced, that id exists in the cloud; reusing it would collide on the
+      //    OrderItem PK → the split order dead-letters. Fresh ids make the new
+      //    order's items brand-new to the backend, and the source loses them.
+      const placeholders = itemIds.map(() => '?').join(',')
+      const movedItems = database.prepare(`
+        SELECT * FROM order_items WHERE order_id = ? AND id IN (${placeholders})
+      `).all(orderId, ...itemIds)
+      const insertMoved = database.prepare(`
+        INSERT INTO order_items (
+          id, order_id, outlet_id, menu_item_id, menu_item_name,
+          variant_id, variant_name, quantity, unit_price, addon_total,
+          line_total, kot_status, notes, created_at
+        ) VALUES (
+          @id, @order_id, @outlet_id, @menu_item_id, @menu_item_name,
+          @variant_id, @variant_name, @quantity, @unit_price, @addon_total,
+          @line_total, @kot_status, @notes, @created_at
+        )
+      `)
+      for (const it of movedItems) {
+        insertMoved.run({ ...it, id: crypto.randomUUID(), order_id: newId, outlet_id: source.outlet_id })
+      }
+      database.prepare(`
+        DELETE FROM order_items WHERE order_id = ? AND id IN (${placeholders})
+      `).run(orderId, ...itemIds)
+
+      // 3. Recompute BOTH orders from their new item sets.
+      recomputeOrderTotals(newId, now)
+      recomputeOrderTotals(orderId, now)
+    })()
+
+    return { source: OrderDB.getById(orderId), newOrder: OrderDB.getById(newId) }
+  },
+
+  /**
+   * Voids (cancels) an order: terminal 'cancelled' status with reason and
+   * timestamp, frees its table. synced = 0.
+   * @param {string} orderId
+   * @param {string} [reason]
+   * @returns {object|null} the updated order (via getById)
+   */
+  voidOrder(orderId, reason) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const order = database.prepare(`SELECT table_id FROM orders WHERE id = ?`).get(orderId)
+    if (!order) return null
+
+    database.transaction(() => {
+      database.prepare(`
+        UPDATE orders
+        SET status = 'cancelled', cancelled_at = @now, cancellation_reason = @reason,
+            synced = 0, sync_error = NULL, updated_at = @now
+        WHERE id = @orderId
+      `).run({ now, reason: reason || null, orderId })
+      if (order.table_id) {
+        database.prepare(`UPDATE tables SET status = 'available', current_order_id = NULL WHERE id = ?`).run(order.table_id)
+      }
+    })()
+
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Voids a single line item: deletes it and recomputes the order totals.
+   * synced = 0 (via recomputeOrderTotals).
+   * @param {string} orderId
+   * @param {string} itemId - order_item id
+   * @returns {object|null} the updated order (via getById)
+   */
+  voidItem(orderId, itemId) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const exists = database.prepare(`SELECT id FROM order_items WHERE id = ? AND order_id = ?`).get(itemId, orderId)
+    if (!exists) return OrderDB.getById(orderId)
+
+    database.transaction(() => {
+      database.prepare(`DELETE FROM order_items WHERE id = ? AND order_id = ?`).run(itemId, orderId)
+      recomputeOrderTotals(orderId, now)
+    })()
+
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Applies a discount to an order. Mirrors OrderDB.create's derivation:
+   * percentage → subtotal × value/100, otherwise a flat amount, clamped to
+   * [0, subtotal]. Stores type/value/reason + the derived amount, then
+   * recomputes totals. synced = 0.
+   * @param {string} orderId
+   * @param {{ type?: 'percentage'|'flat', value?: number, reason?: string }} data
+   * @returns {object|null} the updated order (via getById)
+   */
+  applyDiscount(orderId, { type, value, reason } = {}) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const order = database.prepare(`SELECT id FROM orders WHERE id = ?`).get(orderId)
+    if (!order) return null
+
+    const sub = database.prepare(`
+      SELECT COALESCE(SUM(line_total), 0) AS subtotal FROM order_items WHERE order_id = ?
+    `).get(orderId)
+    const subtotal = sub.subtotal || 0
+    const raw = type === 'percentage'
+      ? subtotal * (Number(value) || 0) / 100
+      : (Number(value) || 0)
+    const discountAmount = Math.min(Math.max(raw, 0), subtotal)
+
+    database.transaction(() => {
+      database.prepare(`
+        UPDATE orders
+        SET discount_type = @type, discount_value = @value, discount_reason = @reason,
+            discount_amount = @discountAmount
+        WHERE id = @orderId
+      `).run({
+        type: type || null,
+        value: value != null ? Number(value) : null,
+        reason: reason || null,
+        discountAmount,
+        orderId,
+      })
+      recomputeOrderTotals(orderId, now)
+    })()
+
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Comps an order (on the house): sets the discount to the full subtotal so
+   * the grand total nets to 0, then recomputes. synced = 0.
+   * @param {string} orderId
+   * @returns {object|null} the updated order (via getById)
+   */
+  compOrder(orderId) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const order = database.prepare(`SELECT id FROM orders WHERE id = ?`).get(orderId)
+    if (!order) return null
+
+    const sub = database.prepare(`
+      SELECT COALESCE(SUM(line_total), 0) AS subtotal FROM order_items WHERE order_id = ?
+    `).get(orderId)
+    const subtotal = sub.subtotal || 0
+
+    database.transaction(() => {
+      database.prepare(`
+        UPDATE orders
+        SET discount_type = 'comp', discount_value = 100, discount_reason = 'comp',
+            discount_amount = @subtotal
+        WHERE id = @orderId
+      `).run({ subtotal, orderId })
+      recomputeOrderTotals(orderId, now)
+    })()
+
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Updates the order's free-text notes. synced = 0.
+   * @param {string} orderId
+   * @param {string} notes
+   * @returns {object|null} the updated order (via getById)
+   */
+  updateNotes(orderId, notes) {
+    const now = new Date().toISOString()
+    const info = getDB().prepare(`
+      UPDATE orders SET notes = ?, synced = 0, sync_error = NULL, updated_at = ? WHERE id = ?
+    `).run(notes ?? null, now, orderId)
+    if (!info.changes) return null
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Updates the order's cover (guest) count. synced = 0.
+   * @param {string} orderId
+   * @param {number} n
+   * @returns {object|null} the updated order (via getById)
+   */
+  updateCovers(orderId, n) {
+    const now = new Date().toISOString()
+    const info = getDB().prepare(`
+      UPDATE orders SET covers = ?, synced = 0, sync_error = NULL, updated_at = ? WHERE id = ?
+    `).run(Math.max(1, Number(n) || 1), now, orderId)
+    if (!info.changes) return null
+    return OrderDB.getById(orderId)
+  },
+
+  /**
+   * Adds a gratuity/tip to the order and folds it into the offline total via
+   * recomputeOrderTotals (idempotent — always re-derives from the stored
+   * amount). synced = 0.
+   * @param {string} orderId
+   * @param {number} amount
+   * @returns {object|null} the updated order (via getById)
+   */
+  addGratuity(orderId, amount) {
+    const database = getDB()
+    const now = new Date().toISOString()
+    const order = database.prepare(`SELECT id FROM orders WHERE id = ?`).get(orderId)
+    if (!order) return null
+
+    database.transaction(() => {
+      database.prepare(`UPDATE orders SET gratuity = ? WHERE id = ?`).run(Math.max(0, Number(amount) || 0), orderId)
+      recomputeOrderTotals(orderId, now)
+    })()
+
+    return OrderDB.getById(orderId)
+  },
 }
 
 // ─────────────────────────────────────
@@ -1074,6 +1549,89 @@ const KotDB = {
       GROUP BY k.id
       ORDER BY k.created_at
     `).all(orderId)
+  },
+
+  /**
+   * Returns the outlet's ACTIVE KOTs (status NOT completed/cancelled), shaped
+   * EXACTLY like the cloud GET /kitchen/kots row so the offline KDS renders
+   * identically. Joins the order for header context, expands per-KOT items,
+   * and normalises the local 'sent' status to the cloud's 'pending'.
+   * @param {string} outletId
+   * @returns {object[]}
+   */
+  getActiveForOutlet(outletId) {
+    const database = getDB()
+    const kots = database.prepare(`
+      SELECT k.id, k.kot_number, k.status, k.created_at,
+             o.order_number AS order_number,
+             o.order_type   AS order_type,
+             o.table_number AS order_table_number,
+             o.notes        AS order_notes
+      FROM kot k
+      JOIN orders o ON o.id = k.order_id
+      WHERE k.outlet_id = ? AND k.status NOT IN ('completed', 'cancelled')
+      ORDER BY k.created_at ASC
+    `).all(outletId)
+
+    const itemStmt = database.prepare(`
+      SELECT id, order_item_id, menu_item_name, quantity, notes, status
+      FROM kot_items WHERE kot_id = ?
+    `)
+
+    const norm = (s) => (s === 'sent' || !s ? 'pending' : s)
+
+    return kots.map((k) => ({
+      id: k.id,
+      kot_number: k.kot_number,
+      status: norm(k.status),
+      created_at: k.created_at,
+      items: itemStmt.all(k.id).map((it) => ({
+        id: it.id,
+        order_item_id: it.order_item_id,
+        menu_item_name: it.menu_item_name,
+        name: it.menu_item_name,
+        quantity: it.quantity,
+        notes: it.notes,
+        status: norm(it.status),
+      })),
+      order: {
+        order_number: k.order_number,
+        order_type: k.order_type,
+        table: k.order_table_number != null ? { table_number: k.order_table_number } : null,
+        notes: k.order_notes,
+      },
+    }))
+  },
+
+  /**
+   * Updates a KOT's status (e.g. pending → ready → completed) so the offline
+   * KDS reflects the change, and re-flags the KOT for upload (synced = 0).
+   * @param {string} kotId
+   * @param {string} status
+   * @returns {boolean}
+   */
+  updateKotStatus(kotId, status) {
+    const info = getDB().prepare(`UPDATE kot SET status = ?, synced = 0 WHERE id = ?`).run(status, kotId)
+    return info.changes > 0
+  },
+
+  /**
+   * Updates a single KOT line item's status (ready/served) for the offline KDS
+   * and re-flags the parent KOT for upload (synced = 0).
+   * @param {string} kotId
+   * @param {string} itemId - kot_items id
+   * @param {string} status
+   * @returns {boolean}
+   */
+  updateKotItemStatus(kotId, itemId, status) {
+    const database = getDB()
+    let changed = false
+    database.transaction(() => {
+      const info = database.prepare(`UPDATE kot_items SET status = ? WHERE id = ? AND kot_id = ?`).run(status, itemId, kotId)
+      changed = info.changes > 0
+      database.prepare(`UPDATE kot SET synced = 0 WHERE id = ?`).run(kotId)
+    })()
+    return changed
   },
 }
 
@@ -1358,6 +1916,102 @@ const SyncDB = {
 }
 
 // ─────────────────────────────────────
+// GENERIC API WRITE OUTBOX
+// ─────────────────────────────────────
+/**
+ * The universal offline-write queue. Any module's failed axios write is
+ * enqueued as a raw request (method + url + JSON body) and replayed FIFO by
+ * SyncEngine.drainOutbox() once the network returns. Separate from sync_queue
+ * (which is order/kot/customer specific) — this is the generic mechanism every
+ * other module (menu, inventory, settings, …) rides on.
+ */
+const OutboxDB = {
+
+  /**
+   * Enqueues a single offline write for later replay.
+   * @param {{ uuid?: string, method: string, url: string, body?: any }} rec
+   *   - body may be a string (already serialized) or an object (serialized here)
+   * @returns {number} the new row id
+   */
+  enqueue({ uuid, method, url, body } = {}) {
+    const serialized = body == null
+      ? null
+      : (typeof body === 'string' ? body : JSON.stringify(body))
+    const info = getDB().prepare(`
+      INSERT INTO api_outbox (uuid, method, url, body, status, attempts)
+      VALUES (?, ?, ?, ?, 'pending', 0)
+    `).run(uuid || crypto.randomUUID(), method || 'POST', url, serialized)
+    return info.lastInsertRowid
+  },
+
+  /**
+   * Returns pending writes ready for replay (attempts under the ceiling),
+   * oldest first so replay is strict FIFO.
+   * @param {number} [limit=50]
+   * @returns {object[]}
+   */
+  pending(limit = 50) {
+    return getDB().prepare(`
+      SELECT * FROM api_outbox
+      WHERE status = 'pending' AND attempts < 10
+      ORDER BY id ASC LIMIT ?
+    `).all(limit)
+  },
+
+  /**
+   * Marks a write as successfully replayed.
+   * @param {number} id
+   */
+  markDone(id) {
+    getDB().prepare(`
+      UPDATE api_outbox SET status = 'done', last_error = NULL WHERE id = ?
+    `).run(id)
+  },
+
+  /**
+   * Records a replay failure. Only a PERMANENT failure (4xx the backend will
+   * never accept — 400/422) advances the attempts counter toward the
+   * dead-letter ceiling; a TRANSIENT failure (404/5xx/network) leaves attempts
+   * untouched so a flaky connection can never park a healthy write.
+   * @param {number} id
+   * @param {string} error
+   * @param {{ permanent?: boolean }} [opts]
+   */
+  markFailed(id, error, { permanent = false } = {}) {
+    if (permanent) {
+      getDB().prepare(`
+        UPDATE api_outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?
+      `).run(error, id)
+    } else {
+      getDB().prepare(`
+        UPDATE api_outbox SET last_error = ? WHERE id = ?
+      `).run(error, id)
+    }
+  },
+
+  /**
+   * Returns writes that hit the attempt ceiling (dead-letter) for a future
+   * manual-review UI. Excluded from pending().
+   * @returns {object[]}
+   */
+  stuck() {
+    return getDB().prepare(`
+      SELECT * FROM api_outbox
+      WHERE status = 'pending' AND attempts >= 10
+      ORDER BY id ASC
+    `).all()
+  },
+
+  /** Count of writes still awaiting replay (for the status bar). */
+  pendingCount() {
+    const row = getDB().prepare(`
+      SELECT COUNT(*) AS n FROM api_outbox WHERE status = 'pending'
+    `).get()
+    return row?.n || 0
+  },
+}
+
+// ─────────────────────────────────────
 // SETTINGS
 // ─────────────────────────────────────
 const SettingsDB = {
@@ -1440,6 +2094,7 @@ module.exports = {
   KotDB,
   TableDB,
   SyncDB,
+  OutboxDB,
   SettingsDB,
   OutletDB,
   CustomerDB,

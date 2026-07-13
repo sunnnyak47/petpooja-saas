@@ -495,7 +495,7 @@ function setupIPC() {
   // Lazy-load localDB after app is ready (needs app.getPath)
   const {
     MenuDB, OrderDB, KotDB,
-    TableDB, SyncDB, SettingsDB, OutletDB, CustomerDB,
+    TableDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB,
     getDBPath,
     nextOfflineInvoiceNumber, getDeviceId,
   } = require('./database/localDB')
@@ -689,6 +689,62 @@ function setupIPC() {
     return true
   })
 
+  // ── LOCAL DB: OFFLINE POS ACTIONS ─────────────────────────────
+  // Whole-order-state mutations. Each writes the order's FINAL local state and
+  // sets synced = 0 so syncEngine re-sends the full order via POST /orders/sync
+  // (backend forward-merge reconciles). Every handler returns the updated
+  // order (or split result) so the renderer can do an optimistic cache update.
+
+  /** Move an order to a different table (frees old, seizes new). */
+  ipcMain.handle('db-transfer-table', (_, orderId, newTableId) => {
+    return OrderDB.transferTable(orderId, newTableId)
+  })
+
+  /** Merge a source order into a target (moves items + KOTs, retires source). */
+  ipcMain.handle('db-merge-orders', (_, sourceOrderId, targetOrderId) => {
+    return OrderDB.mergeOrders(sourceOrderId, targetOrderId)
+  })
+
+  /** Item-split: spin the given order_item ids off into a new local order. */
+  ipcMain.handle('db-split-order', (_, orderId, payload) => {
+    return OrderDB.splitOrder(orderId, payload)
+  })
+
+  /** Void (cancel) an order with a reason; frees its table. */
+  ipcMain.handle('db-void-order', (_, orderId, reason) => {
+    return OrderDB.voidOrder(orderId, reason)
+  })
+
+  /** Void a single line item and recompute the order totals. */
+  ipcMain.handle('db-void-item', (_, orderId, itemId) => {
+    return OrderDB.voidItem(orderId, itemId)
+  })
+
+  /** Apply a percentage/flat discount and recompute the order totals. */
+  ipcMain.handle('db-apply-discount', (_, orderId, data) => {
+    return OrderDB.applyDiscount(orderId, data)
+  })
+
+  /** Comp an order (on the house) — nets the grand total to 0. */
+  ipcMain.handle('db-comp-order', (_, orderId) => {
+    return OrderDB.compOrder(orderId)
+  })
+
+  /** Update an order's free-text notes. */
+  ipcMain.handle('db-update-notes', (_, orderId, notes) => {
+    return OrderDB.updateNotes(orderId, notes)
+  })
+
+  /** Update an order's cover (guest) count. */
+  ipcMain.handle('db-update-covers', (_, orderId, n) => {
+    return OrderDB.updateCovers(orderId, n)
+  })
+
+  /** Add a gratuity/tip and fold it into the offline total. */
+  ipcMain.handle('db-add-gratuity', (_, orderId, amount) => {
+    return OrderDB.addGratuity(orderId, amount)
+  })
+
   /**
    * Returns paginated orders for an outlet with optional filters.
    */
@@ -782,6 +838,28 @@ function setupIPC() {
     return KotDB.getForOrder(orderId)
   })
 
+  /**
+   * Returns the outlet's active KOTs shaped like the cloud /kitchen/kots row,
+   * so the offline Kitchen Display renders identically to online.
+   */
+  ipcMain.handle('db-get-kitchen-kots', (_, outletId) => {
+    return KotDB.getActiveForOutlet(outletId)
+  })
+
+  /**
+   * Updates a KOT's status (pending → ready → completed) for the offline KDS.
+   */
+  ipcMain.handle('db-update-kot-status', (_, kotId, status) => {
+    return KotDB.updateKotStatus(kotId, status)
+  })
+
+  /**
+   * Updates a single KOT line item's status (ready/served) for the offline KDS.
+   */
+  ipcMain.handle('db-update-kot-item-status', (_, kotId, itemId, status) => {
+    return KotDB.updateKotItemStatus(kotId, itemId, status)
+  })
+
   // ── LOCAL DB: SYNC QUEUE ──────────────────────────────────────
   /**
    * Returns pending sync queue items for cloud upload.
@@ -811,6 +889,24 @@ function setupIPC() {
    */
   ipcMain.handle('db-get-sync-conflicts', (_, outletId, limit) => {
     return SyncDB.getConflicts(outletId, limit)
+  })
+
+  // ── LOCAL DB: GENERIC WRITE OUTBOX ────────────────────────────
+  /**
+   * Enqueues a failed offline write (raw axios request) for later replay by
+   * SyncEngine.drainOutbox(). The frontend offlineWrite() helper calls this
+   * whenever a mutation hits a network error while running in Electron.
+   * @param {{ uuid?: string, method: string, url: string, body?: any }} rec
+   */
+  ipcMain.handle('db-outbox-enqueue', (_, rec) => {
+    return OutboxDB.enqueue(rec)
+  })
+
+  /**
+   * Returns the count of offline writes still awaiting replay (status bar).
+   */
+  ipcMain.handle('db-outbox-pending-count', () => {
+    return OutboxDB.pendingCount()
   })
 
   // ── LOCAL DB: DIAGNOSTICS ─────────────────────────────────────

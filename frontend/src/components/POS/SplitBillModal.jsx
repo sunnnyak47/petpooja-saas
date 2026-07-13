@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Modal from '../Modal';
 import { CreditCard, Plus, Trash2, Minus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import hybridAPI, { isNetworkError } from '../../api/offlineAPI';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useRegion } from '../../hooks/useRegion';
 import { useCurrency } from '../../hooks/useCurrency';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 
 const PAYMENT_METHODS_AU = [
   { value: 'cash',   label: 'Cash' },
@@ -28,6 +33,8 @@ export default function SplitBillModal({ isOpen, onClose, orderTotal, orderId, e
   const userRegion = useRegion();
   const isAU = userRegion === 'AU';
   const { symbol } = useCurrency();
+  const isOnline = useOnlineStatus();
+  const queryClient = useQueryClient();
   const methods = isAU ? PAYMENT_METHODS_AU : PAYMENT_METHODS_IN;
 
   const [splitMode, setSplitMode] = useState('equal');
@@ -131,11 +138,28 @@ export default function SplitBillModal({ isOpen, onClose, orderTotal, orderId, e
       let id = orderId;
       if (!id && ensureOrder) id = await ensureOrder();
       if (!id) { toast.error('No active order found'); setIsProcessing(false); return; }
-      await api.post(`/orders/${id}/payment`, {
+      const paymentBody = {
         method: 'split',
         amount: total,
         splits: splits.map(s => ({ method: s.method, amount: s.amount })),
-      });
+      };
+      if (IS_ELECTRON && !isOnline) {
+        // Offline: record the split payment locally (marks paid + stores splits, synced=0).
+        await hybridAPI.processPayment(id, paymentBody);
+      } else {
+        try {
+          await api.post(`/orders/${id}/payment`, paymentBody);
+        } catch (err) {
+          // Backend briefly unreachable → record the split payment in local SQLite.
+          // Real HTTP errors re-throw; browser (non-Electron) is untouched.
+          if (IS_ELECTRON && isNetworkError(err)) {
+            await hybridAPI.processPayment(id, paymentBody);
+          } else { throw err; }
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
       toast.success('Split bill payment processed!');
       onClose(true);
     } catch (err) {

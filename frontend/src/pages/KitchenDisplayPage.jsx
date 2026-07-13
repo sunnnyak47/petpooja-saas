@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
+import { isNetworkError } from '../lib/offlineMutate';
 import toast from 'react-hot-toast';
 import {
   ChefHat, Flame, CheckCircle2, RefreshCw,
@@ -566,7 +567,9 @@ export default function KitchenDisplayPage() {
     queryKey: ['kds-kots', outletId, activeStation, showCompleted, isOnline],
     queryFn: async () => {
       if (IS_ELECTRON && !isOnline) {
-        try { const r = await window.electron.invoke('db-get-kots-for-order', null); return Array.isArray(r) ? r : []; }
+        // Offline KDS reads the outlet's active KOTs straight from local SQLite
+        // (db-get-kitchen-kots returns rows shaped like the cloud /kitchen/kots row).
+        try { const r = await window.electron.invoke('db-get-kitchen-kots', outletId); return Array.isArray(r) ? r : []; }
         catch { return []; }
       }
       const r = await api.get(`/kitchen/kots?outlet_id=${outletId}${activeStation !== 'ALL' ? `&station=${activeStation}` : ''}${showCompleted ? '&show_completed=true' : ''}`);
@@ -574,7 +577,10 @@ export default function KitchenDisplayPage() {
       return Array.isArray(raw) ? raw : [];
     },
     enabled: !!outletId,
-    refetchInterval: isOnline ? 12000 : false,
+    // Poll SQLite while offline too, so this screen picks up KOT changes another
+    // device wrote via inter-device local sync (not just its own optimistic edits).
+    // Web has no local SQLite, so don't background-poll when offline there.
+    refetchInterval: isOnline ? 12000 : (IS_ELECTRON ? 4000 : false),
     staleTime: isOnline ? 5000 : Infinity,
   });
 
@@ -628,7 +634,19 @@ export default function KitchenDisplayPage() {
   // Write the UI value ('preparing'|'ready'|'served') into the cache; the board buckets
   // 'served' and coalesces server 'completed'->'served', so this lands in the right column.
   const bumpMut = useMutation({
-    mutationFn: ({ kotId, status }) => api.put(`/kitchen/kots/${kotId}/status`, { status: apiStatus(status), outlet_id: outletId }),
+    mutationFn: async ({ kotId, status }) => {
+      const st = apiStatus(status);
+      // Offline (or a mid-flight network drop): write the KOT's new status to local
+      // SQLite and let the whole-order sync carry it. Optimistic cache + settle-invalidate
+      // are unchanged, so the board reacts identically to the online path.
+      if (IS_ELECTRON && !isOnline) return window.electron.invoke('db-update-kot-status', kotId, st);
+      try {
+        return await api.put(`/kitchen/kots/${kotId}/status`, { status: st, outlet_id: outletId });
+      } catch (e) {
+        if (IS_ELECTRON && isNetworkError(e)) return window.electron.invoke('db-update-kot-status', kotId, st);
+        throw e;
+      }
+    },
     onMutate: async ({ kotId, status }) => {
       await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
       const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });   // snapshot every station/filter variant
@@ -644,7 +662,15 @@ export default function KitchenDisplayPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] }),
   });
   const itemReadyMut = useMutation({
-    mutationFn: ({ kotId, itemId }) => api.put(`/kitchen/kots/${kotId}/items/${itemId}/ready`, { outlet_id: outletId }),
+    mutationFn: async ({ kotId, itemId }) => {
+      if (IS_ELECTRON && !isOnline) return window.electron.invoke('db-update-kot-item-status', kotId, itemId, 'ready');
+      try {
+        return await api.put(`/kitchen/kots/${kotId}/items/${itemId}/ready`, { outlet_id: outletId });
+      } catch (e) {
+        if (IS_ELECTRON && isNetworkError(e)) return window.electron.invoke('db-update-kot-item-status', kotId, itemId, 'ready');
+        throw e;
+      }
+    },
     onMutate: async ({ kotId, itemId }) => {
       await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
       const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
@@ -675,7 +701,15 @@ export default function KitchenDisplayPage() {
   // optimistically flip ONLY this item to 'served', and when every item is served
   // advance the whole ticket to 'served' so it leaves the board instantly.
   const serveItemMut = useMutation({
-    mutationFn: ({ kotId, itemId }) => api.put(`/kitchen/kots/${kotId}/items/${itemId}/serve`, { outlet_id: outletId }),
+    mutationFn: async ({ kotId, itemId }) => {
+      if (IS_ELECTRON && !isOnline) return window.electron.invoke('db-update-kot-item-status', kotId, itemId, 'served');
+      try {
+        return await api.put(`/kitchen/kots/${kotId}/items/${itemId}/serve`, { outlet_id: outletId });
+      } catch (e) {
+        if (IS_ELECTRON && isNetworkError(e)) return window.electron.invoke('db-update-kot-item-status', kotId, itemId, 'served');
+        throw e;
+      }
+    },
     onMutate: async ({ kotId, itemId }) => {
       await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
       const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
@@ -701,7 +735,18 @@ export default function KitchenDisplayPage() {
   });
   // Phase 2: serve every READY station ticket of one order in a single tap.
   const serveOrderMut = useMutation({
-    mutationFn: ({ orderId }) => api.put(`/kitchen/orders/${orderId}/serve`, { outlet_id: outletId }),
+    mutationFn: async ({ orderId, readyKotIds = [] }) => {
+      // No single "serve whole order" IPC offline — fan out to per-KOT status writes
+      // for every READY station ticket of this order (captured before optimistic flip).
+      const serveOffline = () => Promise.all(readyKotIds.map(id => window.electron.invoke('db-update-kot-status', id, 'served')));
+      if (IS_ELECTRON && !isOnline) return serveOffline();
+      try {
+        return await api.put(`/kitchen/orders/${orderId}/serve`, { outlet_id: outletId });
+      } catch (e) {
+        if (IS_ELECTRON && isNetworkError(e)) return serveOffline();
+        throw e;
+      }
+    },
     onMutate: async ({ orderId }) => {
       await queryClient.cancelQueries({ queryKey: ['kds-kots'] });
       const prev = queryClient.getQueriesData({ queryKey: ['kds-kots'] });
@@ -753,7 +798,14 @@ export default function KitchenDisplayPage() {
   const handleBump      = useCallback((kotId, status) => bumpMut.mutate({ kotId, status }), [bumpMut]);
   const handleItemReady = useCallback((kotId, itemId) => itemReadyMut.mutate({ kotId, itemId }), [itemReadyMut]);
   const handleServeItem = useCallback((kotId, itemId) => serveItemMut.mutate({ kotId, itemId }), [serveItemMut]);
-  const handleServeOrder = useCallback((orderId) => serveOrderMut.mutate({ orderId }), [serveOrderMut]);
+  const handleServeOrder = useCallback((orderId) => {
+    // Snapshot which station tickets are READY now (before the optimistic flip to
+    // 'served') so the offline serve can address each KOT by id.
+    const readyKotIds = (kots ?? [])
+      .filter(k => (k.order_id || k.order?.id) === orderId && k.status === 'ready')
+      .map(k => k.id);
+    serveOrderMut.mutate({ orderId, readyKotIds });
+  }, [serveOrderMut, kots]);
   // Batch helpers loop the per-item endpoints (never stamp the KOT), so isolation holds.
   const handleMarkAllReady = useCallback((kot) => {
     const its = kot.items ?? kot.kot_items ?? [];

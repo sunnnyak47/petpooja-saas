@@ -307,6 +307,7 @@ app.use('/api/customers', customerRoutes);
 // DPDP (India) data-rights: consent, data export, erasure
 app.use('/api/privacy', require('./modules/customers/customer.privacy.routes'));
 app.use('/api/staff', staffRoutes);
+app.use('/api/support', require('./modules/support/support.routes')); // SA-006 — owner-side support tickets
 const eodRoutes = require('./modules/reports/eod.routes');
 app.use('/api/reports/eod', eodRoutes);
 app.use('/api/reports', reportsRoutes);

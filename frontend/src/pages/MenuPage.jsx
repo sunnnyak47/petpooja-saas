@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../lib/api';
+import { offlineWrite } from '../lib/offlineMutate';
 import { useMenuItems } from '../hooks/queries/useMenuItems';
 import { qk } from '../lib/queryKeys';
 import { useCurrency } from '../hooks/useCurrency';
@@ -98,6 +99,18 @@ const toFormPricing = (item) => {
     single_name: '', variants: [] };
 };
 
+// The menu-items query cache may be a bare array OR an object shaped
+// `{ items: [...] }` (see useMenuItems). These helpers read/write the list while
+// preserving whichever shape is currently cached so optimistic updates don't
+// silently change the container type the page reads from.
+const readItemList = (cache) =>
+  Array.isArray(cache) ? cache : Array.isArray(cache?.items) ? cache.items : [];
+const writeItemList = (cache, list) => {
+  if (Array.isArray(cache)) return list;
+  if (cache && typeof cache === 'object') return { ...cache, items: list };
+  return list; // undefined/unknown → bare array (matches the page's read fallback)
+};
+
 export default function MenuPage() {
   const { user } = useSelector((s) => s.auth);
   const outletId = user?.outlet_id;
@@ -157,64 +170,137 @@ export default function MenuPage() {
   // Mutations
   const resetCatForm = () => setCatForm({ name: '', description: '', display_order: 1 });
 
+  // Query keys the two useQuery calls above already use — reused verbatim for
+  // optimistic setQueryData / invalidateQueries so writes appear INSTANTLY.
+  const catsKey = ['menuCategories', outletId];
+  const itemsKey = qk.menuItemsAll(outletId); // ['menuItemsAll', outletId]
+
   const addCatMutation = useMutation({
-    mutationFn: (d) => api.post('/menu/categories', d),
+    mutationFn: (d) => offlineWrite({ method: 'POST', url: '/menu/categories', body: d, apiCall: () => api.post('/menu/categories', d) }),
+    onMutate: async (d) => {
+      await queryClient.cancelQueries({ queryKey: catsKey });
+      const previous = queryClient.getQueryData(catsKey);
+      const tempId = 'offline-' + crypto.randomUUID();
+      queryClient.setQueryData(catsKey, (old) => [...(Array.isArray(old) ? old : []), { id: tempId, ...d }]);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Category created!');
-      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
       setIsAddCatOpen(false);
       resetCatForm();
     },
-    onError: (e) => toast.error(e.message || 'Failed to create category'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(catsKey, ctx.previous);
+      toast.error(e.message || 'Failed to create category');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: catsKey }),
   });
 
   const updateCatMutation = useMutation({
-    mutationFn: ({ id, ...d }) => api.patch(`/menu/categories/${id}`, d),
+    mutationFn: ({ id, ...d }) => offlineWrite({ method: 'PATCH', url: `/menu/categories/${id}`, body: d, apiCall: () => api.patch(`/menu/categories/${id}`, d) }),
+    onMutate: async ({ id, ...d }) => {
+      await queryClient.cancelQueries({ queryKey: catsKey });
+      const previous = queryClient.getQueryData(catsKey);
+      queryClient.setQueryData(catsKey, (old) => Array.isArray(old) ? old.map((c) => c.id === id ? { ...c, ...d } : c) : old);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Category updated');
-      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
       setIsAddCatOpen(false);
       resetCatForm();
     },
-    onError: (e) => toast.error(e.message || 'Failed to update category'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(catsKey, ctx.previous);
+      toast.error(e.message || 'Failed to update category');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: catsKey }),
   });
 
   const deleteCatMutation = useMutation({
-    mutationFn: (id) => api.delete(`/menu/categories/${id}`),
+    mutationFn: (id) => offlineWrite({ method: 'DELETE', url: `/menu/categories/${id}`, body: {}, apiCall: () => api.delete(`/menu/categories/${id}`) }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: catsKey });
+      const previous = queryClient.getQueryData(catsKey);
+      queryClient.setQueryData(catsKey, (old) => Array.isArray(old) ? old.filter((c) => c.id !== id) : old);
+      return { previous };
+    },
     onSuccess: (_r, id) => {
       toast.success('Category deleted');
-      queryClient.invalidateQueries({ queryKey: ['menuCategories'] });
       if (categoryFilter === id) setCategoryFilter('');
       setCatDeleteTarget(null);
     },
-    // Backend blocks deleting a non-empty category — surface that message.
-    onError: (e) => { toast.error(e.message || 'Failed to delete category'); setCatDeleteTarget(null); },
+    // Backend blocks deleting a non-empty category — rollback + surface message.
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(catsKey, ctx.previous);
+      toast.error(e.message || 'Failed to delete category');
+      setCatDeleteTarget(null);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: catsKey }),
   });
 
   const saveItemMutation = useMutation({
-    mutationFn: (d) => d.id ? api.patch(`/menu/items/${d.id}`, d) : api.post('/menu/items', d),
+    mutationFn: (d) => offlineWrite({
+      method: d.id ? 'PATCH' : 'POST',
+      url: d.id ? `/menu/items/${d.id}` : '/menu/items',
+      body: d,
+      apiCall: () => d.id ? api.patch(`/menu/items/${d.id}`, d) : api.post('/menu/items', d),
+    }),
+    onMutate: async (d) => {
+      await queryClient.cancelQueries({ queryKey: itemsKey });
+      const previous = queryClient.getQueryData(itemsKey);
+      queryClient.setQueryData(itemsKey, (old) => {
+        const list = readItemList(old);
+        if (d.id) return writeItemList(old, list.map((i) => i.id === d.id ? { ...i, ...d } : i));
+        // New item: attach the category object so the card's `item.category?.name` renders.
+        const cat = (categories || []).find((c) => String(c.id) === String(d.category_id));
+        const optimistic = { ...d, id: 'offline-' + crypto.randomUUID(), category: cat ? { id: cat.id, name: cat.name } : undefined };
+        return writeItemList(old, [optimistic, ...list]);
+      });
+      return { previous };
+    },
     onSuccess: () => {
       toast.success(`Menu item ${itemForm.id ? 'updated' : 'added'}!`);
-      queryClient.invalidateQueries({ queryKey: ['menuItemsAll'] });
       setIsItemModalOpen(false);
     },
-    onError: (e) => toast.error(e.message || 'Failed to save item'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(itemsKey, ctx.previous);
+      toast.error(e.message || 'Failed to save item');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: itemsKey }),
   });
 
   const deleteItemMutation = useMutation({
-    mutationFn: (id) => api.delete(`/menu/items/${id}`),
+    mutationFn: (id) => offlineWrite({ method: 'DELETE', url: `/menu/items/${id}`, body: {}, apiCall: () => api.delete(`/menu/items/${id}`) }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: itemsKey });
+      const previous = queryClient.getQueryData(itemsKey);
+      queryClient.setQueryData(itemsKey, (old) => writeItemList(old, readItemList(old).filter((i) => i.id !== id)));
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Item deleted!');
-      queryClient.invalidateQueries({ queryKey: ['menuItemsAll'] });
       setIsDeleteOpen(false);
     },
-    onError: (e) => toast.error(e.message || 'Failed to delete item'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(itemsKey, ctx.previous);
+      toast.error(e.message || 'Failed to delete item');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: itemsKey }),
   });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: (item) => api.patch(`/menu/items/${item.id}`, { is_available: !item.is_available }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['menuItemsAll'] }); },
-    onError: (e) => toast.error(e.message)
+    mutationFn: (item) => offlineWrite({ method: 'PATCH', url: `/menu/items/${item.id}`, body: { is_available: !item.is_available }, apiCall: () => api.patch(`/menu/items/${item.id}`, { is_available: !item.is_available }) }),
+    onMutate: async (item) => {
+      await queryClient.cancelQueries({ queryKey: itemsKey });
+      const previous = queryClient.getQueryData(itemsKey);
+      queryClient.setQueryData(itemsKey, (old) => writeItemList(old, readItemList(old).map((i) => i.id === item.id ? { ...i, is_available: !item.is_available } : i)));
+      return { previous };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(itemsKey, ctx.previous);
+      toast.error(e.message);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: itemsKey }),
   });
 
   const bulkUpdateMutation = useMutation({

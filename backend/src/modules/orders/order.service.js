@@ -1721,7 +1721,7 @@ async function syncOfflineOrders(orders, userId) {
 
   // Normalise an offline status to the cloud lifecycle: a live/created order
   // lands as 'confirmed'; everything else (held/ready/billed/paid/cancelled/
-  // completed) passes through unchanged (Order.status is a free VarChar).
+  // completed/merged) passes through unchanged (Order.status is a free VarChar).
   const mapStatus = (s) => (s === 'active' || s === 'created') ? 'confirmed' : (s || 'confirmed');
   // Stable item-id contract: only override the OrderItem PK when the client sent
   // a real UUID. Custom/open items may carry an empty or non-uuid id, in which
@@ -1730,11 +1730,23 @@ async function syncOfflineOrders(orders, userId) {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
   // Forward-only lifecycle rank — a re-synced order may only advance, never
   // regress. created/confirmed/held=1 < ready=2 < billed=3 < paid/completed=4
-  // < cancelled=5 (terminal).
+  // < cancelled/merged=5 (terminal). 'merged' is a source ticket emptied by an
+  // offline split/merge — like 'cancelled' it is a terminal end-state.
   const statusRank = (s) => ({
     created: 1, confirmed: 1, active: 1, held: 1,
-    ready: 2, billed: 3, paid: 4, completed: 4, cancelled: 5,
+    ready: 2, billed: 3, paid: 4, completed: 4, cancelled: 5, merged: 5,
   }[s] || 1);
+  // A terminal cloud order is never mutated by a forward-merge (its financial
+  // snapshot, items and table assignment are frozen); only the KOT status (a
+  // kitchen-display concern) may still be reconciled onto it.
+  const TERMINAL = new Set(['paid', 'completed', 'cancelled', 'merged']);
+  // Offline KDS statuses map onto the cloud KOT lifecycle; 'sent' is the offline
+  // alias for the cloud's freshly-printed 'pending'.
+  const normalizeKotStatus = (s) => {
+    const v = String(s || '').toLowerCase();
+    if (!v) return 'pending';
+    return v === 'sent' ? 'pending' : v;
+  };
 
   for (const o of orders || []) {
     try {
@@ -1760,45 +1772,99 @@ async function syncOfflineOrders(orders, userId) {
       // forward transition (never regress, never double-create a Payment).
       const existing = await prisma.order.findUnique({
         where: { id: o.id },
-        select: { id: true, order_number: true, status: true, is_paid: true, grand_total: true, outlet_id: true },
+        select: {
+          id: true, order_number: true, status: true, is_paid: true,
+          grand_total: true, outlet_id: true, table_id: true, notes: true,
+        },
       });
       if (existing) {
         const incomingStatus = mapStatus(o.status);
+        const existingIsTerminal = TERMINAL.has(existing.status);
         const statusAdvances = statusRank(incomingStatus) > statusRank(existing.status);
-        const becomesPaid = incomingStatus === 'paid' || incomingStatus === 'completed';
+        // Only mint a Payment the first time the order becomes paid (never for an
+        // order the cloud already marks paid — that would double-charge).
+        const becomesPaid = (incomingStatus === 'paid' || incomingStatus === 'completed') && !existing.is_paid;
 
         // ── Item-merge on idempotent replay ─────────────────────────────────
         // A lost 2xx can make the desktop resend an order it already created,
         // sometimes with items added after the first successful sync. Insert any
         // incoming item whose client order_items.id is NOT already an OrderItem
-        // on this order; never touch or delete existing items. Guarded on
-        // item.id presence, so a legacy id-less replay stays a pure no-op.
+        // on this order; never touch or delete existing items. A terminal order
+        // is frozen — no item is added to it. Guarded on item.id presence, so a
+        // legacy id-less replay stays a pure no-op.
         const incomingWithIds = (o.items || []).filter((it) => it && isUuid(it.id));
         let itemsToInsert = [];
-        if (incomingWithIds.length) {
+        // Cloud OrderItem ids the device no longer carries — split/merge moved
+        // them OFF this order. Reconciled (soft-deleted) below so the surviving
+        // items keep summing to the re-asserted total.
+        let itemsToRemove = [];
+        // Run the reconcile when the payload carries items (normal edit) OR the
+        // incoming status is merged/cancelled — those legitimately arrive with an
+        // EMPTY items array (a split/merge moved every line off the source), and
+        // we still need to clear the source's stale cloud items so they don't
+        // double-count against the target. A non-terminal empty payload never
+        // reaches here, so a status-only replay can't wipe a live order's items.
+        if ((incomingWithIds.length || incomingStatus === 'merged' || incomingStatus === 'cancelled') && !existingIsTerminal) {
           const existingItems = await prisma.orderItem.findMany({
-            where: { order_id: existing.id },
+            where: { order_id: existing.id, is_deleted: false },
             select: { id: true },
           });
           const haveIds = new Set(existingItems.map((r) => r.id));
           itemsToInsert = incomingWithIds.filter((it) => !haveIds.has(it.id));
+          // The offline device's item set is authoritative: any live cloud item
+          // whose id the payload no longer carries was moved off this order.
+          // Guarded on incomingWithIds so a payload that omits items never wipes.
+          const incomingIdSet = new Set(incomingWithIds.map((it) => it.id));
+          itemsToRemove = existingItems
+            .map((r) => r.id)
+            .filter((id) => !incomingIdSet.has(id));
         }
 
+        // ── Full-state reconcile signals — never regress/mutate a terminal order.
+        // The device holds the FINAL order state (transfer, discount, void, more
+        // items). grand_total is the summary signal for a financial change; a KOT
+        // status change reconciles even when the order body is unchanged.
+        const incomingGrand = round2(Number(o.total_amount) || 0);
+        const grandChanged = Math.abs(incomingGrand - round2(Number(existing.grand_total) || 0)) > 0.001;
+        const financialChange = !existingIsTerminal
+          && (grandChanged || itemsToInsert.length > 0 || itemsToRemove.length > 0);
+        const tableChanged = !existingIsTerminal && o.table_id != null && o.table_id !== existing.table_id;
+
+        // Notes reconcile only when the payload explicitly carries a note; the
+        // offline trace tag is re-appended so repeated re-syncs stay idempotent.
+        let reconciledNotes = null;
+        let notesChanged = false;
+        if (!existingIsTerminal && o.notes != null && String(o.notes).trim() !== '') {
+          const tag = o.order_number ? ` [offline:${o.order_number}]` : '';
+          reconciledNotes = `${String(o.notes)}${tag}`.trim();
+          notesChanged = reconciledNotes !== (existing.notes || null);
+        }
+
+        // KOT statuses (offline KDS) reconcile onto any matching cloud KOTs by
+        // outlet_id+kot_number — allowed even on a terminal order (served/ready is
+        // a kitchen-display fact, not an order-state regression).
+        const kotsToUpsert = (o.kots || []).filter((k) => k && k.kot_number);
+
+        const reconcileNeeded = statusAdvances || itemsToInsert.length || itemsToRemove.length
+          || financialChange || tableChanged || notesChanged || kotsToUpsert.length;
+
         let merged = false;
-        if (statusAdvances || itemsToInsert.length) {
-          // Financial snapshot + region-aware tax split — computed only when at
-          // least one item is inserted (the order financial columns are then
-          // re-asserted to the incoming payload so cloud totals stay correct).
+        let conflict;
+        if (reconcileNeeded) {
+          // Region-aware tax split for the re-asserted financial snapshot.
           let cgst = 0, sgst = 0, igst = 0, itemGstRate = 0;
           let subtotal = 0, discountAmount = 0, totalTax = 0, grandTotal = 0, roundOff = 0;
+          let discountType = null, discountValue = 0;
           let itemTotals = [], itemsSum = 0, insertIds = new Set();
           const stationByItem = new Map();
-          if (itemsToInsert.length) {
+          if (financialChange) {
             subtotal = round2(Number(o.subtotal) || 0);
             discountAmount = round2(Number(o.discount_amount) || 0);
             totalTax = round2(Number(o.tax_amount) || 0);
             grandTotal = round2(Number(o.total_amount) || 0);
             roundOff = round2(Number(o.round_off) || 0);
+            discountValue = round2(Number(o.discount_value) || 0);
+            discountType = o.discount_type || (discountAmount > 0 ? 'flat' : null);
 
             const { country_code: cc, gst_inclusive: gi, default_gst_rate: dgr } =
               resolveOutletTaxConfig(outlet);
@@ -1815,7 +1881,8 @@ async function syncOfflineOrders(orders, userId) {
               cgst = round2(totalTax / 2);
               sgst = round2(totalTax - cgst);
             }
-
+          }
+          if (itemsToInsert.length) {
             const allItems = o.items || [];
             itemTotals = allItems.map((i) => round2(Number(i.total_price) || 0));
             itemsSum = round2(itemTotals.reduce((a, b) => a + b, 0));
@@ -1835,46 +1902,87 @@ async function syncOfflineOrders(orders, userId) {
           }
 
           await prisma.$transaction(async (tx) => {
-            // Status / payment forward-merge — only when the state advances.
+            // One consolidated Order.update carrying every reconciled column, so a
+            // status+financial+table+notes merge is a single write (call-count
+            // stability the tests rely on).
+            const orderUpdateData = {};
+
+            // Status forward-transition (+ paid / void bookkeeping).
             if (statusAdvances) {
-              const updateData = { status: incomingStatus };
-              if (o.invoice_number) updateData.invoice_number = o.invoice_number;
+              orderUpdateData.status = incomingStatus;
+              if (o.invoice_number) orderUpdateData.invoice_number = o.invoice_number;
               if (becomesPaid) {
-                updateData.is_paid = true;
-                updateData.paid_at = o.paid_at ? new Date(o.paid_at) : new Date();
+                orderUpdateData.is_paid = true;
+                orderUpdateData.paid_at = o.paid_at ? new Date(o.paid_at) : new Date();
               }
-              await tx.order.update({ where: { id: existing.id }, data: updateData });
+              if (incomingStatus === 'cancelled') {
+                orderUpdateData.cancelled_at = o.cancelled_at ? new Date(o.cancelled_at) : new Date();
+                orderUpdateData.cancelled_by = userId;
+                const reason = o.cancel_reason || o.notes;
+                if (reason) orderUpdateData.cancel_reason = String(reason).slice(0, 500);
+              }
+            }
 
-              // Create exactly ONE Payment when the order first becomes paid and
-              // none exists yet — mirrors processPayment's row shape.
-              if (becomesPaid) {
-                const payExists = await tx.payment.findFirst({
-                  where: { order_id: existing.id, is_deleted: false },
-                  select: { id: true },
-                });
-                if (!payExists) {
-                  await tx.payment.create({
-                    data: {
-                      outlet_id: existing.outlet_id,
-                      order_id: existing.id,
-                      method: o.payment_method || 'cash',
-                      // Device price-at-sale is authoritative (matches the create
-                      // path + the item-merge re-assert below). Using the stale
-                      // existing.grand_total here undercharged by exactly the value
-                      // of any items added offline after the first sync.
-                      amount: round2(Number(o.total_amount) || Number(existing.grand_total) || 0),
-                      status: 'success',
-                      processed_by: userId,
-                      processed_at: o.paid_at ? new Date(o.paid_at) : new Date(),
-                      gateway_response: {
-                        offline_captured: true,
-                        ...(o.payment_note ? { note: o.payment_note } : {}),
-                      },
+            // Table transfer (db-transfer-table replayed as the order's final table).
+            if (tableChanged) orderUpdateData.table_id = o.table_id;
+
+            // Notes (db-update-notes).
+            if (notesChanged) orderUpdateData.notes = reconciledNotes;
+
+            // Financial snapshot re-assert — the device numbers are authoritative
+            // (discount, taxable, tax split, round-off, grand total all track it).
+            if (financialChange) {
+              Object.assign(orderUpdateData, {
+                subtotal,
+                taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
+                discount_amount: discountAmount,
+                discount_type: discountType,
+                discount_value: discountValue,
+                cgst,
+                sgst,
+                igst,
+                total_tax: totalTax,
+                round_off: roundOff,
+                grand_total: grandTotal,
+                total_amount: grandTotal,
+              });
+            }
+
+            if (Object.keys(orderUpdateData).length) {
+              await tx.order.update({ where: { id: existing.id }, data: orderUpdateData });
+            }
+
+            // Create exactly ONE Payment when the order first becomes paid and
+            // none exists yet — mirrors processPayment's row shape.
+            if (statusAdvances && becomesPaid) {
+              const payExists = await tx.payment.findFirst({
+                where: { order_id: existing.id, is_deleted: false },
+                select: { id: true },
+              });
+              if (!payExists) {
+                await tx.payment.create({
+                  data: {
+                    outlet_id: existing.outlet_id,
+                    order_id: existing.id,
+                    method: o.payment_method || 'cash',
+                    // Device price-at-sale is authoritative (matches the create
+                    // path + the financial re-assert above). Using the stale
+                    // existing.grand_total here undercharged by exactly the value
+                    // of any items added offline after the first sync.
+                    amount: round2(Number(o.total_amount) || Number(existing.grand_total) || 0),
+                    status: 'success',
+                    processed_by: userId,
+                    processed_at: o.paid_at ? new Date(o.paid_at) : new Date(),
+                    gateway_response: {
+                      offline_captured: true,
+                      ...(o.payment_note ? { note: o.payment_note } : {}),
                     },
-                  });
-                }
+                  },
+                });
               }
+            }
 
+            if (statusAdvances) {
               await tx.orderStatusHistory.create({
                 data: { order_id: existing.id, from_status: existing.status || null, to_status: incomingStatus, changed_by: userId },
               });
@@ -1919,29 +2027,63 @@ async function syncOfflineOrders(orders, userId) {
                   },
                 });
               }
+            }
 
-              // ≥1 item inserted → re-assert the order financial columns to the
-              // incoming payload snapshot so cloud totals track the device.
-              await tx.order.update({
-                where: { id: existing.id },
-                data: {
-                  subtotal,
-                  taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
-                  cgst,
-                  sgst,
-                  igst,
-                  total_tax: totalTax,
-                  discount_amount: discountAmount,
-                  round_off: roundOff,
-                  grand_total: grandTotal,
-                  total_amount: grandTotal,
-                },
+            // Item-removal reconcile — soft-delete any cloud OrderItem the device
+            // no longer carries (split/merge moved it onto another order). The
+            // device item set is authoritative, so the survivors sum to the
+            // re-asserted total. Idempotent: the is_deleted:false guard makes a
+            // repeat sync a count-0 no-op.
+            if (itemsToRemove.length) {
+              await tx.orderItem.updateMany({
+                where: { order_id: existing.id, id: { in: itemsToRemove }, is_deleted: false },
+                data: { is_deleted: true },
+              });
+            }
+
+            // Table free/seize — a transfer frees the old table (only if it still
+            // points at this order) and conditionally seizes the new one; a void
+            // or merge simply releases the table the emptied order held (keep-both
+            // never clobbers a table another live order now owns).
+            if (tableChanged) {
+              if (existing.table_id) {
+                await tx.table.updateMany({
+                  where: { id: existing.table_id, current_order_id: existing.id },
+                  data: { status: 'available', current_order_id: null },
+                });
+              }
+              const seized = await tx.table.updateMany({
+                where: { id: o.table_id, current_order_id: null, status: { not: 'occupied' } },
+                data: { status: 'occupied', current_order_id: existing.id },
+              });
+              if (seized.count === 0) conflict = 'table_occupied';
+            } else if (statusAdvances && (incomingStatus === 'cancelled' || incomingStatus === 'merged')) {
+              // A void or a split/merge empties the order — release the table it
+              // held (only while it still points at this order).
+              const freeId = existing.table_id || o.table_id;
+              if (freeId) {
+                await tx.table.updateMany({
+                  where: { id: freeId, current_order_id: existing.id },
+                  data: { status: 'available', current_order_id: null },
+                });
+              }
+            }
+
+            // KOT status reconcile — updateMany (KOT has no unique on kot_number),
+            // a harmless no-op when no cloud KOT matches (KOTs printed offline are
+            // not recreated on sync).
+            for (const k of kotsToUpsert) {
+              await tx.kOT.updateMany({
+                where: { outlet_id: existing.outlet_id, kot_number: String(k.kot_number), is_deleted: false },
+                data: { status: normalizeKotStatus(k.status) },
               });
             }
           }, { maxWait: 8000, timeout: 20000 });
           merged = true;
         }
-        results.push({ id: o.id, status: 'exists', order_number: existing.order_number, merged });
+        const mergeResult = { id: o.id, status: 'exists', order_number: existing.order_number, merged };
+        if (conflict) mergeResult.conflict = conflict;
+        results.push(mergeResult);
         continue;
       }
 
@@ -2019,7 +2161,7 @@ async function syncOfflineOrders(orders, userId) {
       // held/ready/billed/paid/cancelled/completed are kept as-is.
       const status = mapStatus(o.status);
       const isPaid = status === 'paid';
-      const isTerminal = status === 'paid' || status === 'cancelled' || status === 'completed';
+      const isTerminal = status === 'paid' || status === 'cancelled' || status === 'completed' || status === 'merged';
 
       const items = o.items || [];
       const itemTotals = items.map((i) => round2(Number(i.total_price) || 0));
@@ -2049,7 +2191,11 @@ async function syncOfflineOrders(orders, userId) {
             // negative taxable_amount (matches createOrder).
             taxable_amount: round2(Math.max(subtotal - discountAmount, 0)),
             discount_amount: discountAmount,
-            discount_type: discountAmount > 0 ? 'flat' : null,
+            // Honor the device's discount snapshot (db-apply-discount) when present;
+            // otherwise fall back to the derived flat type for a bare discount_amount.
+            discount_type: o.discount_type || (discountAmount > 0 ? 'flat' : null),
+            discount_value: round2(Number(o.discount_value) || 0),
+            discount_reason: o.discount_reason ? String(o.discount_reason).slice(0, 200) : null,
             cgst,
             sgst,
             igst,

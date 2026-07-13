@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
-import hybridAPI from '../api/offlineAPI';
+import hybridAPI, { isNetworkError } from '../api/offlineAPI';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRegion } from '../hooks/useRegion';
@@ -627,11 +627,26 @@ export default function POSPage() {
       return orderData;
     }
 
-    const res = await api.post('/orders', orderPayload);
-    const orderData = res.data?.data ?? res.data;
-    setTempOrderId(orderData?.id ?? null);
-    if (orderData?.grand_total != null) setServerOrderTotal(Number(orderData.grand_total));
-    return orderData;
+    try {
+      const res = await api.post('/orders', orderPayload);
+      const orderData = res.data?.data ?? res.data;
+      setTempOrderId(orderData?.id ?? null);
+      if (orderData?.grand_total != null) setServerOrderTotal(Number(orderData.grand_total));
+      return orderData;
+    } catch (err) {
+      // Backend briefly unreachable on a desktop terminal → don't block the sale.
+      // Write the order to local SQLite; syncEngine pushes it up when back online.
+      // Real HTTP errors (err.response present) are re-thrown so their specific
+      // message still surfaces, and the browser (non-Electron) path is untouched.
+      if (IS_ELECTRON && isNetworkError(err)) {
+        const result = await hybridAPI.createOrder(orderPayload);
+        const orderData = result?.id ? result : { id: result, ...orderPayload };
+        setTempOrderId(orderData.id);
+        if (orderData.grand_total != null) setServerOrderTotal(Number(orderData.grand_total));
+        return orderData;
+      }
+      throw err;
+    }
   };
 
   const handleCreateOrder = async (isHold = false) => {
@@ -702,13 +717,11 @@ export default function POSPage() {
         discount_reason: discount?.reason || null,
       };
 
-      try {
-        const res = await api.post('/orders/punch-kot', payload);
-        const data = res.data?.data ?? res.data;
-        const orderId = data?.order?.id;
-
-        // Success — clear cart and reset extras.
-        toast.success('🚀 Sent to Kitchen!', { id: sendingToast, duration: 2000 });
+      // Shared post-success cleanup. Used by BOTH the online success path and the
+      // offline fallback so a backend blip leaves the terminal in the exact same
+      // clean state (cart cleared, table released) as a normal punch.
+      const finishPunch = (orderId, toastMsg) => {
+        toast.success(toastMsg, { id: sendingToast, duration: 2000 });
         dispatch(clearCart());
         setGratuity(0);
         setAppliedLoyaltyPoints(0);
@@ -744,12 +757,46 @@ export default function POSPage() {
           setCurrentOrder(null);
         }
         queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+        // Refresh the offline KDS too so the just-punched KOT appears in the kitchen.
+        queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
         // Re-sync from server in the background — confirms the optimistic write.
         queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
+      };
+
+      try {
+        const res = await api.post('/orders/punch-kot', payload);
+        const data = res.data?.data ?? res.data;
+        const orderId = data?.order?.id;
+        // Success — clear cart, release table, reset extras.
+        finishPunch(orderId, '🚀 Sent to Kitchen!');
       } catch (err) {
-        // Failure — cart is untouched, staff can simply retry.
-        const msg = err.response?.data?.message || err.message || 'KOT failed';
-        toast.error(`⚠️ ${msg} — cart kept, please retry`, { id: sendingToast, duration: 5000 });
+        // ── OFFLINE FALLBACK ──────────────────────────────────────────────
+        // A network error means the backend was briefly unreachable (no HTTP
+        // response). On a desktop terminal, drop straight to the local SQLite
+        // engine so the sale is never blocked — createOrder + generateKOT both
+        // write locally and syncEngine pushes them up when connectivity returns.
+        // The punch-kot payload already matches hybridAPI.createOrder's shape.
+        // Real HTTP errors (err.response present, e.g. 409 table occupied) skip
+        // this and keep showing their specific message. Browser (non-Electron)
+        // is untouched — the fallback is gated on IS_ELECTRON.
+        if (IS_ELECTRON && isNetworkError(err)) {
+          try {
+            const offlineOrder = await hybridAPI.createOrder(payload);
+            const offlineOrderId = offlineOrder?.id;
+            await hybridAPI.generateKOT(offlineOrderId);
+            // Offline UX is identical to online — the global OnlineStatusBar signals
+            // the queued state, so the cashier sees the same "Sent to Kitchen!" here.
+            finishPunch(offlineOrderId, '🚀 Sent to Kitchen!');
+          } catch (offlineErr) {
+            // Even the local engine failed — keep the cart so staff can retry.
+            const msg = offlineErr.message || 'KOT failed';
+            toast.error(`⚠️ ${msg} — cart kept, please retry`, { id: sendingToast, duration: 5000 });
+          }
+        } else {
+          // Failure — cart is untouched, staff can simply retry.
+          const msg = err.response?.data?.message || err.message || 'KOT failed';
+          toast.error(`⚠️ ${msg} — cart kept, please retry`, { id: sendingToast, duration: 5000 });
+        }
       } finally {
         setPunching(false);
       }
@@ -759,6 +806,29 @@ export default function POSPage() {
 
     // ── SLOW PATH: adding items to existing order OR Electron offline ──
     try {
+      // Tracks whether any step fell through to the local SQLite engine — either
+      // because we started offline, or a cloud call network-errored mid-flow. It
+      // drives the KOT branch (keep the whole flow local once we've gone offline)
+      // and the final toast.
+      let usedOffline = IS_ELECTRON && !isOnline;
+
+      // Writes the current cart's items into a local SQLite order. Shared by the
+      // pure-offline branch and the online→offline network-error fallback.
+      const addItemsToSqlite = async (oid) => {
+        for (const c of cart) {
+          await hybridAPI.addOrderItem({
+            order_id: oid,
+            menu_item_id: c.menu_item_id,
+            menu_item_name: c.name,
+            unit_price: Number(c.base_price),
+            variant_id: c.variant_id,
+            quantity: c.quantity,
+            addons: c.addons || [],
+            notes: c.notes || null,
+          });
+        }
+      };
+
       let orderId = tempOrderId;
       if (!orderId) {
         if (IS_ELECTRON && !isOnline) {
@@ -770,48 +840,64 @@ export default function POSPage() {
       } else {
         // Add items to existing order
         if (IS_ELECTRON && !isOnline) {
-          for (const c of cart) {
-            await hybridAPI.addOrderItem({
-              order_id: orderId,
-              menu_item_id: c.menu_item_id,
-              menu_item_name: c.name,
-              unit_price: Number(c.base_price),
-              variant_id: c.variant_id,
-              quantity: c.quantity,
-              addons: c.addons || [],
-              notes: c.notes || null,
-            });
-          }
+          await addItemsToSqlite(orderId);
         } else {
-          await api.post(`/orders/${orderId}/items`, {
-            items: cart.map(c => ({
-              menu_item_id: c.menu_item_id,
-              variant_id: c.variant_id,
-              quantity: c.quantity,
-              addons: c.addons || [],
-              notes: c.notes || null,
-            })),
-          });
+          try {
+            await api.post(`/orders/${orderId}/items`, {
+              items: cart.map(c => ({
+                menu_item_id: c.menu_item_id,
+                variant_id: c.variant_id,
+                quantity: c.quantity,
+                addons: c.addons || [],
+                notes: c.notes || null,
+              })),
+            });
+          } catch (err) {
+            // Backend briefly unreachable → write the added items to local SQLite
+            // instead so the round is never lost. Real HTTP errors re-throw and
+            // keep their specific message; browser (non-Electron) is untouched.
+            if (IS_ELECTRON && isNetworkError(err)) {
+              await addItemsToSqlite(orderId);
+              usedOffline = true;
+            } else { throw err; }
+          }
         }
       }
 
       // Generate KOT
-      if (IS_ELECTRON && !isOnline) {
+      if (usedOffline) {
         const kotResult = await hybridAPI.generateKOT(orderId);
         if (kotResult && !kotResult.success) {
           toast.error(kotResult.error || 'No pending items for KOT');
           return;
         }
       } else {
-        await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId });
+        try {
+          await api.post(`/orders/${orderId}/kot`, { outlet_id: outletId });
+        } catch (err) {
+          // Backend blip on the KOT call → generate it locally instead.
+          if (IS_ELECTRON && isNetworkError(err)) {
+            const kotResult = await hybridAPI.generateKOT(orderId);
+            if (kotResult && !kotResult.success) {
+              toast.error(kotResult.error || 'No pending items for KOT');
+              return;
+            }
+            usedOffline = true;
+          } else { throw err; }
+        }
       }
 
+      // Offline UX is identical to online — same success toast, no "Saved offline"
+      // dead-end. The global OnlineStatusBar already signals offline + queued.
       toast.success('🚀 Sent to Kitchen!');
       dispatch(clearCart());
       if (!selectedTable) {
         setTempOrderId(null);
         setCurrentOrder(null);
       }
+      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+      queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
     } catch (err) { toast.error(err.message); }
   };
 
@@ -834,8 +920,17 @@ export default function POSPage() {
       if (IS_ELECTRON && !isOnline) {
         billData = await hybridAPI.generateBill(orderId);
       } else {
-        const res = await api.post(`/orders/${orderId}/bill`, { outlet_id: outletId });
-        billData = res.data?.data ?? res.data ?? res;
+        try {
+          const res = await api.post(`/orders/${orderId}/bill`, { outlet_id: outletId });
+          billData = res.data?.data ?? res.data ?? res;
+        } catch (err) {
+          // Backend briefly unreachable → bill from the local SQLite engine so a
+          // blip never blocks billing. Real HTTP errors re-throw and keep their
+          // specific message; browser (non-Electron) is untouched.
+          if (IS_ELECTRON && isNetworkError(err)) {
+            billData = await hybridAPI.generateBill(orderId);
+          } else { throw err; }
+        }
       }
       setBilledOrder(billData);
       if (billData?.grand_total != null) setServerOrderTotal(Number(billData.grand_total));
@@ -889,11 +984,23 @@ export default function POSPage() {
       // not-yet-punched cart is just cleared locally. Either way the cart empties.
       if (tempOrderId) {
         if (IS_ELECTRON && !isOnline) {
-          await window.electron.invoke('db-update-order-status', tempOrderId, 'cancelled', { cancel_reason: reason });
+          // Offline: void locally (cancels order + frees table + synced=0).
+          await hybridAPI.voidOrder(tempOrderId, reason);
         } else {
-          await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+          try {
+            await api.post(`/orders/${tempOrderId}/cancel`, { reason });
+          } catch (err) {
+            // Backend briefly unreachable → void locally so the terminal never blocks.
+            // Real HTTP errors re-throw; browser (non-Electron) is untouched.
+            if (IS_ELECTRON && isNetworkError(err)) {
+              await hybridAPI.voidOrder(tempOrderId, reason);
+            } else { throw err; }
+          }
         }
         toast.success('Order cancelled');
+        queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+        queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+        queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
       } else {
         toast.success('Order cleared');
       }
@@ -1056,7 +1163,16 @@ export default function POSPage() {
       if (IS_ELECTRON && !isOnline) {
         await hybridAPI.processPayment(orderId, { method: paymentMethod, amount: payAmt });
       } else {
-        await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
+        try {
+          await api.post(`/orders/${orderId}/payment`, { method: paymentMethod, amount: payAmt });
+        } catch (err) {
+          // Backend briefly unreachable → record the payment in local SQLite so a
+          // blip never blocks the sale. Real HTTP errors re-throw and keep their
+          // specific message; browser (non-Electron) is untouched.
+          if (IS_ELECTRON && isNetworkError(err)) {
+            await hybridAPI.processPayment(orderId, { method: paymentMethod, amount: payAmt });
+          } else { throw err; }
+        }
       }
 
       toast.success(paymentMethod === 'part' ? 'Part Payment Recorded' : 'Payment Completed ✓');
@@ -1084,20 +1200,51 @@ export default function POSPage() {
      }
      // 'transfer' / 'merge' both require an existing order
      if (!tempOrderId) return toast.error('No open order selected');
+     // Resolve the target table's live order id — needed for an offline merge, which
+     // moves this order's items into that table's order (the online 'auto' shortcut
+     // is a backend convenience that isn't available to the local SQLite engine).
+     const resolveTargetOrderId = () => {
+       const t = (tablesForSelect || []).find(x => x.id === targetTableId);
+       return t?.current_order_id || t?.orders?.[0]?.id || null;
+     };
      try {
-       if (IS_ELECTRON && !isOnline) {
-         toast.error('Table transfer/merge requires internet');
-         return;
-       }
        if (tableSelectMode === 'transfer') {
-         await api.post(`/orders/${tempOrderId}/transfer-table`, { new_table_id: targetTableId });
+         if (IS_ELECTRON && !isOnline) {
+           await hybridAPI.transferTable(tempOrderId, targetTableId);
+         } else {
+           try {
+             await api.post(`/orders/${tempOrderId}/transfer-table`, { new_table_id: targetTableId });
+           } catch (err) {
+             if (IS_ELECTRON && isNetworkError(err)) {
+               await hybridAPI.transferTable(tempOrderId, targetTableId);
+             } else { throw err; }
+           }
+         }
          toast.success('Table Transferred');
        } else if (tableSelectMode === 'merge') {
-         await api.post(`/orders/${tempOrderId}/merge`, { target_order_id: 'auto' });
+         if (IS_ELECTRON && !isOnline) {
+           const targetOrderId = resolveTargetOrderId();
+           if (!targetOrderId) return toast.error('No order on that table to merge with');
+           await hybridAPI.mergeOrders(tempOrderId, targetOrderId);
+         } else {
+           try {
+             await api.post(`/orders/${tempOrderId}/merge`, { target_order_id: 'auto' });
+           } catch (err) {
+             if (IS_ELECTRON && isNetworkError(err)) {
+               const targetOrderId = resolveTargetOrderId();
+               if (!targetOrderId) return toast.error('No order on that table to merge with');
+               await hybridAPI.mergeOrders(tempOrderId, targetOrderId);
+             } else { throw err; }
+           }
+         }
          toast.success('Tables Merged');
        }
        setTableSelectMode(null);
        dispatch(clearCart());
+       // After any offline (or online) transfer/merge, refresh the shared views.
+       queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+       queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+       queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
      } catch(e) { toast.error(e.message); }
   };
 
@@ -1738,8 +1885,22 @@ export default function POSPage() {
                {tempOrderId && (
                  <button onClick={async () => {
                    try {
-                     const res = await api.get(`/orders/${tempOrderId}`);
-                     setCurrentOrderForModal(res.data?.data ?? res.data);
+                     let order;
+                     if (IS_ELECTRON && !isOnline) {
+                       order = await hybridAPI.getOrder(tempOrderId);
+                     } else {
+                       try {
+                         const res = await api.get(`/orders/${tempOrderId}`);
+                         order = res.data?.data ?? res.data;
+                       } catch (err) {
+                         if (IS_ELECTRON && isNetworkError(err)) {
+                           order = await hybridAPI.getOrder(tempOrderId);
+                         } else { throw err; }
+                       }
+                     }
+                     // VoidItemModal reads order.order_items — the SQLite shape uses `items`.
+                     if (order && !order.order_items) order = { ...order, order_items: order.items || [] };
+                     setCurrentOrderForModal(order);
                      setShowVoidItem(true);
                    } catch { toast.error('Could not load order items'); }
                  }} className="py-2 rounded-lg flex flex-col items-center justify-center gap-1 bg-surface-700 hover:bg-red-500/20 hover:text-red-400 text-surface-300 transition-colors">
@@ -2160,11 +2321,23 @@ export default function POSPage() {
                 amount: paidAmount,
               });
             } else {
-              await api.post(`/orders/${orderId}/payment`, {
-                method: METHOD_MAP[method] || method,
-                amount: paidAmount,
-                razorpay_payment_id: razorpayId || undefined,
-              });
+              try {
+                await api.post(`/orders/${orderId}/payment`, {
+                  method: METHOD_MAP[method] || method,
+                  amount: paidAmount,
+                  razorpay_payment_id: razorpayId || undefined,
+                });
+              } catch (err) {
+                // Backend briefly unreachable → record the payment in local SQLite
+                // so a blip never blocks the sale. Real HTTP errors re-throw (the
+                // modal surfaces them); browser (non-Electron) is untouched.
+                if (IS_ELECTRON && isNetworkError(err)) {
+                  await hybridAPI.processPayment(orderId, {
+                    method: METHOD_MAP[method] || method,
+                    amount: paidAmount,
+                  });
+                } else { throw err; }
+              }
             }
             toast.success('Payment Completed ✓');
           }
@@ -2179,6 +2352,8 @@ export default function POSPage() {
           setAppliedLoyaltyPoints(0);
           setAppliedLoyaltyDiscount(0);
           queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+          queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
         }}
       />
 
@@ -2225,6 +2400,8 @@ export default function POSPage() {
           outletId={outletId}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+            queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+            queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
             setShowVoidItem(false);
             setCurrentOrderForModal(null);
           }}
@@ -2246,6 +2423,8 @@ export default function POSPage() {
         }
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+          queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+          queryClient.invalidateQueries({ queryKey: ['tables', outletId] });
           setShowDiscount(false);
         }}
       />

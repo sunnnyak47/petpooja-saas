@@ -84,34 +84,25 @@ async function main() {
 
   const saRole = await prisma.role.findUnique({ where: { name: 'super_admin' } });
 
-  // Find the master owner: either the already-configured account (idempotent
-  // re-run) or the legacy default — but never another platform_staff super_admin.
-  const masterSA = await prisma.user.findFirst({
-    where: {
-      is_deleted: false,
-      OR: [{ email: SUPERADMIN_EMAIL }, { email: 'admin@petpooja.com' }],
-      user_roles: { some: { is_deleted: false, outlet_id: null, role: { name: 'super_admin' } } },
-    },
-  });
-
-  let admin;
-  if (masterSA) {
-    // Update in place — this is what "change the SuperAdmin login" means.
+  // Find-or-create the SuperAdmin user BY EMAIL — never RENAME another account into
+  // SUPERADMIN_EMAIL. The old code renamed the legacy super_admin's email to
+  // SUPERADMIN_EMAIL, which collides with the @unique email when SUPERADMIN_EMAIL
+  // already exists (e.g. a restaurant owner signed up with it) — the update then
+  // failed and left super_admin on the legacy account while SUPERADMIN_EMAIL stayed
+  // a plain owner (403 on every super-admin page).
+  let admin = await prisma.user.findFirst({ where: { email: SUPERADMIN_EMAIL } });
+  if (admin) {
     admin = await prisma.user.update({
-      where: { id: masterSA.id },
+      where: { id: admin.id },
       data: {
-        email: SUPERADMIN_EMAIL,
         password_hash: passwordHash,
         ...(process.env.SUPERADMIN_PHONE ? { phone: SUPERADMIN_PHONE } : {}),
         failed_login_attempts: 0, locked_until: null, is_active: true, is_deleted: false,
       },
     });
   } else {
-    // Fresh database — create the owner.
-    admin = await prisma.user.upsert({
-      where: { email: SUPERADMIN_EMAIL },
-      update: { password_hash: passwordHash, failed_login_attempts: 0, locked_until: null, is_active: true, is_deleted: false },
-      create: {
+    admin = await prisma.user.create({
+      data: {
         full_name: 'Global Software Owner',
         email: SUPERADMIN_EMAIL,
         phone: SUPERADMIN_PHONE,
@@ -122,28 +113,25 @@ async function main() {
       },
     });
   }
-  
-  // 3. Link SuperAdmin Role (Hand-crafted for Cloud Success)
-  const existingRole = await prisma.userRole.findFirst({
-    where: { 
-      user_id: admin.id,
-      role_id: saRole.id,
-      outlet_id: null
-    }
+
+  // Login builds the JWT from the is_primary role, so super_admin MUST be primary.
+  // 1) Demote all of this user's roles (a prior 'owner' signup role must not win).
+  await prisma.userRole.updateMany({ where: { user_id: admin.id }, data: { is_primary: false } });
+  // 2) Grant/repair the platform super_admin role (outlet_id null) as PRIMARY.
+  const saGrant = await prisma.userRole.findFirst({ where: { user_id: admin.id, role_id: saRole.id, outlet_id: null } });
+  if (saGrant) {
+    await prisma.userRole.update({ where: { id: saGrant.id }, data: { is_primary: true, is_deleted: false } });
+  } else {
+    await prisma.userRole.create({ data: { user_id: admin.id, role_id: saRole.id, is_primary: true, outlet_id: null } });
+  }
+  // 3) Demote every OTHER platform super_admin (e.g. legacy admin@petpooja.com) so
+  //    there is exactly one platform owner = SUPERADMIN_EMAIL.
+  const demoted = await prisma.userRole.updateMany({
+    where: { role_id: saRole.id, outlet_id: null, is_deleted: false, user_id: { not: admin.id } },
+    data: { is_deleted: true },
   });
 
-  if (!existingRole) {
-    await prisma.userRole.create({
-      data: {
-        user_id: admin.id,
-        role_id: saRole.id,
-        is_primary: true,
-        outlet_id: null
-      }
-    });
-  }
-
-  console.log(`🏆 SuperAdmin owner ready: ${SUPERADMIN_EMAIL} (password from SUPERADMIN_PASSWORD env)`);
+  console.log(`🏆 SuperAdmin owner ready: ${SUPERADMIN_EMAIL} (password from SUPERADMIN_PASSWORD env); demoted ${demoted.count} legacy super_admin(s)`);
 
   // 4. Default usage-based billing plans (editable data, NOT hardcoded in app).
   //    These are launch defaults — tune rate_rules / percentages per advisor input.

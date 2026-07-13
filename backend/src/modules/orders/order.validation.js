@@ -180,10 +180,12 @@ const syncOfflineOrdersSchema = Joi.object({
     table_number: Joi.alternatives().try(Joi.string().max(20), Joi.number()).allow(null),
     source: Joi.string().valid('pos').default('pos'),
     // The offline POS also emits 'created'/'held' (parked) and may replay
-    // 'ready'/'completed'. Accept the full lifecycle so a well-formed offline
-    // batch NEVER 400s wholesale on an unexpected-but-valid status.
+    // 'ready'/'completed'. 'merged' is stamped on a source ticket the offline
+    // split/merge emptied (its items moved onto another order). Accept the full
+    // lifecycle so a well-formed offline batch NEVER 400s wholesale on an
+    // unexpected-but-valid status (a missing 'merged' dead-lettered the batch).
     status: Joi.string()
-      .valid('created', 'active', 'held', 'confirmed', 'ready', 'billed', 'paid', 'cancelled', 'completed')
+      .valid('created', 'active', 'held', 'confirmed', 'ready', 'billed', 'paid', 'cancelled', 'completed', 'merged')
       .default('confirmed'),
     customer_id: Joi.string().uuid().allow(null),
     customer_name: Joi.string().max(150).allow('', null),
@@ -194,6 +196,12 @@ const syncOfflineOrdersSchema = Joi.object({
     tax_amount: Joi.number().min(0).default(0),
     cgst_amount: Joi.number().min(0).default(0),
     sgst_amount: Joi.number().min(0).default(0),
+    // Full offline discount snapshot (db-apply-discount replays type/value/reason
+    // alongside the derived discount_amount). All optional so a plain order — or a
+    // legacy client that only sends discount_amount — still validates.
+    discount_type: Joi.string().valid('percentage', 'flat').allow('', null),
+    discount_value: Joi.number().min(0).allow(null),
+    discount_reason: Joi.string().max(200).allow('', null),
     discount_amount: Joi.number().min(0).default(0),
     service_charge: Joi.number().min(0).default(0),
     // Rounding adjustment captured on the device (may be negative when the bill
@@ -203,9 +211,21 @@ const syncOfflineOrdersSchema = Joi.object({
     payment_method: Joi.string().max(30).allow('', null),
     payment_note: Joi.string().max(500).allow('', null),
     invoice_number: Joi.string().max(50).allow('', null),
+    // Void snapshot (db-void-order) — the cancellation reason/time replayed on the
+    // whole-order sync so the forward-merge can stamp cancel_reason/cancelled_at.
+    cancel_reason: Joi.string().max(500).allow('', null),
+    cancelled_at: Joi.date().iso().allow(null),
     created_at: Joi.date().iso(),
     billed_at: Joi.date().iso().allow(null),
     paid_at: Joi.date().iso().allow(null),
+    // Optional KOT snapshot — the offline KDS marks tickets ready/served locally;
+    // the sync reconciles each cloud KOT's status by kot_number (see syncOfflineOrders).
+    kots: Joi.array().items(Joi.object({
+      kot_number: Joi.string().max(20).allow('', null),
+      station: Joi.string().max(30).allow('', null),
+      status: Joi.string().max(20).allow('', null),
+      items_count: Joi.number().integer().min(0).allow(null),
+    }).options({ stripUnknown: true })).optional(),
     items: Joi.array().items(Joi.object({
       // Local order_items.id (client UUID) — the per-item idempotency key. When
       // supplied the cloud OrderItem is created WITH this id so a retried batch
@@ -223,7 +243,12 @@ const syncOfflineOrdersSchema = Joi.object({
       addon_total: Joi.number().min(0).default(0),
       total_price: Joi.number().min(0).required(),
       notes: Joi.string().max(200).allow('', null),
-    }).options({ stripUnknown: true })).min(1).required(),
+    // Allow an EMPTY items array: a merged/split-emptied SOURCE order legitimately
+    // carries zero items (every line moved to the target/new order). Requiring
+    // min(1) here 400'd the whole batch so the merged source never reconciled and
+    // its cloud table stayed occupied. The service tolerates [] (create loop
+    // no-ops; the reconcile clears the source's cloud items).
+    }).options({ stripUnknown: true })).default([]),
   }).options({ stripUnknown: true })).min(1).required(),
 });
 

@@ -2,11 +2,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './themes/ThemeContext';
 import App from './App';
 import { store } from './store';
+import { queryClient, persistOptions, IS_ELECTRON } from './lib/queryPersist';
 import './index.css';
 
 // Mark <body> when running inside Electron so CSS can add traffic-light safe area
@@ -16,11 +18,25 @@ if (typeof window !== 'undefined' &&
   document.body.classList.add('is-electron', 'is-mac-electron');
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 30000, retry: 1, refetchOnWindowFocus: false },
-  },
-});
+// Tie React Query's online state to REAL backend reachability — but ONLY in Electron.
+// The Electron main process runs a TCP-based connectivity check against the backend,
+// so RQ pauses queries/mutations when the BACKEND (not just wifi) is unreachable and
+// auto-resumes when it returns. On the web we intentionally leave RQ's default
+// navigator.onLine behavior untouched, so online semantics are unchanged there.
+if (typeof window !== 'undefined' && window.electron) {
+  onlineManager.setEventListener((setOnline) => {
+    if (typeof window !== 'undefined' && window.electron) {
+      window.electron.getOnlineStatus?.()
+        .then((o) => setOnline(!!o))
+        .catch(() => {});
+      const unsub = window.electron.onConnectivityChange?.(({ online }) => setOnline(!!online));
+      return () => {
+        if (typeof unsub === 'function') unsub();
+      };
+    }
+    return () => {};
+  });
+}
 
 class RootErrorBoundary extends React.Component {
   constructor(props) {
@@ -53,27 +69,51 @@ class RootErrorBoundary extends React.Component {
   }
 }
 
+// Identical provider children for both the Electron and web paths — the ONLY
+// difference is which QueryClient provider wraps them.
+const appTree = (
+  <ThemeProvider>
+    <HashRouter>
+      <App />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: { background: '#27272a', color: '#f4f4f5', border: '1px solid #3f3f46', borderRadius: '12px' },
+          success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } },
+          error: { iconTheme: { primary: '#f04438', secondary: '#fff' } },
+        }}
+      />
+    </HashRouter>
+  </ThemeProvider>
+);
+
 const rootEl = document.getElementById('root');
 if (rootEl) {
   ReactDOM.createRoot(rootEl).render(
     <RootErrorBoundary>
       <Provider store={store}>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <HashRouter>
-              <App />
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 3000,
-                  style: { background: '#27272a', color: '#f4f4f5', border: '1px solid #3f3f46', borderRadius: '12px' },
-                  success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } },
-                  error: { iconTheme: { primary: '#f04438', secondary: '#fff' } },
-                }}
-              />
-            </HashRouter>
-          </ThemeProvider>
-        </QueryClientProvider>
+        {IS_ELECTRON ? (
+          // Desktop only: persist the whole React Query cache to IndexedDB and,
+          // once restored, flush paused mutations + invalidate to reconcile.
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={persistOptions}
+            onSuccess={() => {
+              queryClient.resumePausedMutations().then(() => {
+                queryClient.invalidateQueries();
+              });
+            }}
+          >
+            {appTree}
+          </PersistQueryClientProvider>
+        ) : (
+          // Web: plain provider — no IndexedDB persistence, no invalidate-on-restore,
+          // so the browser app behaves exactly as it did before the offline work.
+          <QueryClientProvider client={queryClient}>
+            {appTree}
+          </QueryClientProvider>
+        )}
       </Provider>
     </RootErrorBoundary>
   );

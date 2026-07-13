@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import api, { SOCKET_URL } from '../lib/api';
+import { offlineWrite } from '../lib/offlineMutate';
 import toast from 'react-hot-toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -159,15 +160,33 @@ export default function TablesPage() {
     onError: (e) => toast.error(e.message || 'Save failed'),
   });
 
+  // Query keys the two useQuery calls above already use — reused verbatim for
+  // optimistic setQueryData / invalidateQueries so writes appear INSTANTLY.
+  const tablesKey = ['tables', outletId];
+  const areasKey = ['tableAreas', outletId];
+
   const addTableMut = useMutation({
-    mutationFn: (d) => api.post('/kitchen/tables', d),
-    onSuccess: (res) => {
+    mutationFn: (d) => offlineWrite({ method: 'POST', url: '/kitchen/tables', body: d, apiCall: () => api.post('/kitchen/tables', d) }),
+    onMutate: async (d) => {
+      await qc.cancelQueries({ queryKey: tablesKey });
+      const previous = qc.getQueryData(tablesKey);
+      const tempId = 'offline-' + crypto.randomUUID();
+      qc.setQueryData(tablesKey, (old) => [
+        ...(Array.isArray(old) ? old : []),
+        { id: tempId, status: 'available', ...d, seating_capacity: d.seating_capacity ?? d.capacity },
+      ]);
+      return { previous };
+    },
+    onSuccess: () => {
       toast.success('Table added!');
-      qc.invalidateQueries({ queryKey: ['tables', outletId] });
       setAddTableOpen(false);
       setAddForm({ table_number: '', capacity: 4, shape: 'square', area_id: '' });
     },
-    onError: (e) => toast.error(e.message || 'Failed to add table'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(tablesKey, ctx.previous);
+      toast.error(e.message || 'Failed to add table');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: tablesKey }),
   });
 
   const bulkAddMut = useMutation({
@@ -194,47 +213,84 @@ export default function TablesPage() {
   };
 
   const deleteTableMut = useMutation({
-    mutationFn: (id) => api.delete(`/kitchen/tables/${id}`),
+    mutationFn: (id) => offlineWrite({ method: 'DELETE', url: `/kitchen/tables/${id}`, body: {}, apiCall: () => api.delete(`/kitchen/tables/${id}`) }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: tablesKey });
+      const previous = qc.getQueryData(tablesKey);
+      qc.setQueryData(tablesKey, (old) => Array.isArray(old) ? old.filter((t) => t.id !== id) : old);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Table removed');
-      qc.invalidateQueries({ queryKey: ['tables', outletId] });
       setDeleteOpen(false);
       setSelected(null);
     },
-    onError: (e) => toast.error(e.message || 'Delete failed'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(tablesKey, ctx.previous);
+      toast.error(e.message || 'Delete failed');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: tablesKey }),
   });
 
   const addAreaMut = useMutation({
-    mutationFn: (d) => api.post('/kitchen/table-areas', d),
+    mutationFn: (d) => offlineWrite({ method: 'POST', url: '/kitchen/table-areas', body: d, apiCall: () => api.post('/kitchen/table-areas', d) }),
+    onMutate: async (d) => {
+      await qc.cancelQueries({ queryKey: areasKey });
+      const previous = qc.getQueryData(areasKey);
+      const tempId = 'offline-' + crypto.randomUUID();
+      qc.setQueryData(areasKey, (old) => [...(Array.isArray(old) ? old : []), { id: tempId, ...d }]);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Area added!');
-      qc.invalidateQueries({ queryKey: ['tableAreas', outletId] });
       setAddAreaOpen(false);
       setAreaForm({ name: '', color: '#1e293b' });
     },
-    onError: (e) => toast.error(e.message || 'Failed to add area'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(areasKey, ctx.previous);
+      toast.error(e.message || 'Failed to add area');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: areasKey }),
   });
 
   const deleteAreaMut = useMutation({
-    mutationFn: (id) => api.delete(`/kitchen/table-areas/${id}`),
+    mutationFn: (id) => offlineWrite({ method: 'DELETE', url: `/kitchen/table-areas/${id}`, body: {}, apiCall: () => api.delete(`/kitchen/table-areas/${id}`) }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: areasKey });
+      const previous = qc.getQueryData(areasKey);
+      qc.setQueryData(areasKey, (old) => Array.isArray(old) ? old.filter((a) => a.id !== id) : old);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Area removed');
-      qc.invalidateQueries({ queryKey: ['tableAreas', outletId] });
-      qc.invalidateQueries({ queryKey: ['tables', outletId] });
+      qc.invalidateQueries({ queryKey: tablesKey });
       setDeleteAreaOpen(false);
       setSelected(null);
     },
-    onError: (e) => toast.error(e.message || 'Delete area failed'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(areasKey, ctx.previous);
+      toast.error(e.message || 'Delete area failed');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: areasKey }),
   });
 
   const statusMut = useMutation({
-    mutationFn: ({ id, status }) => api.patch(`/kitchen/tables/${id}/status`, { status }),
+    mutationFn: ({ id, status }) => offlineWrite({ method: 'PATCH', url: `/kitchen/tables/${id}/status`, body: { status }, apiCall: () => api.patch(`/kitchen/tables/${id}/status`, { status }) }),
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: tablesKey });
+      const previous = qc.getQueryData(tablesKey);
+      qc.setQueryData(tablesKey, (old) => Array.isArray(old) ? old.map((t) => t.id === id ? { ...t, status } : t) : old);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Status updated');
-      qc.invalidateQueries({ queryKey: ['tables', outletId] });
       setDetailOpen(false);
     },
-    onError: (e) => toast.error(e.message || 'Failed'),
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(tablesKey, ctx.previous);
+      toast.error(e.message || 'Failed');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: tablesKey }),
   });
 
   // Generate the bill for a table's active order, then jump to the POS payment screen

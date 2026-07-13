@@ -209,6 +209,47 @@ contextBridge.exposeInMainWorld('electron', {
   dbUpdateOrderStatus: (orderId, status, extra) =>
     ipcRenderer.invoke('db-update-order-status', orderId, status, extra),
 
+  // ─── Local Database: Offline POS Actions ──────────────────────
+  /** Transfer an order to a different table (frees old, seizes new) */
+  dbTransferTable: (orderId, newTableId) =>
+    ipcRenderer.invoke('db-transfer-table', orderId, newTableId),
+
+  /** Merge a source order into a target (moves items + KOTs, retires source) */
+  dbMergeOrders: (sourceOrderId, targetOrderId) =>
+    ipcRenderer.invoke('db-merge-orders', sourceOrderId, targetOrderId),
+
+  /** Item-split an order into a new local order carrying the given item ids */
+  dbSplitOrder: (orderId, payload) =>
+    ipcRenderer.invoke('db-split-order', orderId, payload),
+
+  /** Void (cancel) an order with a reason; frees its table */
+  dbVoidOrder: (orderId, reason) =>
+    ipcRenderer.invoke('db-void-order', orderId, reason),
+
+  /** Void a single line item and recompute the order totals */
+  dbVoidItem: (orderId, itemId) =>
+    ipcRenderer.invoke('db-void-item', orderId, itemId),
+
+  /** Apply a percentage/flat discount and recompute the order totals */
+  dbApplyDiscount: (orderId, data) =>
+    ipcRenderer.invoke('db-apply-discount', orderId, data),
+
+  /** Comp an order (on the house) — nets the grand total to 0 */
+  dbCompOrder: (orderId) =>
+    ipcRenderer.invoke('db-comp-order', orderId),
+
+  /** Update an order's free-text notes */
+  dbUpdateNotes: (orderId, notes) =>
+    ipcRenderer.invoke('db-update-notes', orderId, notes),
+
+  /** Update an order's cover (guest) count */
+  dbUpdateCovers: (orderId, n) =>
+    ipcRenderer.invoke('db-update-covers', orderId, n),
+
+  /** Add a gratuity/tip and fold it into the offline total */
+  dbAddGratuity: (orderId, amount) =>
+    ipcRenderer.invoke('db-add-gratuity', orderId, amount),
+
   /** Get all orders for an outlet with optional filters */
   dbGetOrders: (outletId, filters) =>
     ipcRenderer.invoke('db-get-orders', outletId, filters),
@@ -259,6 +300,18 @@ contextBridge.exposeInMainWorld('electron', {
   dbGetKOTsForOrder: (orderId) =>
     ipcRenderer.invoke('db-get-kots-for-order', orderId),
 
+  /** Get the outlet's active KOTs shaped like the cloud /kitchen/kots row */
+  dbGetKitchenKOTs: (outletId) =>
+    ipcRenderer.invoke('db-get-kitchen-kots', outletId),
+
+  /** Update a KOT's status (pending → ready → completed) for the offline KDS */
+  dbUpdateKotStatus: (kotId, status) =>
+    ipcRenderer.invoke('db-update-kot-status', kotId, status),
+
+  /** Update a single KOT line item's status (ready/served) for the offline KDS */
+  dbUpdateKotItemStatus: (kotId, itemId, status) =>
+    ipcRenderer.invoke('db-update-kot-item-status', kotId, itemId, status),
+
   // ─── Local Database: Sync Queue ───────────────────────────────
   /** Get pending sync queue entries */
   dbGetSyncQueue: () =>
@@ -275,6 +328,19 @@ contextBridge.exposeInMainWorld('electron', {
   /** Get recent offline/cloud sync conflicts for an outlet */
   dbGetSyncConflicts: (outletId, limit) =>
     ipcRenderer.invoke('db-get-sync-conflicts', outletId, limit),
+
+  // ─── Generic Write Outbox ─────────────────────────────────────
+  /**
+   * Enqueue a failed offline write (raw axios request) for later replay.
+   * Called by the frontend offlineWrite() helper on a network error.
+   * @param {{ uuid?: string, method: string, url: string, body?: any }} rec
+   */
+  outboxEnqueue: (rec) =>
+    ipcRenderer.invoke('db-outbox-enqueue', rec),
+
+  /** Get the count of offline writes still awaiting replay */
+  outboxPendingCount: () =>
+    ipcRenderer.invoke('db-outbox-pending-count'),
 
   // ─── Diagnostics ──────────────────────────────────────────────
   /** Get the absolute path to the local SQLite DB file */

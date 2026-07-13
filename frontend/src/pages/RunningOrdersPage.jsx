@@ -267,6 +267,15 @@ export default function RunningOrdersPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  // Invalidate every query an order-mutating op can touch. Per the offline POS
+  // contract, after any mutation (online OR offline) we refresh the running list,
+  // the kitchen display, and the tables map so all three stay in lock-step.
+  const invalidateOrderQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
+    queryClient.invalidateQueries({ queryKey: ['tables'] });
+  }, [queryClient]);
+
   // ── Core state ──────────────────────────────────────────────────────────────
   const [typeFilter, setTypeFilter]     = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -331,7 +340,10 @@ export default function RunningOrdersPage() {
       return api.get(`/orders?outlet_id=${outletId}&running=true&limit=200`).then(r => r.data);
     },
     enabled: !!outletId,
-    refetchInterval: isLive && isOnline ? 8000 : false,
+    // Poll offline too (faster) so the list reflects KOT/table/order changes another
+    // device wrote via local inter-device sync, not just this device's own edits.
+    // Web has no local SQLite to poll, so don't background-poll when offline there.
+    refetchInterval: isLive ? (isOnline ? 8000 : (IS_ELECTRON ? 4000 : false)) : false,
     staleTime: isOnline ? 5000 : Infinity,
   });
 
@@ -461,7 +473,7 @@ export default function RunningOrdersPage() {
     },
     onSuccess: (billData) => {
       toast.success('Bill Generated!');
-      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      invalidateOrderQueries();
       openModal('bill', billData);
     },
     onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to generate bill'),
@@ -476,7 +488,7 @@ export default function RunningOrdersPage() {
     },
     onSuccess: () => {
       toast.success('Order Cancelled');
-      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      invalidateOrderQueries();
       closeModal();
     },
     onError: (e) => toast.error(e.response?.data?.message || 'Failed to cancel'),
@@ -485,12 +497,16 @@ export default function RunningOrdersPage() {
   // Bulk cancel
   const bulkCancelMutation = useMutation({
     mutationFn: async (ids) => {
+      if (IS_ELECTRON && !isOnline) {
+        await Promise.all([...ids].map(id => window.electron.invoke('db-update-order-status', id, 'cancelled', { cancel_reason: 'Bulk cancel' })));
+        return;
+      }
       await Promise.all([...ids].map(id => api.post(`/orders/${id}/cancel`, { reason: 'Bulk cancel' })));
     },
     onSuccess: () => {
       toast.success(`${selectedIds.size} orders cancelled`);
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      invalidateOrderQueries();
     },
     onError: () => toast.error('Some cancellations failed'),
   });
@@ -498,12 +514,16 @@ export default function RunningOrdersPage() {
   // Bulk bill
   const bulkBillMutation = useMutation({
     mutationFn: async (ids) => {
+      if (IS_ELECTRON && !isOnline) {
+        await Promise.all([...ids].map(id => hybridAPI.generateBill(id)));
+        return;
+      }
       await Promise.all([...ids].map(id => api.post(`/orders/${id}/bill`, { outlet_id: outletId })));
     },
     onSuccess: () => {
       toast.success(`${selectedIds.size} orders billed`);
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+      invalidateOrderQueries();
     },
     onError: () => toast.error('Some bill generations failed'),
   });
@@ -523,9 +543,9 @@ export default function RunningOrdersPage() {
   }, []);
 
   const onModalSuccess = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+    invalidateOrderQueries();
     closeModal();
-  }, [queryClient, closeModal]);
+  }, [invalidateOrderQueries, closeModal]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Action dispatcher — called from EnhancedOrderCard
@@ -824,7 +844,7 @@ export default function RunningOrdersPage() {
                 }
                 toast.success('Payment recorded');
                 closeModal();
-                queryClient.invalidateQueries({ queryKey: ['running-orders'] });
+                invalidateOrderQueries();
               }}
             />
           )}
@@ -835,7 +855,7 @@ export default function RunningOrdersPage() {
             onClose={closeModal}
             order={selectedOrder}
             outletId={outletId}
-            onSuccess={() => queryClient.invalidateQueries({ queryKey: ['running-orders'] })}
+            onSuccess={invalidateOrderQueries}
           />
 
           {/* Financial modals */}
@@ -866,7 +886,7 @@ export default function RunningOrdersPage() {
             onClose={closeModal}
             order={selectedOrder}
             outletId={outletId}
-            onSuccess={() => queryClient.invalidateQueries({ queryKey: ['running-orders'] })}
+            onSuccess={invalidateOrderQueries}
           />
 
           <AuditLogModal
