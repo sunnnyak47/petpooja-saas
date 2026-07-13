@@ -11,6 +11,7 @@ const { UnauthorizedError } = require('../utils/errors');
 const logger = require('../config/logger');
 const prisma = require('../config/database').getDbClient();
 const { isPlatformRole } = require('../modules/superadmin/platform-rbac');
+const sessionService = require('../modules/auth/session.service');
 
 /**
  * Express middleware that verifies JWT access token.
@@ -63,6 +64,14 @@ async function authenticate(req, res, next) {
 
     const decoded = jwt.verify(token, appConfig.jwt.secret);
 
+    // Per-device revocation: a session signed out from the Devices & Security
+    // page (or "log out other devices") sets a Redis flag keyed by the token's
+    // sid. Fail-open on Redis outage — the wrapper returns null rather than
+    // throwing — consistent with the blacklist check above.
+    if (decoded.sid && await sessionService.isSessionRevoked(decoded.sid)) {
+      throw new UnauthorizedError('Session has been signed out');
+    }
+
     req.user = {
       id: decoded.id,
       email: decoded.email,
@@ -73,6 +82,7 @@ async function authenticate(req, res, next) {
       primary_color: decoded.primary_color,
       logo_url: decoded.logo_url,
       permissions: decoded.permissions || [],
+      sid: decoded.sid || null,
     };
 
     req.token = token;

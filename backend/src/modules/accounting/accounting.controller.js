@@ -18,6 +18,7 @@ const bankreport = require('./accounting.bankreport.service');
 const baslodge = require('./accounting.baslodgement.service');
 const budget = require('./accounting.budget.service');
 const invoice = require('./accounting.invoice.service');
+const owner = require('./accounting.owner.service');
 const xport = require('./accounting.export.service');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
@@ -66,6 +67,16 @@ async function profitAndLoss(req, res, next) {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const result = await statements.getProfitAndLoss(outletId, req.query.from, req.query.to);
     sendSuccess(res, result, 'Profit and loss retrieved');
+  } catch (error) { next(error); }
+}
+
+/* ── Owner Mode (plain-language dashboard) ──────────── */
+
+async function ownerDashboard(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const result = await owner.getOwnerDashboard(outletId);
+    sendSuccess(res, result, 'Owner dashboard retrieved');
   } catch (error) { next(error); }
 }
 
@@ -555,6 +566,7 @@ module.exports = {
   ledger,
   trialBalance,
   profitAndLoss,
+  ownerDashboard,
   balanceSheet,
   seed,
   backfill,

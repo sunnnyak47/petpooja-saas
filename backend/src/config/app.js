@@ -132,6 +132,7 @@ const appConfig = {
     otpPrefix: 'otp:',
     reportCache: 'rpt:',
     sessionPrefix: 'sess:',
+    revokedSession: 'revsid:', // per-device revocation flag, keyed by token session id (sid)
   },
 };
 

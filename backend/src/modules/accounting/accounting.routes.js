@@ -16,6 +16,9 @@ const p7 = require('./accounting.phase7.validation');
 const VIEW = hasPermission('VIEW_REPORTS');
 const MANAGE = hasPermission('MANAGE_INVENTORY');
 
+/* ── Owner Mode (plain-language dashboard) ──────── */
+router.get('/owner-dashboard', authenticate, VIEW, c.ownerDashboard);
+
 /* ── Reports (read) ─────────────────────────────── */
 router.get('/chart', authenticate, VIEW, c.listChart);
 router.get('/ledger', authenticate, VIEW, c.ledger);

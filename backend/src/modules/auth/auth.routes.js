@@ -92,4 +92,16 @@ router.get('/me', authenticate, authController.getMe);
  */
 router.post('/change-password', authenticate, authLimiter, validate(changePasswordSchema), authController.changePassword);
 
+/**
+ * Devices & Security (authenticated, self-service).
+ * GET  /api/auth/sessions               — active device sessions + last-login summary
+ * GET  /api/auth/login-history          — paginated login/logout history
+ * POST /api/auth/sessions/logout-others — sign out all other devices
+ * POST /api/auth/sessions/:sid/revoke   — sign out one device
+ */
+router.get('/sessions', authenticate, authController.getSessions);
+router.get('/login-history', authenticate, authController.getLoginHistory);
+router.post('/sessions/logout-others', authenticate, authController.logoutOtherDevices);
+router.post('/sessions/:sid/revoke', authenticate, authController.revokeSession);
+
 module.exports = router;

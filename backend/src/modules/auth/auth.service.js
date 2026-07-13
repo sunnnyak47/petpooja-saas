@@ -232,6 +232,11 @@ async function login(login, password, auditInfo = {}) {
     // etc.) work instead of failing with "No head office linked to this account".
     const headOfficeId = user.head_office_id || primaryRole?.outlet?.head_office_id || null;
 
+    // Session id: identifies THIS device login. Carried in both tokens (and
+    // preserved across refresh) so the device can be listed and revoked
+    // individually from the Devices & Security page.
+    const sid = uuidv4();
+
     const tokenPayload = {
       id: user.id,
       email: user.email,
@@ -242,6 +247,7 @@ async function login(login, password, auditInfo = {}) {
       primary_color: primaryRole?.outlet?.primary_color || user.head_office?.primary_color || '#4F46E5',
       logo_url: user.head_office?.logo_url || null,
       permissions,
+      sid,
     };
 
     const accessToken = jwt.sign(tokenPayload, appConfig.jwt.secret, {
@@ -250,7 +256,7 @@ async function login(login, password, auditInfo = {}) {
     });
 
     const refreshToken = jwt.sign(
-      { id: user.id, type: 'refresh', jti: uuidv4() },
+      { id: user.id, type: 'refresh', jti: uuidv4(), sid },
       appConfig.jwt.refreshSecret,
       { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'msrm-erp' }
     );
@@ -269,6 +275,7 @@ async function login(login, password, auditInfo = {}) {
         entity_id: user.id,
         ip_address: auditInfo.ip || null,
         user_agent: auditInfo.user_agent || null,
+        metadata: { sid },
       },
     });
 
@@ -314,7 +321,7 @@ async function incrementLoginAttempts(redis, key) {
  * @param {string} refreshToken - Current refresh token
  * @returns {Promise<{accessToken: string, refreshToken: string}>}
  */
-async function refreshTokens(refreshToken) {
+async function refreshTokens(refreshToken, auditInfo = {}) {
   const prisma = getDbClient();
   const redis = getRedisClient();
 
@@ -322,6 +329,14 @@ async function refreshTokens(refreshToken) {
     const isBlacklisted = await redis.get(`${appConfig.redisKeys.tokenBlacklist}${refreshToken}`);
     if (isBlacklisted) throw new UnauthorizedError('Refresh token has been revoked');
     const decoded = jwt.verify(refreshToken, appConfig.jwt.refreshSecret);
+
+    // Preserve the device session id across rotation. A device that was signed
+    // out (revoked) must not be able to refresh back to life.
+    let sid = decoded.sid || null;
+    if (sid) {
+      const revoked = await redis.get(`${appConfig.redisKeys.revokedSession}${sid}`);
+      if (revoked) throw new UnauthorizedError('Session has been signed out');
+    }
 
     const user = await prisma.user.findFirst({
       where: { id: decoded.id, is_deleted: false, is_active: true },
@@ -351,17 +366,38 @@ async function refreshTokens(refreshToken) {
     const outletId = primaryRole?.outlet_id || null;
     const permissions = primaryRole?.role?.role_permissions?.map((rp) => rp.permission.key) || [];
 
+    // Legacy tokens issued before session tracking carry no sid. Mint one on the
+    // first refresh and record a login row so the session becomes visible on the
+    // Devices & Security page (a one-time upgrade — the sid then persists).
+    const isNewSession = !sid;
+    if (isNewSession) sid = uuidv4();
+
     const newAccessToken = jwt.sign(
-      { id: user.id, email: user.email, phone: user.phone, role: roleName, outlet_id: outletId, permissions },
+      { id: user.id, email: user.email, phone: user.phone, role: roleName, outlet_id: outletId, permissions, sid },
       appConfig.jwt.secret,
       { expiresIn: appConfig.jwt.accessExpiry, issuer: 'msrm-erp' }
     );
 
     const newRefreshToken = jwt.sign(
-      { id: user.id, type: 'refresh', jti: uuidv4() },
+      { id: user.id, type: 'refresh', jti: uuidv4(), sid },
       appConfig.jwt.refreshSecret,
       { expiresIn: appConfig.jwt.refreshExpiry, issuer: 'msrm-erp' }
     );
+
+    if (isNewSession) {
+      await prisma.auditLog.create({
+        data: {
+          user_id: user.id,
+          outlet_id: outletId,
+          action: 'USER_LOGIN',
+          entity_type: 'user',
+          entity_id: user.id,
+          ip_address: auditInfo.ip || null,
+          user_agent: auditInfo.user_agent || null,
+          metadata: { sid, via: 'refresh' },
+        },
+      }).catch(() => null);
+    }
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   } catch (error) {
@@ -388,12 +424,21 @@ async function logout(token, userId, auditInfo = {}) {
 
   try {
     let ttl = 900;
+    let sid = null;
     try {
       const decoded = jwt.verify(token, appConfig.jwt.secret, { ignoreExpiration: true });
       if (decoded?.exp) ttl = Math.max(decoded.exp - Math.floor(Date.now() / 1000), 1);
+      sid = decoded?.sid || null;
     } catch (_) { /* use default ttl */ }
 
     await redis.setex(`${appConfig.redisKeys.tokenBlacklist}${token}`, ttl, 'revoked');
+
+    // Drop this device from the active-sessions list immediately: stamp the sid
+    // on the logout audit row (so it reads as "ended") and flag it revoked so it
+    // can't be refreshed back to life within the 7-day window.
+    if (sid) {
+      await redis.setex(`${appConfig.redisKeys.revokedSession}${sid}`, 7 * 24 * 3600, 'revoked');
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -403,10 +448,11 @@ async function logout(token, userId, auditInfo = {}) {
         entity_id: userId,
         ip_address: auditInfo.ip || null,
         user_agent: auditInfo.user_agent || null,
+        metadata: sid ? { sid } : undefined,
       },
     });
 
-    logger.info('User logged out', { userId });
+    logger.info('User logged out', { userId, sid });
   } catch (error) {
     logger.error('Logout failed', { error: error.message, userId });
     throw error;

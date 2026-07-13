@@ -8,8 +8,9 @@
  * envelope { success, data, message } lands at `r.data`, and the real payload
  * is `r.data.data`.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -18,8 +19,9 @@ import BankReconciliation from '../components/accounting/BankReconciliation';
 import {
   BookOpen, Scale, TrendingUp, Landmark, FileText,
   RefreshCw, Loader2, Receipt, Banknote, Clock, Plus, BookText,
-  Lock, Unlock, CalendarDays, FileCheck, Download,
+  Lock, Unlock, CalendarDays, FileCheck, Download, LayoutDashboard,
 } from 'lucide-react';
+import OwnerDashboard from '../components/accounting/OwnerDashboard';
 
 /* ── Currency helper ───────────────────────────────────────────────────────── */
 const aud = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
@@ -87,6 +89,7 @@ function ExportCsvButton({ onClick }) {
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
 const TABS = [
+  { key: 'overview', label: 'Overview',         icon: LayoutDashboard },
   { key: 'chart',   label: 'Chart of Accounts', icon: BookOpen },
   { key: 'ledger',  label: 'Ledger',            icon: FileText },
   { key: 'trial',   label: 'Trial Balance',     icon: Scale },
@@ -201,7 +204,13 @@ export default function AccountingPage() {
 }
 
 function AccountingPageInner() {
-  const [tab, setTab] = useState('chart');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'overview');
+  // Keep the active tab in sync with ?tab= so the sidebar Accounting sub-menu deep-links.
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== tab) setTab(t);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   const queryClient = useQueryClient();
 
   const { user } = useSelector((s) => s.auth);
@@ -429,7 +438,7 @@ function AccountingPageInner() {
             return (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key)}
+                onClick={() => { setTab(t.key); setSearchParams({ tab: t.key }); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap"
                 style={{
                   background: active ? 'var(--accent)' : 'transparent',
@@ -446,6 +455,7 @@ function AccountingPageInner() {
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────────── */}
+      {tab === 'overview' && <OwnerDashboard outletId={outletId} setTab={(k) => { setTab(k); setSearchParams({ tab: k }); }} />}
       {tab === 'chart' && <ChartTab query={chartQ} addM={addAccountM} deactivateM={deactivateAccountM} />}
       {tab === 'ledger' && (
         <LedgerTab

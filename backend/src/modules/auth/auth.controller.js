@@ -4,6 +4,7 @@
  */
 
 const authService = require('./auth.service');
+const sessionService = require('./session.service');
 const superadminService = require('../superadmin/superadmin.service');
 const { sendSuccess, sendCreated, sendError } = require('../../utils/response');
 const logger = require('../../config/logger');
@@ -62,7 +63,8 @@ async function login(req, res, next) {
 async function refreshToken(req, res, next) {
   try {
     const { refresh_token } = req.body;
-    const tokens = await authService.refreshTokens(refresh_token);
+    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent') };
+    const tokens = await authService.refreshTokens(refresh_token, auditInfo);
     sendSuccess(res, tokens, 'Token refreshed successfully');
   } catch (error) {
     next(error);
@@ -191,6 +193,67 @@ async function changePassword(req, res, next) {
   }
 }
 
+/**
+ * GET /api/auth/sessions — active device sessions for the current user, plus a
+ * last-login summary. The caller's own session is marked `is_current`.
+ */
+async function getSessions(req, res, next) {
+  try {
+    const currentCtx = { ip: req.ip, user_agent: req.get('User-Agent') };
+    const [sessions, me] = await Promise.all([
+      sessionService.listActiveSessions(req.user.id, req.user.sid || null, currentCtx),
+      authService.getCurrentUser(req.user.id).catch(() => null),
+    ]);
+    sendSuccess(res, {
+      sessions,
+      active_count: sessions.length,
+      last_login_at: me?.last_login_at || null,
+    }, 'Active sessions retrieved');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/auth/login-history — paginated login/logout history for the user.
+ */
+async function getLoginHistory(req, res, next) {
+  try {
+    const { limit, page, days } = req.query;
+    const result = await sessionService.getLoginHistory(req.user.id, { limit, page, days });
+    sendSuccess(res, result, 'Login history retrieved');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/sessions/:sid/revoke — sign out one device.
+ */
+async function revokeSession(req, res, next) {
+  try {
+    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent') };
+    const result = await sessionService.revokeSession(req.user.id, req.params.sid, auditInfo);
+    if (!result.revoked) return sendError(res, 'Session not found', 404);
+    sendSuccess(res, result, 'Device signed out');
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/sessions/logout-others — sign out every device except this one.
+ */
+async function logoutOtherDevices(req, res, next) {
+  try {
+    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent') };
+    const result = await sessionService.logoutOtherDevices(req.user.id, req.user.sid || null, auditInfo);
+    sendSuccess(res, result, `Signed out ${result.count} other device(s)`);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -203,5 +266,9 @@ module.exports = {
   getBranding,
   forgotPasswordEmail,
   resetPasswordToken,
-  changePassword
+  changePassword,
+  getSessions,
+  getLoginHistory,
+  revokeSession,
+  logoutOtherDevices,
 };

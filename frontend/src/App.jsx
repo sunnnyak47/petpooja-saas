@@ -56,6 +56,7 @@ import Channel86Board from './pages/Channel86Board';
 import ChannelAnalyticsPage from './pages/ChannelAnalyticsPage';
 import DiscountsPage from './pages/DiscountsPage';
 import SettingsPage from './pages/SettingsPage';
+import DevicesSecurityPage from './pages/DevicesSecurityPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import RunningOrdersPage from './pages/RunningOrdersPage';
 import AuditLogPage from './pages/AuditLogPage';
@@ -301,6 +302,7 @@ export default function App() {
         <Route path="gst-compliance"  element={<ProtectedRoute><GSTCompliancePage /></ProtectedRoute>} />
         <Route path="gst-returns"     element={<ProtectedRoute><GstReturnsPage /></ProtectedRoute>} />
         <Route path="privacy-policy"  element={<ProtectedRoute><PrivacyPolicyPage /></ProtectedRoute>} />
+        <Route path="devices"         element={<DevicesSecurityPage />} />
 
         {/* The "Super Root" — guarded by RoleGuard for super_admin only */}
         <Route path="super-admin" element={<RoleGuard allowed={['super_admin']}><SuperAdminPage /></RoleGuard>} />

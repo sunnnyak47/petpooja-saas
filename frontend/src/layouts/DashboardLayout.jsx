@@ -17,7 +17,7 @@ import {
   TrendingUp, FileText, Receipt, Radio, MessageSquare, Sliders,
   Activity, Server, UserCheck, BookOpen, Star, Layers, FlameKindling, ScrollText,
   HeartPulse, Palmtree, IdCard, Landmark, UserCog, Bug, FileMinus, Scale, Truck, Wallet,
-  CircleSlash, PieChart, Inbox, LifeBuoy,
+  CircleSlash, PieChart, Inbox, LifeBuoy, ChevronDown, MonitorSmartphone,
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
@@ -62,6 +62,32 @@ const superAdminNav = [
   { path: '/settings',            label: 'Settings',           icon: Settings },
 ];
 
+// ── Finance module: Accounting (expandable → its tabs) + the finance suite.
+// Shared by both owner navs; region flags gate AU-only vs IN-only items. ──
+const financeSection = [
+  { section: 'Finance' },
+  { label: 'Accounting', icon: Landmark, feature: 'accounting', region: 'AU', children: [
+    { path: '/accounting?tab=overview', label: 'Overview' },
+    { path: '/accounting?tab=chart',   label: 'Chart of Accounts' },
+    { path: '/accounting?tab=journal', label: 'Journal Entries' },
+    { path: '/accounting?tab=ledger',  label: 'Ledger' },
+    { path: '/accounting?tab=trial',   label: 'Trial Balance' },
+    { path: '/accounting?tab=pnl',     label: 'P&L' },
+    { path: '/accounting?tab=balance', label: 'Balance Sheet' },
+    { path: '/accounting?tab=bankrec', label: 'Bank Reconciliation' },
+  ] },
+  { path: '/customer-invoices', label: 'Invoices',          icon: FileText,   feature: 'customer_invoices' },
+  { path: '/payroll',           label: 'Payroll',           icon: Landmark,   feature: 'payroll', region: 'AU' },
+  { path: '/fixed-assets',      label: 'Fixed Assets',      icon: Landmark,   feature: 'fixed_assets', region: 'AU' },
+  { path: '/budgets',           label: 'Budgets',           icon: Landmark,   feature: 'budgets', region: 'AU' },
+  { path: '/gst-compliance',    label: 'GST & BAS',         icon: Receipt,    feature: 'gst_returns', region: 'AU' },
+  { path: '/gst-returns',       label: 'GST Returns',       icon: Receipt,    feature: 'gst_returns', region: 'IN' },
+  { path: '/payments',          label: 'Payments',          icon: CreditCard, feature: 'payments' },
+  { path: '/credit-notes',      label: 'Credit Notes',      icon: FileMinus,  feature: 'payments' },
+  { path: '/settlements',       label: 'Settlements',       icon: Scale,      feature: 'payments' },
+  { path: '/xero-analytics',    label: 'Financial Reports', icon: TrendingUp, feature: 'financials' },
+];
+
 const ownerNav = [
   // ── Core: daily use, every shift ──
   { section: 'Core' },
@@ -96,25 +122,18 @@ const ownerNav = [
   { section: 'Analytics' },
   { path: '/reports',           label: 'Reports',          icon: BarChart3, feature: 'reports' },
   { path: '/advanced-reports',  label: 'Advanced Reports', icon: Layers, feature: 'reports' },
-  { path: '/xero-analytics',   label: 'Financials',       icon: TrendingUp, feature: 'financials' },
-  { path: '/accounting',       label: 'Accounting',       icon: Landmark, feature: 'accounting', region: 'AU' },
-  { path: '/payroll',          label: 'Payroll',          icon: Landmark, feature: 'payroll', region: 'AU' },
-  { path: '/fixed-assets',     label: 'Fixed Assets',     icon: Landmark, feature: 'fixed_assets', region: 'AU' },
-  { path: '/budgets',          label: 'Budgets',          icon: Landmark, feature: 'budgets', region: 'AU' },
-  { path: '/customer-invoices',label: 'Invoices',         icon: FileText, feature: 'customer_invoices' },
-  { path: '/gst-returns',      label: 'GST Returns',      icon: Receipt, feature: 'gst_returns', region: 'IN' },
   { path: '/menu-analytics',   label: 'Menu Analytics',   icon: FlameKindling, feature: 'menu_analytics' },
   { path: '/prep-analytics',   label: 'Prep Analytics',   icon: BarChart3, feature: 'prep_analytics' },
   { path: '/live',              label: 'Live Dashboard',   icon: Activity, isLive: true },
   { path: '/eod-report',       label: 'EOD Report',       icon: ClipboardList, feature: 'eod_report' },
-  { path: '/payments',          label: 'Payments',         icon: CreditCard, feature: 'payments' },
-  { path: '/credit-notes',      label: 'Credit Notes',     icon: FileMinus, feature: 'payments' },
-  { path: '/settlements',       label: 'Settlements',      icon: Scale, feature: 'payments' },
   { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
   { path: '/delivery',          label: 'Own Delivery',     icon: Truck, feature: 'payments' },
   { path: '/86-board',          label: '86 Board',         icon: CircleSlash, feature: 'menu' },
   { path: '/channel-analytics', label: 'Channel Analytics', icon: PieChart, feature: 'reports' },
   { path: '/chain-health',     label: 'Health Score',     icon: HeartPulse },
+
+  // ── Finance: accounting suite + billing ──
+  ...financeSection,
 
   // ── Settings: configuration & tools ──
   { section: 'Settings' },
@@ -127,6 +146,7 @@ const ownerNav = [
   { path: '/staff-management', label: 'Staff Management', icon: IdCard,       feature: 'staff' },
   { path: '/fraud',          label: 'Fraud Detection', icon: ShieldAlert, feature: 'fraud' },
   { path: '/audit-log',     label: 'Audit Trail',     icon: Shield, feature: 'audit_log' },
+  { path: '/devices',       label: 'Devices & Security', icon: MonitorSmartphone },
   { path: '/privacy-policy', label: 'Privacy & DPDP', icon: Shield },
   { path: '/subscription',  label: 'Subscription',    icon: Star },
   { path: '/support',       label: 'Support',         icon: LifeBuoy },
@@ -162,24 +182,19 @@ const ownerNavAU = [
   { path: '/reports',          label: 'Reports',           icon: BarChart3,     feature: 'reports' },
   { path: '/menu-analytics',   label: 'Menu Analytics',    icon: FlameKindling, feature: 'menu_analytics' },
   { path: '/eod-report',      label: 'EOD Report',        icon: ClipboardList, feature: 'eod_report' },
-  { path: '/payments',         label: 'Payments',          icon: CreditCard,    feature: 'payments' },
-  { path: '/credit-notes',     label: 'Credit Notes',      icon: FileMinus,     feature: 'payments' },
-  { path: '/settlements',      label: 'Settlements',       icon: Scale,         feature: 'payments' },
   { path: '/aggregator-reconciliation', label: 'Delivery Payouts', icon: Wallet, feature: 'payments' },
   { path: '/delivery',         label: 'Own Delivery',      icon: Truck,         feature: 'payments' },
   { path: '/86-board',         label: '86 Board',          icon: CircleSlash,   feature: 'menu' },
   { path: '/channel-analytics', label: 'Channel Analytics', icon: PieChart,     feature: 'reports' },
-  { path: '/accounting',      label: 'Accounting',        icon: Landmark,      feature: 'accounting', region: 'AU' },
-  { path: '/payroll',         label: 'Payroll',           icon: Landmark,      feature: 'payroll', region: 'AU' },
-  { path: '/fixed-assets',    label: 'Fixed Assets',      icon: Landmark,      feature: 'fixed_assets', region: 'AU' },
-  { path: '/budgets',         label: 'Budgets',           icon: Landmark,      feature: 'budgets', region: 'AU' },
-  { path: '/customer-invoices',label: 'Invoices',         icon: FileText,      feature: 'customer_invoices' },
-  { path: '/gst-compliance',  label: 'GST & BAS',         icon: Receipt,       feature: 'gst_returns' },
+
+  // ── Finance: accounting suite + billing ──
+  ...financeSection,
 
   // ── System: integrations, settings ──
   { section: 'System' },
   { path: '/au-integrations',label: 'Integrations',     icon: Link2,    feature: 'integrations', region: 'AU' },
   { path: '/qr-codes',      label: 'QR Codes',         icon: QrCode,   feature: 'qr_codes' },
+  { path: '/devices',       label: 'Devices & Security', icon: MonitorSmartphone },
   { path: '/subscription',  label: 'Subscription',     icon: Star },
   { path: '/support',       label: 'Support',          icon: LifeBuoy },
   { path: '/settings',      label: 'Settings',         icon: Settings },
@@ -198,6 +213,7 @@ function isFeatureEnabled(user, featureKey) {
 export default function DashboardLayout() {
   const { toggleTheme, isDark } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState({}); // expandable nav sub-menus (e.g. Accounting)
   const [mobileOpen, setMobileOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -434,6 +450,46 @@ export default function DashboardLayout() {
                     >
                       {item.section}
                     </p>
+                  </div>
+                );
+              }
+              // Expandable sub-menu (e.g. Accounting → its tabs). Deep-links to
+              // /accounting?tab=… and highlights the active child by tab.
+              if (item.children) {
+                const isChildActive = (cp) => {
+                  const [p, q] = cp.split('?');
+                  const cTab = new URLSearchParams(q || '').get('tab');
+                  const curTab = new URLSearchParams(location.search).get('tab') || 'overview';
+                  return location.pathname === p && (!cTab || cTab === curTab);
+                };
+                const anyActive = item.children.some(c => isChildActive(c.path));
+                const open = openGroups[item.label] ?? anyActive;
+                const GIcon = item.icon;
+                return (
+                  <div key={item.label}>
+                    <button
+                      onClick={() => setOpenGroups(g => ({ ...g, [item.label]: !(g[item.label] ?? anyActive) }))}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 mb-[1px] ${collapsed ? 'justify-center' : ''} ${anyActive ? 'sidebar-link-active' : 'sidebar-link'}`}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <GIcon className="w-[15px] h-[15px] flex-shrink-0" />
+                      {!collapsed && (
+                        <>
+                          <span className="truncate flex-1 text-left">{item.label}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                        </>
+                      )}
+                    </button>
+                    {open && !collapsed && item.children.map(c => (
+                      <button
+                        key={c.path}
+                        onClick={() => { navigate(c.path); setMobileOpen(false); }}
+                        className={`w-full flex items-center gap-2 pl-9 pr-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 mb-[1px] text-left ${isChildActive(c.path) ? 'sidebar-link-active' : 'sidebar-link'}`}
+                      >
+                        <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: 'currentColor', opacity: 0.5 }} />
+                        <span className="truncate">{c.label}</span>
+                      </button>
+                    ))}
                   </div>
                 );
               }
