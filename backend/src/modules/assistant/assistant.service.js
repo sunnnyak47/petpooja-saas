@@ -77,10 +77,11 @@ async function selectTool(question, toolList) {
 /** Compose the final answer grounded in the tool's data (LLM, else summarize). */
 async function compose(question, tool, data) {
   const sys = [
-    'You are a helpful restaurant back-office assistant.',
+    'You are a warm, helpful restaurant back-office assistant.',
     'Answer ONLY using facts/numbers present in DATA. NEVER invent or estimate anything not in DATA.',
-    'Be concise and plain-spoken: 1-3 short sentences, no jargon, no markdown. Include the currency where money is shown.',
-    'If DATA does not contain the answer, say you do not have that detail.',
+    'Be concise and friendly: 1-3 short sentences, plain language, no jargon, no markdown. Include the currency where money is shown.',
+    'DATA often holds more than the exact question asks — use whatever fields are relevant to give the most useful answer (e.g. if asked "how many non-veg items", read the non_veg count).',
+    'If DATA truly does not contain what was asked, say so in ONE friendly line and offer a closely related fact you CAN see from the same DATA.',
     'Respond as strict JSON: {"answer": "<your answer>"}',
   ].join('\n');
   try {

@@ -107,18 +107,54 @@ const TOOLS = [
   },
 
   {
-    name: 'menu_availability',
-    description: "Which menu items are currently unavailable (86'd / marked out)",
-    keywords: ['86', 'eighty', 'unavailable', 'available', 'out of', 'sold out', 'off the menu', 'in stock menu'],
+    name: 'menu_overview',
+    description: "Your menu: total number of items, how many are veg / non-veg / egg, number of categories, price range, and which items are currently unavailable (86'd)",
+    keywords: ['menu', 'items', 'how many items', 'dishes', 'veg', 'non-veg', 'non veg', 'nonveg', 'vegetarian', 'egg', 'categor', 'cheapest', 'expensive', 'price range', 'menu size', '86', 'unavailable', 'available', 'sold out', 'off the menu'],
     permission: null,
     run: async (ctx) => {
-      const r = await menu.listMenuItems(ctx.outletId, { is_available: 'false', limit: 100 });
-      const names = (r.items || []).map((i) => i.name);
-      return { unavailable_count: names.length, unavailable: names.slice(0, 20) };
+      const r = await menu.listMenuItems(ctx.outletId, { limit: 2000, is_active: 'true' });
+      const items = r.items || [];
+      const total = typeof r.total === 'number' ? r.total : items.length;
+      const norm = (ft) => {
+        const t = String(ft || 'veg').toLowerCase().replace(/-/g, '_');
+        if (t.startsWith('non')) return 'non_veg';
+        if (t === 'egg') return 'egg';
+        return 'veg';
+      };
+      let veg = 0; let nonVeg = 0; let egg = 0; let unavailable = 0;
+      const catMap = {}; const unavailableNames = [];
+      let minP = Infinity; let maxP = 0; let sumP = 0; let priced = 0;
+      for (const it of items) {
+        const ft = norm(it.food_type);
+        if (ft === 'non_veg') nonVeg += 1; else if (ft === 'egg') egg += 1; else veg += 1;
+        if (it.is_available === false) { unavailable += 1; if (unavailableNames.length < 15) unavailableNames.push(it.name); }
+        const cat = (it.category && it.category.name) || 'Uncategorised';
+        catMap[cat] = (catMap[cat] || 0) + 1;
+        const p = num(it.base_price);
+        if (p > 0) { minP = Math.min(minP, p); maxP = Math.max(maxP, p); sumP += p; priced += 1; }
+      }
+      const categories = Object.entries(catMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+      return {
+        currency: ctx.currency,
+        total_items: total,
+        veg, non_veg: nonVeg, egg,
+        available: total - unavailable,
+        unavailable,
+        unavailable_items: unavailableNames,
+        category_count: categories.length,
+        categories: categories.slice(0, 12),
+        price: priced ? { min: Math.round(minP), max: Math.round(maxP), avg: Math.round(sumP / priced) } : null,
+      };
     },
     summarize: (d) => {
-      if (!d.unavailable_count) return "All menu items are currently available — nothing is 86'd.";
-      return `${d.unavailable_count} item${d.unavailable_count === 1 ? '' : 's'} unavailable (86'd): ${d.unavailable.slice(0, 8).join(', ')}.`;
+      if (!d.total_items) return 'Your menu has no active items yet.';
+      const parts = [`${d.total_items} items`, `${d.veg} veg`, `${d.non_veg} non-veg`];
+      if (d.egg) parts.push(`${d.egg} egg`);
+      let s = `Your menu has ${parts.join(', ')} across ${d.category_count} categor${d.category_count === 1 ? 'y' : 'ies'}`;
+      if (d.price) s += `, priced ${money(d.currency, d.price.min)}–${money(d.currency, d.price.max)}`;
+      s += '.';
+      if (d.unavailable) s += ` ${d.unavailable} currently unavailable (86'd).`;
+      return s;
     },
   },
 
