@@ -11,7 +11,7 @@ import {
   Shield, Clock, Banknote, FileText, ChevronRight, Search,
   LogIn, PauseCircle, PlayCircle, StickyNote, ShoppingCart,
   TrendingUp, BarChart3, Loader2, Rocket, Check, KeyRound, Copy, AtSign,
-  Trash2, RotateCcw,
+  Trash2, RotateCcw, MoreVertical, ChevronDown,
 } from 'lucide-react';
 
 /* ─── Region meta ─────────────────────────────────────────── */
@@ -65,6 +65,7 @@ export default function SuperAdminPage() {
   const [formData, setFormData]         = useState({ name: '', email: '', phone: '', password: '', region: 'IN', owner_name: '', city: '', abn: '', acn: '' });
   const [notesModal, setNotesModal]     = useState(null); // { chain, text }
   const [planDropdown, setPlanDropdown] = useState(null); // chain.id
+  const [actionMenu, setActionMenu] = useState(null); // chain.id — overflow menu
   const [resetResult, setResetResult] = useState(null); // { owner_email, temp_password, chainName }
   const [resetConfirm, setResetConfirm] = useState(null); // chain pending reset confirmation
   const [emailModal, setEmailModal] = useState(null); // { chain, email } — change owner login email
@@ -294,7 +295,7 @@ export default function SuperAdminPage() {
   const sym = liveStats?.currency_symbol || '';
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10" onClick={() => setPlanDropdown(null)}>
+    <div className="space-y-6 animate-fade-in pb-10" onClick={() => { setPlanDropdown(null); setActionMenu(null); }}>
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -535,11 +536,27 @@ export default function SuperAdminPage() {
                           style={{ background: `${statusColor}14`, color: statusColor }}>
                           {status}
                         </span>
-                        {/* Plan badge */}
-                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold border"
-                          style={{ background: planStyle.bg, color: planStyle.color, borderColor: planStyle.border }}>
-                          {currentPlan}
-                        </span>
+                        {/* Plan badge — click to change plan */}
+                        <div className="relative" onClick={e => e.stopPropagation()}>
+                          <button onClick={() => setPlanDropdown(planDropdown === chain.id ? null : chain.id)}
+                            className="text-[11px] px-2 py-0.5 rounded-full font-semibold border transition-colors hover:opacity-80 flex items-center gap-1"
+                            style={{ background: planStyle.bg, color: planStyle.color, borderColor: planStyle.border }}>
+                            {currentPlan} <ChevronDown className="w-2.5 h-2.5" />
+                          </button>
+                          {planDropdown === chain.id && (
+                            <div className="absolute top-full mt-1 left-0 z-30 rounded-lg border shadow-lg overflow-hidden"
+                              style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', minWidth: 130 }}>
+                              {PLANS.map(p => { const ps = PLAN_COLORS[p]; return (
+                                <button key={p} onClick={() => { planMutation.mutate({ id: chain.id, plan: p }); setPlanDropdown(null); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium hover:opacity-80"
+                                  style={{ background: p === currentPlan ? ps.bg : 'transparent', color: ps.color }}>
+                                  <span className="w-2 h-2 rounded-full" style={{ background: ps.color }} />{p}
+                                  {p === currentPlan && <CheckCircle className="w-3 h-3 ml-auto" />}
+                                </button>
+                              ); })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                         {chain.contact_email}
@@ -555,165 +572,77 @@ export default function SuperAdminPage() {
                         <Stat label="Outlets" value={chain._count?.outlets || 0} />
                         <div className="w-px h-8 mx-4" style={{ background: 'var(--border)' }} />
                         <Stat label="Staff" value={chain._count?.users || 0} />
-                        <div className="w-px h-8 mx-4" style={{ background: 'var(--border)' }} />
-                        <Stat label="Plan" value={sub?.plan_name || 'Free'} accent />
+                        <span className="ml-auto self-center text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                          {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div className={`px-5 py-3 border-t space-y-2 ${suspended ? 'opacity-50' : ''}`}
+                {/* Actions — two primary + Notes, everything else in an overflow menu */}
+                <div className={`px-5 py-3 border-t flex items-center gap-2 ${suspended ? 'opacity-50' : ''}`}
                   style={{ borderColor: 'var(--border)' }}>
 
-                  {/* Region + switch row */}
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      {r.label} · {r.currency} · {r.timezone.split('/').pop().replace('_', ' ')}
-                    </span>
-                    <button
-                      onClick={() => setRegionModal({ chain, targetRegion: curRegion === 'AU' ? 'IN' : 'AU', abn: chain.abn || '', acn: chain.acn || '' })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--bg-primary)' }}>
-                      <ArrowLeftRight className="w-3 h-3" />
-                      Switch to {target.label}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => impersonateMutation.mutate(chain.id)}
+                    disabled={impersonateMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+                      background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                      color: 'var(--accent)',
+                    }}>
+                    <LogIn className="w-3 h-3" />
+                    Login As
+                  </button>
 
-                  {/* Action buttons row */}
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => navigate(`/chain/${chain.id}`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+                    style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+                    View Outlets
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
 
-                    {/* Impersonate */}
-                    <button
-                      onClick={() => impersonateMutation.mutate(chain.id)}
-                      disabled={impersonateMutation.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{
-                        borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
-                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                        color: 'var(--accent)',
-                      }}>
-                      <LogIn className="w-3 h-3" />
-                      Login As
-                    </button>
-
-                    {/* Reset owner login (support recovery) */}
-                    <button
-                      onClick={() => setResetConfirm(chain)}
-                      disabled={resetLoginMutation.isPending}
-                      title="Reset & unlock the chain owner's login"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#f59e0b4d', background: '#f59e0b14', color: '#f59e0b' }}>
-                      <KeyRound className="w-3 h-3" />
-                      Reset Login
-                    </button>
-
-                    {/* Change owner login email */}
-                    <button
-                      onClick={() => setEmailModal({ chain, email: '' })}
-                      title="Change the chain owner's login email"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#0ea5e94d', background: '#0ea5e914', color: '#0ea5e9' }}>
-                      <AtSign className="w-3 h-3" />
-                      Change Email
-                    </button>
-
-                    {/* Transfer ownership */}
-                    <button
-                      onClick={() => setTransferModal({ chain, mode: 'existing', user_id: '', full_name: '', email: '', phone: '' })}
-                      title="Transfer chain ownership to another user"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: '#64748b4d', background: '#64748b14', color: '#64748b' }}>
-                      <ArrowLeftRight className="w-3 h-3" />
-                      Transfer
-                    </button>
-
-                    {/* Suspend / Activate */}
-                    {suspended ? (
-                      <button
-                        onClick={() => statusMutation.mutate({ id: chain.id, action: 'activate' })}
-                        disabled={statusMutation.isPending}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#16a34a4d', background: '#16a34a14', color: '#16a34a' }}>
-                        <PlayCircle className="w-3 h-3" />
-                        Activate
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => statusMutation.mutate({ id: chain.id, action: 'suspend' })}
-                        disabled={statusMutation.isPending}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#ef44444d', background: '#ef444414', color: '#ef4444' }}>
-                        <PauseCircle className="w-3 h-3" />
-                        Suspend
-                      </button>
+                  <button
+                    onClick={() => setNotesModal({ chain, text: chain.metadata?.internal_notes || '' })}
+                    title="Internal notes"
+                    className="relative flex items-center justify-center w-8 h-8 rounded-lg border transition-colors hover:opacity-80"
+                    style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>
+                    <StickyNote className="w-3.5 h-3.5" />
+                    {chain.metadata?.internal_notes && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
                     )}
+                  </button>
 
-                    {/* Soft-delete (archive) — requires sa.chains.delete */}
-                    {canDelete && (
-                      <button
-                        onClick={() => setDeleteConfirm({ chain, reason: '' })}
-                        title="Archive (soft-delete) this chain — reversible"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                        style={{ borderColor: '#ef44444d', background: '#ef444414', color: '#ef4444' }}>
-                        <Trash2 className="w-3 h-3" />
-                        Archive
-                      </button>
+                  {/* Overflow — reset/email/transfer/switch region + suspend/archive */}
+                  <div className="relative ml-auto" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => setActionMenu(actionMenu === chain.id ? null : chain.id)}
+                      title="More actions"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg border transition-colors hover:opacity-80"
+                      style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                    {actionMenu === chain.id && (
+                      <div className="absolute bottom-full mb-1 right-0 z-30 rounded-lg border shadow-lg overflow-hidden py-1"
+                        style={{ background: 'var(--bg-card)', borderColor: 'var(--border)', minWidth: 200 }}>
+                        <MenuItem Icon={KeyRound} label="Reset Login" onClick={() => { setResetConfirm(chain); setActionMenu(null); }} />
+                        <MenuItem Icon={AtSign} label="Change Email" onClick={() => { setEmailModal({ chain, email: '' }); setActionMenu(null); }} />
+                        <MenuItem Icon={ArrowLeftRight} label="Transfer Ownership" onClick={() => { setTransferModal({ chain, mode: 'existing', user_id: '', full_name: '', email: '', phone: '' }); setActionMenu(null); }} />
+                        <MenuItem Icon={ArrowLeftRight} label={`Switch to ${target.label}`} onClick={() => { setRegionModal({ chain, targetRegion: curRegion === 'AU' ? 'IN' : 'AU', abn: chain.abn || '', acn: chain.acn || '' }); setActionMenu(null); }} />
+                        <div className="my-1 border-t" style={{ borderColor: 'var(--border)' }} />
+                        {suspended ? (
+                          <MenuItem Icon={PlayCircle} label="Activate" color="#16a34a" onClick={() => { statusMutation.mutate({ id: chain.id, action: 'activate' }); setActionMenu(null); }} />
+                        ) : (
+                          <MenuItem Icon={PauseCircle} label="Suspend" color="#ef4444" onClick={() => { statusMutation.mutate({ id: chain.id, action: 'suspend' }); setActionMenu(null); }} />
+                        )}
+                        {canDelete && (
+                          <MenuItem Icon={Trash2} label="Archive" color="#ef4444" onClick={() => { setDeleteConfirm({ chain, reason: '' }); setActionMenu(null); }} />
+                        )}
+                      </div>
                     )}
-
-                    {/* Plan change */}
-                    <div className="relative" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => setPlanDropdown(planDropdown === chain.id ? null : chain.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-80"
-                        style={{ background: planStyle.bg, color: planStyle.color, borderColor: planStyle.border }}>
-                        {currentPlan} ▾
-                      </button>
-                      {planDropdown === chain.id && (
-                        <div className="absolute bottom-full mb-1 left-0 z-20 rounded-lg border shadow-lg overflow-hidden"
-                          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)', minWidth: 130 }}>
-                          {PLANS.map(p => {
-                            const ps = PLAN_COLORS[p];
-                            return (
-                              <button key={p}
-                                onClick={() => planMutation.mutate({ id: chain.id, plan: p })}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium hover:opacity-80 transition-colors"
-                                style={{ background: p === currentPlan ? ps.bg : 'transparent', color: ps.color }}>
-                                <span className="w-2 h-2 rounded-full" style={{ background: ps.color }} />
-                                {p}
-                                {p === currentPlan && <CheckCircle className="w-3 h-3 ml-auto" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Notes */}
-                    <button
-                      onClick={() => setNotesModal({ chain, text: chain.metadata?.internal_notes || '' })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-                      style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
-                      title="Internal notes">
-                      <StickyNote className="w-3 h-3" />
-                      Notes
-                      {chain.metadata?.internal_notes && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-0.5" />
-                      )}
-                    </button>
-
-                    {/* View Outlets — P1 */}
-                    <button
-                      onClick={() => navigate(`/chain/${chain.id}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80 ml-auto"
-                      style={{
-                        borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
-                        background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                        color: 'var(--accent)',
-                      }}>
-                      <ChevronRight className="w-3 h-3" />
-                      View Outlets
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1337,6 +1266,19 @@ function KPICard({ icon, label, value, color }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function MenuItem({ Icon, label, onClick, color }) {
+  return (
+    <button onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-colors"
+      style={{ color: color || 'var(--text-primary)', background: 'transparent' }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+      <Icon className="w-3.5 h-3.5" style={{ color: color || 'var(--text-secondary)' }} />
+      {label}
+    </button>
   );
 }
 
