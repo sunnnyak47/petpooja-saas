@@ -8,7 +8,7 @@
 
 const mockPrisma = { outlet: { findUnique: jest.fn().mockResolvedValue({ currency: 'AUD', name: 'Test Cafe' }) } };
 const mockCopilot = { buildBooksContext: jest.fn(), ruleBasedAnswer: jest.fn() };
-const mockReports = { getDailySales: jest.fn(), getItemWiseSales: jest.fn() };
+const mockReports = { getDailySales: jest.fn(), getItemWiseSales: jest.fn(), getRevenueTrendRange: jest.fn() };
 const mockInventory = { getLowStock: jest.fn() };
 const mockProcurement = { listPurchaseOrders: jest.fn() };
 const mockMenu = { listMenuItems: jest.fn() };
@@ -53,6 +53,8 @@ describe('keywordSelect — deterministic routing', () => {
     expect(pick('how much tax do I owe?')).toBe('finance_summary');
     expect(pick('who are my best customers?')).toBe('top_customers');
     expect(pick('any open purchase orders?')).toBe('open_purchase_orders');
+    expect(pick('what is the average prediction for tomorrow orders compared to last 30 days')).toBe('sales_forecast');
+    expect(pick('forecast next week')).toBe('sales_forecast');
   });
   test('no keyword match → null (help path)', () => {
     expect(pick('hello there, nice to meet you')).toBeNull();
@@ -88,6 +90,20 @@ describe('ask() — full no-LLM pipeline', () => {
     expect(res.tool).toBe('low_stock');
     expect(res.answer).toMatch(/Paneer/);
     expect(res.answer).toMatch(/2 kg/);
+  });
+
+  test('prediction question runs sales_forecast and answers with a projection', async () => {
+    // 21 days of sales so confidence is not "low"; simple flat series.
+    const series = [];
+    for (let i = 20; i >= 0; i--) {
+      const d = new Date(2026, 6, 13 - i);
+      series.push({ date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, orders: 10, revenue: 1000 });
+    }
+    mockReports.getRevenueTrendRange.mockResolvedValue(series);
+    const res = await assistant.ask({ ...OWNER }, "What's tomorrow looking like?");
+    expect(res.tool).toBe('sales_forecast');
+    expect(res.answer).toMatch(/is likely around/);
+    expect(mockReports.getRevenueTrendRange).toHaveBeenCalled();
   });
 
   test('unmatched question → help/capabilities, no tool', async () => {

@@ -12,10 +12,10 @@ import { Sparkles, X, Send, Loader2 } from 'lucide-react';
  */
 
 const SUGGESTIONS = [
-  'How am I doing this month?',
+  'How much did we sell today?',
+  "What's tomorrow looking like?",
+  'What are my top sellers?',
   'How much tax do I owe?',
-  "Who hasn't paid me?",
-  'What were my biggest expenses?',
 ];
 
 export default function AssistantPanel() {

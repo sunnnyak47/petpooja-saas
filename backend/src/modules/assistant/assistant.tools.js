@@ -21,6 +21,7 @@ const inventory = require('../inventory/inventory.service');
 const procurement = require('../inventory/procurement.service');
 const menu = require('../menu/menu.service');
 const customer = require('../customers/customer.service');
+const { computeForecast } = require('./assistant.forecast');
 
 const money = (cur, n) => {
   const c = cur || 'AUD';
@@ -32,6 +33,7 @@ const num = (n) => Number(n) || 0;
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const today = () => ymd(new Date());
 const monthStart = () => { const n = new Date(); return ymd(new Date(n.getFullYear(), n.getMonth(), 1)); };
+const daysAgo = (n) => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() - n)); };
 
 /** @type {Array<{name:string,description:string,keywords:string[],permission:?string,run:Function,summarize:Function}>} */
 const TOOLS = [
@@ -137,6 +139,33 @@ const TOOLS = [
   },
 
   {
+    name: 'sales_forecast',
+    description: "Predict tomorrow's orders and revenue from the last 30 days, vs your daily average and recent trend",
+    keywords: ['predict', 'prediction', 'forecast', 'tomorrow', 'expected', 'projection', 'estimate', 'next week', 'how many orders', 'busy tomorrow', 'trend', 'trending', 'average prediction', 'compare to last 30'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const series = await reports.getRevenueTrendRange(ctx.outletId, daysAgo(29), today());
+      return { currency: ctx.currency, ...computeForecast(series, new Date()) };
+    },
+    summarize: (d) => {
+      const t = d.tomorrow || {};
+      if (!d.days_with_data) return "I don't have enough sales history yet to forecast — check back after a few days of orders.";
+      let s = `Based on your last ${d.days_with_data} day${d.days_with_data === 1 ? '' : 's'} of sales, tomorrow (${t.weekday}) is likely around ${t.predicted_orders} order${t.predicted_orders === 1 ? '' : 's'} (~${money(d.currency, t.predicted_revenue)})`;
+      if (t.orders_vs_avg_pct != null && t.orders_vs_avg_pct !== 0) {
+        s += `, ${t.orders_vs_avg_pct > 0 ? `${t.orders_vs_avg_pct}% above` : `${Math.abs(t.orders_vs_avg_pct)}% below`} your daily average of ${d.avg_orders_per_day}`;
+      } else {
+        s += `, about your daily average of ${d.avg_orders_per_day}`;
+      }
+      s += '.';
+      if (d.trend_pct != null && Math.abs(d.trend_pct) >= 5) {
+        s += ` Your last week is trending ${d.trend_pct > 0 ? 'up' : 'down'} ${Math.abs(d.trend_pct)}% vs the week before.`;
+      }
+      if (d.confidence === 'low' || d.confidence === 'none') s += ' (Low confidence — limited history so far.)';
+      return s;
+    },
+  },
+
+  {
     name: 'open_purchase_orders',
     description: 'Purchase orders still open (not yet received) and their total value',
     keywords: ['purchase order', 'po', 'pending order', 'supplier order', 'open po', 'ordered from supplier', 'incoming stock'],
@@ -160,9 +189,9 @@ const TOOLS = [
 
 const SUGGESTIONS = [
   'How much did we sell today?',
+  "What's tomorrow looking like?",
   'What are my top sellers?',
   "What's running low on stock?",
-  'How much tax do I owe?',
 ];
 
 module.exports = { TOOLS, SUGGESTIONS, money };
