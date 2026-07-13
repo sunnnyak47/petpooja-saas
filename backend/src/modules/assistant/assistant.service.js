@@ -42,13 +42,20 @@ function allowedTools(userCtx) {
   });
 }
 
-/** Deterministic keyword router used when the LLM is unavailable. */
+/**
+ * Deterministic keyword router used when the LLM is unavailable.
+ * Multi-word keywords score higher (a 2-word match like "sold today" is more
+ * specific than a bare "sales"), which disambiguates overlapping topics.
+ */
 function keywordSelect(question, toolList) {
   const q = String(question || '').toLowerCase();
   let best = null;
   let bestScore = 0;
   for (const t of toolList) {
-    const score = (t.keywords || []).reduce((s, k) => s + (q.includes(k) ? 1 : 0), 0);
+    let score = 0;
+    for (const k of (t.keywords || [])) {
+      if (q.includes(k)) score += String(k).trim().split(/\s+/).length;
+    }
     if (score > bestScore) { bestScore = score; best = t.name; }
   }
   return bestScore > 0 ? best : null;
@@ -61,6 +68,7 @@ async function selectTool(question, toolList) {
     'You route a restaurant owner\'s question to exactly ONE tool from the list, or null.',
     'Use null for greetings, thanks, or "how do I use the app" questions.',
     'Pick only a tool name that appears in the list. Do not invent tools.',
+    'Examples: "how much did we sell today" → sales_today · "what will tomorrow be like" → sales_forecast · "how many non-veg items" → menu_overview · "who owes me money" → finance_summary · "what is running low" → low_stock · "my best regulars" → top_customers · "hi there" → null.',
     'Respond as strict JSON: {"tool": "<tool name or null>"}',
   ].join('\n');
   try {

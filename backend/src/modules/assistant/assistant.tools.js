@@ -40,7 +40,7 @@ const TOOLS = [
   {
     name: 'finance_summary',
     description: 'Money this month: profit, sales, tax owed (GST/BAS), who owes you, what you owe, and biggest expenses',
-    keywords: ['profit', 'tax', 'gst', 'bas', 'money', 'doing', 'income', 'owe', 'owes', 'unpaid', 'receivable', 'payable', 'expense', 'spend', 'financial', 'bottom line'],
+    keywords: ['profit', 'profitable', 'making money', 'make money', 'made money', 'make this month', 'income', 'my earnings', 'net profit', 'bottom line', 'tax', 'gst', 'bas', 'vat', 'owe', 'owes', 'owed', 'unpaid', "hasn't paid", 'paid me', 'receivable', 'payable', 'outstanding', 'expense', 'spend this', 'spending too', 'my costs', 'biggest cost', 'money going', 'financial', 'finances', 'how am i doing', 'margin', 'money summary'],
     permission: 'VIEW_REPORTS',
     run: (ctx) => copilot.buildBooksContext(ctx.outletId),
     summarize: (data, question) => copilot.ruleBasedAnswer(question, data),
@@ -49,7 +49,7 @@ const TOOLS = [
   {
     name: 'sales_today',
     description: "Today's sales so far: total revenue, number of orders, average order value, and channel split",
-    keywords: ['today', 'takings', 'made today', 'orders today', 'sold today', 'revenue today', 'busy', 'how much today'],
+    keywords: ['today', 'takings', 'made today', 'orders today', 'sold today', 'revenue today', 'busy today', 'busy are we', 'how much today'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const d = await reports.getDailySales(ctx.outletId, today());
@@ -71,7 +71,7 @@ const TOOLS = [
   {
     name: 'top_items',
     description: 'Best-selling menu items this month by quantity and revenue',
-    keywords: ['top seller', 'best seller', 'top item', 'popular', 'best selling', 'most sold', 'top dish', 'selling'],
+    keywords: ['top seller', 'best seller', 'seller', 'top item', 'top 5', 'popular', 'most popular', 'popular menu', 'popular item', 'popular dish', 'best selling', 'top selling', 'selling', 'sells', 'sell the most', 'sell most', 'sell best', 'most sold', 'most ordered', 'order most', 'buying', 'bestseller', 'top dish', 'best performing', 'performing', 'flying off', 'top revenue', 'products'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const r = await reports.getItemWiseSales(ctx.outletId, monthStart(), today(), 10);
@@ -90,7 +90,7 @@ const TOOLS = [
   {
     name: 'low_stock',
     description: 'Inventory items running low or out of stock, with how much is left',
-    keywords: ['low stock', 'running low', 'out of stock', 'reorder', 'stock', 'inventory', 'running out', 'restock'],
+    keywords: ['low stock', 'running low', 'out of stock', 'reorder', 'restock', 'stock', 'inventory', 'running out', 'low on', 'short on', 'depleted', 'nearly out', 'need to order', 'need more', 'ingredients'],
     permission: 'VIEW_INVENTORY',
     run: async (ctx) => {
       const items = await inventory.getLowStock(ctx.outletId);
@@ -161,7 +161,7 @@ const TOOLS = [
   {
     name: 'top_customers',
     description: 'Your highest-spending / most valuable customers',
-    keywords: ['top customer', 'best customer', 'regular', 'loyal', 'biggest customer', 'who spends', 'valuable customer'],
+    keywords: ['top customer', 'best customer', 'best patron', 'patron', 'regular', 'loyal', 'biggest customer', 'valuable customer', 'my valuable', 'who spends', 'spend most', 'spend the most', 'top spending', 'spending customer', 'spender', 'spenders', 'high spend', 'vip', 'frequent', 'orders the most', 'matter most', 'customers by spend', 'customers by revenue'],
     permission: 'VIEW_CUSTOMERS',
     run: async (ctx) => {
       const crm = await customer.getCRMDashboard(ctx.outletId);
@@ -177,7 +177,7 @@ const TOOLS = [
   {
     name: 'sales_forecast',
     description: "Predict tomorrow's orders and revenue from the last 30 days, vs your daily average and recent trend",
-    keywords: ['predict', 'prediction', 'forecast', 'tomorrow', 'expected', 'projection', 'estimate', 'next week', 'how many orders', 'busy tomorrow', 'trend', 'trending', 'average prediction', 'compare to last 30'],
+    keywords: ['predict', 'prediction', 'forecast', 'tomorrow', 'expected', 'projection', 'projected', 'estimate', 'next week', 'busy tomorrow', 'trend', 'trending', 'outlook', 'anticipated', 'average prediction', 'compare to last 30', 'what to expect'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const series = await reports.getRevenueTrendRange(ctx.outletId, daysAgo(29), today());
@@ -204,7 +204,7 @@ const TOOLS = [
   {
     name: 'open_purchase_orders',
     description: 'Purchase orders still open (not yet received) and their total value',
-    keywords: ['purchase order', 'po', 'pending order', 'supplier order', 'open po', 'ordered from supplier', 'incoming stock'],
+    keywords: ['purchase order', 'open po', 'pending purchase', 'pending supplier', 'pending order', 'supplier order', 'ordered from supplier', 'incoming stock', 'awaiting delivery', 'awaiting', 'outstanding purchase', 'unreceived', 'not yet received', 'on order', 'po status', 'to receive', 'in progress', 'on the way'],
     permission: 'VIEW_INVENTORY',
     run: async (ctx) => {
       const r = await procurement.listPurchaseOrders(ctx.outletId, {});
