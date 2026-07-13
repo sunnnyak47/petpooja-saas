@@ -1,13 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import {
   TrendingUp, TrendingDown, ReceiptText, ArrowDownLeft, ArrowUpRight, PieChart,
   Loader2, Sparkles, FileText, Landmark, ChevronRight, AlertTriangle, CalendarClock,
-  BookOpen, RefreshCw,
+  BookOpen, RefreshCw, Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const EXAMPLES = [
+  'How much tax do I owe?',
+  'What were my biggest expenses this month?',
+  "Who hasn't paid me?",
+  'How am I doing vs last month?',
+];
 
 /**
  * OwnerDashboard — the plain-language "Owner Mode" front door to Accounting.
@@ -36,6 +43,16 @@ export default function OwnerDashboard({ outletId, setTab }) {
     onSuccess: () => { toast.success('Books built from your history'); qc.invalidateQueries({ queryKey: ['owner-dashboard'] }); },
     onError: (e) => toast.error(e?.response?.data?.message || 'Could not build the books'),
   });
+
+  // "Ask your books" copilot — grounded Q&A over the live figures.
+  const [question, setQuestion] = useState('');
+  const [thread, setThread] = useState([]);
+  const askM = useMutation({
+    mutationFn: (qText) => api.post('/accounting/ask-books', { question: qText, ...(outletId ? { outlet_id: outletId } : {}) }),
+    onSuccess: (r, qText) => { setThread((t) => [...t, { q: qText, a: r?.data?.answer || 'Sorry, I could not answer that.' }].slice(-6)); setQuestion(''); },
+    onError: (e) => toast.error(e?.response?.data?.message || 'Could not answer that right now'),
+  });
+  const ask = (qText) => { const t = (qText || '').trim(); if (t && !askM.isPending) askM.mutate(t); };
 
   const cur = data?.currency || 'AUD';
   const fmt = useMemo(() => {
@@ -201,6 +218,59 @@ export default function OwnerDashboard({ outletId, setTab }) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* ── Ask your books (AI copilot) ── */}
+      <div className="card" style={{ borderColor: 'color-mix(in srgb, var(--accent) 30%, var(--border))' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Ask your books</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>AI</span>
+        </div>
+
+        {thread.length > 0 && (
+          <div className="space-y-3 mb-3">
+            {thread.map((m, i) => (
+              <div key={i}>
+                <div className="text-xs text-right mb-1" style={{ color: 'var(--text-secondary)' }}>{m.q}</div>
+                <div className="text-sm rounded-xl px-3.5 py-2.5" style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text-primary)', lineHeight: 1.6 }}>{m.a}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {askM.isPending && (
+          <div className="text-sm mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+            <Loader2 className="w-4 h-4 animate-spin" /> Reading your books…
+          </div>
+        )}
+
+        <form onSubmit={(e) => { e.preventDefault(); ask(question); }} className="flex items-center gap-2">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ask about your money — e.g. how much tax do I owe?"
+            maxLength={500}
+            className="flex-1 text-sm rounded-lg px-3 py-2 outline-none"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+          />
+          <button type="submit" disabled={askM.isPending || !question.trim()} className="btn-primary btn-sm" style={{ opacity: (!question.trim() || askM.isPending) ? 0.5 : 1 }}>
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </form>
+
+        {thread.length === 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {EXAMPLES.map((ex) => (
+              <button key={ex} onClick={() => ask(ex)} className="text-xs rounded-full px-2.5 py-1 transition-colors" style={{ border: '0.5px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+                {ex}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="text-[11px] mt-3" style={{ color: 'var(--text-secondary)' }}>Answers use your live figures. Read-only — it can&apos;t change anything.</div>
       </div>
 
       {/* ── Quick actions ── */}

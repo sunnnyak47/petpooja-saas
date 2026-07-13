@@ -19,8 +19,9 @@ const baslodge = require('./accounting.baslodgement.service');
 const budget = require('./accounting.budget.service');
 const invoice = require('./accounting.invoice.service');
 const owner = require('./accounting.owner.service');
+const copilot = require('./accounting.copilot.service');
 const xport = require('./accounting.export.service');
-const { sendSuccess, sendCreated } = require('../../utils/response');
+const { sendSuccess, sendCreated, sendError } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const prisma = getDbClient();
 
@@ -77,6 +78,19 @@ async function ownerDashboard(req, res, next) {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const result = await owner.getOwnerDashboard(outletId);
     sendSuccess(res, result, 'Owner dashboard retrieved');
+  } catch (error) { next(error); }
+}
+
+/* ── "Ask your books" AI copilot ────────────────────── */
+
+async function askBooks(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.body.outlet_id || req.user.outlet_id;
+    const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
+    if (!question) return sendError(res, 400, 'Please type a question');
+    if (question.length > 500) return sendError(res, 400, 'That question is too long (max 500 characters)');
+    const result = await copilot.askBooks(outletId, question);
+    sendSuccess(res, result, 'Answer generated');
   } catch (error) { next(error); }
 }
 
@@ -567,6 +581,7 @@ module.exports = {
   trialBalance,
   profitAndLoss,
   ownerDashboard,
+  askBooks,
   balanceSheet,
   seed,
   backfill,

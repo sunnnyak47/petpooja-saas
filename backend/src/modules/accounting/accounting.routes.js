@@ -9,6 +9,7 @@ const router = express.Router();
 const c = require('./accounting.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
 const { hasPermission } = require('../../middleware/rbac.middleware');
+const { uploadLimiter } = require('../../middleware/rateLimit.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const bankV = require('./accounting.bank.validation');
 const p7 = require('./accounting.phase7.validation');
@@ -18,6 +19,7 @@ const MANAGE = hasPermission('MANAGE_INVENTORY');
 
 /* ── Owner Mode (plain-language dashboard) ──────── */
 router.get('/owner-dashboard', authenticate, VIEW, c.ownerDashboard);
+router.post('/ask-books', authenticate, uploadLimiter, VIEW, c.askBooks);
 
 /* ── Reports (read) ─────────────────────────────── */
 router.get('/chart', authenticate, VIEW, c.listChart);

@@ -234,7 +234,7 @@ async function revokeSession(req, res, next) {
   try {
     const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent') };
     const result = await sessionService.revokeSession(req.user.id, req.params.sid, auditInfo);
-    if (!result.revoked) return sendError(res, 'Session not found', 404);
+    if (!result.revoked) return sendError(res, 404, 'Session not found');
     sendSuccess(res, result, 'Device signed out');
   } catch (error) {
     next(error);
