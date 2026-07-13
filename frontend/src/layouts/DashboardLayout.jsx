@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { hasSAPermission, platformRoleLabel } from '../lib/platformRoles';
 import ImpersonationBanner from '../components/ImpersonationBanner';
+import AssistantPanel from '../components/AssistantPanel';
 import NotificationCenter from '../components/NotificationCenter';
 import AutoFreeTableManager from '../components/AutoFreeTableManager';
 import OwnerWizard from '../components/onboarding/OwnerWizard';
@@ -605,6 +606,7 @@ export default function DashboardLayout() {
     </div>
     <TourAutoRunner />
     <WelcomeModal />
+    <AssistantPanel />
     </TourProvider>
   );
 }

@@ -294,6 +294,8 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api', require('./modules/inventory/procurement.routes'));
 // Native accounting ledger — /api/accounting/*
 app.use('/api/accounting', require('./modules/accounting/accounting.routes'));
+// Read-only AI assistant — /api/assistant/*
+app.use('/api/assistant', require('./modules/assistant/assistant.routes'));
 // Payroll — /api/payroll/* ; Fixed assets — /api/assets/*
 app.use('/api/payroll', require('./modules/payroll/payroll.routes'));
 app.use('/api/assets', require('./modules/assets/assets.routes'));
