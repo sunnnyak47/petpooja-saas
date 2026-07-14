@@ -105,7 +105,27 @@ export function buildOrderingUrl(outlet, table = {}) {
 }
 
 /**
- * Does a table match a free-text search (by number, name, or section)?
+ * A friendly display label for a table.
+ *
+ * The offline tables cache stores `name = table.name ?? `Table <id>`` — so a
+ * table with no name is cached as the literal "Table <uuid>". We therefore
+ * PREFER the real table_number (carried in the raw `data` blob), then a genuine
+ * name (not the uuid fallback), and only then a short id — never a raw UUID.
+ * @param {object} table
+ * @returns {string}
+ */
+export function tableLabel(table = {}) {
+  const num = table.data?.table_number ?? table.data?.number ?? table.table_number;
+  if (num != null && String(num).trim() !== '') return `Table ${num}`;
+  const id = String(table.id ?? '');
+  const name = table.name;
+  // Reject the cache's "Table <uuid>" fallback (name contains the id prefix).
+  if (name && !(id && name.includes(id.slice(0, 8)))) return name;
+  return id ? `Table ${id.slice(0, 6)}` : 'Table';
+}
+
+/**
+ * Does a table match a free-text search (by label, number, or section)?
  * Empty/blank query matches everything.
  * @param {object} table
  * @param {string} query
@@ -115,8 +135,9 @@ export function matchesQuery(table = {}, query = '') {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return true;
   const hay = [
-    resolveTableNumber(table),
+    tableLabel(table),
     table.name,
+    table.data?.table_number,
     table.section,
   ]
     .filter(Boolean)
@@ -134,15 +155,11 @@ export function matchesQuery(table = {}, query = '') {
  */
 export function toQrCard(outlet, table = {}) {
   const url = buildOrderingUrl(outlet, table);
-  // Prefer the real table_number (carried inside the cache's `data` blob) for
-  // display; fall back to name/number so we never surface a raw UUID.
-  const displayNumber = String(
-    (table.data && (table.data.table_number ?? table.data.number)) ?? resolveTableNumber(table)
-  );
+  const num = table.data?.table_number ?? table.data?.number;
   return {
     id: String(table.id ?? resolveTableNumber(table)),
-    number: displayNumber,
-    name: table.name || `Table ${displayNumber}`,
+    number: num != null ? String(num) : '',
+    name: tableLabel(table),
     section: table.section || 'Main',
     capacity: table.capacity ?? null,
     status: table.status || 'empty',

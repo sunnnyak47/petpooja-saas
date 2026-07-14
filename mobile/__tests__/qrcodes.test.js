@@ -17,6 +17,7 @@ import {
   existingOrderingUrl,
   buildOrderingUrl,
   matchesQuery,
+  tableLabel,
   toQrCard,
   buildQrCards,
   WEB_ORDER_BASE,
@@ -70,9 +71,19 @@ describe('helpers', () => {
     expect(matchesQuery(t, 'zzz')).toBe(false);
   });
 
+  test('tableLabel prefers the real number, rejects the "Table <uuid>" cache fallback', () => {
+    // real table_number in the data blob → "Table 5"
+    expect(tableLabel({ id: 'x', data: { table_number: 5 } })).toBe('Table 5');
+    // no number, and name is the cache's uuid fallback → short id, never a raw UUID
+    expect(tableLabel({ id: 'abc12345-6789-0000', name: 'Table abc12345-6789-0000' })).toBe('Table abc123');
+    // a genuine name is kept
+    expect(tableLabel({ name: 'Rooftop 3' })).toBe('Rooftop 3');
+  });
+
   test('toQrCard shows the real table number (from data) + id-based url', () => {
-    const card = toQrCard('O1', { id: 'uuid-2', section: 'Rooftop', name: 'R2', data: { table_number: 2 } });
+    const card = toQrCard('O1', { id: 'uuid-2', section: 'Rooftop', name: 'Table uuid-2', data: { table_number: 2 } });
     expect(card.number).toBe('2');
+    expect(card.name).toBe('Table 2'); // NOT "Table uuid-2"
     expect(card.section).toBe('Rooftop');
     expect(card.url).toBe(`${WEB_ORDER_BASE}/#/order?outlet=O1&table=uuid-2`);
   });
