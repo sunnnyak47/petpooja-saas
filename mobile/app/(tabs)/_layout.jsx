@@ -383,6 +383,41 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="qr-codes"
+          options={{
+            title: 'QR CODES',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="credit-notes"
+          options={{
+            title: 'CREDIT NOTES',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="integrations"
+          options={{
+            title: 'INTEGRATIONS',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="aggregator-reconciliation"
+          options={{
+            title: 'PAYOUT RECON',
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="central-kitchen"
+          options={{
+            title: 'CENTRAL KITCHEN',
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   );

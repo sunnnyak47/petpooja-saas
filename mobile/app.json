@@ -68,6 +68,7 @@
     ],
     "extra": {
       "apiUrl": "https://petpooja-saas.onrender.com/api",
+      "webUrl": "https://petpooja-saas.vercel.app",
       "router": {},
       "eas": {
         "projectId": "934fae42-3d3a-4767-8bc1-a13992144aec"
