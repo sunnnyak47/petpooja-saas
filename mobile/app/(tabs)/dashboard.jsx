@@ -133,6 +133,7 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
   const displayAvg = useCounter(Math.round(avgOrderValue), 1200);
 
   const isPositive = revenueGrowth >= 0;
+  const isEmpty = !revenue && !totalOrders;
 
   return (
     <PressCard style={styles.heroCard}>
@@ -144,15 +145,21 @@ function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, h
         <Text style={styles.heroRevenue}>
           {symbol}{displayRevenue.toLocaleString('en-IN')}
         </Text>
-        <View style={styles.growthBadge}>
-          <Text style={styles.growthText}>
-            {isPositive ? '+' : ''}{revenueGrowth.toFixed(1)}%
-          </Text>
-        </View>
+        {!isEmpty && (
+          <View style={styles.growthBadge}>
+            <Text style={styles.growthText}>
+              {isPositive ? '+' : ''}{revenueGrowth.toFixed(1)}%
+            </Text>
+          </View>
+        )}
       </View>
 
-      {/* Hourly bar mini-chart */}
-      <HourlyMiniChart data={hourlyRevenue} />
+      {/* Hourly bar mini-chart, or an honest note before the first sale */}
+      {isEmpty ? (
+        <Text style={styles.heroEmptyNote}>No sales yet today — take an order and it shows up here live.</Text>
+      ) : (
+        <HourlyMiniChart data={hourlyRevenue} />
+      )}
 
       {/* Stats row */}
       <View style={styles.heroStats}>
@@ -784,17 +791,13 @@ export default function Dashboard() {
           { paddingBottom: insets.bottom + 96 },
         ]}
       >
-        {(isError || !hasData) ? (
-          /* ── Empty / error state — never fabricate revenue ─────────────── */
+        {isError ? (
+          /* ── Error state — never fabricate revenue ─────────────────────── */
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>📊</Text>
-            <Text style={styles.emptyTitle}>
-              {isError ? "Couldn't load dashboard" : 'No data yet'}
-            </Text>
+            <Text style={styles.emptyTitle}>Couldn't load dashboard</Text>
             <Text style={styles.emptySubtitle}>
-              {isError
-                ? "We couldn't reach the server. Pull to refresh or try again."
-                : "Today's revenue and orders will appear here once activity starts."}
+              We couldn't reach the server. Pull to refresh or try again.
             </Text>
             <TouchableOpacity style={styles.retryBtn} onPress={onRefresh} activeOpacity={0.85}>
               <Text style={styles.retryBtnText}>Retry</Text>
@@ -802,7 +805,7 @@ export default function Dashboard() {
           </View>
         ) : (
           <>
-            {/* 1. Hero Revenue Card */}
+            {/* 1. Hero Revenue Card — the headline KPI (zeros before the first sale) */}
             <View style={styles.section}>
               <HeroRevenueCard
                 revenue={d.todayRevenue}
@@ -813,7 +816,7 @@ export default function Dashboard() {
               />
             </View>
 
-            {/* 2. Stats Row */}
+            {/* 2. Stats Row — KPI pills, always visible */}
             <View style={{ marginTop: 16 }}>
               <StatsRow
                 totalOrders={d.totalOrders}
@@ -823,47 +826,70 @@ export default function Dashboard() {
               />
             </View>
 
-            {/* 3. Order Status Ring */}
-            <View style={styles.section}>
-              <SectionHeader title="Order Status" subtitle="Live breakdown" />
-              <View style={styles.card}>
-                <OrderStatusRing
-                  pending={d.pendingOrders}
-                  preparing={d.preparingOrders}
-                  ready={d.readyOrders}
-                  completed={d.completedOrders}
-                />
+            {/* Take-order CTA — the obvious next step when there's no activity yet */}
+            {!hasData && (
+              <View style={styles.section}>
+                <TouchableOpacity style={styles.takeOrderCta} activeOpacity={0.9} onPress={() => router.push('/pos')}>
+                  <View style={styles.takeOrderIcon}>
+                    <Ionicons name="cart" size={22} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.takeOrderTitle}>Take an order</Text>
+                    <Text style={styles.takeOrderSub}>Start your first order — it flows straight to the kitchen.</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
-            </View>
+            )}
 
-            {/* 4. Revenue Bar Chart */}
-            <View style={styles.section}>
-              <SectionHeader title="Hourly Revenue" subtitle="Tap a bar for value" />
-              <View style={styles.card}>
-                <RevenueBarChart data={d.hourlyRevenue} />
-              </View>
-            </View>
+            {/* Live data-viz — only once there's real activity to show */}
+            {hasData && (
+              <>
+                {/* 3. Order Status Ring */}
+                <View style={styles.section}>
+                  <SectionHeader title="Order Status" subtitle="Live breakdown" />
+                  <View style={styles.card}>
+                    <OrderStatusRing
+                      pending={d.pendingOrders}
+                      preparing={d.preparingOrders}
+                      ready={d.readyOrders}
+                      completed={d.completedOrders}
+                    />
+                  </View>
+                </View>
 
-            {/* 5. Top Dishes */}
-            <View style={styles.section}>
-              <SectionHeader title="Top Dishes" subtitle="Today's bestsellers" />
-              <View style={styles.card}>
-                <FlashList
-                  data={d.topItems}
-                  estimatedItemSize={64}
-                  keyExtractor={(item, i) => item.name + i}
-                  renderItem={({ item, index }) => (
-                    <DishItem item={item} index={index} />
-                  )}
-                  ItemSeparatorComponent={() => (
-                    <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 4 }} />
-                  )}
-                  scrollEnabled={false}
-                />
-              </View>
-            </View>
+                {/* 4. Revenue Bar Chart */}
+                <View style={styles.section}>
+                  <SectionHeader title="Hourly Revenue" subtitle="Tap a bar for value" />
+                  <View style={styles.card}>
+                    <RevenueBarChart data={d.hourlyRevenue} />
+                  </View>
+                </View>
 
-            {/* 6. Quick Actions 2×2 grid */}
+                {/* 5. Top Dishes */}
+                {d.topItems.length > 0 && (
+                  <View style={styles.section}>
+                    <SectionHeader title="Top Dishes" subtitle="Today's bestsellers" />
+                    <View style={styles.card}>
+                      <FlashList
+                        data={d.topItems}
+                        estimatedItemSize={64}
+                        keyExtractor={(item, i) => item.name + i}
+                        renderItem={({ item, index }) => (
+                          <DishItem item={item} index={index} />
+                        )}
+                        ItemSeparatorComponent={() => (
+                          <View style={{ height: 1, backgroundColor: colors.borderLight, marginVertical: 4 }} />
+                        )}
+                        scrollEnabled={false}
+                      />
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* 6. Quick Actions 2×2 grid — always available */}
             <View style={styles.section}>
               <SectionHeader title="Quick Actions" />
               <View style={styles.quickActionsGrid}>
@@ -992,6 +1018,52 @@ const makeStyles = (colors) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+
+  // Hero empty note (before the first sale of the day)
+  heroEmptyNote: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginTop: 14,
+    marginBottom: 14,
+    lineHeight: 19,
+  },
+
+  // Take-order CTA (shown when there's no activity yet)
+  takeOrderCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  takeOrderIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  takeOrderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  takeOrderSub: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    marginTop: 2,
+    lineHeight: 17,
   },
 
   // Layout
