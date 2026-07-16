@@ -1,23 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useOutlet } from '../context/OutletContext';
+import { KEYS } from '../lib/queryKeys';
 
 // ─── Query Keys ────────────────────────────────────────────────────────────
-export const KEYS = {
-  dashboard: ['dashboard'],
-  orders: ['orders'],
-  order: (id) => ['orders', id],
-  inventory: ['inventory'],
-  reports: (range) => ['reports', range],
-  purchaseOrders: ['purchase-orders'],
-  menuItems: ['menu-items'],
-  staff: ['staff'],
-  reservations: (outletId, date) => ['reservations', outletId, date],
-  customers: ['customers'],
-  kot: ['kot'],
-  expenses: ['expenses'],
-  eod: ['eod'],
-};
+// Defined in ../lib/queryKeys (dependency-free) so the realtime layer can share
+// them without importing this hook's RN/native chain. Re-exported for the many
+// call sites that already do `import { KEYS } from './useApi'`.
+export { KEYS };
 
 // ─── Empty-state shapes ──────────────────────────────────────────────────────
 // NO demo/mock data. When an endpoint returns nothing (empty outlet, or a

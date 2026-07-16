@@ -22,6 +22,8 @@ const api = axios.create({
 // than the 15s request timeout. Ping /health (root, not /api) with a long timeout
 // to wake it — call on the login screen so it's warm by the time the user submits.
 const ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
+// The socket origin (root, not /api) — the Socket.IO server + /health live here.
+export const API_ORIGIN = ORIGIN;
 export function warmup() {
   return axios.get(`${ORIGIN}/health`, { timeout: 60000 }).then(() => true).catch(() => false);
 }
