@@ -1,13 +1,16 @@
 /**
- * QRScanner — Camera-based QR code scanner for table identification.
- * QR format: petpooja://table/{outlet_id}/{table_id} (legacy scheme kept for printed QR compatibility)
+ * QRScanner — Camera-based QR scanner for table identification (expo-camera).
+ *
+ * Accepts BOTH the legacy `petpooja://table/<outlet>/<table>` deep-link AND the
+ * web ordering URL the app itself generates (`…/#/order?outlet=&table=`), via
+ * the shared, unit-tested parseTableQr() helper.
  *
  * Props:
  *   onScan(tableId, outletId) — called when a valid MS-RM table QR is scanned
  *   onClose() — called to dismiss the scanner
  *   visible — boolean controlling display
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,55 +21,49 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-// Graceful degradation — expo-barcode-scanner may not be available in all build configs
-let BarCodeScanner = null;
-try {
-  BarCodeScanner = require('expo-barcode-scanner').BarCodeScanner;
-} catch (_) {}
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { parseTableQr } from '../lib/tableQr';
 
 const SCAN_AREA_SIZE = 240;
 
 export default function QRScanner({ onScan, onClose, visible }) {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
+
+  const granted = !!permission?.granted;
+  const denied = !!permission && !permission.granted && !permission.canAskAgain;
 
   useEffect(() => {
     if (!visible) {
       setScanned(false);
       return;
     }
-    requestPermission();
-  }, [visible]);
-
-  async function requestPermission() {
-    if (!BarCodeScanner) {
-      setHasPermission(false);
-      return;
+    // Ask on open if we haven't been granted and can still prompt.
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission();
     }
-    const { status } = await BarCodeScanner.requestPermissionsAsync();
-    setHasPermission(status === 'granted');
-  }
+  }, [visible, permission, requestPermission]);
 
-  function handleBarCodeScanned({ type, data }) {
-    if (scanned) return;
-    setScanned(true);
+  const handleBarCodeScanned = useCallback(
+    ({ data }) => {
+      if (scanned) return;
+      setScanned(true);
 
-    // Parse table QR: petpooja://table/{outlet_id}/{table_id} (legacy printed-QR scheme)
-    const match = data.match(/^petpooja:\/\/table\/([^/]+)\/([^/]+)$/);
-    if (match) {
-      const [, outletId, tableId] = match;
-      onScan(tableId, outletId);
-      onClose();
-    } else {
-      Alert.alert(
-        'Invalid QR Code',
-        'This QR code is not an MS-RM table code. Please scan a table QR code.',
-        [{ text: 'Try Again', onPress: () => setScanned(false) }]
-      );
-    }
-  }
+      const parsed = parseTableQr(data);
+      if (parsed) {
+        onScan(parsed.tableId, parsed.outletId);
+        onClose();
+      } else {
+        Alert.alert(
+          'Invalid QR Code',
+          'This QR code is not an MS-RM table code. Please scan a table QR code.',
+          [{ text: 'Try Again', onPress: () => setScanned(false) }]
+        );
+      }
+    },
+    [scanned, onScan, onClose]
+  );
 
   if (!visible) return null;
 
@@ -79,7 +76,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={s.title}>Scan Table QR</Text>
-          {BarCodeScanner && (
+          {granted && (
             <TouchableOpacity onPress={() => setFlashOn(v => !v)} style={s.flashBtn}>
               <Ionicons name={flashOn ? 'flash' : 'flash-outline'} size={22} color="#fff" />
             </TouchableOpacity>
@@ -87,18 +84,7 @@ export default function QRScanner({ onScan, onClose, visible }) {
         </View>
 
         {/* Camera or fallback */}
-        {!BarCodeScanner ? (
-          <View style={s.fallback}>
-            <Ionicons name="qr-code-outline" size={64} color="#94a3b8" />
-            <Text style={s.fallbackTitle}>Camera Not Available</Text>
-            <Text style={s.fallbackSub}>
-              Barcode scanner is not available in this build. Use Expo Go or a production build for QR scanning.
-            </Text>
-            <TouchableOpacity onPress={onClose} style={s.fallbackBtn}>
-              <Text style={s.fallbackBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        ) : hasPermission === false ? (
+        {denied ? (
           <View style={s.fallback}>
             <Ionicons name="camera-outline" size={64} color="#94a3b8" />
             <Text style={s.fallbackTitle}>Camera Permission Denied</Text>
@@ -107,13 +93,14 @@ export default function QRScanner({ onScan, onClose, visible }) {
               <Text style={s.fallbackBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
-        ) : hasPermission === true ? (
+        ) : granted ? (
           <View style={s.cameraWrap}>
-            <BarCodeScanner
-              onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+            <CameraView
+              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              enableTorch={flashOn}
+              facing="back"
               style={StyleSheet.absoluteFillObject}
-              flashMode={flashOn ? 'torch' : 'off'}
-              barCodeTypes={[BarCodeScanner.Constants.BarCodeType.qr]}
             />
 
             {/* Viewfinder overlay */}

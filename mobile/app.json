@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "description": "MS-RM Owner — Restaurant management dashboard for owners. Track sales, manage inventory, monitor staff, and run your restaurant business from anywhere.",
+    "description": "MS-RM Owner \u2014 Restaurant management dashboard for owners. Track sales, manage inventory, monitor staff, and run your restaurant business from anywhere.",
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
@@ -64,6 +64,12 @@
           "icon": "./assets/images/adaptive-icon.png",
           "color": "#2563eb"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MS-RM to use the camera to scan table QR codes."
+        }
       ]
     ],
     "extra": {
@@ -78,7 +84,7 @@
       "_notes": {
         "sentryDsn": "Leave empty to disable Sentry. Set the real DSN here (or via EXPO_PUBLIC_SENTRY_DSN env) to enable crash reporting. A value containing 'placeholder' is treated as unset.",
         "fcmGoogleServices": "Android push (FCM): drop google-services.json at mobile/google-services.json and reference it via android.googleServicesFile before building. No file is committed here yet.",
-        "apnsPushKey": "iOS push (APNs): configure the .p8 push key / credentials in EAS (eas credentials) — not stored in the repo. Requires an Apple Developer account."
+        "apnsPushKey": "iOS push (APNs): configure the .p8 push key / credentials in EAS (eas credentials) \u2014 not stored in the repo. Requires an Apple Developer account."
       }
     },
     "owner": "sunnyak47",
