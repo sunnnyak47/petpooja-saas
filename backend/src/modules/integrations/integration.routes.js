@@ -208,14 +208,16 @@ const pushTokenRegistry = new Map();
  */
 router.post('/push-token', authenticate, async (req, res, next) => {
   try {
-    const { token, platform } = req.body;
+    const { token, platform, outlet_id } = req.body;
     if (!token) {
       return res.status(400).json({ success: false, message: 'token is required' });
     }
+    // Prefer the outlet the app is actively watching (owners' JWT outlet_id is
+    // often null and they switch outlets) so outlet-scoped pushes reach them.
     pushTokenRegistry.set(req.user.id, {
       token,
       platform: platform || 'unknown',
-      outlet_id: req.user.outlet_id || null,
+      outlet_id: outlet_id || req.user.outlet_id || null,
       registered_at: new Date().toISOString(),
     });
     logger.info('Push token registered', { userId: req.user.id, platform });

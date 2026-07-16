@@ -8,6 +8,7 @@ const orderService = require('../orders/order.service');
 const { getIO } = require('../../socket/index');
 const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError } = require('../../utils/errors');
+const pushService = require('../notifications/push.service');
 
 /**
  * Places an order from the customer-facing QR menu.
@@ -58,6 +59,17 @@ async function placeCustomerOrder(orderData) {
       items_count: orderData.items.length
     });
   }
+
+  // 6. Push the outlet's staff/owner (for when the app is backgrounded — the
+  //    socket above only reaches foregrounded clients). Fire-and-forget: a push
+  //    failure must never break order creation.
+  try {
+    pushService.sendToOutlet(orderData.outlet_id, {
+      title: 'New table order',
+      body: `Table ${table.table_number} placed order ${createdOrder.order_number}`,
+      data: { type: 'new_online_order', order_id: createdOrder.id, screen: 'order' },
+    }).catch(() => {});
+  } catch (_) { /* never throws */ }
 
   return createdOrder;
 }

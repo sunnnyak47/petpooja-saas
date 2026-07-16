@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import api from '../lib/api';
+import { useOutlet } from '../context/OutletContext';
 
 // expo-notifications + expo-device are unsupported on web.
 let Notifications = null;
@@ -29,9 +30,12 @@ if (Platform.OS !== 'web' && !isExpoGo) {
     Device = require('expo-device');
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
-        shouldShowAlert: false, // we show our own in-app banner
-        shouldPlaySound: true,
-        shouldSetBadge:  true,
+        // SDK 54 split shouldShowAlert → shouldShowBanner + shouldShowList.
+        shouldShowBanner: false, // we render our own in-app banner in foreground
+        shouldShowList:   true,  // still lands in the OS notification tray
+        shouldPlaySound:  true,
+        shouldSetBadge:   true,
+        shouldShowAlert:  false, // legacy field, kept for < SDK 54 runtimes
       }),
     });
   } catch (_) {
@@ -94,6 +98,12 @@ export function useNotifications() {
   const responseListener     = useRef(null);
   const isWeb = Platform.OS === 'web';
 
+  // The outlet this device is actively watching — sent with the token so the
+  // backend can target outlet-scoped pushes (owners' JWT outlet_id is null).
+  const { outletId } = useOutlet();
+  const outletIdRef = useRef(outletId);
+  outletIdRef.current = outletId;
+
   // ── Register device & upload token ─────────────────────────────────────────
   const registerForPushNotifications = useCallback(async () => {
     if (isWeb || !Notifications || !Device) return;
@@ -146,8 +156,9 @@ export function useNotifications() {
     try {
       await api.post('/integrations/push-token', {
         token,
-        device:   Platform.OS,
-        platform: Platform.OS,
+        device:    Platform.OS,
+        platform:  Platform.OS,
+        outlet_id: outletIdRef.current || null,
       });
     } catch (_) {}
   }, [isWeb]);
@@ -194,6 +205,18 @@ export function useNotifications() {
       } catch (_) {}
     };
   }, [isWeb, registerForPushNotifications, handleForegroundNotification, handleNotificationResponse]);
+
+  // Re-register the token→outlet mapping when the selected outlet changes, so
+  // outlet-scoped pushes follow this device to whichever outlet it's watching.
+  useEffect(() => {
+    if (isWeb || !pushToken || !outletId) return;
+    api.post('/integrations/push-token', {
+      token:     pushToken,
+      device:    Platform.OS,
+      platform:  Platform.OS,
+      outlet_id: outletId,
+    }).catch(() => {});
+  }, [isWeb, pushToken, outletId]);
 
   return { hasPermission, pushToken, foregroundNotification, dismissNotification };
 }
