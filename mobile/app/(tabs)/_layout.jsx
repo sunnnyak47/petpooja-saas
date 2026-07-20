@@ -418,6 +418,13 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="assistant"
+          options={{
+            title: 'ASSISTANT',
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   );

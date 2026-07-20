@@ -15,6 +15,18 @@ import { PressCard } from '../../src/components/PressCard';
 
 const SECTIONS = [
   {
+    title: 'Assistant',
+    data: [
+      {
+        icon: 'sparkles',
+        color: '#2563eb',
+        title: 'Ask MS-RM',
+        desc: 'AI answers about your business',
+        route: '/(tabs)/assistant',
+      },
+    ],
+  },
+  {
     title: 'Analytics',
     data: [
       {
