@@ -1,0 +1,56 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+
+const kit = [
+  ['pos', 'POS terminal', 'Runs on the iPad or Android tablet you already have — or a countertop touchscreen. Touch-first, fast, and fully offline-capable.'],
+  ['kds', 'Kitchen display (KDS)', 'A screen on the pass instead of paper tickets. Station routing, bump timers and auto-86. Any HDMI screen or tablet.'],
+  ['ledger', 'Receipt & kitchen printers', 'Standard Epson/Star thermal printers over LAN, Bluetooth or USB — receipts at the counter, dockets in the kitchen.'],
+  ['pos', 'Card readers & EFTPOS', 'Bring your EFTPOS, Tyro, Square or Stripe reader. Payments show on the same screen as the order.'],
+  ['box', 'Cash drawer & scanner', 'Printer-driven cash drawers and USB/Bluetooth barcode scanners for retail-style venues.'],
+  ['bag', 'Customer QR & self-order', 'No hardware at all — guests scan a table QR and order from their own phone.'],
+];
+---
+<Layout title="Hardware" description="MSRM runs on the hospitality hardware you already own — iPad or Android POS, kitchen display screens, thermal printers, EFTPOS/Tyro/Square readers, cash drawers and QR self-ordering.">
+  <!-- Hero -->
+  <div class="relative overflow-hidden hero-aura">
+    <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+    <section class="container-x relative pt-16 pb-12 lg:pt-20 text-center max-w-3xl mx-auto">
+      <span class="eyebrow">Hardware</span>
+      <h1 class="h1 mt-3">Works on the gear you <span class="text-gradient-brand">already own</span>.</h1>
+      <p class="lead mt-5">MSRM is software-first — it runs on standard hospitality hardware, so you’re not locked into buying a proprietary till. iPad, Android, a kitchen screen and a thermal printer is all most venues need.</p>
+      <div class="mt-7 flex flex-wrap justify-center gap-3">
+        <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+        <a href="/pricing" class="btn-outline btn-lg">See Pricing</a>
+      </div>
+    </section>
+  </div>
+
+  <!-- Kit grid -->
+  <section class="container-x py-16 lg:py-20">
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {kit.map(([ic, t, d]) => (
+        <div class="card">
+          <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+          <p class="mt-2 text-ink-soft text-[15px]">{d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Reassurance -->
+  <section class="container-x pb-16">
+    <div class="card max-w-3xl mx-auto text-center">
+      <h2 class="h2 text-2xl">Keep your hardware, or we’ll spec a kit</h2>
+      <p class="lead mt-3">Already on Square, Lightspeed or an old till? In most cases your tablets, printers and readers carry straight over. If you’re fitting out a new venue, we’ll recommend a simple, cost-effective kit — no proprietary lock-in.</p>
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        <a href="/migration" class="btn-outline">See how migration works</a>
+        <a href="/demo" class="btn-primary">Get a hardware recommendation</a>
+      </div>
+    </div>
+  </section>
+
+  <CTA title="Not sure what you need?" sub="Tell us your venue on a quick demo and we’ll map the exact hardware — most of it you probably already have." />
+</Layout>

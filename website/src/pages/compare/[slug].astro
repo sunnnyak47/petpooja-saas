@@ -1,0 +1,59 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import CTA from '../../components/CTA.astro';
+import { COMPARISONS } from '../../data/site';
+
+export function getStaticPaths() {
+  return COMPARISONS.map((c) => ({ params: { slug: c.slug }, props: { c } }));
+}
+const { c } = Astro.props;
+---
+<Layout title={`MSRM vs ${c.them}`} description={`MSRM vs ${c.them} for Australian restaurants — pricing, payments, aggregators, accounting and more, compared honestly.`}>
+  <!-- Hero -->
+  <div class="relative overflow-hidden hero-aura">
+    <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+    <section class="container-x relative pt-16 pb-12 lg:pt-20 text-center max-w-3xl mx-auto">
+      <span class="eyebrow">Comparison</span>
+      <h1 class="h1 mt-3">MSRM <span class="text-ink-mute font-semibold">vs</span> {c.them}</h1>
+      <p class="lead mt-4 font-semibold text-ink">{c.tagline}</p>
+      <p class="lead mt-3">{c.intro}</p>
+      <div class="mt-7 flex justify-center gap-3">
+        <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+        <a href="/pricing" class="btn-outline btn-lg">See Pricing</a>
+      </div>
+    </section>
+  </div>
+
+  <!-- Comparison table -->
+  <section class="container-x py-12 lg:py-16">
+    <div class="max-w-4xl mx-auto overflow-x-auto">
+      <table class="w-full border border-line rounded-xl2 overflow-hidden bg-white text-[15px]">
+        <thead>
+          <tr class="bg-surface-alt text-left">
+            <th class="px-5 py-4 font-semibold"></th>
+            <th class="px-5 py-4 font-semibold text-ink-mute">{c.them}</th>
+            <th class="px-5 py-4 font-bold text-brand-700">MSRM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {c.rows.map(([label, them, us]) => (
+            <tr class="border-t border-line align-top">
+              <td class="px-5 py-4 font-medium">{label}</td>
+              <td class="px-5 py-4 text-ink-soft">{them}</td>
+              <td class="px-5 py-4">
+                <span class="flex gap-2"><Icon name="check" class="w-5 h-5 shrink-0 text-brand-600" /> <span class="font-medium">{us}</span></span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="text-xs text-ink-mute mt-3">Comparison based on {c.them}’s publicly listed pricing and features at time of writing; competitor plans change — check their site for the latest. MSRM is one platform, one transparent price.</p>
+    </div>
+    <div class="text-center mt-8">
+      <a href="/compare" class="text-sm font-semibold text-brand-700 inline-flex items-center gap-1">See all comparisons <Icon name="arrow" class="w-4 h-4" /></a>
+    </div>
+  </section>
+
+  <CTA title={`Thinking of switching from ${c.them}?`} sub="We migrate you over with zero downtime — menu, tables, staff and aggregators, all kept running." />
+</Layout>

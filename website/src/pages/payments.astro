@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+
+const providers = ['EFTPOS', 'Tyro', 'Square', 'Stripe', 'Cards', 'Apple Pay', 'Google Pay'];
+
+const points = [
+  ['pos', 'One system for orders and payments', 'Take the payment on the same screen you took the order — no re-keying totals into a separate terminal, no mismatches at close.'],
+  ['bag', 'Split, surcharge and tip', 'Split by seat or amount, multi-tender (cash + card on one bill), automatic weekend & public-holiday surcharging, and tips — all handled at the POS.'],
+  ['chart', 'Reconciles itself', 'Every payment lands against the order, the shift and your books automatically, so end-of-day and settlements actually match.'],
+  ['shield', 'Your choice of provider', 'Not locked to one processor. Use EFTPOS, Tyro, Square or Stripe and keep the rate you negotiated — MSRM is the POS, you own the payments.'],
+];
+---
+<Layout title="Payments" description="Integrated restaurant payments for Australia — EFTPOS, Tyro, Square and Stripe on the same screen as your orders. Split bills, surcharging, tips and self-reconciling books.">
+  <!-- Hero -->
+  <div class="relative overflow-hidden hero-aura">
+    <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+    <section class="container-x relative pt-16 pb-12 lg:pt-20 text-center max-w-3xl mx-auto">
+      <span class="eyebrow">Payments</span>
+      <h1 class="h1 mt-3">Payments that <span class="text-gradient-brand">just reconcile</span>.</h1>
+      <p class="lead mt-5">Take the order and the payment on one screen, with the provider you choose — EFTPOS, Tyro, Square or Stripe. Every cent lands against the order, the shift and your books automatically.</p>
+      <div class="mt-7 flex flex-wrap justify-center gap-3">
+        <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+        <a href="/pricing" class="btn-outline btn-lg">See Pricing</a>
+      </div>
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-2">
+        {providers.map((p) => <span class="chip">{p}</span>)}
+      </div>
+    </section>
+  </div>
+
+  <!-- Value points -->
+  <section class="container-x py-16 lg:py-20">
+    <div class="grid gap-5 md:grid-cols-2">
+      {points.map(([ic, t, d]) => (
+        <div class="card">
+          <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+          <p class="mt-2 text-ink-soft">{d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Reassurance band -->
+  <section class="container-x pb-8">
+    <div class="rounded-xl2 bg-surface-dark text-white px-6 py-8 grid sm:grid-cols-3 gap-4 text-center">
+      <div><div class="text-2xl font-extrabold">Bank-grade security</div><p class="text-white/60 text-sm mt-1">PCI-DSS aligned, encrypted end to end</p></div>
+      <div><div class="text-2xl font-extrabold">Faster settlement</div><p class="text-white/60 text-sm mt-1">Money in your account, sooner</p></div>
+      <div><div class="text-2xl font-extrabold">No surprise fees</div><p class="text-white/60 text-sm mt-1">Keep your negotiated processing rate</p></div>
+    </div>
+  </section>
+
+  <section class="container-x pb-16 text-center">
+    <p class="text-sm text-ink-mute max-w-2xl mx-auto">Processing rates are set by your chosen provider (EFTPOS, Tyro, Square or Stripe). MSRM connects to them — we don’t mark up your transactions. <a href="/security" class="text-brand-700 underline">See how we keep payments secure →</a></p>
+  </section>
+
+  <CTA title="See payments and orders on one screen" sub="Book a 20-minute demo — we’ll show the full order-to-settlement flow on your setup." />
+</Layout>

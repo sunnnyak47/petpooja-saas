@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import { COMPARISONS } from '../data/site';
+---
+<Layout title="Compare MSRM" description="How MSRM compares to Square, Lightspeed and other restaurant POS systems in Australia — pricing, payments, aggregators and accounting, side by side.">
+  <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
+    <span class="eyebrow">Compare</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">See how MSRM stacks up.</h1>
+    <p class="lead mt-4">An honest look at the trade-offs — so you can choose the right system for your venue, not just the loudest one.</p>
+  </section>
+
+  <section class="container-x grid gap-6 md:grid-cols-2">
+    {COMPARISONS.map((c) => (
+      <a href={`/compare/${c.slug}`} class="card-link group">
+        <div class="flex items-center gap-2 text-sm font-semibold text-ink-mute">MSRM <span class="text-ink-mute/60">vs</span> <span class="text-ink">{c.them}</span></div>
+        <h3 class="mt-2 font-semibold text-lg">{c.tagline}</h3>
+        <p class="mt-2 text-ink-soft text-[15px]">{c.intro}</p>
+        <span class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700">Read the comparison <Icon name="arrow" class="w-4 h-4" /></span>
+      </a>
+    ))}
+  </section>
+  <CTA />
+</Layout>

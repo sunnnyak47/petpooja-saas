@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import CTA from '../components/CTA.astro';
 import Shot from '../components/Shot.astro';
-import { FEATURES, REGIONS } from '../data/site';
+import { FEATURES, REGIONS, CASE_STUDIES } from '../data/site';
 const stats = [
   { v: '12+', l: 'Integrated modules' },
   { v: '<1s', l: 'POS load time' },
@@ -123,13 +123,45 @@ const whys = [
     </div>
   </section>
 
-  <!-- 7. Testimonial teaser -->
+  <!-- 7. Testimonials -->
   <section class="container-x py-16 lg:py-20">
-    <figure class="card max-w-3xl mx-auto text-center bg-surface-alt">
-      <div class="text-5xl leading-none text-brand-300 font-serif" aria-hidden="true">“</div>
-      <blockquote class="text-xl sm:text-2xl font-medium leading-relaxed -mt-2">We replaced four tools with MSRM. Orders, kitchen, stock and our books finally talk to each other.</blockquote>
-      <figcaption class="mt-5 text-sm text-ink-mute">— Owner, multi-outlet restaurant</figcaption>
-    </figure>
+    <div class="text-center max-w-2xl mx-auto mb-8">
+      <span class="eyebrow">What owners say</span>
+      <h2 class="h2 mt-2">Built for real Australian venues.</h2>
+    </div>
+    <div class="grid gap-5 md:grid-cols-3">
+      {CASE_STUDIES.map((c) => (
+        <figure class="card flex flex-col">
+          <div class="text-4xl leading-none text-brand-300 font-serif" aria-hidden="true">“</div>
+          <blockquote class="-mt-2 text-[15px] text-ink-soft leading-relaxed flex-1">{c.quote}</blockquote>
+          <figcaption class="mt-4 pt-4 border-t border-line text-sm"><span class="font-semibold">{c.name}</span><span class="text-ink-mute"> · {c.type}</span></figcaption>
+        </figure>
+      ))}
+    </div>
+    <p class="text-center text-xs text-ink-mute mt-4">Representative examples — named, verified customer stories will replace these as venues go live.</p>
+  </section>
+
+  <!-- 8. Local support / onboarding band -->
+  <section class="container-x pb-4">
+    <div class="rounded-xl2 border border-line bg-surface-alt p-8 lg:p-10 grid lg:grid-cols-[1.1fr_1fr] gap-8 items-center">
+      <div>
+        <span class="eyebrow">Australian support</span>
+        <h2 class="h2 mt-2">We set you up — and stay on.</h2>
+        <p class="lead mt-3">Switching systems is the scary part. We migrate your menu, tables and staff, keep your delivery apps running, and are on hand through your first shifts — not an offshore ticket queue.</p>
+        <div class="mt-5 flex flex-wrap gap-3">
+          <a href="/migration" class="btn-outline">How migration works</a>
+          <a href="/demo" class="btn-primary">Talk to our team</a>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        {[['Live in a day', 'Most single venues'], ['Zero downtime', 'Parallel run + cutover'], ['We migrate you', 'Menu, tables & staff'], ['Real people', 'Onboarding that stays on']].map(([v, l]) => (
+          <div class="card text-center py-5">
+            <div class="text-lg font-extrabold text-brand-700">{v}</div>
+            <div class="text-xs text-ink-mute mt-1">{l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   </section>
 
   <CTA />

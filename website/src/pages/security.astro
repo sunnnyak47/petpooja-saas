@@ -1,0 +1,48 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+
+const pillars = [
+  ['shield', 'Encrypted end to end', 'Traffic is encrypted in transit (TLS) and data is encrypted at rest. Card data is handled by PCI-DSS-compliant payment providers — sensitive card numbers never touch our servers.'],
+  ['ledger', 'PCI-aligned payments', 'Payments run through certified providers (EFTPOS, Tyro, Square, Stripe). We integrate with them rather than storing card data, keeping your PCI scope small.'],
+  ['building', 'Australian data residency', 'Your data is hosted with reputable cloud infrastructure and can be kept in Australian regions — ask us about your specific residency needs.'],
+  ['spark', 'Always-on, with offline backup', 'Redundant, monitored infrastructure aims for high uptime — and if the internet drops, the POS keeps selling offline and syncs the moment it’s back.'],
+  ['check', 'Role-based access & audit', 'Granular staff roles and PIN logins mean people only see what they should. Sensitive actions (voids, refunds, discounts) are logged with who and when.'],
+  ['box', 'Backups & recovery', 'Data is backed up regularly so a lost device or bad shift never means lost sales history.'],
+];
+---
+<Layout title="Security & Trust" description="How MSRM keeps your restaurant’s data and payments safe — encryption, PCI-aligned payments, Australian data residency, role-based access, audit logs, backups and offline resilience.">
+  <!-- Hero -->
+  <div class="relative overflow-hidden hero-aura">
+    <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+    <section class="container-x relative pt-16 pb-12 lg:pt-20 text-center max-w-3xl mx-auto">
+      <span class="eyebrow">Security &amp; trust</span>
+      <h1 class="h1 mt-3">Your data and payments, <span class="text-gradient-brand">kept safe</span>.</h1>
+      <p class="lead mt-5">You’re trusting us with your sales, your customers and your money. Here’s how MSRM protects all three — with the same standards a bank expects of its payment partners.</p>
+      <div class="mt-7 flex justify-center gap-3">
+        <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+        <a href="/payments" class="btn-outline btn-lg">How payments work</a>
+      </div>
+    </section>
+  </div>
+
+  <!-- Pillars -->
+  <section class="container-x py-16 lg:py-20">
+    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {pillars.map(([ic, t, d]) => (
+        <div class="card">
+          <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+          <p class="mt-2 text-ink-soft text-[15px]">{d}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="container-x pb-16 text-center">
+    <p class="text-sm text-ink-mute max-w-2xl mx-auto">Security is a moving target — we harden continuously and are happy to walk your team or IT provider through our controls. Questions on compliance or data residency? <a href="/demo" class="text-brand-700 underline">Talk to us →</a></p>
+  </section>
+
+  <CTA title="Security questions before you switch?" sub="Book a call — we’ll answer them and show exactly how your data and payments are handled." />
+</Layout>

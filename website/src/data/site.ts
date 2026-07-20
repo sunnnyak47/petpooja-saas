@@ -119,3 +119,48 @@ export const REGIONS = {
   au: { code: 'au', flag: '🇦🇺', label: 'Australia', cur: 'A$', per: '/outlet / mo',
         aggregators: ['Uber Eats', 'DoorDash', 'Menulog'], tax: 'GST, BAS & Xero', pay: 'EFTPOS · Square · Stripe · Tyro' },
 };
+
+// ── Support / company details ───────────────────────────────────────────────
+// TODO(owner): replace the phone + ABN placeholders with your real details
+// before launch. Email + demo are live; phone/ABN are intentionally blank so we
+// never show a fake number.
+export const SUPPORT = {
+  phone: '',            // e.g. '1300 123 456' — leave '' to hide the call CTA
+  abn: '',              // e.g. '12 345 678 901' — shown in the footer when set
+  onboarding: 'Australian-based onboarding — we migrate you over and stay on through go-live.',
+  hours: 'Real people, not a ticket queue.',
+};
+
+// ── Competitor comparisons (facts sourced from public pricing/review pages) ──
+// Honest, defensible positioning — verify against current competitor pages
+// before launch, as their plans change.
+export const COMPARISONS = [
+  {
+    slug: 'square', them: 'Square for Restaurants',
+    tagline: 'Great to start on — but you outgrow it.',
+    intro: 'Square is the easiest way for a small café to get going: a free tier and simple pricing. The catch comes as you grow — payments are locked to Square, and the deeper hospitality, multi-outlet and local-accounting pieces aren’t there.',
+    rows: [
+      ['Monthly pricing', 'Free / A$129+ per location', 'Transparent A$ per outlet, no lock-in'],
+      ['Payments', 'Locked to Square’s rates', 'Your choice — EFTPOS, Tyro, Square or Stripe'],
+      ['Online orders & aggregators', 'Limited / via add-ons', 'Uber Eats, DoorDash & Menulog in one screen'],
+      ['Inventory & recipes', 'Basic', 'Recipe-based auto-deduction + purchasing'],
+      ['Accounting', 'Export only', 'GST/BAS, Xero & MYOB, Single Touch Payroll'],
+      ['Multi-outlet & central kitchen', 'Limited', 'Central menu, per-outlet pricing, transfers'],
+      ['Offline mode', 'Limited', 'Full offline — keeps selling when the net drops'],
+    ],
+  },
+  {
+    slug: 'lightspeed', them: 'Lightspeed Restaurant',
+    tagline: 'Powerful — but pricey, with fees you find later.',
+    intro: 'Lightspeed is a capable full-service POS. But pricing starts around A$119/location, the best rates need an annual lock-in, and hardware/processing/add-on fees aren’t shown up front — you have to call sales. MSRM gives you the same breadth at a transparent price.',
+    rows: [
+      ['Monthly pricing', 'From ~A$119/location', 'Transparent A$ per outlet'],
+      ['Contract', 'Annual lock-in for best price', 'No lock-in — cancel anytime'],
+      ['Fees up front', 'Hardware & processing quoted by phone', 'Priced on the site, no surprises'],
+      ['Aggregators + accounting', 'Often paid add-ons', 'Included — one platform, one price'],
+      ['Online ordering (own QR)', 'Add-on', 'Commission-free QR ordering built in'],
+      ['Setup & migration', 'Self-serve / partner', 'We migrate you over with zero downtime'],
+      ['Offline mode', 'Yes', 'Yes — full offline'],
+    ],
+  },
+];

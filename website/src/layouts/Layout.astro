@@ -7,6 +7,37 @@ import { SITE } from '../data/site';
 const { title, description } = Astro.props;
 const pageTitle = title ? `${title} · ${SITE.name}` : `${SITE.name} — ${SITE.tagline}`;
 const desc = description || 'One platform to run your whole restaurant — POS, kitchen display, inventory, online orders and accounting. Built for Australian restaurants.';
+
+// SEO: absolute canonical + OG image from the configured site origin.
+const ORIGIN = (Astro.site ?? new URL('https://getmsrm.com.au')).origin;
+const canonical = new URL(Astro.url.pathname, ORIGIN).href;
+const ogImage = new URL('/screenshots/au/dashboard.webp', ORIGIN).href;
+
+// Analytics: off unless PUBLIC_GA_ID is set (per-env), so no tracking in dev.
+const GA_ID = import.meta.env.PUBLIC_GA_ID;
+
+// Structured data — helps Google understand the product (an AU restaurant SaaS).
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: SITE.name,
+      url: ORIGIN,
+      email: SITE.email,
+      areaServed: 'AU',
+      description: 'Restaurant management platform for Australia — POS, kitchen, inventory, online orders and accounting in one system.',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: SITE.name,
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web, iOS, Android',
+      offers: { '@type': 'Offer', price: '39', priceCurrency: 'AUD' },
+      description: desc,
+    },
+  ],
+};
 ---
 <!doctype html>
 <html lang="en-AU" data-region="au">
@@ -14,13 +45,42 @@ const desc = description || 'One platform to run your whole restaurant — POS, 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#2563eb" />
     <title>{pageTitle}</title>
     <meta name="description" content={desc} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Open Graph -->
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={desc} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:locale" content="en_AU" />
+    <meta property="og:image" content={ogImage} />
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={desc} />
+    <meta name="twitter:image" content={ogImage} />
+
     <link rel="preconnect" href="https://rsms.me" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    {GA_ID && (
+      <>
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
+        <script is:inline define:vars={{ GA_ID }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){ dataLayer.push(arguments); }
+          gtag('js', new Date());
+          gtag('config', GA_ID);
+        </script>
+      </>
+    )}
   </head>
   <body>
     <Header />
