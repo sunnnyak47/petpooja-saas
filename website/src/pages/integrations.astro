@@ -2,9 +2,9 @@
 import Layout from '../layouts/Layout.astro';
 import CTA from '../components/CTA.astro';
 const cats = [
-  { title: 'Aggregators', to: '/features/online-orders', items: ['Swiggy', 'Zomato', 'ONDC', 'Uber Eats', 'DoorDash', 'Menulog'] },
-  { title: 'Payments', to: '/features/pos', items: ['UPI', 'Razorpay', 'Square', 'Stripe', 'EFTPOS / Tyro', 'Cards'] },
-  { title: 'Accounting', to: '/features/accounting', items: ['Xero', 'Tally', 'GST / BAS'] },
+  { title: 'Aggregators', to: '/features/online-orders', items: ['Uber Eats', 'DoorDash', 'Menulog'] },
+  { title: 'Payments', to: '/features/pos', items: ['EFTPOS / Tyro', 'Square', 'Stripe', 'Cards'] },
+  { title: 'Accounting', to: '/features/accounting', items: ['Xero', 'MYOB', 'GST / BAS'] },
   { title: 'Own delivery', to: '/features/online-orders', items: ['Uber Direct', 'DoorDash Drive'] },
   { title: 'Messaging', to: '/features/online-orders', items: ['WhatsApp Business'] },
 ];
@@ -23,6 +23,6 @@ const cats = [
       </a>
     ))}
   </section>
-  <p class="container-x mt-6 text-sm text-ink-mute">Note: Swiggy/Zomato &amp; some platforms connect via certified partner/middleware integrations — we set this up during onboarding.</p>
+  <p class="container-x mt-6 text-sm text-ink-mute">Note: some platforms connect via certified partner/middleware integrations — we set this up during onboarding.</p>
   <CTA />
 </Layout>

@@ -1,13 +1,11 @@
 ---
-// Region-aware product screenshot. Shows the AU shot when region=AU, IN otherwise
-// (driven by .r-in / .r-au CSS). Falls back to the IN image if no AU variant exists.
+// Product screenshot. Prefers the Australian variant (public/screenshots/au/<name>)
+// and falls back to the base image if no AU-specific shot exists.
 import fs from 'node:fs';
 const { name, alt = '', eager = false, frame = true } = Astro.props;
 const hasAu = fs.existsSync(`./public/screenshots/au/${name}`);
-const inSrc = `/screenshots/${name}`;
-const auSrc = hasAu ? `/screenshots/au/${name}` : inSrc;
+const src = hasAu ? `/screenshots/au/${name}` : `/screenshots/${name}`;
 const imgCls = `w-full ${frame ? 'rounded-xl border border-line' : ''}`;
 const loading = eager ? 'eager' : 'lazy';
 ---
-<div class="r-in"><img src={inSrc} alt={`${alt} (India)`} width="1440" height="900" loading={loading} class={imgCls} /></div>
-<div class="r-au"><img src={auSrc} alt={`${alt} (Australia)`} width="1440" height="900" loading={loading} class={imgCls} /></div>
+<img src={src} alt={alt} width="1440" height="900" loading={loading} class={imgCls} />

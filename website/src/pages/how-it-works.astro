@@ -6,8 +6,8 @@ import Shot from '../components/Shot.astro';
 
 // Onboarding (mirrors the real in-app wizard) — get live fast.
 const onboarding = [
-  { t: 'Create your account', d: 'Tell us your restaurant + region (India or Australia).' },
-  { t: 'Add your menu', d: 'Paste it and let AI build it, or import — prices in ₹ or A$.' },
+  { t: 'Create your account', d: 'Tell us a bit about your restaurant.' },
+  { t: 'Add your menu', d: 'Paste it and let AI build it, or import — prices in A$.' },
   { t: 'Tables & team', d: 'Add tables and staff with PIN logins in minutes.' },
   { t: 'Connect channels', d: 'Link aggregators, payments and your own QR ordering.' },
   { t: 'Go live', d: 'Start taking orders on the POS — that same day.' },
@@ -18,7 +18,7 @@ const flows = [
   { name: 'Dine-in order → close', tone: 'brand',
     steps: ['Take order on POS', 'Fires to Kitchen (KDS)', 'Mark ready & serve', 'Split / multi-tender pay', 'Stock + books update'] },
   { name: 'Online & aggregator order', tone: 'amber',
-    steps: ['Order from Swiggy / Uber Eats', 'Auto-accepted', 'Hits the kitchen screen', 'Status pushed back', 'Lands in channel analytics'] },
+    steps: ['Order from Uber Eats / DoorDash', 'Auto-accepted', 'Hits the kitchen screen', 'Status pushed back', 'Lands in channel analytics'] },
   { name: 'Stock that runs itself', tone: 'green',
     steps: ['Item sold on POS', 'Recipe auto-deducts stock', 'Low-stock alert', 'Raise purchase order', 'Auto-86 when out'] },
 ];
@@ -27,7 +27,7 @@ const why = [
   ['One screen, no juggling', 'POS, kitchen, stock, delivery and books in a single login.'],
   ['No training needed', 'If your team can use a phone, they can run the POS. Touch-first and obvious.'],
   ['Works offline', 'Keep selling when the internet drops — it syncs the moment it’s back.'],
-  ['Built for your market', 'Right currency, taxes (GST/BAS) and aggregators for India and Australia.'],
+  ['Built for Australia', 'A$ pricing, GST/BAS and the right delivery apps — sorted out of the box.'],
 ];
 ---
 <Layout title="How it works" description="MSRM is up and running in a day. See the simple onboarding and the everyday workflows that run your whole restaurant automatically.">
@@ -51,7 +51,7 @@ const why = [
         </li>
       ))}
     </ol>
-    <p class="text-center text-sm text-ink-mute mt-4">Most owners are taking orders the same afternoon. Switching from Petpooja/Square? <a href="/demo" class="text-brand-700 underline">We migrate you over.</a></p>
+    <p class="text-center text-sm text-ink-mute mt-4">Most owners are taking orders the same afternoon. Switching from Square or Lightspeed? <a href="/demo" class="text-brand-700 underline">We migrate you over.</a></p>
   </section>
 
   <!-- Day-in-the-life workflows -->
@@ -88,7 +88,7 @@ const why = [
     <div>
       <span class="eyebrow">See it live</span>
       <h2 class="h2 mt-2">The POS your team will actually like.</h2>
-      <p class="lead mt-3">Touch-first menu, one-tap modifiers, split bills and offline mode. Switch 🇮🇳 / 🇦🇺 in the header to see your market.</p>
+      <p class="lead mt-3">Touch-first menu, one-tap modifiers, split bills and full offline mode — so you never stop selling.</p>
       <a href="/features/pos" class="mt-4 inline-flex items-center gap-1 font-semibold text-brand-700">Explore the POS <Icon name="arrow" class="w-4 h-4" /></a>
     </div>
     <div class="card p-2 shadow-lift"><Shot name="pos.webp" alt="MSRM POS terminal" /></div>

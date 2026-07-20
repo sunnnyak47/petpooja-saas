@@ -6,15 +6,15 @@ import { PLANS, FEATURES } from '../data/site';
 const faqs = [
   ['Is there a free trial?', 'Yes — start free, no card required. Book a demo and we set you up.'],
   ['Do you charge per outlet?', 'Pricing is per outlet, per month. Add outlets anytime; chains get custom pricing.'],
-  ['Can you migrate me from Petpooja or Square?', 'Yes. We move your menu, tables and staff over and keep your aggregators running during the switch.'],
-  ['Are aggregators (Swiggy/Zomato/Uber Eats) included?', 'Online ordering & aggregator management are in the Growth plan and up.'],
+  ['Can you migrate me from Square, Lightspeed or Kounta?', 'Yes. We move your menu, tables and staff over and keep your aggregators running during the switch.'],
+  ['Are aggregators (Uber Eats/DoorDash/Menulog) included?', 'Online ordering & aggregator management are in the Growth plan and up.'],
 ];
 ---
-<Layout title="Pricing" description="Simple per-outlet pricing for MSRM. Starter, Growth and Chain plans for India and Australia.">
+<Layout title="Pricing" description="Simple per-outlet pricing for MSRM. Starter, Growth and Chain plans for Australian restaurants.">
   <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
     <span class="eyebrow">Pricing</span>
     <h1 class="h1 text-4xl sm:text-5xl mt-3">Simple, per-outlet pricing.</h1>
-    <p class="lead mt-4"><span class="r-au">Switch region in the header to see A$ AUD pricing.</span><span class="r-in">India pricing is shared on your demo — book one below.</span></p>
+    <p class="lead mt-4">Transparent monthly pricing in AUD, per outlet. No lock-in — cancel anytime.</p>
   </section>
 
   <section class="container-x">
@@ -27,9 +27,8 @@ const faqs = [
           <div class="mt-4 flex items-end gap-1">
             {p.custom ? <span class="text-3xl font-extrabold">Custom</span> : (
               <>
-                <span class="r-au text-4xl font-extrabold">A${p.aud}</span>
-                <span class="r-au text-ink-mute mb-1 text-sm">/outlet / mo</span>
-                <span class="r-in text-2xl font-bold text-ink-mute">On request</span>
+                <span class="text-4xl font-extrabold">A${p.aud}</span>
+                <span class="text-ink-mute mb-1 text-sm">/outlet / mo</span>
               </>
             )}
           </div>
@@ -69,5 +68,5 @@ const faqs = [
     </div>
   </section>
 
-  <CTA title="Get your exact price" sub="Book a quick demo — we'll confirm pricing for your outlets and region." />
+  <CTA title="Get your exact price" sub="Book a quick demo — we'll confirm pricing for your outlets." />
 </Layout>

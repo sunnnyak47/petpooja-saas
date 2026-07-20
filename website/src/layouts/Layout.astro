@@ -6,10 +6,10 @@ import { SITE } from '../data/site';
 
 const { title, description } = Astro.props;
 const pageTitle = title ? `${title} · ${SITE.name}` : `${SITE.name} — ${SITE.tagline}`;
-const desc = description || 'One platform to run your whole restaurant — POS, kitchen display, inventory, online orders and accounting. Built for India and Australia.';
+const desc = description || 'One platform to run your whole restaurant — POS, kitchen display, inventory, online orders and accounting. Built for Australian restaurants.';
 ---
 <!doctype html>
-<html lang="en" data-region="in">
+<html lang="en-AU" data-region="au">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

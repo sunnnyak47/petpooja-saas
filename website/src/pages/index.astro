@@ -8,54 +8,73 @@ const stats = [
   { v: '12+', l: 'Integrated modules' },
   { v: '<1s', l: 'POS load time' },
   { v: '99.9%', l: 'Uptime' },
-  { v: '🇮🇳 🇦🇺', l: 'India & Australia' },
+  { v: '🇦🇺', l: 'Made for Australia' },
+];
+const whys = [
+  ['spark', 'Stop juggling apps', 'POS, kitchen, inventory, delivery and books in one place — no more switching tabs or re-keying.'],
+  ['chart', 'Real-time, everywhere', 'A sale on the POS updates stock, the kitchen screen, reports and end-of-day instantly.'],
+  ['shield', 'Built for Australia', 'GST & BAS, Xero/MYOB, EFTPOS and the right delivery apps — compliant out of the box.'],
 ];
 ---
 <Layout>
   <!-- 1. Hero -->
-  <section class="container-x pt-16 pb-12 lg:pt-24 grid lg:grid-cols-[1.1fr_1fr] gap-12 items-center">
-    <div>
-      <span class="eyebrow">Restaurant management platform</span>
-      <h1 class="h1 mt-3">Run your whole restaurant<br/>on <span class="text-brand-600">one platform</span>.</h1>
-      <p class="lead mt-5 max-w-xl">
-        POS, kitchen display, inventory, online orders and accounting — unified, real-time, and
-        built for <span class="r-in">India</span><span class="r-au">Australia</span>. Stop juggling apps and spreadsheets.
-      </p>
-      <div class="mt-7 flex flex-wrap gap-3">
-        <a href="/demo" class="btn-primary">Book a Demo</a>
-        <a href="/pricing" class="btn-outline">See Pricing</a>
+  <div class="relative overflow-hidden hero-aura">
+    <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+    <section class="container-x relative pt-16 pb-14 lg:pt-24 lg:pb-20 grid lg:grid-cols-[1.05fr_1fr] gap-12 items-center">
+      <div>
+        <span class="eyebrow">Restaurant management platform</span>
+        <h1 class="h1 mt-3">Run your whole restaurant<br class="hidden sm:block"/> on <span class="text-gradient-brand">one platform</span>.</h1>
+        <p class="lead mt-5 max-w-xl">
+          POS, kitchen display, inventory, online orders and accounting — unified, real-time, and
+          built for Australia. Stop juggling apps and spreadsheets.
+        </p>
+        <div class="mt-7 flex flex-wrap gap-3">
+          <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+          <a href="/pricing" class="btn-outline btn-lg">See Pricing</a>
+        </div>
+        <ul class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-mute">
+          <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600"/> No credit card to start</li>
+          <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600"/> Live in a day</li>
+          <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600"/> Works fully offline</li>
+        </ul>
+        <p class="mt-5 text-sm text-ink-mute">
+          Switching from <strong>Square</strong> or <strong>Lightspeed</strong>? <a href="/migration" class="font-medium text-brand-700 hover:underline">We move you over →</a>
+        </p>
       </div>
-      <p class="mt-5 text-sm text-ink-mute">
-        Switching from <strong>Petpooja</strong> or <strong>Square</strong>? <a href="/migration" class="text-brand-700 underline">We move you over →</a>
-      </p>
-    </div>
-    <div class="card p-2 shadow-lift">
-      <Shot name="dashboard.webp" alt="MSRM owner dashboard — live orders, tables, kitchen and revenue at a glance" eager={true} />
-    </div>
-  </section>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="browser-dot bg-red-400/70"></span>
+          <span class="browser-dot bg-amber-400/70"></span>
+          <span class="browser-dot bg-emerald-400/70"></span>
+          <span class="ml-3 hidden sm:block text-xs text-ink-mute">app.msrm.com/dashboard</span>
+        </div>
+        <Shot name="dashboard.webp" alt="MSRM owner dashboard — live orders, tables, kitchen and revenue at a glance" eager={true} frame={false} />
+      </div>
+    </section>
+  </div>
 
   <!-- 2. Trust band -->
   <section class="border-y border-line bg-surface-alt">
-    <div class="container-x py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-ink-mute">
-      <span class="font-semibold text-ink-soft">Trusted by restaurants live in India &amp; Australia</span>
+    <div class="container-x py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm">
+      <span class="font-semibold text-ink-soft">Trusted by restaurants across Australia</span>
       <span class="chip">QSR</span><span class="chip">Fine Dine</span><span class="chip">Cloud Kitchen</span><span class="chip">Café</span><span class="chip">Chains</span>
     </div>
   </section>
 
   <!-- 3. Problem → solution -->
-  <section class="container-x py-16">
+  <section class="container-x py-16 lg:py-20">
     <div class="text-center max-w-2xl mx-auto">
       <span class="eyebrow">Why MSRM</span>
       <h2 class="h2 mt-2">Everything your restaurant needs, built in.</h2>
       <p class="lead mt-3">No patchwork of third-party apps — one system from first order to end-of-day close.</p>
     </div>
     <div class="mt-10 grid gap-5 md:grid-cols-3">
-      {[
-        ['Stop juggling apps', 'POS, kitchen, inventory, delivery and books in one place — no more switching tabs or re-keying.'],
-        ['Real-time, everywhere', 'A sale on the POS updates stock, the kitchen screen, reports and end-of-day instantly.'],
-        ['Built for your market', 'GST/BAS, local payments and the right aggregators for India and Australia out of the box.'],
-      ].map(([t, d]) => (
-        <div class="card"><h3 class="font-semibold text-lg">{t}</h3><p class="mt-2 text-ink-soft">{d}</p></div>
+      {whys.map(([ic, t, d]) => (
+        <div class="card">
+          <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+          <p class="mt-2 text-ink-soft">{d}</p>
+        </div>
       ))}
     </div>
   </section>
@@ -64,47 +83,52 @@ const stats = [
   <section class="container-x py-8">
     <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {FEATURES.map((f) => (
-        <a href={`/features/${f.slug}`} class="card hover:shadow-lift hover:border-brand-400 transition group">
-          <div class="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name={f.icon} class="w-6 h-6" /></div>
-          <h3 class="mt-4 font-semibold text-lg flex items-center gap-1">{f.name}<Icon name="arrow" class="w-4 h-4 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition" /></h3>
+        <a href={`/features/${f.slug}`} class="card-link group">
+          <div class="feature-tile"><Icon name={f.icon} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg flex items-center gap-1">{f.name}<Icon name="arrow" class="w-4 h-4 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition text-brand-600" /></h3>
           <p class="mt-2 text-ink-soft text-[15px]">{f.blurb}</p>
         </a>
       ))}
     </div>
   </section>
 
-  <!-- 5. Region band -->
-  <section class="container-x py-16">
-    <div class="rounded-xl2 border border-line overflow-hidden grid md:grid-cols-2">
-      {Object.values(REGIONS).map((r, i) => (
-        <div class={`p-8 ${i === 0 ? 'r-in' : 'r-au'} `} style={`display:block`}>
-          <div class="text-3xl">{r.flag}</div>
-          <h3 class="h2 text-2xl mt-2">Made for {r.label}</h3>
-          <ul class="mt-4 space-y-2 text-ink-soft">
-            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> {r.tax}</li>
-            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> Payments: {r.pay}</li>
-            <li class="flex gap-2"><Icon name="check" class="w-5 h-5 text-brand-600" /> Aggregators: {r.aggregators.join(', ')}</li>
-          </ul>
+  <!-- 5. Built for Australia band -->
+  <section class="container-x py-16 lg:py-20">
+    <div class="text-center max-w-2xl mx-auto mb-8">
+      <span class="eyebrow">Local by design</span>
+      <h2 class="h2 mt-2">Built for Australian restaurants</h2>
+      <p class="lead mt-3">The right taxes, payments and delivery apps for the Australian market — no plugins, no workarounds.</p>
+    </div>
+    <div class="grid gap-5 md:grid-cols-3">
+      {[
+        ['ledger', 'Tax & compliance', `${REGIONS.au.tax}, plus Single Touch Payroll — ATO-ready.`],
+        ['pos', 'Payments', `${REGIONS.au.pay}.`],
+        ['bag', 'Delivery apps', `${REGIONS.au.aggregators.join(', ')} — plus commission-free QR ordering.`],
+      ].map(([ic, t, d]) => (
+        <div class="card">
+          <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+          <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+          <p class="mt-2 text-ink-soft">{d}</p>
         </div>
       ))}
     </div>
-    <p class="text-center text-xs text-ink-mute mt-3">Use the 🇮🇳 / 🇦🇺 switch in the header to see your region.</p>
   </section>
 
   <!-- 6. Stats -->
   <section class="container-x">
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       {stats.map((s) => (
-        <div class="card text-center"><div class="text-3xl font-extrabold text-brand-600">{s.v}</div><div class="text-sm text-ink-mute mt-1">{s.l}</div></div>
+        <div class="card text-center"><div class="text-3xl font-extrabold text-gradient-brand">{s.v}</div><div class="text-sm text-ink-mute mt-1">{s.l}</div></div>
       ))}
     </div>
   </section>
 
   <!-- 7. Testimonial teaser -->
-  <section class="container-x py-16">
-    <figure class="card max-w-3xl mx-auto text-center">
-      <blockquote class="text-xl font-medium leading-relaxed">“We replaced four tools with MSRM. Orders, kitchen, stock and our books finally talk to each other.”</blockquote>
-      <figcaption class="mt-4 text-sm text-ink-mute">— Owner, multi-outlet restaurant</figcaption>
+  <section class="container-x py-16 lg:py-20">
+    <figure class="card max-w-3xl mx-auto text-center bg-surface-alt">
+      <div class="text-5xl leading-none text-brand-300 font-serif" aria-hidden="true">“</div>
+      <blockquote class="text-xl sm:text-2xl font-medium leading-relaxed -mt-2">We replaced four tools with MSRM. Orders, kitchen, stock and our books finally talk to each other.</blockquote>
+      <figcaption class="mt-5 text-sm text-ink-mute">— Owner, multi-outlet restaurant</figcaption>
     </figure>
   </section>
 

@@ -5,12 +5,12 @@ import CTA from '../components/CTA.astro';
 
 // What we bring across from the old system.
 const moves = [
-  ['Full menu', 'Categories, items, variants, modifiers & prices — in ₹ or A$.'],
+  ['Full menu', 'Categories, items, variants, modifiers & prices — in A$.'],
   ['Tables & floor', 'Your table layout and QR codes, recreated.'],
   ['Staff & roles', 'Team members with PIN logins and permissions.'],
   ['Customers & loyalty', 'Customer list and loyalty balances where exportable.'],
   ['Tax & settings', 'GST/BAS details, receipt format and POS preferences.'],
-  ['Aggregator links', 'Swiggy/Zomato or Uber Eats/DoorDash/Menulog kept running through the switch.'],
+  ['Aggregator links', 'Uber Eats, DoorDash & Menulog kept running through the switch.'],
 ];
 
 // The migration runs in parallel so there is no gap in service.
@@ -23,7 +23,7 @@ const steps = [
 ];
 
 const faqs = [
-  ['Will my Swiggy / Zomato (or Uber Eats / DoorDash) orders stop?',
+  ['Will my Uber Eats / DoorDash / Menulog orders stop?',
    'No. We keep your aggregator links active during the move and switch them over only at cutover, so there’s no gap in online orders.'],
   ['How long does it take?',
    'A single outlet is typically live within a day or two; chains roll out outlet by outlet.'],
@@ -35,12 +35,12 @@ const faqs = [
    'Standard migrations are included with onboarding. Large chains get a tailored plan — confirmed on your call.'],
 ];
 ---
-<Layout title="Migrate from Petpooja or Square" description="Switch to MSRM with zero downtime. We move your menu, tables, staff and settings — and keep your aggregators running through the cutover.">
+<Layout title="Migrate from Square or Lightspeed" description="Switch to MSRM with zero downtime. We move your menu, tables, staff and settings — and keep your aggregators running through the cutover.">
   <!-- Hero -->
   <section class="container-x pt-16 pb-8 text-center max-w-3xl mx-auto">
     <span class="eyebrow">Migration</span>
     <h1 class="h1 text-4xl sm:text-5xl mt-3">
-      Switching from <span class="r-in">Petpooja</span><span class="r-au">Square</span>?<br/>We move you over — with zero downtime.
+      Switching from Square or Lightspeed?<br/>We move you over — with zero downtime.
     </h1>
     <p class="lead mt-4">
       We import your menu, tables, staff and settings, run MSRM alongside your current
@@ -53,7 +53,7 @@ const faqs = [
   <section class="container-x">
     <div class="rounded-xl2 bg-surface-dark text-white px-6 py-7 grid sm:grid-cols-3 gap-4 text-center">
       <div><div class="text-2xl font-extrabold">Zero downtime</div><p class="text-white/60 text-sm mt-1">Parallel run, then cutover</p></div>
-      <div><div class="text-2xl font-extrabold">Aggregators kept live</div><p class="text-white/60 text-sm mt-1"><span class="r-in">Swiggy &amp; Zomato</span><span class="r-au">Uber Eats, DoorDash &amp; Menulog</span> stay on</p></div>
+      <div><div class="text-2xl font-extrabold">Aggregators kept live</div><p class="text-white/60 text-sm mt-1">Uber Eats, DoorDash &amp; Menulog stay on</p></div>
       <div><div class="text-2xl font-extrabold">Live in ~1–2 days</div><p class="text-white/60 text-sm mt-1">Per outlet</p></div>
     </div>
   </section>

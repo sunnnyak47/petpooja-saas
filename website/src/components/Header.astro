@@ -1,10 +1,10 @@
 ---
 import { SITE, NAV } from '../data/site';
 ---
-<header class="sticky top-0 z-50 border-b border-line bg-white/85 backdrop-blur">
+<header id="site-header" class="sticky top-0 z-50 border-b border-line bg-white/80 backdrop-blur-md transition-shadow">
   <div class="container-x flex h-16 items-center justify-between gap-4">
     <a href="/" class="flex items-center gap-2 font-extrabold text-lg tracking-tight">
-      <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">M</span>
+      <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white shadow-card">M</span>
       {SITE.name}
     </a>
 
@@ -15,31 +15,62 @@ import { SITE, NAV } from '../data/site';
     </nav>
 
     <div class="flex items-center gap-2">
-      <!-- Region toggle -->
-      <div class="hidden sm:flex items-center rounded-lg border border-line p-0.5 text-sm">
-        <button data-region-btn="in" class="rounded-md px-2.5 py-1 font-semibold">🇮🇳 IN</button>
-        <button data-region-btn="au" class="rounded-md px-2.5 py-1 font-semibold">🇦🇺 AU</button>
-      </div>
       <a href={SITE.appUrl} class="btn-ghost text-sm hidden sm:inline-flex">Login</a>
-      <a href="/demo" class="btn-primary text-sm">Book a Demo</a>
+      <a href="/demo" class="btn-primary text-sm hidden sm:inline-flex">Book a Demo</a>
+
+      <!-- Mobile menu toggle -->
+      <button
+        id="nav-toggle"
+        class="md:hidden grid h-10 w-10 place-items-center rounded-lg border border-line text-ink hover:bg-surface-alt"
+        aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav"
+      >
+        <svg data-icon="open" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg data-icon="close" class="w-6 h-6 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
+  </div>
+
+  <!-- Mobile nav drawer -->
+  <div id="mobile-nav" class="md:hidden hidden border-t border-line bg-white">
+    <nav class="container-x py-3 flex flex-col">
+      {NAV.map((n) => (
+        <a href={n.href} class="rounded-lg px-3 py-2.5 text-[15px] font-medium text-ink-soft hover:bg-surface-alt hover:text-ink">{n.label}</a>
+      ))}
+      <div class="my-3 h-px bg-line"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <a href={SITE.appUrl} class="btn-outline justify-center">Login</a>
+        <a href="/demo" class="btn-primary justify-center">Book a Demo</a>
+      </div>
+    </nav>
   </div>
 </header>
 
 <script>
-  // Region preference drives the .r-in / .r-au spans across the site.
-  const KEY = 'msrm_region';
-  const set = (r) => {
-    document.documentElement.dataset.region = r;
-    localStorage.setItem(KEY, r);
-    document.querySelectorAll('[data-region-btn]').forEach((b) => {
-      const on = b.getAttribute('data-region-btn') === r;
-      b.classList.toggle('bg-brand-600', on);
-      b.classList.toggle('text-white', on);
-    });
-  };
-  set(localStorage.getItem(KEY) || 'in');
-  document.querySelectorAll('[data-region-btn]').forEach((b) =>
-    b.addEventListener('click', () => set(b.getAttribute('data-region-btn')))
-  );
+  // ── Mobile menu toggle ──
+  const toggle = document.getElementById('nav-toggle');
+  const drawer = document.getElementById('mobile-nav');
+  if (toggle && drawer) {
+    const openIcon = toggle.querySelector('[data-icon="open"]');
+    const closeIcon = toggle.querySelector('[data-icon="close"]');
+    const setOpen = (open) => {
+      drawer.classList.toggle('hidden', !open);
+      openIcon?.classList.toggle('hidden', open);
+      closeIcon?.classList.toggle('hidden', !open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    };
+    toggle.addEventListener('click', () => setOpen(drawer.classList.contains('hidden')));
+    // Close when a link is tapped.
+    drawer.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+    // Close if resized up to desktop.
+    window.addEventListener('resize', () => { if (window.innerWidth >= 768) setOpen(false); });
+  }
+
+  // ── Subtle shadow once the page is scrolled ──
+  const header = document.getElementById('site-header');
+  if (header) {
+    const onScroll = () => header.classList.toggle('shadow-card', window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
 </script>

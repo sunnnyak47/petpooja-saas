@@ -3,18 +3,18 @@ import Layout from '../layouts/Layout.astro';
 import CTA from '../components/CTA.astro';
 import { CASE_STUDIES } from '../data/site';
 ---
-<Layout title="Case Studies" description="How restaurants in India and Australia run leaner and faster on MSRM.">
+<Layout title="Case Studies" description="How Australian restaurants run leaner and faster on MSRM.">
   <section class="container-x pt-16 pb-8 text-center max-w-2xl mx-auto">
     <span class="eyebrow">Case studies</span>
     <h1 class="h1 text-4xl sm:text-5xl mt-3">Results restaurants see.</h1>
-    <p class="lead mt-4">Fewer tools, less reconciliation, faster service — across India and Australia.</p>
+    <p class="lead mt-4">Fewer tools, less reconciliation, faster service — right across Australia.</p>
   </section>
 
   <section class="container-x grid gap-6 md:grid-cols-3">
     {CASE_STUDIES.map((c) => (
       <article class="card flex flex-col">
         <div class="flex items-center gap-2">
-          <span class="text-lg">{c.region === 'au' ? '🇦🇺' : '🇮🇳'}</span>
+          <span class="text-lg">🇦🇺</span>
           <div><h3 class="font-bold">{c.name}</h3><p class="text-xs text-ink-mute">{c.type}</p></div>
         </div>
         <p class="mt-3 text-ink-soft text-[15px]">{c.summary}</p>
