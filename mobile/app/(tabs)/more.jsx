@@ -212,6 +212,13 @@ const SECTIONS = [
         desc: 'Indents & supply',
         route: '/(tabs)/central-kitchen',
       },
+      {
+        icon: 'shield-checkmark',
+        color: '#0f766e',
+        title: 'Devices & Security',
+        desc: 'Signed-in devices',
+        route: '/(tabs)/devices-security',
+      },
     ],
   },
 ];

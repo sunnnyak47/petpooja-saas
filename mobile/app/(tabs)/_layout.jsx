@@ -425,6 +425,13 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="devices-security"
+          options={{
+            title: 'DEVICES & SECURITY',
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   );
