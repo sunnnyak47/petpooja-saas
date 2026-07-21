@@ -518,7 +518,7 @@ function DishItem({ item, index }) {
 // ─── Quick Actions grid ───────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
   { label: 'New Order',   icon: '🛒',  route: '/pos' },
-  { label: 'Collect Pay', icon: '💳',  route: '/tables' },
+  { label: 'Collect Pay', icon: '💳',  route: '/tables?collect=1' },
   { label: 'Tables',      icon: '🍽️', route: '/tables' },
   { label: 'Kitchen',     icon: '🧑‍🍳', route: '/kot' },
   { label: 'Inventory',   icon: '📦',  route: '/inventory' },

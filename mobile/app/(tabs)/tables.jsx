@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { PressCard } from '../../src/components/PressCard';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -171,6 +171,21 @@ function GridTableCard({ table, onPress, onLongPress, mergeMode, mergeSourceId }
             <Text style={styles.cardMeta}>👥 {table.covers}</Text>
           </View>
           <Text style={styles.amountText}>{formatAmount(table.amount, symbol)}</Text>
+        </View>
+      )}
+
+      {/* Cleaning timer + "ready to seat" reminder */}
+      {table.status === 'cleaning' && (
+        <View style={styles.cardContent}>
+          <View style={styles.cardRow}>
+            <Ionicons name="construct-outline" size={11} color="#94a3b8" />
+            <Text style={styles.cardMeta}>Cleaning · {formatElapsed(table.cleaningSince)}</Text>
+          </View>
+          {elapsedMins(table.cleaningSince) >= 3 && (
+            <View style={{ marginTop: 4, alignSelf: 'flex-start', backgroundColor: '#fef2f2', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '700' }}>⏰ Ready to seat?</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -618,6 +633,43 @@ function TableDetailModal({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
+// ─── Collect Payment sheet (desktop parity) ──────────────────────────────────
+function CollectPaymentSheet({ visible, tables, onClose, onCollect }) {
+  const { symbol } = useCurrency();
+  const active = (tables || []).filter((t) => t.status === 'occupied' || t.status === 'bill_pending');
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={onClose} />
+      <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32 }}>
+        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0', alignSelf: 'center', marginBottom: 12 }} />
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a' }}>Collect Payment</Text>
+        <Text style={{ color: '#64748b', fontSize: 13, marginTop: 2, marginBottom: 14 }}>Pick a table with an open bill to settle.</Text>
+        {active.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 36 }}>
+            <Ionicons name="receipt-outline" size={40} color="#cbd5e1" />
+            <Text style={{ color: '#94a3b8', marginTop: 10, fontSize: 14 }}>No tables with open bills right now.</Text>
+          </View>
+        ) : (
+          <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            {active.map((t) => (
+              <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eef2f7' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>{t.name}</Text>
+                  <Text style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>👥 {t.covers || 0} · {(STATUS[t.status] || STATUS.empty).label}</Text>
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#0f172a', marginRight: 12 }}>{formatAmount(t.amount, symbol)}</Text>
+                <TouchableOpacity style={{ backgroundColor: '#2563eb', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 }} onPress={() => onCollect(t)} activeOpacity={0.85}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Collect</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 export default function TablesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -630,6 +682,12 @@ export default function TablesScreen() {
   const [selectedTable, setSelectedTable] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [quickTable, setQuickTable] = useState(null);
+  // Collect Payment sheet — opened by the dashboard "Collect Pay" action (?collect=1).
+  const [collectVisible, setCollectVisible] = useState(false);
+  const params = useLocalSearchParams();
+  useEffect(() => {
+    if (params?.collect === '1') setCollectVisible(true);
+  }, [params?.collect]);
   const [quickVisible, setQuickVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -720,6 +778,8 @@ export default function TablesScreen() {
             ...t,
             status: newStatus,
             sinceMs: newStatus === 'occupied' ? Date.now() : t.sinceMs,
+            // Start the cleaning timer when a table enters cleaning; clear on empty.
+            cleaningSince: newStatus === 'cleaning' ? Date.now() : (newStatus === 'empty' ? null : t.cleaningSince),
             amount:  newStatus === 'empty' ? 0 : t.amount,
             covers:  newStatus === 'empty' ? 0 : t.covers,
             waiterId: newStatus === 'empty' ? null : t.waiterId,
@@ -744,6 +804,13 @@ export default function TablesScreen() {
 
   const handleUpdateCovers = useCallback((id, covers) => {
     setTables(prev => prev.map(t => t.id === id ? { ...t, covers } : t));
+  }, []);
+
+  // Tick every 30s so cleaning timers + "ready to seat" reminders on cards stay live.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setTick((n) => n + 1), 30000);
+    return () => clearInterval(iv);
   }, []);
 
   const handleAssignWaiter = useCallback((id, waiterId) => {
@@ -1048,6 +1115,14 @@ export default function TablesScreen() {
         tables={tables}
         mergeMode={mergeMode}
         setMergeMode={(v) => { setMergeMode(v); if (v) setMergeSourceId(null); }}
+      />
+
+      {/* Collect Payment sheet */}
+      <CollectPaymentSheet
+        visible={collectVisible}
+        tables={tables}
+        onClose={() => setCollectVisible(false)}
+        onCollect={(t) => { setCollectVisible(false); setSelectedTable(t); setDetailVisible(true); }}
       />
 
       {/* Quick Actions Sheet */}
