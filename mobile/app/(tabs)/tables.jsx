@@ -641,26 +641,29 @@ export default function TablesScreen() {
   // When the cache is empty this clears the list so the empty state can show.
   useEffect(() => {
     setTables(
-      (offlineTables || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        section: t.section || 'Main',
-        capacity: t.capacity || 4,
-        status: t.status || 'available',
-        // Keep other fields the UI expects with defaults. The detail modal reads
-        // table.orders/.mergedWith/.number/.amount — without these defaults they
-        // are undefined and `table.orders.reduce(...)` crashes on tap (the mock
-        // seed that used to provide them was removed).
-        waiter: null,
-        covers: 0,
-        order_id: null,
-        time_seated: null,
-        orders: [],
-        mergedWith: [],
-        number: t.table_number ?? t.name,
-        amount: 0,
-        ...t, // spread any extra fields from cache
-      })).map(row => ({
+      (offlineTables || []).map((t, i) => {
+        // Clean sequential number — a real table_number if present, else a
+        // 1-based index. The cache stores UUID-based names for nameless tables,
+        // so we NEVER show those; we show "Table 1", "Table 2", …
+        const number = t.table_number ?? t.data?.table_number ?? (i + 1);
+        const cap = Number(t.capacity);
+        return {
+          ...t, // raw cache FIRST — the normalized fields below must win
+          id: t.id,
+          name: `Table ${number}`,
+          section: t.section || 'Main',
+          capacity: Number.isFinite(cap) && cap > 0 ? cap : 4,
+          status: t.status || 'available',
+          waiter: null,
+          covers: 0,
+          order_id: null,
+          time_seated: null,
+          orders: [],
+          mergedWith: [],
+          number,
+          amount: 0,
+        };
+      }).map(row => ({
         ...row,
         // Guarantee arrays even if the cache spread above supplied a null.
         orders: Array.isArray(row.orders) ? row.orders : [],
@@ -1036,7 +1039,7 @@ export default function TablesScreen() {
 
       {/* Table Detail Modal */}
       <TableDetailModal
-        table={selectedTable}
+        table={selectedTable ? (tables.find((t) => t.id === selectedTable.id) || selectedTable) : null}
         visible={detailVisible}
         onClose={() => { setDetailVisible(false); setSelectedTable(null); }}
         onUpdateStatus={handleUpdateStatus}
@@ -1145,7 +1148,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    maxHeight: 44,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   summaryContainer: {
     paddingHorizontal: 16,
@@ -1200,7 +1204,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    maxHeight: 52,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   pillsContainer: {
     paddingHorizontal: 16,
