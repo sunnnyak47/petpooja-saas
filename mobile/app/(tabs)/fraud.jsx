@@ -312,7 +312,8 @@ export default function FraudScreen() {
       {staffRisks.length > 0 ? (
         <View style={s.staffSection}>
           <Text style={s.sectionTitle}>Staff risk scores</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
+          <ScrollView horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
             {staffRisks.map((st) => <StaffChip key={st.id} staff={st} s={s} />)}
           </ScrollView>
         </View>

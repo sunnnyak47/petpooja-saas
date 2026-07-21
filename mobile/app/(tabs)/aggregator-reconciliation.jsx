@@ -204,6 +204,7 @@ function ChipStrip({ options, activeKey, onSelect, colors, styles }) {
   return (
     <ScrollView
       horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.chipStrip}
     >

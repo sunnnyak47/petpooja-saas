@@ -667,7 +667,8 @@ export default function ExpensesScreen() {
         {!isLoading && catTotals.some(c => c.total > 0) && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>By Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {catTotals.filter(c => c.total > 0).map(cat => (
                   <View key={cat.key} style={[styles.catPill, { backgroundColor: cat.color + '18', borderColor: cat.color + '40' }]}>

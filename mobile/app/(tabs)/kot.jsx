@@ -333,10 +333,13 @@ export default function KotScreen() {
         </View>
       </View>
 
-      {/* Filter tabs */}
+      {/* Filter tabs — flexGrow:0 keeps the horizontal strip from expanding to
+          fill vertical space (which stretched the pills); alignItems in the
+          content container stops the pills stretching too. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
         contentContainerStyle={styles.filterRow}
       >
         {FILTERS.map((f) => {
@@ -466,10 +469,15 @@ const makeStyles = (colors, k = 1) => {
     color: colors.accent,
     fontVariant: ['tabular-nums'],
   },
+  filterScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   filterRow: {
     paddingHorizontal: s(20),
     paddingBottom: s(12),
     gap: s(8),
+    alignItems: 'center',
   },
   filterPill: {
     flexDirection: 'row',

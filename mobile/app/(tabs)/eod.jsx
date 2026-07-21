@@ -548,7 +548,8 @@ export default function EODScreen() {
               <Animated.View entering={enter ? FadeInDown.delay(260).springify() : undefined}>
                 <Text style={styles.sectionTitle}>Staff Present Today</Text>
                 <View style={styles.card}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <ScrollView horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false}>
                     <View style={styles.staffRow}>
                       {data.staff.map((s, i) => (
                         <View key={i} style={styles.staffItem}>

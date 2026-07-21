@@ -250,6 +250,7 @@ function StatsRow({ totalOrders, pendingOrders, avgOrderValue, completedOrders }
   return (
     <ScrollView
       horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.statsRowContent}
     >

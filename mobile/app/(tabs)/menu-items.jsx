@@ -1531,6 +1531,7 @@ export default function MenuItemsScreen() {
         {/* Category pills */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsScroll}
         >

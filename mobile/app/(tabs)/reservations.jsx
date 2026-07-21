@@ -403,6 +403,7 @@ export default function ReservationsScreen() {
         {/* ── Date Selector ── */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.dateScroll}
         >

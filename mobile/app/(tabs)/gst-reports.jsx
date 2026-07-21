@@ -109,6 +109,7 @@ export default function GstReportsScreen() {
         {/* Period pills */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.pillRow}
         >

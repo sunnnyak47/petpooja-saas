@@ -354,6 +354,7 @@ export default function CustomersScreen() {
         {/* ── Filter Pills ── */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >

@@ -863,7 +863,8 @@ export default function TablesScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
     >
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false}>
         <View style={styles.floorCanvas}>
           {/* Legend */}
           <View style={styles.floorLegend}>

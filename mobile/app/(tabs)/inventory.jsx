@@ -773,6 +773,7 @@ export default function InventoryScreen() {
         {/* Category pills — Phase 1: borderRadius → 999 */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillsScroll}
         >

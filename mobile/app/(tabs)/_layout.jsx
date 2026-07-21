@@ -146,15 +146,18 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: 10,
             fontWeight: '700',
-            letterSpacing: 0.3,
+            letterSpacing: 0,
             marginTop: 2,
           },
+          // Never wrap/clip the label — keep it on one line, sized to fit.
+          tabBarItemStyle: { paddingHorizontal: 2 },
+          tabBarAllowFontScaling: false,
         }}
       >
         <Tabs.Screen
           name="dashboard"
           options={{
-            title: 'DASHBOARD',
+            title: 'Dashboard',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="grid-outline"
@@ -168,7 +171,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="tables"
           options={{
-            title: 'TABLES',
+            title: 'Tables',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="restaurant-outline"
@@ -182,7 +185,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="orders"
           options={{
-            title: 'ORDERS',
+            title: 'Orders',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="receipt-outline"
@@ -196,7 +199,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="menu-items"
           options={{
-            title: 'MENU',
+            title: 'Menu',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="fast-food-outline"
@@ -210,7 +213,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="inventory"
           options={{
-            title: 'INVENTORY',
+            title: 'Inventory',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="layers-outline"
@@ -224,7 +227,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="more"
           options={{
-            title: 'MORE',
+            title: 'More',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 name="ellipsis-horizontal-circle-outline"

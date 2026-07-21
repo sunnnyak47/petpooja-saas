@@ -526,6 +526,7 @@ export default function StaffScreen() {
         {/* Filter pills */}
         <ScrollView
           horizontal
+        style={{ flexGrow: 0, flexShrink: 0 }}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
