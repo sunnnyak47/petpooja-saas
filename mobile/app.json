@@ -10,9 +10,9 @@
     "description": "MS-RM Owner \u2014 Restaurant management dashboard for owners. Track sales, manage inventory, monitor staff, and run your restaurant business from anywhere.",
     "icon": "./assets/images/icon.png",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f8fafc"
+      "backgroundColor": "#2563eb"
     },
     "ios": {
       "supportsTablet": true,
