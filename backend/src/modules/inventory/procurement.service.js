@@ -556,8 +556,10 @@ async function receivePurchaseOrder(outletId, poId, data, userId) {
     // - No body          (simple "mark received" from inventory quick-action — receive all at ordered qty)
     const override = data?.received_items || data?.items;
 
-    // Build receive list: if caller provides overrides, use them; else use PO's own items at ordered qty
-    const receiveList = override && override.length > 0
+    // Build receive list: if caller provides overrides, use them; else use PO's own items at ordered qty.
+    // GRNItem.inventory_item_id is NOT NULL, but POItem.inventory_item_id is nullable (free-text lines),
+    // so we MUST drop unlinked/zero-qty lines or the GRN create hits a null-FK 500. The PO still receives.
+    const receiveList = (override && override.length > 0
       ? override.map(ri => ({
           inventory_item_id: ri.inventory_item_id || ri.item_id,
           quantity: Number(ri.received_quantity ?? ri.quantity ?? 0),
@@ -569,7 +571,8 @@ async function receivePurchaseOrder(outletId, poId, data, userId) {
           quantity: Number(pi.ordered_quantity ?? 0),
           unit_cost: Number(pi.unit_cost ?? 0),
           quality_status: 'accepted',
-        }));
+        }))
+    ).filter((x) => x.inventory_item_id && x.quantity > 0);
 
     const grnNumber = `GRN-${Date.now().toString().slice(-6)}`;
     const grn = await tx.goodsReceivedNote.create({
