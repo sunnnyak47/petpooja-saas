@@ -127,6 +127,45 @@ function useCounter(target, duration = 1200) {
   return display;
 }
 
+// ─── Take-a-new-order box (desktop command-bar parity) ────────────────────────
+function TakeOrderBox({ totalOrders, pendingOrders, avgOrderValue }) {
+  const { symbol } = useCurrency();
+  const tiles = [
+    { l: "Today's orders", v: String(totalOrders ?? 0) },
+    { l: 'Pending',        v: String(pendingOrders ?? 0) },
+    { l: 'Avg ticket',     v: fmt(avgOrderValue, symbol) },
+  ];
+  return (
+    <TouchableOpacity activeOpacity={0.92} onPress={() => router.push('/pos')}>
+      <LinearGradient
+        colors={['#3b82f6', '#2563eb']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ borderRadius: 18, padding: 18 }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>Take a new order</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 3 }}>
+              Open the POS — split bill, modifiers, KOT routing, all in one place
+            </Text>
+          </View>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', marginLeft: 12 }}>
+            <Ionicons name="add" size={30} color="#fff" />
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', marginTop: 16, gap: 8 }}>
+          {tiles.map((s, i) => (
+            <View key={i} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10 }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>{s.v}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1 }}>{s.l}</Text>
+            </View>
+          ))}
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
 // ─── Hero Revenue Card ────────────────────────────────────────────────────────
 function HeroRevenueCard({ revenue, totalOrders, avgOrderValue, revenueGrowth, hourlyRevenue }) {
   const { colors, styles } = useThemedStyles();
@@ -373,72 +412,64 @@ function OrderStatusRing({ pending, preparing, ready, completed }) {
   );
 }
 
-// ─── Revenue Bar Chart (7 bars, hourly) ───────────────────────────────────────
-function RevenueBarChart({ data = [] }) {
-  const { colors, styles } = useThemedStyles();
-  const { symbol } = useCurrency();
-  const HOURS = ['10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm'];
-  const max = Math.max(...data, 1);
-  const CHART_H = 100;
-  const chartW = HERO_W;
-  const n = Math.min(data.length, 7);
-  const gap = chartW / n;
-  const barW = Math.max(gap * 0.5, 12);
+// ─── Revenue Bar Chart (hourly, horizontally sliding) ─────────────────────────
+// Business hours start at 10am; each array index = one hour after that.
+function hourLabel(i, startHour = 10) {
+  const h = (startHour + i) % 24;
+  const suffix = h < 12 ? 'am' : 'pm';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}${suffix}`;
+}
 
-  const [activeIdx, setActiveIdx] = useState(n - 1);
+function RevenueBarChart({ data = [] }) {
+  const { colors } = useThemedStyles();
+  const { symbol } = useCurrency();
+  const bars = Array.isArray(data) ? data : [];
+  const n = Math.max(bars.length, 1);
+  const max = Math.max(...bars, 1);
+  const CHART_H = 100;
+  const BAR_SLOT = 46;                       // fixed slot/hour → the chart slides
+  const barW = 18;
+  const chartW = Math.max(HERO_W, n * BAR_SLOT);
+  const [activeIdx, setActiveIdx] = useState(bars.length - 1);
 
   return (
     <View>
-      <Svg width={chartW} height={CHART_H + 28}>
-        {/* Grid lines */}
-        {[0.25, 0.5, 0.75, 1].map((pct, i) => (
-          <Rect
-            key={i}
-            x={0}
-            y={CHART_H - CHART_H * pct}
-            width={chartW}
-            height={1}
-            fill={colors.borderLight}
-          />
-        ))}
+      {/* Horizontal slide through every hour of the day */}
+      <ScrollView horizontal style={{ flexGrow: 0 }} showsHorizontalScrollIndicator={false}>
+        <Svg width={chartW} height={CHART_H + 28}>
+          {[0.25, 0.5, 0.75, 1].map((pct, i) => (
+            <Rect key={i} x={0} y={CHART_H - CHART_H * pct} width={chartW} height={1} fill={colors.borderLight} />
+          ))}
+          {bars.map((v, i) => {
+            const bh = Math.max((v / max) * CHART_H, 4);
+            const x = i * BAR_SLOT + (BAR_SLOT - barW) / 2;
+            const isActive = i === activeIdx;
+            return (
+              <G key={i}>
+                <Rect
+                  x={x} y={CHART_H - bh} width={barW} height={bh} rx={6}
+                  fill={isActive ? colors.text : colors.accent}
+                  opacity={isActive ? 1 : 0.7}
+                  onPress={() => setActiveIdx(i)}
+                />
+                <SvgText
+                  x={x + barW / 2} y={CHART_H + 18} textAnchor="middle" fontSize={9}
+                  fill={isActive ? colors.text : colors.textMuted}
+                  fontWeight={isActive ? '700' : '400'}
+                >
+                  {hourLabel(i)}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+      </ScrollView>
 
-        {data.slice(0, n).map((v, i) => {
-          const bh = Math.max((v / max) * CHART_H, 4);
-          const x = i * gap + (gap - barW) / 2;
-          const isActive = i === activeIdx;
-          return (
-            <G key={i}>
-              <Rect
-                x={x} y={CHART_H - bh}
-                width={barW} height={bh}
-                rx={6}
-                fill={isActive ? colors.text : colors.accent}
-                opacity={isActive ? 1 : 0.7}
-                onPress={() => setActiveIdx(i)}
-              />
-              <SvgText
-                x={x + barW / 2} y={CHART_H + 18}
-                textAnchor="middle"
-                fontSize={9}
-                fill={isActive ? colors.text : colors.textMuted}
-                fontWeight={isActive ? '700' : '400'}
-              >
-                {HOURS[i] || ''}
-              </SvgText>
-            </G>
-          );
-        })}
-      </Svg>
-
-      {activeIdx !== null && data[activeIdx] !== undefined && (
-        <View
-          style={[
-            styles.barTooltip,
-            { left: activeIdx * gap + (gap - barW) / 2 - 12 },
-          ]}
-        >
-          <Text style={styles.tooltipText}>{fmt(data[activeIdx], symbol)}</Text>
-        </View>
+      {activeIdx !== null && bars[activeIdx] !== undefined && (
+        <Text style={{ marginTop: 6, fontSize: 12, fontWeight: '700', color: colors.text }}>
+          {hourLabel(activeIdx)} · {fmt(bars[activeIdx], symbol)}
+        </Text>
       )}
     </View>
   );
@@ -873,6 +904,15 @@ export default function Dashboard() {
           </View>
         ) : (
           <>
+            {/* 0. Take a new order — big blue command box, always up top */}
+            <View style={styles.section}>
+              <TakeOrderBox
+                totalOrders={d.totalOrders}
+                pendingOrders={d.pendingOrders}
+                avgOrderValue={d.avgOrderValue}
+              />
+            </View>
+
             {/* 1. Hero Revenue Card — the headline KPI (zeros before the first sale) */}
             <View style={styles.section}>
               <HeroRevenueCard
@@ -893,22 +933,6 @@ export default function Dashboard() {
                 completedOrders={d.completedOrders}
               />
             </View>
-
-            {/* Take-order CTA — the obvious next step when there's no activity yet */}
-            {!hasData && (
-              <View style={styles.section}>
-                <TouchableOpacity style={styles.takeOrderCta} activeOpacity={0.9} onPress={() => router.push('/pos')}>
-                  <View style={styles.takeOrderIcon}>
-                    <Ionicons name="cart" size={22} color="#FFFFFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.takeOrderTitle}>Take an order</Text>
-                    <Text style={styles.takeOrderSub}>Start your first order — it flows straight to the kitchen.</Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* Live data-viz — only once there's real activity to show */}
             {hasData && (
