@@ -49,7 +49,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useScreenScale } from '../../src/lib/responsive';
-import { useDashboard } from '../../src/hooks/useApi';
+import { useDashboard, useOrders } from '../../src/hooks/useApi';
 import { useCurrency } from '../../src/hooks/useCurrency';
 import SkeletonBox from '../../src/components/SkeletonBox';
 import { PressCard } from '../../src/components/PressCard';
@@ -564,6 +564,68 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
+function recentTimeAgo(ts) {
+  if (!ts) return '';
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// ─── Recent Orders (desktop-parity) ───────────────────────────────────────────
+function RecentOrders() {
+  const { colors, styles } = useThemedStyles();
+  const { symbol } = useCurrency();
+  const { data: orders } = useOrders({ limit: 6 });
+  const rows = (Array.isArray(orders) ? orders : []).slice(0, 6);
+  if (rows.length === 0) return null;
+
+  const tone = (s) => {
+    const v = String(s || '').toLowerCase();
+    if (v === 'ready') return colors.success;
+    if (['pending', 'created', 'preparing', 'confirmed'].includes(v)) return colors.warning;
+    if (['paid', 'billed', 'served', 'completed', 'delivered'].includes(v)) return colors.textMuted;
+    return colors.accent;
+  };
+
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Recent Orders" />
+      <View style={styles.card}>
+        {rows.map((o, i) => (
+          <TouchableOpacity
+            key={o.id ?? i}
+            activeOpacity={0.7}
+            onPress={() => router.push('/orders')}
+            style={{
+              flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+              borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                #{o.order_number ?? '—'}{o.table_number ? `  ·  T-${o.table_number}` : ''}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 1 }}>
+                {recentTimeAgo(o.created_at)}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginRight: 10 }}>
+              {fmt(o.grand_total ?? o.total_amount, symbol)}
+            </Text>
+            <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: tone(o.status) + '22' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: tone(o.status), textTransform: 'capitalize' }}>
+                {String(o.status || '').toLowerCase() || '—'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // ─── Notifications Modal ──────────────────────────────────────────────────────
 // Real notifications feed is not wired for this screen yet. Rather than fabricate
 // data (dangerous on an owner screen), we render an honest empty state until a
@@ -908,6 +970,9 @@ export default function Dashboard() {
                 ))}
               </View>
             </View>
+
+            {/* 7. Recent Orders — desktop parity */}
+            <RecentOrders />
           </>
         )}
       </ScrollView>
