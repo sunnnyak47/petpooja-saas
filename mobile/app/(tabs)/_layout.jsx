@@ -432,6 +432,12 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen name="fraud" options={{ title: 'FRAUD & RISK', href: null }} />
+        <Tabs.Screen name="accounting" options={{ title: 'ACCOUNTING', href: null }} />
+        <Tabs.Screen name="rostering" options={{ title: 'ROSTERING', href: null }} />
+        <Tabs.Screen name="festival" options={{ title: 'FESTIVAL MODE', href: null }} />
+        <Tabs.Screen name="dynamic-pricing" options={{ title: 'DYNAMIC PRICING', href: null }} />
+        <Tabs.Screen name="settlements" options={{ title: 'SETTLEMENTS', href: null }} />
       </Tabs>
     </>
   );
