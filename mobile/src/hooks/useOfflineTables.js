@@ -99,17 +99,42 @@ export function useOfflineTables(outletId) {
         [outletId]
       );
 
-      const parsed = rows.map((row) => ({
-        id: row.id,
-        outlet_id: row.outlet_id,
-        name: row.name,
-        section: row.section,
-        capacity: row.capacity,
-        // Cache holds the backend enum; expose the UI vocabulary to the screen.
-        status: toUiStatus(row.status),
-        data: row.data_json ? safeJsonParse(row.data_json) : null,
-        updated_at: row.updated_at,
-      }));
+      const parsed = rows.map((row) => {
+        const data = row.data_json ? safeJsonParse(row.data_json) : null;
+        // The REAL table number lives in the raw data blob (backend Table.table_number).
+        const tableNumber = data?.table_number ?? data?.number ?? null;
+        // Real seating capacity is `seating_capacity`; the cache's `capacity` column
+        // was populated from the wrong field name and is usually null.
+        const cap = Number(row.capacity ?? data?.seating_capacity ?? data?.capacity);
+        // The cache stores "Table <uuid>" for nameless tables — NEVER show that.
+        const hasNum = tableNumber != null && String(tableNumber).trim() !== '';
+        const isUuidName = row.name && String(row.name).includes(String(row.id).slice(0, 8));
+        const name = hasNum ? `Table ${tableNumber}` : (row.name && !isUuidName ? row.name : `Table ${String(row.id).slice(0, 4)}`);
+        return {
+          id: row.id,
+          outlet_id: row.outlet_id,
+          name,
+          table_number: tableNumber,
+          section: row.section,
+          capacity: Number.isFinite(cap) && cap > 0 ? cap : 4,
+          // Cache holds the backend enum; expose the UI vocabulary to the screen.
+          status: toUiStatus(row.status),
+          data,
+          updated_at: row.updated_at,
+        };
+      });
+
+      // Stable human sequence: by section, then table_number numerically (falls
+      // back to a natural name sort), so tables always read 1, 2, 3, … not by UUID.
+      parsed.sort((a, b) => {
+        const sa = String(a.section || ''); const sb = String(b.section || '');
+        if (sa !== sb) return sa.localeCompare(sb);
+        const na = Number(a.table_number); const nb = Number(b.table_number);
+        const aNum = Number.isFinite(na); const bNum = Number.isFinite(nb);
+        if (aNum && bNum) return na - nb;
+        if (aNum !== bNum) return aNum ? -1 : 1;
+        return String(a.name).localeCompare(String(b.name), undefined, { numeric: true });
+      });
 
       if (mountedRef.current) {
         setTables(parsed);
