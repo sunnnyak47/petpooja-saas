@@ -22,6 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SkeletonBox from '../../src/components/SkeletonBox';
+import { useScreenScale } from '../../src/lib/responsive';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useOutlet } from '../../src/context/OutletContext';
 import { kotStatus, chartColors } from '../../src/constants/theme';
@@ -229,7 +230,9 @@ export default function KotScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { outletId } = useOutlet();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Scale everything to the device width so it looks right on any phone (iOS/Android).
+  const { k, s } = useScreenScale();
+  const styles = useMemo(() => makeStyles(colors, k), [colors, k]);
 
   const { data, isError, error, refetch } = useKotList({ outlet_id: outletId });
   const bump = useBumpKot();
@@ -325,7 +328,7 @@ export default function KotScreen() {
           <Text style={styles.headerSub}>KOT Display</Text>
         </View>
         <View style={styles.clockBox}>
-          <Ionicons name="time-outline" size={16} color={colors.accent} />
+          <Ionicons name="time-outline" size={s(16)} color={colors.accent} />
           <Text style={styles.clockText}>{formatClock(clock)}</Text>
         </View>
       </View>
@@ -371,11 +374,11 @@ export default function KotScreen() {
       >
         {isError ? (
           <View style={styles.stateWrap}>
-            <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+            <Ionicons name="cloud-offline-outline" size={s(40)} color={colors.textMuted} />
             <Text style={styles.stateTitle}>Couldn’t load tickets</Text>
             <Text style={styles.stateSub}>{error?.message || 'Something went wrong. Pull to refresh.'}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={handleRefresh} activeOpacity={0.85}>
-              <Ionicons name="refresh-outline" size={16} color="#FFF" />
+              <Ionicons name="refresh-outline" size={s(16)} color="#FFF" />
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -387,7 +390,7 @@ export default function KotScreen() {
           </>
         ) : filtered.length === 0 ? (
           <View style={styles.stateWrap}>
-            <Ionicons name="restaurant-outline" size={48} color={colors.textMuted} />
+            <Ionicons name="restaurant-outline" size={s(40)} color={colors.textMuted} />
             <Text style={styles.stateTitle}>No active kitchen tickets</Text>
             <Text style={styles.stateSub}>
               {activeFilter === 'ALL'
@@ -415,7 +418,9 @@ export default function KotScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const makeStyles = (colors) => StyleSheet.create({
+const makeStyles = (colors, k = 1) => {
+  const s = (n) => Math.round(n * k);
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -424,28 +429,28 @@ const makeStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: s(20),
+    paddingTop: s(16),
+    paddingBottom: s(12),
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: s(26),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.5,
   },
   headerSub: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
-    marginTop: 1,
+    marginTop: s(1),
   },
   clockBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
     backgroundColor: colors.card,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: s(12),
+    paddingVertical: s(8),
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
@@ -456,22 +461,22 @@ const makeStyles = (colors) => StyleSheet.create({
     elevation: 3,
   },
   clockText: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: colors.accent,
     fontVariant: ['tabular-nums'],
   },
   filterRow: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: s(20),
+    paddingBottom: s(12),
+    gap: s(8),
   },
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: s(6),
+    paddingHorizontal: s(16),
+    paddingVertical: s(8),
     borderRadius: 999,
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -482,7 +487,7 @@ const makeStyles = (colors) => StyleSheet.create({
     borderColor: colors.accent,
   },
   filterPillText: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: colors.textSecondary,
   },
@@ -492,14 +497,14 @@ const makeStyles = (colors) => StyleSheet.create({
   filterBadge: {
     backgroundColor: colors.border,
     borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingHorizontal: s(6),
+    paddingVertical: s(1),
   },
   filterBadgeActive: {
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   filterBadgeText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     color: colors.textSecondary,
   },
@@ -510,16 +515,16 @@ const makeStyles = (colors) => StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingHorizontal: s(20),
+    paddingTop: s(4),
   },
   orderCard: {
     backgroundColor: colors.card,
-    borderRadius: 16,
+    borderRadius: s(16),
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
-    marginBottom: 14,
+    padding: s(16),
+    marginBottom: s(14),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -530,34 +535,34 @@ const makeStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: s(4),
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: s(8),
   },
   cardHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
   },
   orderNum: {
-    fontSize: 17,
+    fontSize: s(17),
     fontWeight: '700',
     color: colors.text,
   },
   tableChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: s(3),
     backgroundColor: colors.pillBg,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: s(8),
+    paddingVertical: s(3),
   },
   tableChipText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textMuted,
     fontWeight: '600',
     textTransform: 'capitalize',
@@ -565,57 +570,57 @@ const makeStyles = (colors) => StyleSheet.create({
   rushBadge: {
     backgroundColor: withAlpha(colors.error, 0.1),
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: s(8),
+    paddingVertical: s(3),
     borderWidth: 1,
     borderColor: colors.error,
   },
   rushText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     color: colors.error,
   },
   statusBadge: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: s(10),
+    paddingVertical: s(3),
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     letterSpacing: 0.4,
   },
   elapsed: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: s(12),
   },
   itemsList: {
-    gap: 6,
-    marginBottom: 14,
+    gap: s(6),
+    marginBottom: s(14),
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
   },
   itemDot: {
-    fontSize: 10,
+    fontSize: s(10),
     width: 14,
   },
   itemQty: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '700',
     color: colors.text,
     width: 28,
   },
   itemName: {
     flex: 1,
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textSecondary,
   },
   itemStatusLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '600',
     textTransform: 'capitalize',
   },
@@ -623,49 +628,50 @@ const makeStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderRadius: 12,
-    paddingVertical: 11,
+    gap: s(6),
+    borderRadius: s(12),
+    paddingVertical: s(11),
   },
   ctaButtonText: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
     color: '#FFF',
   },
   stateWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 72,
-    paddingHorizontal: 32,
+    paddingVertical: s(72),
+    paddingHorizontal: s(32),
   },
   stateTitle: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
     letterSpacing: -0.3,
-    marginTop: 16,
+    marginTop: s(16),
   },
   stateSub: {
-    fontSize: 14,
+    fontSize: s(14),
     color: colors.textMuted,
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: s(8),
+    lineHeight: s(20),
   },
   retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 20,
+    gap: s(6),
+    marginTop: s(20),
     backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    borderRadius: s(12),
+    paddingHorizontal: s(20),
+    paddingVertical: s(11),
   },
   retryBtnText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
   },
 });
+};
