@@ -8,7 +8,7 @@
  * or oversized on big ones. Pure + hook — no native imports beyond RN's
  * Dimensions hook.
  */
-import { useWindowDimensions } from 'react-native';
+import { Dimensions, useWindowDimensions } from 'react-native';
 
 export const BASE_WIDTH = 390;
 
@@ -34,4 +34,14 @@ export function useScreenScale(min = 0.85, max = 1.15) {
   const { width } = useWindowDimensions();
   const k = clamp((width || BASE_WIDTH) / BASE_WIDTH, min, max);
   return { k, width, s: (n) => Math.round(n * k) };
+}
+
+/**
+ * Module-level one-time scale — reads the device width once (at module eval /
+ * call time), for STATIC module stylesheets that can't call the hook. Fine for
+ * phone screens (portrait, no live rotation reflow). Import as `s`:
+ *   import { moduleScale as s } from '.../responsive';
+ */
+export function moduleScale(n) {
+  return scaleSize(Dimensions.get('window').width, n);
 }

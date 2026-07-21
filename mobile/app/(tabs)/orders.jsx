@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrders, useUpdateOrderStatus } from '../../src/hooks/useApi';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
+import { moduleScale as s } from '../../src/lib/responsive';
 import { PressCard } from '../../src/components/PressCard';
 import { EmptyState } from '../../src/components/EmptyState';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -721,8 +722,8 @@ const styles = StyleSheet.create({
   // ── Header ──
   header: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingBottom: 0,
+    paddingHorizontal: s(16),
+    paddingBottom: s(0),
     borderBottomWidth: 1,
     borderBottomColor: C.cardBorder,
     shadowColor: 'rgba(0,0,0,0.05)',
@@ -735,15 +736,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: s(12),
   },
   titleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: s(10),
   },
   titleText: {
-    fontSize: 24,
+    fontSize: s(24),
     fontWeight: '700',
     color: C.text1,
     letterSpacing: -0.5,
@@ -751,14 +752,14 @@ const styles = StyleSheet.create({
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: s(5),
     backgroundColor: '#EBF4FF',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: s(20),
+    paddingHorizontal: s(8),
+    paddingVertical: s(3),
   },
   liveCount: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '600',
     color: C.accent,
     letterSpacing: 0.2,
@@ -766,19 +767,19 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
   },
   searchInputWrap: {
     backgroundColor: C.pageBg,
-    borderRadius: 8,
+    borderRadius: s(8),
     borderWidth: 1,
     borderColor: C.cardBorder,
-    paddingHorizontal: 10,
+    paddingHorizontal: s(10),
     paddingVertical: Platform.OS === 'ios' ? 7 : 4,
     minWidth: 0,
   },
   searchTextInput: {
-    fontSize: 13,
+    fontSize: s(13),
     color: C.text1,
     minWidth: 0,
     flex: 1,
@@ -787,7 +788,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     backgroundColor: C.pageBg,
-    borderRadius: 8,
+    borderRadius: s(8),
     borderWidth: 1,
     borderColor: C.cardBorder,
     alignItems: 'center',
@@ -798,17 +799,17 @@ const styles = StyleSheet.create({
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 6,
+    marginBottom: s(12),
+    gap: s(6),
   },
   statsChip: {
     // Phase 1 — fully round
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: s(10),
+    paddingVertical: s(4),
   },
   statsLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -830,18 +831,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 2,
     backgroundColor: C.accent,
-    borderRadius: 1,
+    borderRadius: s(1),
   },
   // Phase 4 — filter pills minHeight 36, paddingHorizontal 14
   tab: {
-    paddingHorizontal: 14,
+    paddingHorizontal: s(14),
     minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabText: {
     // Phase 4 — fontSize 13, fontWeight '600'
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     letterSpacing: 0.2,
   },
@@ -849,7 +850,7 @@ const styles = StyleSheet.create({
   // ── Card ── Phase 1: borderRadius 16, updated shadow
   card: {
     backgroundColor: C.cardBg,
-    borderRadius: 16,
+    borderRadius: s(16),
     borderWidth: 1,
     borderColor: C.cardBorder,
     overflow: 'hidden',
@@ -860,17 +861,17 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardContent: {
-    padding: 16,
+    padding: s(16),
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: s(10),
   },
   // Phase 4 — order number: fontSize 15, fontWeight '700', letterSpacing -0.2
   orderNumber: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '700',
     color: C.text1,
     letterSpacing: -0.2,
@@ -879,23 +880,23 @@ const styles = StyleSheet.create({
   tableBadge: {
     backgroundColor: '#F0F0F0',
     borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: s(7),
+    paddingVertical: s(2),
   },
   tableBadgeText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     color: C.text2,
     letterSpacing: 0.2,
   },
   timeAgo: {
-    fontSize: 11,
+    fontSize: s(11),
     color: C.text3,
-    marginTop: 2,
+    marginTop: s(2),
   },
   // Phase 4 — total amount: fontSize 16, fontWeight '800', letterSpacing -0.4, color '#000000'
   amount: {
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: '800',
     color: '#000000',
     letterSpacing: -0.4,
@@ -905,36 +906,36 @@ const styles = StyleSheet.create({
   itemsBlock: {
     borderTopWidth: 1,
     borderTopColor: C.cardBorder,
-    paddingTop: 9,
-    marginBottom: 10,
-    gap: 4,
+    paddingTop: s(9),
+    marginBottom: s(10),
+    gap: s(4),
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: s(4),
   },
   itemQty: {
-    fontSize: 12,
+    fontSize: s(12),
     color: C.text3,
     minWidth: 22,
   },
   // Phase 4 — item name: fontSize 14, fontWeight '600'
   itemName: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '600',
     color: C.text2,
     flex: 1,
   },
   // Phase 4 — item price: fontSize 13, color '#888888'
   itemPrice: {
-    fontSize: 13,
+    fontSize: s(13),
     color: '#888888',
   },
   extraItems: {
-    fontSize: 11,
+    fontSize: s(11),
     color: C.text3,
-    marginTop: 2,
+    marginTop: s(2),
   },
 
   // ── Footer ──
@@ -944,46 +945,46 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: C.cardBorder,
-    paddingTop: 10,
+    paddingTop: s(10),
   },
   // Phase 1 — statusBadge borderRadius 999; Phase 4 — text fontSize 11, fontWeight '700'
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: s(5),
+    paddingHorizontal: s(10),
+    paddingVertical: s(5),
     borderRadius: 999,
   },
   statusDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: s(3),
   },
   statusText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   // Phase 4 — advance btn: minHeight 44, borderRadius 10; phase 3 color set dynamically
   advanceBtn: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    borderRadius: s(10),
+    paddingHorizontal: s(14),
+    paddingVertical: s(7),
     minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   advanceBtnText: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
   errorMsg: {
-    fontSize: 11,
+    fontSize: s(11),
     color: C.cancelled,
-    marginTop: 6,
+    marginTop: s(6),
     textAlign: 'right',
   },
 
@@ -995,11 +996,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 16,
+    borderRadius: s(16),
   },
   menuBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: s(10),
     borderWidth: 1,
     borderColor: C.cardBorder,
     overflow: 'hidden',
@@ -1011,8 +1012,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   menuItem: {
-    paddingHorizontal: 18,
-    paddingVertical: 13,
+    paddingHorizontal: s(18),
+    paddingVertical: s(13),
     borderBottomWidth: 1,
     borderBottomColor: C.cardBorder,
   },
@@ -1020,7 +1021,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   menuItemText: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '500',
     color: C.text1,
   },
@@ -1028,36 +1029,36 @@ const styles = StyleSheet.create({
   // ── Skeleton ──
   skBar: {
     backgroundColor: C.skeleton,
-    borderRadius: 5,
+    borderRadius: s(5),
   },
 
   // ── Collapsed card row ── Phase 1 — padding 16; Phase 4 — minHeight 64
   cardCollapsedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: s(16),
+    paddingHorizontal: s(16),
     minHeight: 64,
   },
   chevron: {
-    fontSize: 20,
+    fontSize: s(20),
     color: '#888888',
-    marginLeft: 6,
+    marginLeft: s(6),
     transform: [{ rotate: '90deg' }],
-    lineHeight: 22,
+    lineHeight: s(22),
   },
   chevronUp: {
     transform: [{ rotate: '-90deg' }],
   },
   // Phase 1 — expanded padding 16
   cardExpanded: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: s(16),
+    paddingBottom: s(16),
     borderTopWidth: 1,
     borderTopColor: '#EAEAEA',
   },
   totalLabel: {
-    fontSize: 13,
+    fontSize: s(13),
     color: '#444444',
     fontWeight: '500',
   },

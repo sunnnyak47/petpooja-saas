@@ -55,6 +55,7 @@ import Animated, {
 import { useAuth } from '../../src/context/AuthContext';
 import { useOutlet } from '../../src/context/OutletContext';
 import { useCurrency } from '../../src/hooks/useCurrency';
+import { useScreenScale } from '../../src/lib/responsive';
 import { useOfflineMenu } from '../../src/hooks/useOfflineMenu';
 import { useOfflineTables } from '../../src/hooks/useOfflineTables';
 import { useCreateOfflineOrder } from '../../src/hooks/useCreateOfflineOrder';
@@ -287,6 +288,7 @@ export default function POSScreen() {
   const { user } = useAuth();
   const { outletId } = useOutlet();
   const { symbol, isAU } = useCurrency();
+  const { s } = useScreenScale(); // device-width scaling for oversized icons
   const estTaxRate = isAU ? TAX_RATE_AU : TAX_RATE_DEFAULT;
   const estTaxLabel = isAU ? 'Est. Tax (10% GST)' : 'Est. Tax (5% GST)';
 
@@ -692,7 +694,7 @@ export default function POSScreen() {
         </ScrollView>
       ) : displayItems.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="fast-food-outline" size={52} color={T.borderStrong} />
+          <Ionicons name="fast-food-outline" size={s(44)} color={T.borderStrong} />
           <Text style={styles.emptyTitle}>
             {searchQuery ? 'No items match your search' : 'No items in this category'}
           </Text>

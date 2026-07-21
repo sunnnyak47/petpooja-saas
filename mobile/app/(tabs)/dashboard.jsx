@@ -48,6 +48,7 @@ import Svg, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useScreenScale } from '../../src/lib/responsive';
 import { useDashboard } from '../../src/hooks/useApi';
 import { useCurrency } from '../../src/hooks/useCurrency';
 import SkeletonBox from '../../src/components/SkeletonBox';
@@ -60,7 +61,9 @@ import { TYPE } from '../../src/constants/typography';
 // memoised per-component via useThemedStyles() so every colour re-skins with the theme.
 function useThemedStyles() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Scale to device width so the dashboard fits any phone (iOS/Android).
+  const { k } = useScreenScale();
+  const styles = useMemo(() => makeStyles(colors, k), [colors, k]);
   return { colors, styles };
 }
 
@@ -914,7 +917,9 @@ export default function Dashboard() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 // makeStyles(colors) — pure factory built from web-aligned theme colours.
-const makeStyles = (colors) => StyleSheet.create({
+const makeStyles = (colors, k = 1) => {
+  const s = (n) => Math.round(n * k);
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -923,7 +928,7 @@ const makeStyles = (colors) => StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: CARD_PAD,
-    paddingBottom: 14,
+    paddingBottom: s(14),
     backgroundColor: colors.bg,
     zIndex: 10,
     borderBottomWidth: 1,
@@ -935,23 +940,23 @@ const makeStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerGreeting: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.3,
   },
   headerDate: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textMuted,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: s(2),
   },
 
   // Bell
   bellBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: s(22),
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -963,22 +968,22 @@ const makeStyles = (colors) => StyleSheet.create({
     top: -2,
     right: -4,
     backgroundColor: colors.error,
-    borderRadius: 8,
+    borderRadius: s(8),
     minWidth: 16,
     height: 16,
-    paddingHorizontal: 3,
+    paddingHorizontal: s(3),
     alignItems: 'center',
     justifyContent: 'center',
   },
   bellBadgeText: {
-    fontSize: 9,
+    fontSize: s(9),
     fontWeight: '800',
     color: '#FFFFFF',
   },
 
   // Scroll
   scrollContent: {
-    paddingTop: 8,
+    paddingTop: s(8),
   },
 
   // Empty / error state
@@ -986,58 +991,58 @@ const makeStyles = (colors) => StyleSheet.create({
     minHeight: 420,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingHorizontal: s(32),
+    paddingTop: s(80),
   },
   emptyIcon: {
-    fontSize: 44,
-    marginBottom: 14,
+    fontSize: s(44),
+    marginBottom: s(14),
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 19,
+    marginTop: s(6),
+    lineHeight: s(19),
   },
   retryBtn: {
-    marginTop: 18,
+    marginTop: s(18),
     backgroundColor: colors.accent,
-    borderRadius: 10,
-    paddingHorizontal: 22,
-    paddingVertical: 11,
+    borderRadius: s(10),
+    paddingHorizontal: s(22),
+    paddingVertical: s(11),
   },
   retryBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
   },
 
   // Hero empty note (before the first sale of the day)
   heroEmptyNote: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
     fontWeight: '500',
-    marginTop: 14,
-    marginBottom: 14,
-    lineHeight: 19,
+    marginTop: s(14),
+    marginBottom: s(14),
+    lineHeight: s(19),
   },
 
   // Take-order CTA (shown when there's no activity yet)
   takeOrderCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: s(14),
     backgroundColor: colors.accent,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: s(16),
+    padding: s(16),
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -1047,34 +1052,34 @@ const makeStyles = (colors) => StyleSheet.create({
   takeOrderIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: s(12),
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   takeOrderTitle: {
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   takeOrderSub: {
-    fontSize: 12.5,
+    fontSize: s(12.5),
     color: 'rgba(255,255,255,0.85)',
     fontWeight: '500',
-    marginTop: 2,
-    lineHeight: 17,
+    marginTop: s(2),
+    lineHeight: s(17),
   },
 
   // Layout
   section: {
     paddingHorizontal: CARD_PAD,
-    marginTop: 24,
+    marginTop: s(24),
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: s(16),
+    padding: s(16),
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#000000',
@@ -1090,16 +1095,16 @@ const makeStyles = (colors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    marginBottom: 12,
+    marginBottom: s(12),
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: s(17),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
     fontWeight: '500',
   },
@@ -1107,8 +1112,8 @@ const makeStyles = (colors) => StyleSheet.create({
   // Hero Card
   heroCard: {
     width: HERO_W,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: s(16),
+    padding: s(20),
     borderWidth: 2,
     borderColor: colors.border,
     backgroundColor: colors.card,
@@ -1120,41 +1125,41 @@ const makeStyles = (colors) => StyleSheet.create({
     overflow: 'hidden',
   },
   heroEyebrow: {
-    fontSize: 10,
+    fontSize: s(10),
     fontWeight: '700',
     letterSpacing: 2,
     color: colors.textMuted,
-    marginBottom: 6,
+    marginBottom: s(6),
   },
   heroRevenueRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 12,
+    gap: s(12),
     flexWrap: 'wrap',
   },
   heroRevenue: {
-    fontSize: 36,
+    fontSize: s(36),
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1.2,
-    lineHeight: 44,
+    lineHeight: s(44),
   },
   growthBadge: {
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: s(20),
+    paddingHorizontal: s(10),
+    paddingVertical: s(4),
     backgroundColor: colors.success + '22',
-    marginBottom: 4,
+    marginBottom: s(4),
   },
   growthText: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '700',
     color: colors.success,
   },
   heroStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 14,
+    paddingTop: s(14),
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
   },
@@ -1163,16 +1168,16 @@ const makeStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
   },
   heroStatValue: {
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.4,
   },
   heroStatLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     fontWeight: '500',
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: s(2),
     letterSpacing: 0.3,
   },
   heroStatDivider: {
@@ -1184,15 +1189,15 @@ const makeStyles = (colors) => StyleSheet.create({
   // Stats pills
   statsRowContent: {
     paddingHorizontal: CARD_PAD,
-    gap: 8,
+    gap: s(8),
   },
   statPill: {
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: s(14),
+    paddingVertical: s(12),
     alignItems: 'center',
     minWidth: 80,
     minHeight: 64,
@@ -1208,18 +1213,18 @@ const makeStyles = (colors) => StyleSheet.create({
     borderColor: colors.pillActiveBg,
   },
   statPillLabel: {
-    fontSize: 9,
+    fontSize: s(9),
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: colors.textMuted,
-    marginBottom: 4,
+    marginBottom: s(4),
   },
   statPillLabelActive: {
     color: 'rgba(255,255,255,0.7)',
   },
   statPillValue: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.3,
@@ -1232,30 +1237,30 @@ const makeStyles = (colors) => StyleSheet.create({
   donutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
+    gap: s(20),
   },
   donutLegend: {
     flex: 1,
-    gap: 10,
+    gap: s(10),
   },
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: s(8),
   },
   legendDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: s(4),
   },
   legendLabel: {
     flex: 1,
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '500',
     color: colors.textSecondary,
   },
   legendCount: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '800',
     letterSpacing: -0.3,
   },
@@ -1265,9 +1270,9 @@ const makeStyles = (colors) => StyleSheet.create({
     position: 'absolute',
     top: -28,
     backgroundColor: colors.card,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: s(8),
+    paddingHorizontal: s(8),
+    paddingVertical: s(4),
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#000000',
@@ -1277,7 +1282,7 @@ const makeStyles = (colors) => StyleSheet.create({
     elevation: 2,
   },
   tooltipText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '700',
     color: colors.text,
   },
@@ -1286,34 +1291,34 @@ const makeStyles = (colors) => StyleSheet.create({
   dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: s(10),
   },
   rankBadge: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: s(8),
     alignItems: 'center',
     justifyContent: 'center',
   },
   rankText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '800',
     letterSpacing: -0.3,
   },
   dishName: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.1,
   },
   dishCount: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
     fontWeight: '500',
-    marginTop: 1,
+    marginTop: s(1),
   },
   dishRevenue: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '800',
     color: colors.accent,
     letterSpacing: -0.3,
@@ -1321,20 +1326,20 @@ const makeStyles = (colors) => StyleSheet.create({
 
   // Quick actions
   quickActionsGrid: {
-    gap: 10,
+    gap: s(10),
   },
   quickActionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: s(10),
   },
   quickAction: {
-    borderRadius: 12,
+    borderRadius: s(12),
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
-    padding: 16,
+    padding: s(16),
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
     minHeight: 80,
     justifyContent: 'center',
     shadowColor: '#000000',
@@ -1344,10 +1349,10 @@ const makeStyles = (colors) => StyleSheet.create({
     elevation: 1,
   },
   quickActionIcon: {
-    fontSize: 22,
+    fontSize: s(22),
   },
   quickActionLabel: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.1,
@@ -1359,55 +1364,55 @@ const makeStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
+    padding: s(24),
+    paddingBottom: s(40),
   },
   profileSheetHandle: {
     width: 36,
     height: 4,
     backgroundColor: colors.border,
-    borderRadius: 2,
+    borderRadius: s(2),
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: s(20),
   },
   profileName: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: s(4),
   },
   profileEmail: {
-    fontSize: 14,
+    fontSize: s(14),
     color: colors.textSecondary,
-    marginBottom: 20,
+    marginBottom: s(20),
   },
   profileSeparator: {
     height: 1,
     backgroundColor: colors.border,
-    marginBottom: 20,
+    marginBottom: s(20),
   },
   signOutBtn: {
     backgroundColor: colors.text,
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: s(10),
+    paddingVertical: s(14),
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: s(12),
   },
   signOutBtnText: {
     color: colors.card,
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '700',
   },
   profileCloseBtn: {
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: s(10),
+    paddingVertical: s(14),
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
   profileCloseBtnText: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '600',
   },
 
@@ -1416,92 +1421,93 @@ const makeStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingBottom: 0,
-    paddingTop: 12,
+    paddingHorizontal: s(16),
+    paddingBottom: s(0),
+    paddingTop: s(12),
   },
   notifHandle: {
     width: 36,
     height: 4,
     backgroundColor: colors.border,
-    borderRadius: 2,
+    borderRadius: s(2),
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: s(14),
   },
   notifHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: s(12),
   },
   notifTitle: {
-    fontSize: 17,
+    fontSize: s(17),
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.3,
   },
   notifMarkAll: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
     color: colors.accent,
   },
   notifEmpty: {
-    paddingVertical: 56,
+    paddingVertical: s(56),
     alignItems: 'center',
     justifyContent: 'center',
   },
   notifEmptyIcon: {
-    fontSize: 40,
-    marginBottom: 12,
+    fontSize: s(40),
+    marginBottom: s(12),
     opacity: 0.5,
   },
   notifEmptyText: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '700',
     color: colors.text,
   },
   notifEmptySub: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
-    marginTop: 4,
+    marginTop: s(4),
   },
   notifRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: s(12),
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingLeft: 0,
+    paddingLeft: s(0),
     position: 'relative',
   },
   notifRowUnread: {
     borderLeftWidth: 3,
     borderLeftColor: colors.accent,
-    paddingLeft: 10,
+    paddingLeft: s(10),
   },
   notifBlueDot: {
     display: 'none',
   },
   notifIcon: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: s(24),
+    lineHeight: s(30),
   },
   notifItemTitle: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: s(2),
   },
   notifItemBody: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
-    lineHeight: 18,
+    lineHeight: s(18),
   },
   notifTime: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
-    marginLeft: 8,
+    marginLeft: s(8),
     alignSelf: 'flex-start',
-    paddingTop: 2,
+    paddingTop: s(2),
   },
 });
+};
