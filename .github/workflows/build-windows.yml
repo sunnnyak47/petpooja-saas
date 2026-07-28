@@ -57,9 +57,11 @@ jobs:
         working-directory: desktop
         run: npm run build:win
         env:
-          # Code-signing (optional — skipped if secrets not set)
-          CSC_LINK:     ${{ secrets.WIN_CERTIFICATE_PFX || '' }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD || '' }}
+          # Unsigned build. Do NOT add empty CSC_LINK/CSC_KEY_PASSWORD here — GitHub
+          # defines the env key even when the secret is unset, and electron-builder
+          # treats an empty-but-defined CSC_LINK as a file path and aborts
+          # ("Env WIN_CSC_LINK is not correct, cannot resolve"). To enable signing,
+          # add a separate build step guarded by `if: secrets.WIN_CERTIFICATE_PFX`.
           GH_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
 
       - name: List build output
