@@ -66,9 +66,11 @@ async function selectTool(question, toolList) {
   const catalog = toolList.map((t) => `- ${t.name}: ${t.description}`).join('\n');
   const sys = [
     'You route a restaurant owner\'s question to exactly ONE tool from the list, or null.',
-    'Use null for greetings, thanks, or "how do I use the app" questions.',
+    'The owner types casually, briefly, with typos, slang or vague wording — INFER the underlying intent; never require exact keywords.',
+    'Only return null for greetings, thanks, or "how do I use the app" questions.',
+    'If the question is clearly about their business but you are unsure which tool fits best, choose "finance_summary" (the overall health overview) rather than null.',
     'Pick only a tool name that appears in the list. Do not invent tools.',
-    'Examples: "how much did we sell today" → sales_today · "what will tomorrow be like" → sales_forecast · "how many non-veg items" → menu_overview · "who owes me money" → finance_summary · "what is running low" → low_stock · "my best regulars" → top_customers · "hi there" → null.',
+    'Examples: "how much did we sell today" → sales_today · "hows business" / "am i doin ok" → finance_summary · "what will tomrw be like" → sales_forecast · "how many non veg" → menu_overview · "who owes me money" → finance_summary · "whats runnin low" → low_stock · "my best regulars" → top_customers · "hi there" → null.',
     'Respond as strict JSON: {"tool": "<tool name or null>"}',
   ].join('\n');
   try {
