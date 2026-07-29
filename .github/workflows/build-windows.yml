@@ -42,8 +42,12 @@ jobs:
         working-directory: frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://petpooja-saas.onrender.com' }}
-          VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL || 'https://petpooja-saas.onrender.com' }}
+          # API base MUST include the /api prefix — backend mounts routes under /api
+          # (POST /api/auth/login). Without it every call 404s ("Route ... not found").
+          # Matches auto-release.yml + frontend/.env.local. Socket URL stays bare
+          # (socket.io connects to the origin root, not /api).
+          VITE_API_URL: 'https://petpooja-saas.onrender.com/api'
+          VITE_SOCKET_URL: 'https://petpooja-saas.onrender.com'
 
       - name: Install desktop dependencies
         working-directory: desktop
