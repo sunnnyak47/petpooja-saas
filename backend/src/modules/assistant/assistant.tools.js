@@ -21,7 +21,13 @@ const inventory = require('../inventory/inventory.service');
 const procurement = require('../inventory/procurement.service');
 const menu = require('../menu/menu.service');
 const customer = require('../customers/customer.service');
+const orders = require('../orders/order.service');
+const payroll = require('../payroll/payroll.service');
+const fraud = require('../fraud/fraud.service');
+const attendance = require('../staff/attendance.service');
+const eod = require('../reports/eod.service');
 const { computeForecast } = require('./assistant.forecast');
+const { searchKnowledge } = require('./assistant.knowledge');
 
 const money = (cur, n) => {
   const c = cur || 'AUD';
@@ -219,6 +225,148 @@ const TOOLS = [
     summarize: (d) => {
       if (!d.count) return 'No open purchase orders — everything is received or closed.';
       return `${d.count} open purchase order${d.count === 1 ? '' : 's'} worth ${money(d.currency, d.total)}.`;
+    },
+  },
+
+  {
+    name: 'active_orders',
+    description: 'Orders happening right now — open dine-in tables, takeaway and delivery still being prepared or awaiting payment, with how many and their value',
+    keywords: ['active order', 'open order', 'running order', 'live order', 'orders right now', 'current order', 'in progress', 'open table', 'open bill', 'unpaid order', 'whats cooking', 'being prepared', 'pending order', 'ongoing'],
+    permission: 'VIEW_ORDERS',
+    run: async (ctx) => {
+      const r = await orders.listOrders(ctx.outletId, { running: 'true', limit: 50 });
+      const list = r.orders || r.items || (Array.isArray(r) ? r : []);
+      return {
+        currency: ctx.currency,
+        count: list.length,
+        total: list.reduce((s, o) => s + num(o.grand_total), 0),
+        orders: list.slice(0, 10).map((o) => ({
+          number: o.order_number,
+          type: o.order_type,
+          status: o.status,
+          amount: num(o.grand_total),
+          items: o._count?.order_items ?? (o.order_items ? o.order_items.length : 0),
+          paid: !!o.is_paid,
+        })),
+      };
+    },
+    summarize: (d) => {
+      if (!d.count) return 'No active orders right now — everything is served and closed.';
+      const unpaid = d.orders.filter((o) => !o.paid).length;
+      return `${d.count} active order${d.count === 1 ? '' : 's'} in play worth ${money(d.currency, d.total)}${unpaid ? `, ${unpaid} still to be paid` : ''}.`;
+    },
+  },
+
+  {
+    name: 'eod_summary',
+    description: "Today's day-close / end-of-day: total sales, tax, discounts, cash vs card taken, voids and refunds — what you'd reconcile at closing",
+    keywords: ['eod', 'end of day', 'day close', 'close the day', 'closing', 'cash up', 'z report', 'reconcile', 'cash in drawer', 'takings today', 'day summary', 'daily close', 'settle the day'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const s = await eod.previewToday(ctx.outletId);
+      return { currency: ctx.currency, ...s };
+    },
+    summarize: (d) => {
+      if (!d.total_orders) return 'No sales recorded yet today, so there is nothing to close.';
+      let s = `Today: ${money(d.currency, d.total_revenue)} from ${d.total_orders} order${d.total_orders === 1 ? '' : 's'}. Cash sales ${money(d.currency, d.cash_system)}, card ${money(d.currency, d.card_system)}. Tax ${money(d.currency, d.total_tax)}, discounts ${money(d.currency, d.total_discount)}.`;
+      if (d.void_count || d.refund_count) s += ` ${d.void_count || 0} void${d.void_count === 1 ? '' : 's'}, ${d.refund_count || 0} refund${d.refund_count === 1 ? '' : 's'}.`;
+      return s;
+    },
+  },
+
+  {
+    name: 'payroll_summary',
+    description: 'Your latest payroll pay run: gross wages, PAYG tax withheld, superannuation, net pay and number of payslips',
+    keywords: ['payroll', 'pay run', 'wages', 'salary', 'payslip', 'super', 'superannuation', 'paye', 'payg', 'staff pay', 'wage bill', 'how much pay', 'net pay'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const runs = await payroll.listPayRuns(ctx.outletId);
+      const latest = runs && runs[0];
+      return {
+        currency: ctx.currency,
+        total_runs: runs ? runs.length : 0,
+        latest: latest
+          ? {
+              period_start: latest.period_start,
+              period_end: latest.period_end,
+              status: latest.status,
+              gross: num(latest.gross_total),
+              paye: num(latest.paye_total),
+              super: num(latest.super_total),
+              net: num(latest.net_total),
+              payslips: latest._count?.payslips ?? 0,
+            }
+          : null,
+      };
+    },
+    summarize: (d) => {
+      if (!d.latest) return 'No payroll pay runs have been created yet.';
+      const l = d.latest;
+      const day = (x) => (x ? new Date(x).toISOString().slice(0, 10) : '');
+      return `Latest pay run (${day(l.period_start)} to ${day(l.period_end)}, ${l.status}): gross ${money(d.currency, l.gross)}, PAYG ${money(d.currency, l.paye)}, super ${money(d.currency, l.super)}, net ${money(d.currency, l.net)} across ${l.payslips} payslip${l.payslips === 1 ? '' : 's'}.`;
+    },
+  },
+
+  {
+    name: 'fraud_alerts',
+    description: 'Open fraud / loss-prevention alerts — suspicious voids, discounts, refunds or cash events flagged for review, most severe first',
+    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'cash discrepancy', 'staff risk', 'shrinkage'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const r = await fraud.listAlerts(ctx.outletId, { limit: 10 });
+      const items = r.items || [];
+      return {
+        count: r.total ?? items.length,
+        alerts: items.slice(0, 5).map((a) => ({
+          type: a.alert_type,
+          severity: a.severity,
+          title: a.title,
+          staff: (a.staff && a.staff.full_name) || null,
+          when: a.created_at,
+        })),
+      };
+    },
+    summarize: (d) => {
+      if (!d.count) return 'No open fraud alerts — nothing suspicious is flagged right now.';
+      const top = d.alerts.slice(0, 3).map((a) => `${a.severity} · ${a.title}${a.staff ? ` (${a.staff})` : ''}`).join('; ');
+      return `${d.count} open fraud alert${d.count === 1 ? '' : 's'}. Top: ${top}.`;
+    },
+  },
+
+  {
+    name: 'staff_hours',
+    description: 'Staff attendance this period: who clocked in, their days present and hours worked (including overtime)',
+    keywords: ['staff hours', 'attendance', 'who worked', 'hours worked', 'clock in', 'clocked in', 'shift report', 'timesheet', 'overtime', 'days present', 'staff working', 'labour hours', 'who is on'],
+    permission: 'VIEW_STAFF',
+    run: async (ctx) => {
+      const r = await attendance.getShiftReport(ctx.outletId, {});
+      const staff = (r.staff || []).map((s) => ({
+        name: s.name,
+        days: num(s.days_present),
+        hours: Math.round(num(s.total_hours) * 10) / 10,
+        overtime: Math.round(num(s.overtime_hours) * 10) / 10,
+      }));
+      staff.sort((a, b) => b.hours - a.hours);
+      return { period_from: r.from, period_to: r.to, staff_count: staff.length, staff: staff.slice(0, 10) };
+    },
+    summarize: (d) => {
+      if (!d.staff_count) return 'No staff attendance has been recorded for this period yet.';
+      const top = d.staff.slice(0, 3).map((s) => `${s.name} (${s.hours}h)`).join(', ');
+      return `${d.staff_count} staff clocked in this period. Most hours: ${top}.`;
+    },
+  },
+
+  {
+    name: 'help_howto',
+    description: 'How to DO something in the app — step-by-step help for POS, payments, tables, menu, inventory, purchase orders, EOD, discounts, offline mode, staff/attendance, payroll and account security. Use for "how do I…", "where is…", "how to…" questions about using the software (not about live data).',
+    keywords: ['how do i', 'how to', 'how can i', 'how does', 'where is', 'where do i', 'where can i', 'steps to', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'use the', 'using', 'explain how', 'walk me through', 'show me how'],
+    permission: null,
+    run: (ctx, question) => ({ matches: searchKnowledge(question, 3) }),
+    summarize: (d) => {
+      if (!d.matches || !d.matches.length) {
+        return 'I can walk you through POS, payments, tables, menu, inventory, EOD, discounts, offline mode, staff and payroll — tell me which feature.';
+      }
+      return d.matches[0].text;
     },
   },
 ];

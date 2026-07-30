@@ -67,10 +67,11 @@ async function selectTool(question, toolList) {
   const sys = [
     'You route a restaurant owner\'s question to exactly ONE tool from the list, or null.',
     'The owner types casually, briefly, with typos, slang or vague wording — INFER the underlying intent; never require exact keywords.',
-    'Only return null for greetings, thanks, or "how do I use the app" questions.',
+    'Questions about HOW to do something in the app ("how do I…", "where is…", "how to…") go to "help_howto".',
+    'Only return null for greetings, thanks, or clearly off-topic chit-chat.',
     'If the question is clearly about their business but you are unsure which tool fits best, choose "finance_summary" (the overall health overview) rather than null.',
     'Pick only a tool name that appears in the list. Do not invent tools.',
-    'Examples: "how much did we sell today" → sales_today · "hows business" / "am i doin ok" → finance_summary · "what will tomrw be like" → sales_forecast · "how many non veg" → menu_overview · "who owes me money" → finance_summary · "whats runnin low" → low_stock · "my best regulars" → top_customers · "hi there" → null.',
+    'Examples: "how much did we sell today" → sales_today · "hows business" / "am i doin ok" → finance_summary · "what will tomrw be like" → sales_forecast · "how many non veg" → menu_overview · "who owes me money" → finance_summary · "whats runnin low" → low_stock · "my best regulars" → top_customers · "any orders open right now" / "whats cooking" → active_orders · "close the day" / "cash in drawer" → eod_summary · "how much did i pay staff" / "super this run" → payroll_summary · "anything suspicious" / "void abuse" → fraud_alerts · "who worked this week" / "staff hours" → staff_hours · "how do i split a bill" / "where do i 86 an item" → help_howto · "hi there" → null.',
     'Respond as strict JSON: {"tool": "<tool name or null>"}',
   ].join('\n');
   try {
@@ -129,7 +130,7 @@ async function ask(userCtx, question) {
   await resolveOutletContext(userCtx);
   let data;
   try {
-    data = await tool.run(userCtx);
+    data = await tool.run(userCtx, question);
   } catch (err) {
     logger.error('assistant: tool run failed', { tool: toolName, error: err.message });
     return { answer: "I couldn't fetch that just now — please try again in a moment.", source: 'error', tool: toolName, suggestions: SUGGESTIONS };

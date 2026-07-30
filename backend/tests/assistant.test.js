@@ -155,3 +155,86 @@ describe('tool summaries — deterministic grounding', () => {
     expect(t('top_customers').summarize({ currency: 'AUD', top: [{ name: 'Asha', spend: 900, visits: 12 }] })).toMatch(/Asha/);
   });
 });
+
+// ── New tools (added Phase 1b): active orders, EOD, payroll, fraud, staff hours,
+//    and the how-to knowledge tool. Routing/RBAC/summaries are pure (no DB). ──
+const { searchKnowledge } = require('../src/modules/assistant/assistant.knowledge');
+
+describe('new tools — RBAC gating', () => {
+  test('owner sees all new tools', () => {
+    const names = assistant.allowedTools(OWNER).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(['active_orders', 'eod_summary', 'payroll_summary', 'fraud_alerts', 'staff_hours', 'help_howto']));
+  });
+  test('help_howto is available to everyone (no permission)', () => {
+    const names = assistant.allowedTools({ role: 'cashier', permissions: [] }).map((t) => t.name);
+    expect(names).toContain('help_howto');
+  });
+  test('permission-gated new tools hidden without the key', () => {
+    const names = assistant.allowedTools({ role: 'cashier', permissions: ['VIEW_REPORTS'] }).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(['eod_summary', 'payroll_summary', 'fraud_alerts'])); // VIEW_REPORTS
+    expect(names).not.toContain('active_orders'); // needs VIEW_ORDERS
+    expect(names).not.toContain('staff_hours');   // needs VIEW_STAFF
+  });
+});
+
+describe('new tools — keyword routing', () => {
+  const pick = (q) => assistant.keywordSelect(q, TOOLS);
+  test('routes new-topic questions', () => {
+    expect(pick('show me active orders')).toBe('active_orders');
+    expect(pick('close the day')).toBe('eod_summary');
+    expect(pick('how much super this pay run')).toBe('payroll_summary');
+    expect(pick('anything suspicious lately')).toBe('fraud_alerts');
+    expect(pick('who worked this week')).toBe('staff_hours');
+    expect(pick('how do i 86 an item')).toBe('help_howto');
+    expect(pick('how do i split a bill')).toBe('help_howto');
+  });
+});
+
+describe('new tools — deterministic summaries', () => {
+  const t = (name) => TOOLS.find((x) => x.name === name);
+  test('active_orders', () => {
+    expect(t('active_orders').summarize({ currency: 'AUD', count: 0, orders: [] })).toMatch(/no active orders/i);
+    const s = t('active_orders').summarize({ currency: 'AUD', count: 3, total: 450, orders: [{ paid: false }, { paid: true }, { paid: false }] });
+    expect(s).toMatch(/3 active orders/); expect(s).toMatch(/to be paid/);
+  });
+  test('eod_summary', () => {
+    expect(t('eod_summary').summarize({ total_orders: 0 })).toMatch(/nothing to close/i);
+    const s = t('eod_summary').summarize({ currency: 'AUD', total_orders: 12, total_revenue: 4500, cash_system: 2000, card_system: 2500, total_tax: 409, total_discount: 50, void_count: 1, refund_count: 0 });
+    expect(s).toMatch(/4,500/); expect(s).toMatch(/12 order/);
+  });
+  test('payroll_summary', () => {
+    expect(t('payroll_summary').summarize({ latest: null })).toMatch(/no payroll/i);
+    const s = t('payroll_summary').summarize({ currency: 'AUD', latest: { period_start: '2026-07-01', period_end: '2026-07-14', status: 'finalised', gross: 8000, paye: 1600, super: 920, net: 6400, payslips: 4 } });
+    expect(s).toMatch(/gross/); expect(s).toMatch(/4 payslips/);
+  });
+  test('fraud_alerts', () => {
+    expect(t('fraud_alerts').summarize({ count: 0, alerts: [] })).toMatch(/no open fraud/i);
+    const s = t('fraud_alerts').summarize({ count: 2, alerts: [{ severity: 'high', title: 'Excess voids', staff: 'Sam' }] });
+    expect(s).toMatch(/2 open fraud/); expect(s).toMatch(/Excess voids/);
+  });
+  test('staff_hours', () => {
+    expect(t('staff_hours').summarize({ staff_count: 0, staff: [] })).toMatch(/no staff attendance/i);
+    const s = t('staff_hours').summarize({ staff_count: 2, staff: [{ name: 'Sam', hours: 38.5 }, { name: 'Amy', hours: 20 }] });
+    expect(s).toMatch(/2 staff/); expect(s).toMatch(/Sam/);
+  });
+  test('help_howto returns the top KB answer', () => {
+    expect(t('help_howto').summarize({ matches: [{ topic: 'x', text: 'Open POS and tap items.' }] })).toMatch(/Open POS/);
+    expect(t('help_howto').summarize({ matches: [] })).toMatch(/tell me which feature/i);
+  });
+});
+
+describe('knowledge base search', () => {
+  test('finds the right topic', () => {
+    expect(searchKnowledge('how do i split a bill', 1)[0].topic).toMatch(/split/i);
+    expect(searchKnowledge('does it work offline', 1)[0].topic).toMatch(/offline/i);
+    expect(searchKnowledge('asdfqwer nonsense', 3)).toHaveLength(0);
+  });
+});
+
+describe('ask() — how-to pipeline (no LLM, no DB)', () => {
+  test('routes a how-to question to help_howto and answers from the KB', async () => {
+    const res = await assistant.ask(OWNER, 'how do i take a new order');
+    expect(res.tool).toBe('help_howto');
+    expect(res.answer).toMatch(/POS/);
+  });
+});
