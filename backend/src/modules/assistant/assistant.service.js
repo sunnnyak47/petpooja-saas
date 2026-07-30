@@ -14,6 +14,7 @@ const { callLLM } = require('../../utils/llm');
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
+const xport = require('./assistant.export');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
@@ -119,6 +120,26 @@ function helpAnswer(toolList) {
  * @returns {Promise<{ answer: string, source: string, tool: string|null, suggestions: string[] }>}
  */
 async function ask(userCtx, question) {
+  // Export short-circuit: if the user is asking to download a report (EOD / P&L /
+  // sales) and may view reports, hand back a signed download link instead of text.
+  const canReport =
+    userCtx.role === 'super_admin' ||
+    userCtx.role === 'owner' ||
+    (Array.isArray(userCtx.permissions) && userCtx.permissions.includes('VIEW_REPORTS'));
+  if (canReport && userCtx.outletId && xport.detectExport(question)) {
+    await resolveOutletContext(userCtx);
+    const download = xport.buildDescriptor({ outletId: userCtx.outletId, currency: userCtx.currency }, question);
+    if (download) {
+      return {
+        answer: `Here's your ${download.module_label} report for ${download.range_label} (${download.from} to ${download.to}) as ${download.format.toUpperCase()}. Tap Download to save it.`,
+        source: 'export',
+        tool: 'export_report',
+        download,
+        suggestions: SUGGESTIONS,
+      };
+    }
+  }
+
   const toolList = allowedTools(userCtx);
   const toolName = await selectTool(question, toolList);
 

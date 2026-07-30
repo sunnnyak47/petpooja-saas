@@ -2,7 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
-import { Sparkles, X, Send, Loader2 } from 'lucide-react';
+import { Sparkles, X, Send, Loader2, Download } from 'lucide-react';
+
+// The API base already includes /api; the export download path is relative to it.
+const API_BASE = import.meta.env.VITE_API_URL || '';
+const downloadHref = (path) => `${API_BASE}${path}`;
 
 /**
  * AssistantPanel — global, read-only AI assistant. A floating button on every
@@ -28,7 +32,7 @@ export default function AssistantPanel() {
 
   const askM = useMutation({
     mutationFn: (q) => api.post('/assistant/ask', { question: q, ...(outletId ? { outlet_id: outletId } : {}) }),
-    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.' }]),
+    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null }]),
     onError: (e) => setMessages((m) => [...m, { role: 'bot', text: e?.response?.data?.message || "I couldn't answer that right now — please try again." }]),
   });
 
@@ -113,7 +117,20 @@ export default function AssistantPanel() {
               m.role === 'user' ? (
                 <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: '8px 12px', borderRadius: '14px 14px 4px 14px', background: 'var(--accent)', color: '#fff', fontSize: 13, lineHeight: 1.5 }}>{m.text}</div>
               ) : (
-                <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', padding: '9px 13px', borderRadius: '14px 14px 14px 4px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6 }}>{m.text}</div>
+                <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', padding: '9px 13px', borderRadius: '14px 14px 14px 4px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6 }}>
+                  <div>{m.text}</div>
+                  {m.download && (
+                    <a
+                      href={downloadHref(m.download.path)}
+                      download={m.download.filename}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, textDecoration: 'none' }}
+                    >
+                      <Download size={14} /> Download {m.download.format?.toUpperCase()}
+                    </a>
+                  )}
+                </div>
               )
             ))}
 
