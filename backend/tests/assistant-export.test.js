@@ -83,11 +83,19 @@ describe('generate — CSV', () => {
     expect(out.body).toMatch(/2026-07-01,20,1000/);
     expect(out.body).toMatch(/Total,45,2500/);
   });
-  test('P&L CSV reuses the audited exporter', async () => {
-    mockAcctExport.exportProfitLossCSV.mockResolvedValue({ filename: 'pl.csv', csv: 'Net Profit,,900' });
-    const out = await xport.generate({ outletId: 'o1', module: 'pnl', from: '2026-07-01', to: '2026-07-30', format: 'csv' });
-    expect(out.body).toMatch(/Net Profit,,900/);
-    expect(mockAcctExport.exportProfitLossCSV).toHaveBeenCalledWith('o1', '2026-07-01', '2026-07-30');
+  test('P&L CSV: metadata block + 2-decimal money, sections, net profit', async () => {
+    mockStatements.getProfitAndLoss.mockResolvedValue({
+      from: '2026-07-01', to: '2026-07-30',
+      revenue: { accounts: [{ code: '200', name: 'Food Sales', balance: 78450.25 }], total: 78450.25 },
+      expenses: { accounts: [{ code: '400', name: 'Wages', balance: 32100 }], total: 32100 },
+      cogs_total: 29304.11, gross_profit: 49146.14, net_profit: 46350.25,
+    });
+    const out = await xport.generate({ outletId: 'o1', module: 'pnl', from: '2026-07-01', to: '2026-07-30', format: 'csv', currency: 'AUD' });
+    expect(out.body).toMatch(/Profit & Loss/);
+    expect(out.body).toMatch(/Period,2026-07-01 to 2026-07-30/);
+    expect(out.body).toMatch(/REVENUE/);
+    expect(out.body).toMatch(/200,Food Sales,78450\.25/);
+    expect(out.body).toMatch(/Net Profit,46350\.25/);
   });
 });
 

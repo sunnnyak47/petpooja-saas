@@ -68,7 +68,8 @@ async function downloadReport(req, res, next) {
       outletName = o && o.name;
     } catch (_) { /* name is cosmetic */ }
 
-    const { filename, contentType, body } = await xport.generate(payload, outletName);
+    const generated = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const { filename, contentType, body } = await xport.generate(payload, outletName, generated);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-store');

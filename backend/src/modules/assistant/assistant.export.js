@@ -19,7 +19,6 @@ const logger = require('../../config/logger');
 
 const reports = require('../reports/reports.service');
 const eod = require('../reports/eod.service');
-const acctExport = require('../accounting/accounting.export.service');
 const statements = require('../accounting/accounting.statements.service');
 
 const MAX_RANGE_DAYS = 92; // cap per-day EOD iteration so a huge range can't hammer the DB
@@ -168,39 +167,77 @@ function dateList(from, to) {
   return out;
 }
 
+/** Currency with 2 decimals + thousands separators, for display (PDF). */
+function fmtMoney(cur, n) {
+  const c = cur || 'AUD';
+  const locale = c === 'INR' ? 'en-IN' : 'en-AU';
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: c, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+  } catch (_) { return `${c} ${(Number(n) || 0).toFixed(2)}`; }
+}
+
+/*
+ * Table model consumed by both renderers:
+ *   { title, columns: [{label, align:'left'|'right', money?:bool, w?:number}],
+ *     rows: [{type:'data'|'total'|'grand', cells:[...]} | {type:'section', label}] }
+ * Cells hold RAW numbers; each renderer formats (PDF → $ display, CSV → plain 2dp).
+ */
 async function salesRows(outletId, from, to) {
   const series = await reports.getRevenueTrendRange(outletId, from, to);
-  const header = ['Date', 'Orders', 'Revenue'];
-  const rows = (series || []).map((s) => [s.date, s.orders || 0, n2(s.revenue)]);
-  const totOrders = rows.reduce((s, r) => s + Number(r[1]), 0);
-  const totRev = rows.reduce((s, r) => s + Number(r[2]), 0);
-  return { title: 'Sales Report', header, rows, totals: ['Total', totOrders, n2(totRev)] };
+  const columns = [
+    { label: 'Date', align: 'left' },
+    { label: 'Orders', align: 'right' },
+    { label: 'Revenue', align: 'right', money: true },
+  ];
+  const rows = (series || []).map((s) => ({ type: 'data', cells: [s.date, s.orders || 0, n2(s.revenue)] }));
+  const totOrders = rows.reduce((s, r) => s + Number(r.cells[1]), 0);
+  const totRev = rows.reduce((s, r) => s + Number(r.cells[2]), 0);
+  rows.push({ type: 'total', cells: ['Total', totOrders, n2(totRev)] });
+  return { title: 'Sales Report', columns, rows };
 }
 
 async function eodRows(outletId, from, to) {
-  const header = ['Date', 'Orders', 'Revenue', 'Tax', 'Discount', 'Cash', 'Card', 'Voids', 'Refunds'];
+  const columns = [
+    { label: 'Date', align: 'left' },
+    { label: 'Orders', align: 'right' },
+    { label: 'Revenue', align: 'right', money: true },
+    { label: 'Tax', align: 'right', money: true },
+    { label: 'Discount', align: 'right', money: true },
+    { label: 'Cash', align: 'right', money: true },
+    { label: 'Card', align: 'right', money: true },
+    { label: 'Voids', align: 'right' },
+    { label: 'Refunds', align: 'right' },
+  ];
   const rows = [];
   const t = { orders: 0, rev: 0, tax: 0, disc: 0, cash: 0, card: 0, voids: 0, refunds: 0 };
   for (const day of dateList(from, to)) {
     const s = await eod.generateSnapshot(outletId, new Date(`${day}T12:00:00`)); // midday = safe inside the local day
-    rows.push([day, s.total_orders, n2(s.total_revenue), n2(s.total_tax), n2(s.total_discount), n2(s.cash_system), n2(s.card_system), s.void_count, s.refund_count]);
+    rows.push({ type: 'data', cells: [day, s.total_orders, n2(s.total_revenue), n2(s.total_tax), n2(s.total_discount), n2(s.cash_system), n2(s.card_system), s.void_count, s.refund_count] });
     t.orders += s.total_orders; t.rev += Number(s.total_revenue); t.tax += Number(s.total_tax); t.disc += Number(s.total_discount);
     t.cash += Number(s.cash_system); t.card += Number(s.card_system); t.voids += s.void_count; t.refunds += s.refund_count;
   }
-  return { title: 'End-of-Day Report', header, rows, totals: ['Total', t.orders, n2(t.rev), n2(t.tax), n2(t.disc), n2(t.cash), n2(t.card), t.voids, t.refunds] };
+  rows.push({ type: 'total', cells: ['Total', t.orders, n2(t.rev), n2(t.tax), n2(t.disc), n2(t.cash), n2(t.card), t.voids, t.refunds] });
+  return { title: 'End-of-Day Report', columns, rows };
 }
 
 async function pnlTable(outletId, from, to) {
   const pl = await statements.getProfitAndLoss(outletId, from, to);
-  const header = ['Code', 'Account', 'Amount'];
+  const columns = [
+    { label: 'Code', align: 'left', w: 55 },
+    { label: 'Account', align: 'left' },
+    { label: 'Amount', align: 'right', money: true },
+  ];
   const rows = [];
-  rows.push(['', 'REVENUE', '']);
-  for (const a of pl.revenue?.accounts || []) rows.push([a.code, a.name, n2(a.balance)]);
-  rows.push(['', 'Total Revenue', n2(pl.revenue?.total)]);
-  rows.push(['', 'EXPENSES', '']);
-  for (const a of pl.expenses?.accounts || []) rows.push([a.code, a.name, n2(a.balance)]);
-  rows.push(['', 'Total Expenses', n2(pl.expenses?.total)]);
-  return { title: 'Profit & Loss', header, rows, totals: ['', `COGS ${n2(pl.cogs_total)} · Gross ${n2(pl.gross_profit)} · Net`, n2(pl.net_profit)] };
+  rows.push({ type: 'section', label: 'Revenue' });
+  for (const a of pl.revenue?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.balance)] });
+  rows.push({ type: 'total', cells: ['', 'Total Revenue', n2(pl.revenue?.total)] });
+  rows.push({ type: 'section', label: 'Expenses' });
+  for (const a of pl.expenses?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.balance)] });
+  rows.push({ type: 'total', cells: ['', 'Total Expenses', n2(pl.expenses?.total)] });
+  rows.push({ type: 'total', cells: ['', 'Cost of Goods Sold', n2(pl.cogs_total)] });
+  rows.push({ type: 'total', cells: ['', 'Gross Profit', n2(pl.gross_profit)] });
+  rows.push({ type: 'grand', cells: ['', 'Net Profit', n2(pl.net_profit)] });
+  return { title: 'Profit & Loss', columns, rows };
 }
 
 // ── CSV / PDF renderers ──────────────────────────────────────────────────────
@@ -208,44 +245,92 @@ function csvEscape(v) {
   const s = String(v ?? '');
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-function tableToCsv(t) {
-  const lines = [t.header, ...t.rows, t.totals].map((r) => r.map(csvEscape).join(','));
-  return '﻿' + `${t.title}\n` + lines.join('\n') + '\n';
+
+/** Professional CSV: a metadata block, then the table. Money cells stay plain
+ *  2-decimal numbers (no symbols) so Excel treats them as numbers it can sum. */
+function tableToCsv(t, meta) {
+  const out = [];
+  out.push([t.title]);
+  if (meta.outletName) out.push([meta.outletName]);
+  out.push(['Period', `${meta.from} to ${meta.to}`]);
+  out.push(['Currency', meta.currency || 'AUD']);
+  out.push([]);
+  out.push(t.columns.map((c) => c.label));
+  for (const r of t.rows) {
+    if (r.type === 'section') { out.push([String(r.label).toUpperCase()]); continue; }
+    out.push(t.columns.map((c, i) => (c.money ? (Number(r.cells[i]) || 0).toFixed(2) : (r.cells[i] == null ? '' : r.cells[i]))));
+  }
+  return '﻿' + out.map((r) => r.map(csvEscape).join(',')).join('\n') + '\n';
 }
 
+/** Polished A4 report with a header band, zebra rows, section + total styling,
+ *  right-aligned currency, and a footer. Manual y-cursor so nothing overlaps. */
 function tableToPdf(t, meta) {
   const PDFDocument = require('pdfkit');
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 40, layout: t.header.length > 5 ? 'landscape' : 'portrait' });
+    const landscape = t.columns.length > 5;
+    const doc = new PDFDocument({ size: 'A4', margin: 40, layout: landscape ? 'landscape' : 'portrait' });
     const chunks = [];
     doc.on('data', (c) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fontSize(18).text(t.title, { align: 'left' });
-    doc.moveDown(0.2);
-    doc.fontSize(10).fillColor('#555').text(`${meta.outletName || 'Outlet'}  ·  ${meta.from} to ${meta.to}  ·  ${meta.currency || ''}`);
-    doc.moveDown(0.6).fillColor('#000');
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const width = right - left;
 
-    const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const cols = t.header.length;
-    const colW = pageW / cols;
-    const drawRow = (cells, opts = {}) => {
-      const y = doc.y; const size = opts.size || 9;
-      doc.fontSize(size).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
-      cells.forEach((cell, i) => {
-        doc.text(String(cell ?? ''), doc.page.margins.left + i * colW, y, { width: colW - 4, align: i === 0 ? 'left' : 'right', ellipsis: true });
-      });
-      doc.moveDown(0.3);
-      if (doc.y > doc.page.height - doc.page.margins.bottom - 20) doc.addPage();
+    // Title block.
+    doc.font('Helvetica-Bold').fontSize(19).fillColor('#0f172a').text(meta.outletName || 'Report', left, doc.page.margins.top);
+    doc.font('Helvetica-Bold').fontSize(13).fillColor('#2563eb').text(t.title);
+    doc.font('Helvetica').fontSize(9).fillColor('#64748b')
+      .text(`${meta.from} to ${meta.to}   ·   Currency ${meta.currency || 'AUD'}${meta.generated ? `   ·   Generated ${meta.generated}` : ''}`);
+    let y = doc.y + 14;
+
+    // Column widths: fixed for numeric / explicit-w columns, flex for the rest.
+    const NUMW = landscape ? 66 : 95;
+    const widths = t.columns.map((c) => (c.w ? c.w : (c.align === 'right' ? NUMW : null)));
+    const fixed = widths.reduce((s, w) => s + (w || 0), 0);
+    const flexN = widths.filter((w) => w == null).length || 1;
+    const flexW = (width - fixed) / flexN;
+    const colW = widths.map((w) => (w == null ? flexW : w));
+    const colX = []; let acc = left; for (const w of colW) { colX.push(acc); acc += w; }
+
+    const ROW = 18;
+    const cell = (text, x, w, align, o = {}) => {
+      doc.font(o.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(o.size || 9).fillColor(o.color || '#0f172a')
+        .text(text == null ? '' : String(text), x + 6, y + 5, { width: w - 12, align, lineBreak: false, ellipsis: true });
     };
-    drawRow(t.header, { bold: true });
-    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).strokeColor('#ccc').stroke();
-    doc.moveDown(0.2);
-    for (const r of t.rows) drawRow(r);
-    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).strokeColor('#999').stroke();
-    doc.moveDown(0.2);
-    drawRow(t.totals, { bold: true });
+    const fmt = (val, c) => (c.money ? fmtMoney(meta.currency, val) : (val == null ? '' : String(val)));
+
+    const drawHead = () => {
+      doc.rect(left, y, width, ROW).fill('#0f172a');
+      t.columns.forEach((c, i) => cell(c.label, colX[i], colW[i], c.align, { bold: true, color: '#ffffff' }));
+      y += ROW;
+    };
+    drawHead();
+
+    let zebra = false;
+    for (const r of t.rows) {
+      if (y + ROW > doc.page.height - doc.page.margins.bottom - 24) { doc.addPage(); y = doc.page.margins.top; drawHead(); zebra = false; }
+      if (r.type === 'section') {
+        doc.rect(left, y, width, ROW).fill('#eef2ff');
+        cell(String(r.label).toUpperCase(), colX[0], width, 'left', { bold: true, color: '#3730a3' });
+        y += ROW; zebra = false; continue;
+      }
+      const isTotal = r.type === 'total' || r.type === 'grand';
+      if (r.type === 'grand') doc.rect(left, y, width, ROW).fill('#dbeafe');
+      else if (isTotal) { doc.rect(left, y, width, ROW).fill('#f1f5f9'); doc.moveTo(left, y).lineTo(right, y).lineWidth(0.5).strokeColor('#94a3b8').stroke(); }
+      else if (zebra) doc.rect(left, y, width, ROW).fill('#f8fafc');
+      t.columns.forEach((c, i) => cell(fmt(r.cells[i], c), colX[i], colW[i], c.align, { bold: isTotal, color: r.type === 'grand' ? '#1e3a8a' : '#0f172a' }));
+      y += ROW; zebra = isTotal ? false : !zebra;
+    }
+    // Footer flows right under the table (NOT pinned to the page bottom — that
+    // would push text past the margin and spawn a blank trailing page).
+    doc.moveTo(left, y).lineTo(right, y).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+    y += 8;
+    if (y > doc.page.height - doc.page.margins.bottom) { doc.addPage(); y = doc.page.margins.top; }
+    doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+      .text('Generated by MS-RM System', left, y, { width, align: 'center', lineBreak: false });
     doc.end();
   });
 }
@@ -254,27 +339,22 @@ function tableToPdf(t, meta) {
  * Generate the report file from a verified token payload.
  * @param {{outletId:string,module:string,from:string,to:string,format:string,currency:string}} p
  * @param {string} [outletName]
+ * @param {string} [generated] display timestamp for the PDF header
  * @returns {Promise<{filename:string, contentType:string, body:(string|Buffer)}>}
  */
-async function generate(p, outletName) {
+async function generate(p, outletName, generated) {
   const { outletId, module, from, to, format } = p;
-  let table;
-  if (module === 'pnl' && format !== 'pdf') {
-    // Reuse the audited P&L CSV exporter verbatim for the spreadsheet path.
-    const { filename, csv } = await acctExport.exportProfitLossCSV(outletId, from, to);
-    return { filename, contentType: 'text/csv; charset=utf-8', body: '﻿' + csv };
-  }
-  if (module === 'pnl') table = await pnlTable(outletId, from, to);
-  else if (module === 'eod') table = await eodRows(outletId, from, to);
-  else table = await salesRows(outletId, from, to);
+  const table = module === 'pnl' ? await pnlTable(outletId, from, to)
+    : module === 'eod' ? await eodRows(outletId, from, to)
+      : await salesRows(outletId, from, to);
 
+  const meta = { from, to, currency: p.currency, outletName, generated };
   const ext = format === 'pdf' ? 'pdf' : 'csv';
   const filename = `${module}-${from}-to-${to}.${ext}`;
   if (format === 'pdf') {
-    const body = await tableToPdf(table, { from, to, currency: p.currency, outletName });
-    return { filename, contentType: 'application/pdf', body };
+    return { filename, contentType: 'application/pdf', body: await tableToPdf(table, meta) };
   }
-  return { filename, contentType: 'text/csv; charset=utf-8', body: tableToCsv(table) };
+  return { filename, contentType: 'text/csv; charset=utf-8', body: tableToCsv(table, meta) };
 }
 
 module.exports = {
