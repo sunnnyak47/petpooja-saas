@@ -48,10 +48,13 @@ function parseDateRange(question, now = new Date()) {
   // Relative phrases first.
   if (/\btoday\b/.test(q)) return { from: ymd(today), to: ymd(today), label: 'today' };
   if (/\byesterday\b/.test(q)) { const y = addDays(today, -1); return { from: ymd(y), to: ymd(y), label: 'yesterday' }; }
-  const lastN = q.match(/last\s+(\d{1,3})\s*(days?|weeks?|months?)/);
+  // "last / past / previous / prior N days|weeks|months" — also matches
+  // "for the past 58 days", "over the last 3 weeks", "58 days ago", etc.
+  const lastN = q.match(/(?:last|past|previous|prior)\s+(?:the\s+)?(\d{1,3})\s*(days?|weeks?|months?)/) ||
+                q.match(/(\d{1,3})\s*(days?|weeks?|months?)\s+ago/);
   if (lastN) {
     const n = parseInt(lastN[1], 10);
-    const unit = lastN[2];
+    const unit = lastN[2].replace(/s$/, '') + 's';
     const mult = unit.startsWith('week') ? 7 : unit.startsWith('month') ? 30 : 1;
     const from = addDays(today, -(n * mult) + 1);
     return { from: ymd(from), to: ymd(today), label: `last ${n} ${unit}` };

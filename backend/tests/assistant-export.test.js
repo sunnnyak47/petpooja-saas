@@ -39,6 +39,9 @@ describe('parseDateRange', () => {
     expect(xport.parseDateRange('last month', NOW)).toMatchObject({ from: '2026-06-01', to: '2026-06-30' });
     expect(xport.parseDateRange('today', NOW)).toMatchObject({ from: '2026-07-30', to: '2026-07-30' });
     expect(xport.parseDateRange('last 7 days', NOW)).toMatchObject({ from: '2026-07-24', to: '2026-07-30' });
+    expect(xport.parseDateRange('past 58 days', NOW)).toMatchObject({ from: '2026-06-03', to: '2026-07-30' });
+    expect(xport.parseDateRange('previous 2 months', NOW)).toMatchObject({ from: '2026-06-01', to: '2026-07-30' });
+    expect(xport.parseDateRange('30 days ago', NOW)).toMatchObject({ from: '2026-07-01', to: '2026-07-30' });
     expect(xport.parseDateRange('a report', NOW)).toMatchObject({ from: '2026-07-01', to: '2026-07-30' }); // default: this month
   });
 });
