@@ -198,6 +198,28 @@ app.get('/health/ready', async (req, res) => {
   });
 });
 
+// LLM diagnostic: which AI provider the assistant will use. Reports ONLY
+// presence (never the key value) so it's safe to hit unauthenticated. Groq is
+// preferred, Gemini is the fallback; `available:false` means the assistant runs
+// in keyword-only mode. Lets operators confirm the GROQ_API_KEY is actually
+// reaching the running instance without exposing any secret.
+app.get('/health/llm', (req, res) => {
+  const groq = !!process.env.GROQ_API_KEY;
+  const gemini = !!process.env.GEMINI_API_KEY;
+  const provider = groq ? 'groq' : gemini ? 'gemini' : 'none';
+  res.status(200).json({
+    success: true,
+    available: groq || gemini,
+    provider,
+    providers: { groq, gemini },
+    message:
+      provider === 'none'
+        ? 'No LLM key detected — assistant is in keyword-only mode.'
+        : `Assistant LLM ready via ${provider}.`,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Metrics: in-process counters for quick triage and Prometheus scraping.
 // Guarded — a configured METRICS_TOKEN must match (header or query). With no
 // token configured we allow it outside production and hide it in production
