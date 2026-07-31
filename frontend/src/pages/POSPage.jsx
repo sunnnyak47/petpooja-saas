@@ -599,6 +599,11 @@ export default function POSPage() {
       outlet_id: outletId,
       order_type: orderType,
       table_id: selectedTable?.id || null,
+      // Carry the table number too: offline orders store it flat (no nested
+      // `table` object), and the bill/KOT read it directly — without this the
+      // printed bill shows "Table: N/A". Online the backend derives it from
+      // table_id, so sending it is harmless there.
+      table_number: selectedTable?.table_number ?? null,
       customer_id: selectedCustomer?.id || null,
       notes: orderNotes || null,
       status: status,
@@ -1664,7 +1669,7 @@ export default function POSPage() {
                           Array.isArray(item.tags) && item.tags.length > 0 ? (
                             item.tags.slice(0, 2).map(tv => {
                               const t = AU_TAG_MAP[tv];
-                              return t ? <span key={tv} className={`text-[7px] font-black uppercase px-1 py-0.5 rounded ${t.bg} ${t.text}`}>{t.abbr}</span> : null;
+                              return t ? <span key={tv} className={`text-[8px] font-black uppercase px-1 py-0.5 rounded ${t.bg} ${t.text}`}>{t.abbr}</span> : null;
                             })
                           ) : (
                             SQUARE_ICONS[item.food_type]
@@ -1683,7 +1688,7 @@ export default function POSPage() {
                         <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md" style={{ background: 'rgba(239,68,68,0.9)', color: '#fff' }}>Out of Stock</span>
                       </div>
                     )}
-                    <p className="text-sm font-medium line-clamp-2 mb-1 transition-colors" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
+                    <p className="text-[15px] leading-snug font-medium line-clamp-2 mb-1 transition-colors" style={{ color: 'var(--text-primary)' }}>{item.name}</p>
                     {hasNoPrice ? (
                       <p className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}>
                         <AlertCircle className="w-3 h-3" /> No price set

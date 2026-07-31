@@ -52,7 +52,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
             <span>Date: {formatDate(order.created_at)}</span>
           </div>
           <div className="flex justify-between mb-4">
-            <span>Table: {order.table?.table_number || 'N/A'}</span>
+            <span>Table: {order.table?.table_number ?? order.table_number ?? 'N/A'}</span>
             <span>Staff: {order.staff?.full_name || 'POS'}</span>
           </div>
 
