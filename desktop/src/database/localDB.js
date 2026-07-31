@@ -94,6 +94,22 @@ function initSchema() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS reservations (
+      id                TEXT PRIMARY KEY,
+      outlet_id         TEXT NOT NULL,
+      table_id          TEXT,
+      customer_name     TEXT,
+      customer_phone    TEXT,
+      party_size        INTEGER DEFAULT 2,
+      reservation_date  TEXT,
+      reservation_time  TEXT,
+      duration_minutes  INTEGER DEFAULT 90,
+      status            TEXT DEFAULT 'confirmed',
+      notes             TEXT,
+      synced            INTEGER DEFAULT 1,
+      created_at        TEXT DEFAULT (datetime('now'))
+    );
+
     -- ── Menu Categories ────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS menu_categories (
       id            TEXT PRIMARY KEY,
@@ -2196,6 +2212,65 @@ function getDBPath() {
   return getDbPath()
 }
 
+// ─────────────────────────────────────
+// RESERVATIONS (offline read cache; new/edited reservations queue via the
+// generic api_outbox and replay on reconnect — same pattern as tables)
+// ─────────────────────────────────────
+const ReservationDB = {
+  /**
+   * Bulk-saves reservations from a cloud sync payload (offline read cache).
+   * @param {object[]} list
+   */
+  saveFromSync(list) {
+    if (!Array.isArray(list) || !list.length) return
+    const insert = getDB().prepare(`
+      INSERT OR REPLACE INTO reservations (
+        id, outlet_id, table_id, customer_name, customer_phone, party_size,
+        reservation_date, reservation_time, duration_minutes, status, notes, synced
+      ) VALUES (
+        @id, @outlet_id, @table_id, @customer_name, @customer_phone, @party_size,
+        @reservation_date, @reservation_time, @duration_minutes, @status, @notes, 1
+      )
+    `)
+    getDB().transaction((rows) => {
+      for (const r of rows) {
+        if (!r || !r.id || !r.outlet_id) continue
+        insert.run({
+          id: r.id,
+          outlet_id: r.outlet_id,
+          table_id: r.table_id ?? r.table?.id ?? null,
+          customer_name: r.customer_name ?? r.customer?.full_name ?? null,
+          customer_phone: r.customer_phone ?? r.customer?.phone ?? null,
+          party_size: r.party_size ?? 2,
+          reservation_date: r.reservation_date ?? null,
+          reservation_time: r.reservation_time ?? null,
+          duration_minutes: r.duration_minutes ?? 90,
+          status: r.status ?? 'confirmed',
+          notes: r.notes ?? null,
+        })
+      }
+    })(list)
+  },
+
+  /**
+   * Cached reservations for an outlet (optionally one date), shaped like the
+   * cloud row so the UI renders offline instead of showing an empty list.
+   * @param {string} outletId
+   * @param {string} [date] YYYY-MM-DD
+   * @returns {object[]}
+   */
+  getAll(outletId, date) {
+    let sql = `SELECT * FROM reservations WHERE outlet_id = ?`
+    const params = [outletId]
+    if (date) { sql += ` AND reservation_date = ?`; params.push(date) }
+    sql += ` ORDER BY reservation_date DESC, reservation_time ASC`
+    return getDB().prepare(sql).all(...params).map((r) => ({
+      ...r,
+      table: r.table_id ? { id: r.table_id } : null,
+    }))
+  },
+}
+
 module.exports = {
   getDB,
   MenuDB,
@@ -2207,6 +2282,7 @@ module.exports = {
   SettingsDB,
   OutletDB,
   CustomerDB,
+  ReservationDB,
   getDBPath,
   // Tax + numbering engine (exported for main-process IPC + tests)
   resolveTaxConfig,

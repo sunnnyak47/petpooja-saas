@@ -8,7 +8,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
+import offlineWrite, { isNetworkError } from '../lib/offlineMutate';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useRegion } from '../hooks/useRegion';
+
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electron;
 import { isValidPhone, PHONE_MAXLEN } from '../lib/validation';
 import {
   Calendar, Users, Plus, Phone,
@@ -63,6 +67,7 @@ const EMPTY_FORM = {
 
 export default function ReservationsPage() {
   const qc = useQueryClient();
+  const isOnline = useOnlineStatus();
   const region = useRegion();
   const { user } = useSelector(s => s.auth);
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
@@ -165,15 +170,33 @@ export default function ReservationsPage() {
 
   const { data: reservations = [], isLoading } = useQuery({
     queryKey: ['reservations', outletId],
-    queryFn: () => api.get('/reservations', { params: { outlet_id: outletId } }).then(r => r.data),
+    // Online path unchanged (cloud). Desktop offline (or a network failure) reads
+    // the local SQLite cache so the list isn't empty without internet.
+    queryFn: async () => {
+      const readLocal = () => window.electron.invoke('db-get-reservations', outletId, null);
+      if (IS_ELECTRON && !isOnline) return readLocal();
+      try {
+        return await api.get('/reservations', { params: { outlet_id: outletId } }).then(r => r.data);
+      } catch (e) {
+        if (IS_ELECTRON && isNetworkError(e)) return readLocal();
+        throw e;
+      }
+    },
     enabled: !!outletId,
     staleTime: 30_000,
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data) => editId
-      ? api.patch(`/reservations/${editId}`, data)
-      : api.post('/reservations', data),
+    // offlineWrite runs the real request online (unchanged); on a desktop network
+    // failure it queues the create/edit in the outbox to replay on reconnect.
+    mutationFn: (data) => offlineWrite({
+      method: editId ? 'PATCH' : 'POST',
+      url: editId ? `/reservations/${editId}` : '/reservations',
+      body: data,
+      apiCall: () => editId
+        ? api.patch(`/reservations/${editId}`, data)
+        : api.post('/reservations', data),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reservations'] });
       toast.success(editId ? 'Reservation updated' : 'Reservation created');
@@ -191,7 +214,10 @@ export default function ReservationsPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }) => api.patch(`/reservations/${id}`, { status }),
+    mutationFn: ({ id, status }) => offlineWrite({
+      method: 'PATCH', url: `/reservations/${id}`, body: { status },
+      apiCall: () => api.patch(`/reservations/${id}`, { status }),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reservations'] });
       toast.success('Status updated');
@@ -200,7 +226,10 @@ export default function ReservationsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => api.delete(`/reservations/${id}`),
+    mutationFn: (id) => offlineWrite({
+      method: 'DELETE', url: `/reservations/${id}`, body: {},
+      apiCall: () => api.delete(`/reservations/${id}`),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reservations'] });
       toast.success('Reservation deleted');

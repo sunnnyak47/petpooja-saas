@@ -1,6 +1,6 @@
 const {
   OrderDB, KotDB, TableDB,
-  MenuDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB
+  MenuDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB, ReservationDB
 } = require('../database/localDB')
 const { app, BrowserWindow } = require('electron')
 
@@ -176,6 +176,20 @@ class SyncEngine {
           if (Array.isArray(orders)) OrderDB.saveFromSync(orders)
         }
       } catch (e) { console.error('Orders sync step failed:', e) }
+
+      // Download reservations so the Reservations screen shows cached data offline
+      // (new/edited ones queue via the api_outbox and replay on reconnect).
+      try {
+        const resvRes = await fetch(
+          `${API_URL}/reservations?outlet_id=${outletId}`,
+          { headers: this.getHeaders() }
+        )
+        if (resvRes.ok) {
+          const body = await resvRes.json()
+          const list = body.data?.data || body.data?.reservations || body.data || []
+          if (Array.isArray(list)) ReservationDB.saveFromSync(list)
+        }
+      } catch (e) { console.error('Reservations sync step failed:', e) }
 
       SettingsDB.set('last_sync', new Date().toISOString())
 

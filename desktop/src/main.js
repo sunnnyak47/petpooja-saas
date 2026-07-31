@@ -500,7 +500,7 @@ function setupIPC() {
   // Lazy-load localDB after app is ready (needs app.getPath)
   const {
     MenuDB, OrderDB, KotDB,
-    TableDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB,
+    TableDB, SyncDB, OutboxDB, SettingsDB, OutletDB, CustomerDB, ReservationDB,
     getDBPath,
     nextOfflineInvoiceNumber, getDeviceId,
   } = require('./database/localDB')
@@ -824,6 +824,15 @@ function setupIPC() {
    */
   ipcMain.handle('db-save-customers-sync', (_, customers) => {
     CustomerDB.saveFromSync(customers)
+    return true
+  })
+
+  // ── LOCAL DB: RESERVATIONS (offline read cache) ───────────────
+  ipcMain.handle('db-get-reservations', (_, outletId, date) => {
+    try { return ReservationDB.getAll(outletId, date) } catch (e) { console.warn('db-get-reservations failed:', e.message); return [] }
+  })
+  ipcMain.handle('db-save-reservations-sync', (_, list) => {
+    try { ReservationDB.saveFromSync(list) } catch (e) { console.warn('db-save-reservations-sync failed:', e.message) }
     return true
   })
 
