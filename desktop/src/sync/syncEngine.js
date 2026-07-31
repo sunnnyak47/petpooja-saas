@@ -161,6 +161,22 @@ class SyncEngine {
         }
       } catch (e) { console.error('Staff sync step failed:', e) }
 
+      // Download recent orders (open tickets + recent history) so a terminal that
+      // goes offline can view history and bill / settle / cancel CLOUD-created
+      // tickets. Mirrored rows are synced=1 (OrderDB.saveFromSync) and never clobber
+      // a local unsynced write. Fixes "amount 0 offline" + "history differs".
+      try {
+        const ordersRes = await fetch(
+          `${API_URL}/orders?outlet_id=${outletId}&limit=200`,
+          { headers: this.getHeaders() }
+        )
+        if (ordersRes.ok) {
+          const body = await ordersRes.json()
+          const orders = body.data?.data || body.data?.orders || body.data || []
+          if (Array.isArray(orders)) OrderDB.saveFromSync(orders)
+        }
+      } catch (e) { console.error('Orders sync step failed:', e) }
+
       SettingsDB.set('last_sync', new Date().toISOString())
 
       this.notifySyncStatus('success', 'Data synced successfully')

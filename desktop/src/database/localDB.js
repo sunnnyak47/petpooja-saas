@@ -960,6 +960,106 @@ const OrderDB = {
   },
 
   /**
+   * Mirror cloud orders into the local store so a terminal that later goes
+   * offline can still VIEW history and OPEN / BILL / SETTLE / CANCEL tickets that
+   * were created in the cloud (root cause of "amount 0 offline" + "history differs
+   * online vs offline"). Mirrored rows are marked synced=1 so the upload queue
+   * never re-pushes them, and a locally-created UNSYNCED order (synced=0) is never
+   * overwritten — the device's own pending write always wins.
+   * @param {object[]} orders  cloud order rows, each optionally with order_items[]
+   */
+  saveFromSync(orders) {
+    if (!Array.isArray(orders) || !orders.length) return
+    const db = getDB()
+    const isLocalPending = db.prepare(`SELECT 1 FROM orders WHERE id = ? AND synced = 0`)
+    const upsertOrder = db.prepare(`
+      INSERT OR REPLACE INTO orders (
+        id, outlet_id, order_number, table_id, table_number, order_type, source, status,
+        customer_name, customer_phone, covers, notes,
+        subtotal, tax_amount, cgst_amount, sgst_amount, service_charge, discount_amount, total_amount,
+        payment_method, payment_status, invoice_number, synced,
+        created_at, updated_at, billed_at, paid_at, cancelled_at
+      ) VALUES (
+        @id, @outlet_id, @order_number, @table_id, @table_number, @order_type, @source, @status,
+        @customer_name, @customer_phone, @covers, @notes,
+        @subtotal, @tax_amount, @cgst_amount, @sgst_amount, @service_charge, @discount_amount, @total_amount,
+        @payment_method, @payment_status, @invoice_number, 1,
+        @created_at, @updated_at, @billed_at, @paid_at, @cancelled_at
+      )
+    `)
+    const delItems = db.prepare(`DELETE FROM order_items WHERE order_id = ?`)
+    const insItem = db.prepare(`
+      INSERT OR REPLACE INTO order_items (
+        id, order_id, outlet_id, menu_item_id, menu_item_name, variant_id, variant_name,
+        quantity, unit_price, addon_total, line_total, kot_status, notes
+      ) VALUES (
+        @id, @order_id, @outlet_id, @menu_item_id, @menu_item_name, @variant_id, @variant_name,
+        @quantity, @unit_price, @addon_total, @line_total, @kot_status, @notes
+      )
+    `)
+    const num = (v) => Number(v || 0)
+    db.transaction((list) => {
+      for (const o of list) {
+        if (!o || !o.id || !o.outlet_id) continue
+        if (isLocalPending.get(o.id)) continue // device's own pending write wins
+        upsertOrder.run({
+          id: o.id,
+          outlet_id: o.outlet_id,
+          order_number: o.order_number ?? null,
+          table_id: o.table_id ?? o.table?.id ?? null,
+          table_number: o.table_number ?? o.table?.table_number ?? null,
+          order_type: o.order_type ?? 'dine_in',
+          source: o.source ?? 'pos',
+          status: o.status ?? 'created',
+          customer_name: o.customer?.full_name ?? o.customer_name ?? null,
+          customer_phone: o.customer?.phone ?? o.customer_phone ?? null,
+          covers: o.covers ?? 1,
+          notes: o.notes ?? null,
+          subtotal: num(o.subtotal),
+          tax_amount: num(o.total_tax ?? o.tax_amount),
+          cgst_amount: num(o.cgst_amount ?? o.cgst),
+          sgst_amount: num(o.sgst_amount ?? o.sgst),
+          service_charge: num(o.service_charge),
+          discount_amount: num(o.discount_amount),
+          total_amount: num(o.grand_total ?? o.total_amount),
+          payment_method: o.payment_method ?? o.payments?.[0]?.method ?? null,
+          payment_status: o.is_paid ? 'paid' : (o.payment_status ?? 'pending'),
+          invoice_number: o.invoice_number ?? null,
+          created_at: o.created_at ?? new Date().toISOString(),
+          updated_at: o.updated_at ?? new Date().toISOString(),
+          billed_at: o.billed_at ?? null,
+          paid_at: o.paid_at ?? null,
+          cancelled_at: o.cancelled_at ?? null,
+        })
+        const items = o.order_items || o.items || []
+        if (Array.isArray(items) && items.length) {
+          delItems.run(o.id)
+          for (const it of items) {
+            const unit = num(it.unit_price ?? it.base_price)
+            const qty = Number(it.quantity || 1)
+            const addon = num(it.addon_total)
+            insItem.run({
+              id: it.id || crypto.randomUUID(),
+              order_id: o.id,
+              outlet_id: o.outlet_id,
+              menu_item_id: it.menu_item_id ?? null,
+              menu_item_name: it.menu_item_name ?? it.name ?? 'Item',
+              variant_id: it.variant_id ?? null,
+              variant_name: it.variant_name ?? null,
+              quantity: qty,
+              unit_price: unit,
+              addon_total: addon,
+              line_total: num(it.line_total ?? (unit * qty + addon)),
+              kot_status: it.kot_status ?? (it.is_kot_sent ? 'sent' : 'pending'),
+              notes: it.notes ?? null,
+            })
+          }
+        }
+      }
+    })(orders)
+  },
+
+  /**
    * Returns orders not yet synced to the cloud, oldest first.
    * @returns {object[]}
    */
