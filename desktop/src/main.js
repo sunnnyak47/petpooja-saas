@@ -271,6 +271,11 @@ function createWindow() {
     store.set('windowBounds', { width: w, height: h })
   })
 
+  // Re-probe connectivity the instant the operator returns to the app, so a
+  // reconnect is picked up immediately instead of waiting up to ~10s for the
+  // next poll (root cause of the offline banner lingering after reconnect).
+  mainWindow.on('focus', () => { try { checkConnectivity() } catch (_) {} })
+
   // Open DevTools in development only
   if (isDev) {
     mainWindow.webContents.openDevTools()

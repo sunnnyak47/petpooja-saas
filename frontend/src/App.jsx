@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -193,9 +194,34 @@ function HomeRedirect() {
 
 export default function App() {
   const { isAuthenticated } = useSelector((s) => s.auth);
+  const queryClient = useQueryClient();
   const [setupComplete, setSetupComplete] = useState(
     localStorage.getItem('msrm_setup_completed') === 'true'
   );
+
+  // ── Refetch on reconnect ────────────────────────────────────────────────
+  // When connectivity returns, refetch every query so Live Orders / KOTs /
+  // tables reflect what happened while offline (root cause of "refresh not
+  // working after reconnect"). The Electron HTTPS-probe does NOT drive
+  // react-query's built-in refetchOnReconnect (that keys off navigator events),
+  // so bridge the probe's connectivity-changed event here, and kick a cloud
+  // sync so the local SQLite mirror catches up too. Web falls back to `online`.
+  useEffect(() => {
+    const onReconnect = () => {
+      queryClient.invalidateQueries();
+      if (window.electron?.invoke) {
+        let oid = null;
+        try { oid = JSON.parse(localStorage.getItem('user') || 'null')?.outlet_id || null; } catch { /* ignore */ }
+        window.electron.invoke('sync-now', oid).catch(() => {});
+      }
+    };
+    if (window.electron?.onConnectivityChange) {
+      const unsub = window.electron.onConnectivityChange((s) => { if (s?.online) onReconnect(); });
+      return () => { if (typeof unsub === 'function') unsub(); };
+    }
+    window.addEventListener('online', onReconnect);
+    return () => window.removeEventListener('online', onReconnect);
+  }, [queryClient]);
 
   // ── Xero OAuth2 callback interceptor ────────────────────────────────────
   // Xero redirects to the root URL with ?code=...&state=... in the query string.

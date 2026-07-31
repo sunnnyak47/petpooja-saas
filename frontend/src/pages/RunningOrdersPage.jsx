@@ -13,7 +13,7 @@ import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import api, { SOCKET_URL } from '../lib/api';
-import hybridAPI from '../api/offlineAPI';
+import hybridAPI, { isNetworkError } from '../api/offlineAPI';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../hooks/useCurrency';
@@ -468,8 +468,16 @@ export default function RunningOrdersPage() {
   const billMutation = useMutation({
     mutationFn: async (id) => {
       if (IS_ELECTRON && !isOnline) return hybridAPI.generateBill(id);
-      const res = await api.post(`/orders/${id}/bill`, { outlet_id: outletId });
-      return res.data?.data || res.data;
+      try {
+        const res = await api.post(`/orders/${id}/bill`, { outlet_id: outletId });
+        return res.data?.data || res.data;
+      } catch (e) {
+        // Connectivity can drop between the ~10s probe cycles, leaving isOnline
+        // stale-true. A network failure on desktop → fall back to the offline path
+        // instead of hard-failing the sale.
+        if (IS_ELECTRON && isNetworkError(e)) return hybridAPI.generateBill(id);
+        throw e;
+      }
     },
     onSuccess: (billData) => {
       toast.success('Bill Generated!');
@@ -481,10 +489,18 @@ export default function RunningOrdersPage() {
 
   const cancelMutation = useMutation({
     mutationFn: async ({ id, reason }) => {
-      if (IS_ELECTRON && !isOnline) {
-        return window.electron.invoke('db-update-order-status', id, 'cancelled', { cancel_reason: reason });
+      const offlineCancel = () => window.electron.invoke('db-update-order-status', id, 'cancelled', { cancel_reason: reason });
+      if (IS_ELECTRON && !isOnline) return offlineCancel();
+      try {
+        return await api.post(`/orders/${id}/cancel`, { reason });
+      } catch (e) {
+        // Cancel a cooking/live order offline even if isOnline is stale-true: a
+        // network failure on desktop falls back to the local cancel (which frees
+        // the table). The backend has no "must bill before cancel" rule, so this
+        // is safe. Root cause of "unable to cancel offline order in cooking state".
+        if (IS_ELECTRON && isNetworkError(e)) return offlineCancel();
+        throw e;
       }
-      return api.post(`/orders/${id}/cancel`, { reason });
     },
     onSuccess: () => {
       toast.success('Order Cancelled');
@@ -836,11 +852,19 @@ export default function RunningOrdersPage() {
                 if (IS_ELECTRON && !isOnline) {
                   await hybridAPI.processPayment(selectedOrder.id, { method, amount: paidAmount });
                 } else {
-                  await api.post(`/orders/${selectedOrder.id}/payment`, {
-                    method,
-                    amount: paidAmount,
-                    razorpay_payment_id: razorpayId,
-                  });
+                  try {
+                    await api.post(`/orders/${selectedOrder.id}/payment`, {
+                      method,
+                      amount: paidAmount,
+                      razorpay_payment_id: razorpayId,
+                    });
+                  } catch (e) {
+                    // Stale-online guard: a network failure on desktop records the
+                    // payment locally instead of blocking collection.
+                    if (IS_ELECTRON && isNetworkError(e)) {
+                      await hybridAPI.processPayment(selectedOrder.id, { method, amount: paidAmount });
+                    } else { throw e; }
+                  }
                 }
                 toast.success('Payment recorded');
                 closeModal();

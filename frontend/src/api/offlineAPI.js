@@ -229,7 +229,11 @@ export const hybridAPI = {
       if (data.table_id) {
         await invoke('db-update-table-status', data.table_id, 'occupied')
       }
-      return { id, ...data }
+      // Read the created row back so the caller gets the LOCALLY-COMPUTED
+      // grand_total (the payload has no total). Without this, serverOrderTotal
+      // stays null offline and the Pay screen shows 0.
+      const created = await invoke('db-get-order', id).catch(() => null)
+      return created || { id, ...data }
     }
     const res = await api.post('/orders', data)
     return res.data?.data

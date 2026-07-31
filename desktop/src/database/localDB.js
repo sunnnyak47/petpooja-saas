@@ -762,11 +762,12 @@ const OrderDB = {
     const order = getDB().prepare(`
       SELECT * FROM orders
       WHERE table_id = ? AND outlet_id = ?
-        AND status IN ('active','confirmed','billed','created')
+        AND status IN ('active','confirmed','billed','created','held','ready')
       ORDER BY created_at DESC LIMIT 1
     `).get(tableId, outletId)
 
     if (order) {
+      order.grand_total = order.grand_total ?? order.total_amount
       order.order_items = getDB().prepare(`
         SELECT *, menu_item_name AS name FROM order_items WHERE order_id = ? ORDER BY created_at
       `).all(order.id)
@@ -784,6 +785,10 @@ const OrderDB = {
   getById(orderId) {
     const order = getDB().prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId)
     if (order) {
+      // The cloud/UI reads `grand_total`; the local column is `total_amount`.
+      // Alias it so Collect Payment, bills and running-order cards show the real
+      // amount offline instead of 0/undefined.
+      order.grand_total = order.grand_total ?? order.total_amount
       order.order_items = getDB().prepare(`
         SELECT *, menu_item_name AS name FROM order_items WHERE order_id = ? ORDER BY created_at
       `).all(orderId)
@@ -956,7 +961,11 @@ const OrderDB = {
     if (filters.date)   { sql += ` AND date(created_at) = date(?)`; params.push(filters.date) }
 
     sql += ` ORDER BY created_at DESC LIMIT 100`
-    return getDB().prepare(sql).all(...params)
+    const rows = getDB().prepare(sql).all(...params)
+    // UI/cloud read `grand_total`; local column is `total_amount`. Alias so
+    // running-order cards and history show the real amount offline (not 0).
+    for (const r of rows) r.grand_total = r.grand_total ?? r.total_amount
+    return rows
   },
 
   /**
