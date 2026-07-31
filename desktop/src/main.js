@@ -527,6 +527,14 @@ function setupIPC() {
     // otherwise a stale token would keep syncing after logout.
     if (token !== undefined) SettingsDB.set('token', token || null)
     if (outletId !== undefined) SettingsDB.set('outlet_id', outletId || null)
+    // On LOGIN (a real token arrives) immediately pull menu / tables / orders into
+    // local SQLite so the terminal is offline-ready without first opening POS while
+    // online (root cause of "menu not loaded offline / No item found"). Fire-and-
+    // forget; syncAll self-guards on online + auth and the isSyncing mutex.
+    if (token) {
+      const oid = outletId || SettingsDB.get('outlet_id')
+      Promise.resolve(syncEngine.syncAll(oid)).catch((e) => console.warn('[main] post-login sync failed:', e.message))
+    }
     return true
   })
 

@@ -605,7 +605,11 @@ export default function POSPage() {
       items: cart.map((c) => ({
         menu_item_id: c.menu_item_id,
         menu_item_name: c.name,
-        unit_price: Number(c.base_price),
+        // Fold the variant/size upcharge into the offline unit price. Online the
+        // backend re-derives this from the menu, but the local SQLite total engine
+        // trusts unit_price verbatim — omitting variant_price undercounts the bill
+        // AND (because sync trusts the device grand_total) corrupts the cloud.
+        unit_price: Number(c.base_price) + Number(c.variant_price || 0),
         variant_id: c.variant_id,
         quantity: c.quantity,
         addons: c.addons || [],
