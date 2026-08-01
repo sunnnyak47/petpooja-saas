@@ -416,6 +416,61 @@ const KB = [
     text: 'Open Voice POS and tap the mic, then speak the order naturally (e.g. “two butter chicken and a garlic naan”). It transcribes and parses the items into the cart; if Confirm Before Adding is on you review before it’s added. On the desktop app it records audio and transcribes it in the cloud, so it needs internet and a working microphone.',
   },
   {
+    topic: 'Central kitchen requisitions (indents)',
+    keywords: ['central kitchen', 'requisition', 'indent', 'stock transfer', 'branch request', 'dispatch stock', 'transfer between outlets', 'confirm receipt'],
+    text: 'Central Kitchen handles raw-material requisitions between a branch and the central kitchen. Use the tabs My Branch Requests / Incoming to My Outlet and filter by status. Click New Requisition, choose the source outlet (Request From), search-and-add inventory items with quantity/unit and Notes. The central kitchen then Approves (with an editable Approve Qty) or Rejects with a reason, and Dispatches (Dispatch Qty); the requesting branch finishes with Confirm Receipt.',
+  },
+  {
+    topic: 'Dynamic pricing rules',
+    keywords: ['dynamic pricing', 'pricing rules', 'surge pricing', 'time based pricing', 'weather pricing', 'auto price', 'price rule', 'happy hour pricing'],
+    text: 'Dynamic Pricing auto-adjusts menu prices by time, day, weather and season (tabs: Rules, Live Prices, Analytics). Click New Rule (or Load Defaults) and set Rule Name, Priority, Trigger Type (Time Slot / Day of Week / Weather / Combo), times and days, Weather and Season, Apply To (all items, slow movers, bestsellers, a category, specific items or a tag), then the Pricing Action (Discount / Surcharge / Fixed Price) with a value in % or flat, plus optional Max Discount Cap, Min Order Value and validity dates. Rules can be Paused, Edited or Deleted; Live Prices shows what is firing now and can simulate weather.',
+  },
+  {
+    topic: 'Festival / Holiday Mode',
+    keywords: ['festival mode', 'holiday mode', 'seasonal menu', 'festival offer', 'christmas', 'diwali', 'seasonal promotion', 'themed menu'],
+    text: 'Festival Mode (called Holiday Mode in Australia, where it appears as a tab inside Discounts) detects upcoming festivals and lets you switch on themed menus, banners and offers. Browse Upcoming / Full Calendar / My Configs, then Preview or Configure a festival: set the Festival Name, Start/End dates, a Custom Banner Message and an Offer (label, discount %, minimum order value), and switch Activate Now on.',
+  },
+  {
+    topic: 'Fraud detection & staff risk',
+    keywords: ['fraud', 'fraud detection', 'staff fraud', 'void abuse', 'discount abuse', 'suspicious', 'risk score', 'theft', 'run scan', 'resolve alert'],
+    text: 'Fraud Detection runs behavioural analysis on staff actions (tabs: Alerts, Staff Risk, Analytics) and Run Scan Now triggers a fresh check. Filter alerts by severity (Critical/High/Medium/Low), type (Excessive Cancellations, KOT Without Bill, Discount Abuse, Void Abuse, Quick Cancel, Late Night Anomaly, Refund Pattern) or unread only; each alert can be opened for Details, Resolved with a note, or Dismissed. Analytics shows the alert-type breakdown, a 7-day trend and the active rule thresholds.',
+  },
+  {
+    topic: 'Connect delivery aggregators & push your menu',
+    keywords: ['aggregators', 'connect swiggy', 'connect zomato', 'connect doordash', 'connect uber eats', 'menulog', 'push menu', 'webhook url', 'store id', 'sync menu to platform', 'manage platforms'],
+    text: 'The Aggregators hub connects delivery platforms (India: Swiggy/Zomato; Australia: Uber Eats/DoorDash/Menulog) with tabs Connect, Menu Sync, Orders and Sync Logs. On Connect, toggle a platform on, enter its Store/Restaurant ID and API key, then copy the generated Webhook URL into the partner dashboard. Use Push Menu Now (or Push Menu to All) to publish your menu and Simulate Test Order to verify. Incoming orders appear in the Orders kanban to Accept (with prep time), Reject or Mark Ready.',
+  },
+  {
+    topic: 'Delivery payouts & commission reconciliation',
+    keywords: ['delivery payout', 'aggregator reconciliation', 'commission', 'net payout', 'platform commission', 'what am i owed', 'payout report'],
+    text: 'Delivery Payouts shows, per platform, gross sales, commission taken and the expected net payout for a date range. Filter by From/To date and Platform, then read Orders, Gross, Commission % and amount, and Net payout. Use Create settlement on a row to turn that payout into a settlement you can reconcile against recorded payments in Settlements.',
+  },
+  {
+    topic: 'ONDC seller hub (India)',
+    keywords: ['ondc', 'open network', 'ondc onboarding', 'go live ondc', 'seller hub', 'ondc orders'],
+    text: 'The ONDC Seller Hub onboards your outlet onto the ONDC network (tabs: Onboarding, Orders, Analytics). The wizard has six steps — Store Info (name, description, category, cuisines), Documents (FSSAI + expiry, GSTIN, PAN), Bank Details (holder, bank, account, IFSC), Delivery (radius, min order, prep time, delivery/pickup/auto-accept), Hours, then Review & Go Live (accept the terms and Submit for ONDC Review). Status moves draft → under review → verified → live; incoming ONDC orders are accepted with a prep time and progressed Preparing → Ready → Picked Up.',
+  },
+  {
+    topic: 'Audit trail & activity log',
+    keywords: ['audit log', 'audit trail', 'activity log', 'who did what', 'security log', 'track changes', 'login history log', 'ip address', 'who voided', 'who cancelled', 'who deleted', 'who changed', 'who refunded', 'trace action'],
+    text: 'The Audit Trail is a read-only log of every action, login and sensitive operation. Filter with the search box, a date range (Today/Week/Month/All) and an action type (Logins, Creates, Updates, Deletes, Voids, Refunds, Payments). Stat cards summarise Total Events, Logins, Voids/Refunds and Config Changes, and the table shows Timestamp, User, Action, Entity, Details and IP Address.',
+  },
+  {
+    topic: 'Payment transactions & issuing a refund',
+    keywords: ['payments page', 'transactions', 'refund', 'issue refund', 'refund a payment', 'payment history', 'export payments', 'transaction list'],
+    text: 'The Payments page tracks all paid-order activity with stat cards (Total Revenue, Transactions, Cash, Card, UPI/EFTPOS). Filter by search (order #, invoice, customer), date range and method, and use Export CSV for the current view. To refund, use the Refund action on the transaction and supply a reason (at least 3 characters) plus a 4-digit Manager PIN.',
+  },
+  {
+    topic: 'Set up a new restaurant (onboarding wizard)',
+    keywords: ['onboarding', 'setup restaurant', 'first time setup', 'new restaurant', 'go live', 'setup wizard', 'getting started', 'initial setup'],
+    text: 'The Onboarding wizard sets up a whole restaurant in 7 steps: Business Profile (name, country, cuisines, business type, GSTIN+FSSAI or ABN+ACN), Outlet & Tables (address, service modes, table count, QR), Menu Setup (paste a menu for AI parsing), Team Setup (name, phone, role, 4-digit PIN), POS Config (default order type, payment modes, receipt footer, Voice language), Integrations, then Go Live. Use Back/Skip/Next, or “Skip setup & go to dashboard” for the express path.',
+  },
+  {
+    topic: 'Set up a POS terminal / desktop device',
+    keywords: ['terminal setup', 'setup wizard', 'connect terminal', 'new device', 'desktop setup', 'first run', 'device setup', 'link terminal'],
+    text: 'When the desktop app runs for the first time it shows a 3-step terminal setup: Welcome → Get Started, Manager Login (email + password → Connect Terminal), then Thermal Printer (enter the Printer IP Address, default 192.168.1.100 → Finish Setup, or Skip). This links one physical terminal to your existing account — it is separate from the restaurant Onboarding wizard. The cash drawer is driven via the printer.',
+  },
+  {
     topic: 'What the assistant can do',
     keywords: ['assistant', 'what can you do', 'help', 'ask you', 'capabilities', 'what do you know', 'how to use assistant'],
     text: "Ask about your live business data — today's sales, top sellers, low stock, money/tax this month, top customers, tomorrow's forecast, active orders, open purchase orders, payroll, fraud alerts, staff hours — or how to do things in the app (any of the topics here). I can also export EOD/P&L/Sales reports as PDF or Excel. I'm read-only, so I report and explain but never change anything.",
