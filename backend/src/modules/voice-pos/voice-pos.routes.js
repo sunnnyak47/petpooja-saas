@@ -2,6 +2,7 @@
  * Voice POS routes — conversational LLM-powered order parsing
  */
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { conversationalParse, getSupportedLanguages, getUpsellSuggestions, placeVoiceOrder } = require('./voice-pos.service');
 const { authenticate } = require('../../middleware/auth.middleware');
@@ -9,6 +10,44 @@ const { hasPermission } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const { converseSchema, upsellSchema, placeVoiceOrderSchema } = require('./voice-pos.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
+
+// In-memory audio upload for speech-to-text (kept small — voice clips are short).
+const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+/**
+ * POST /api/voice-pos/transcribe  (multipart: audio)
+ * Speech-to-text so the DESKTOP app (Electron has no Web Speech API) can capture
+ * spoken orders. Uses Groq Whisper; the resulting text is fed to /converse just
+ * like the browser SpeechRecognition transcript. Returns { text }.
+ */
+router.post('/transcribe', authenticate, audioUpload.single('audio'), async (req, res, next) => {
+  try {
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ success: false, message: 'Audio file required' });
+    }
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ success: false, message: 'Speech-to-text is not configured on the server.' });
+    }
+    const form = new FormData();
+    form.append('file', new Blob([req.file.buffer], { type: req.file.mimetype || 'audio/webm' }), req.file.originalname || 'audio.webm');
+    form.append('model', 'whisper-large-v3');
+    form.append('response_format', 'json');
+    if (req.body.language) form.append('language', String(req.body.language).slice(0, 2));
+
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '');
+      return res.status(502).json({ success: false, message: 'Transcription failed', detail: detail.slice(0, 200) });
+    }
+    const data = await r.json();
+    return sendSuccess(res, { text: (data && data.text) || '' }, 'Transcribed');
+  } catch (e) { next(e); }
+});
 
 /**
  * POST /api/voice-pos/converse

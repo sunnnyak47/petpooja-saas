@@ -126,6 +126,11 @@ export default function useVoiceOrder(langOverride) {
   const safetyTimer = useRef(null);
   const sessionActiveRef = useRef(false);   // True while the user wants continuous voice mode on
   const manualStopRef   = useRef(false);    // True when user explicitly toggled off
+  // Electron press-to-talk capture (no Web Speech API in Electron → record audio
+  // and transcribe server-side via Groq Whisper).
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef   = useRef(null);
+  const audioChunksRef   = useRef([]);
 
   // Detect Electron
   const isElectron = typeof window !== 'undefined' && (
@@ -136,7 +141,9 @@ export default function useVoiceOrder(langOverride) {
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setSupported(!!SR && !isElectron);
+    // Web uses the browser SpeechRecognition API; Electron uses the MediaRecorder
+    // + server-side Whisper path, so voice is supported in BOTH now.
+    setSupported(isElectron ? true : !!SR);
     return () => {
       sessionActiveRef.current = false;
       clearTimeout(silenceTimer.current);
@@ -293,8 +300,73 @@ export default function useVoiceOrder(langOverride) {
     }
   }, [isThinking, cart, outletId, syncCartToRedux, dispatch, settings, lang]);
 
+  /* ── Electron capture: record audio, transcribe server-side, then parse ──
+     Press-to-talk. First toggle starts recording; second toggle (or the safety
+     timer) stops it, uploads to /voice-pos/transcribe (Groq Whisper), and feeds
+     the returned text into the SAME sendToLLM pipeline the browser path uses. */
+  const stopElectronListening = useCallback(() => {
+    manualStopRef.current = true;
+    sessionActiveRef.current = false;
+    clearTimeout(safetyTimer.current);
+    try { mediaRecorderRef.current?.state === 'recording' && mediaRecorderRef.current.stop(); }
+    catch (_) { setIsListening(false); }
+  }, []);
+
+  const startElectronListening = useCallback(async () => {
+    if (isThinking || isListening) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast.error('Microphone capture not available on this device.');
+      return;
+    }
+    try {
+      // Best-effort: prompt for mic access via the desktop shell (mac gate).
+      try { await window.electron?.invoke?.('request-microphone-access'); } catch (_) {}
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find((m) => MediaRecorder.isTypeSupported?.(m)) || '';
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = rec;
+      audioChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) audioChunksRef.current.push(e.data); };
+      rec.onstart = () => { setIsListening(true); setTranscript('🎙️ Listening… tap again to finish'); };
+      rec.onstop = async () => {
+        clearTimeout(safetyTimer.current);
+        setIsListening(false);
+        const tracks = mediaStreamRef.current?.getTracks?.() || [];
+        tracks.forEach((t) => { try { t.stop(); } catch (_) {} });
+        mediaStreamRef.current = null;
+        const blob = new Blob(audioChunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        audioChunksRef.current = [];
+        if (!blob.size) { setTranscript(''); return; }
+        try {
+          setTranscript('⏳ Transcribing…');
+          const form = new FormData();
+          form.append('audio', blob, 'order.webm');
+          form.append('language', (lang || 'en-IN').slice(0, 2));
+          const res = await api.post('/voice-pos/transcribe', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+          const text = (res.data?.data?.text ?? res.data?.text ?? '').trim();
+          setTranscript(text);
+          if (text) sendToLLM(text);
+          else toast('Didn’t catch that — try again.', { icon: '🎤', duration: 1800 });
+        } catch (err) {
+          setTranscript('');
+          toast.error(err?.response?.data?.message || 'Could not transcribe audio.');
+        }
+      };
+      rec.start();
+      // Safety cap so a forgotten session can't record forever.
+      clearTimeout(safetyTimer.current);
+      safetyTimer.current = setTimeout(() => { try { rec.state === 'recording' && rec.stop(); } catch (_) {} }, (Number(settings.maxSessionSec) || 30) * 1000);
+    } catch (err) {
+      setIsListening(false);
+      if (err?.name === 'NotAllowedError') toast.error('Microphone permission denied. Allow mic access for MS-RM.');
+      else toast.error('Could not start the microphone.');
+    }
+  }, [isThinking, isListening, lang, sendToLLM, settings]);
+
   /* ── Start a recognition session ── */
   const startListening = useCallback(() => {
+    if (isElectron) { startElectronListening(); return; }
     if (isThinking || isListening) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast.error('Speech not supported. Use Chrome.'); return; }
@@ -376,10 +448,11 @@ export default function useVoiceOrder(langOverride) {
       toast.error('Could not start voice recognition.');
       cleanup('');
     }
-  }, [isListening, isThinking, lang, sendToLLM, settings]);
+  }, [isElectron, startElectronListening, isListening, isThinking, lang, sendToLLM, settings]);
 
   /* ── Stop listening (manual) ── */
   const stopListening = useCallback(() => {
+    if (isElectron) { stopElectronListening(); return; }
     manualStopRef.current = true;
     sessionActiveRef.current = false;
     clearTimeout(silenceTimer.current);
@@ -390,7 +463,7 @@ export default function useVoiceOrder(langOverride) {
       setTranscript('');
       recognitionRef.current = null;
     }
-  }, []);
+  }, [isElectron, stopElectronListening]);
 
   /* ── Toggle a multi-turn session on/off ── */
   const toggleListening = useCallback(() => {
