@@ -165,9 +165,44 @@ const KB = [
     text: 'Customers → Add Customer. Enter Full Name, Phone (required), Email, Gender, Date of Birth, Anniversary, Segment (New/Regular/VIP), Diet Preference, marketing consent and notes. Customers are auto-enrolled in loyalty. DOB/anniversary drive birthday reminders and campaigns.',
   },
   {
-    topic: 'Loyalty & rewards',
-    keywords: ['loyalty', 'rewards', 'points', 'redeem points', 'loyalty program', 'earn points', 'vip'],
-    text: 'Customers earn loyalty points automatically on paid orders. At checkout you can redeem a customer’s points against the bill (capped by the redemption limit). Manage members and segments (New/Regular/VIP/Lapsed) in Customers.',
+    topic: 'Loyalty & rewards (and how to set the program up)',
+    keywords: ['loyalty', 'rewards', 'points', 'redeem points', 'loyalty program', 'earn points', 'vip', 'earn rate', 'points per spend', 'redemption rate', 'point expiry', 'bonus points', 'setup loyalty', 'loyalty settings', 'crm'],
+    text: 'Customers earn points automatically on paid orders and you can redeem them against a bill at checkout. To configure the program open Loyalty & Rewards (CRM) → Settings: turn the program on/off and set Earning Rules (points per spend, spend amount, VIP threshold, VIP multiplier), Redemption Rules (value per point, minimum points to redeem, max redemption % per order, point expiry months) and Bonus Points (signup, birthday, referral), then Save Changes. The other tabs are Overview (KPIs, segments, top spenders, upcoming birthdays), Customers (add/edit, Adjust Points, Loyalty History), Loyalty (rules + leaderboard) and Campaigns.',
+  },
+  {
+    topic: '86 Board (pause items across channels)',
+    keywords: ['86 board', 'auto-86', 'pause item', 'sold out channels', 're-sync availability', 'stop selling online', 'availability board'],
+    text: 'The 86 Board pauses menu items across every delivery channel at once. Search the item and flip its Available toggle to 86 it (or turn it back on); the Status pill shows Available / Low / 86’d and the Stock column names the limiting ingredient. Turn on Auto-86 to pause items automatically when stock hits zero, and use Re-sync now to push current availability out to the channels.',
+  },
+  {
+    topic: 'Live Dashboard (real-time operations)',
+    keywords: ['live dashboard', 'real time', 'orders today', 'active tables', 'order pipeline', 'kitchen status', 'live view', 'whats happening now'],
+    text: 'The Live Dashboard is a real-time view of today that auto-refreshes every 30 seconds (with a manual Refresh and a “last updated” time). It shows Orders Today, Revenue Today, Active Tables and Avg Order Value, the Order Pipeline (Pending → Confirmed → Preparing → Ready → Delivered/Cancelled) and Kitchen Status (In Queue, Preparing, Ready, Completed) plus avg prep time and staff on duty. It always reflects the current day — there are no filters.',
+  },
+  {
+    topic: 'Menu Analytics (best and worst sellers)',
+    keywords: ['menu analytics', 'abc analysis', 'slow movers', 'top sellers report', 'item performance', 'which items sell', 'worst selling', 'menu performance'],
+    text: 'Menu Analytics ranks every item over the last 30 days into three tiers — A (Top Sellers), B (Moderate), C (Slow Movers). Pick an outlet top-right if you have several (the window is fixed at 30 days). Read the KPI strip (Total Revenue, Units Sold, Active SKUs, Avg Revenue/Item) and the Revenue Distribution bar, then open a tier tab to see per-item units, average price, revenue and % share — useful for deciding what to promote or drop.',
+  },
+  {
+    topic: 'Channel Analytics (compare sales channels)',
+    keywords: ['channel analytics', 'channel comparison', 'commission', 'net revenue by channel', 'aggregator performance', 'dine-in vs delivery', 'cancel rate'],
+    text: 'Channel Analytics compares sales across delivery aggregators (Uber Eats, DoorDash, Deliveroo, Menulog, Swiggy, Zomato) plus dine-in, QR and direct orders. Set the window with the From/To dates (defaults to the last 30 days) and read Total Orders, Gross Sales, Commission and Net Revenue, then the per-channel table (orders, gross, AOV, cancel %, avg prep, commission, net), the gross-share bars and Top Items (filterable by channel).',
+  },
+  {
+    topic: 'Prep Time Analytics (kitchen speed)',
+    keywords: ['prep time', 'prep analytics', 'cook time', 'kitchen speed', 'sla', 'slowest item', 'station performance', 'kds analytics', 'how fast kitchen'],
+    text: 'Prep Time Analytics reports average cook time per item and station from KDS data. Choose a range (1d / 7d / 30d / 90d) and read Avg Prep, Fastest/Slowest KOT and SLA Compliance by Station, then use the tabs: Overview (slowest/fastest items + daily trend), Stations, Items (filter by Kitchen/Bar/Dessert/Packing), Heatmap (hour × day) and Trend. Most tabs have a CSV export.',
+  },
+  {
+    topic: 'Financial Analytics with Xero',
+    keywords: ['xero', 'xero analytics', 'financial analytics', 'sync xero', 'export to xero', 'connect xero', 'accounting sync', 'push sales to xero'],
+    text: 'Financial Analytics surfaces your Xero accounting data. If it isn’t connected, click Connect Xero (OAuth); then use Sync Now to pull data, or Export to Xero to push POS sales (set From/To dates and toggle Itemised by category, Channel tracking, Reconcile payments, Per-order invoices, then Export Now). Pick a range (Last Month/Quarter/Year/All Time) and a tab: Overview, P&L, Expenses, Labour, Cash Flow, Balance Sheet, Invoices, BAS/Tax and more.',
+  },
+  {
+    topic: 'Australian integrations (Xero, Square, MYOB, Google Reviews)',
+    keywords: ['au integrations', 'connect square', 'connect myob', 'google reviews', 'pronto', 'oauth connect', 'disconnect integration', 'australian tools'],
+    text: 'AU Integrations connects Australian business tools. Xero and Square connect by OAuth (Connect with…), while MYOB, Google Reviews and Pronto use a Connect form for API keys/IDs. Each connected card shows live stats and actions — Xero (Import, Sync Sales, View Analytics), MYOB (Export CSV for Sales/Expenses/Payroll over a date range), Pronto (Sync Now) — and Google Reviews lists reviews with sentiment and a Reply action. Any tool can be disconnected from its card.',
   },
   {
     topic: 'Send a marketing campaign',
