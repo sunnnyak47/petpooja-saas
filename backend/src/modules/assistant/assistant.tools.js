@@ -183,7 +183,7 @@ const TOOLS = [
   {
     name: 'sales_forecast',
     description: "Predict tomorrow's orders and revenue from the last 30 days, vs your daily average and recent trend",
-    keywords: ['predict', 'prediction', 'forecast', 'tomorrow', 'expected', 'projection', 'projected', 'estimate', 'next week', 'busy tomorrow', 'trend', 'trending', 'outlook', 'anticipated', 'average prediction', 'compare to last 30', 'what to expect'],
+    keywords: ['predict', 'prediction', 'predict tomorrow', 'forecast', 'forecast my', 'tomorrow', 'tomorrows orders', "tomorrow's orders", 'expected', 'projection', 'projected', 'estimate', 'next week', 'busy tomorrow', 'trend', 'trending', 'outlook', 'anticipated', 'average prediction', 'compare to last 30', 'what to expect'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const series = await reports.getRevenueTrendRange(ctx.outletId, daysAgo(29), today());
@@ -210,7 +210,7 @@ const TOOLS = [
   {
     name: 'open_purchase_orders',
     description: 'Purchase orders still open (not yet received) and their total value',
-    keywords: ['purchase order', 'open po', 'pending purchase', 'pending supplier', 'pending order', 'supplier order', 'ordered from supplier', 'incoming stock', 'awaiting delivery', 'awaiting', 'outstanding purchase', 'unreceived', 'not yet received', 'on order', 'po status', 'to receive', 'in progress', 'on the way'],
+    keywords: ['purchase order', 'purchase', 'open purchase', 'purchase orders open', 'open po', 'pending purchase', 'pending supplier', 'supplier order', 'supplier orders', 'open supplier', 'ordered from supplier', 'incoming stock', 'awaiting delivery', 'awaiting', 'outstanding purchase', 'unreceived', 'not yet received', 'on order', 'po status', 'to receive', 'on the way'],
     permission: 'VIEW_INVENTORY',
     run: async (ctx) => {
       const r = await procurement.listPurchaseOrders(ctx.outletId, {});
@@ -231,7 +231,7 @@ const TOOLS = [
   {
     name: 'active_orders',
     description: 'Orders happening right now — open dine-in tables, takeaway and delivery still being prepared or awaiting payment, with how many and their value',
-    keywords: ['active order', 'open order', 'running order', 'live order', 'orders right now', 'current order', 'in progress', 'open table', 'open bill', 'unpaid order', 'whats cooking', 'being prepared', 'pending order', 'ongoing'],
+    keywords: ['active order', 'open order', 'orders open', 'orders are open', 'running order', 'orders running', 'orders are running', 'are running', 'live order', 'orders right now', 'current order', 'in progress', 'open table', 'open bill', 'unpaid order', 'whats cooking', 'cooking', 'being prepared', 'pending order', 'orders pending', 'orders are pending', 'ongoing', 'still open', 'orders still', 'in play', 'ticket', 'tickets', 'active ticket', 'open ticket'],
     permission: 'VIEW_ORDERS',
     run: async (ctx) => {
       const r = await orders.listOrders(ctx.outletId, { running: 'true', limit: 50 });
@@ -260,7 +260,7 @@ const TOOLS = [
   {
     name: 'eod_summary',
     description: "Today's day-close / end-of-day: total sales, tax, discounts, cash vs card taken, voids and refunds — what you'd reconcile at closing",
-    keywords: ['eod', 'end of day', 'day close', 'close the day', 'closing', 'cash up', 'z report', 'reconcile', 'cash in drawer', 'takings today', 'day summary', 'daily close', 'settle the day'],
+    keywords: ['eod', 'end of day', 'day close', 'day end', 'close the day', 'closing', 'closing report', 'closing figures', 'at close', 'cash up', 'z report', 'reconcile', 'cash in drawer', 'drawer', 'the drawer', 'drawer have', 'cash vs card', 'cash and card', 'takings today', 'day summary', 'daily close', 'settle the day', 'voids today'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const s = await eod.previewToday(ctx.outletId);
@@ -277,7 +277,7 @@ const TOOLS = [
   {
     name: 'payroll_summary',
     description: 'Your latest payroll pay run: gross wages, PAYG tax withheld, superannuation, net pay and number of payslips',
-    keywords: ['payroll', 'pay run', 'wages', 'salary', 'payslip', 'super', 'superannuation', 'paye', 'payg', 'staff pay', 'wage bill', 'how much pay', 'net pay'],
+    keywords: ['payroll', 'pay run', 'wages', 'salary', 'payslip', 'super', 'superannuation', 'paye', 'payg', 'staff pay', 'pay staff', 'paid staff', 'pay my staff', 'wage bill', 'how much pay', 'net pay', 'salary paid'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const runs = await payroll.listPayRuns(ctx.outletId);
@@ -310,7 +310,7 @@ const TOOLS = [
   {
     name: 'fraud_alerts',
     description: 'Open fraud / loss-prevention alerts — suspicious voids, discounts, refunds or cash events flagged for review, most severe first',
-    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'cash discrepancy', 'staff risk', 'shrinkage'],
+    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'anomalies', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'abuse', 'abusing', 'risky', 'cash discrepancy', 'staff risk', 'shrinkage'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const r = await fraud.listAlerts(ctx.outletId, { limit: 10 });
@@ -336,7 +336,7 @@ const TOOLS = [
   {
     name: 'staff_hours',
     description: 'Staff attendance this period: who clocked in, their days present and hours worked (including overtime)',
-    keywords: ['staff hours', 'attendance', 'who worked', 'hours worked', 'clock in', 'clocked in', 'shift report', 'timesheet', 'overtime', 'days present', 'staff working', 'labour hours', 'who is on'],
+    keywords: ['staff hours', 'attendance', 'who worked', 'hours worked', 'most hours', 'hours per', 'shift hours', 'hours', 'clock in', 'clocked', 'clocked in', 'shift report', 'timesheet', 'overtime', 'days present', 'present this', 'staff working', 'putting in hours', 'labour hours', 'who is on'],
     permission: 'VIEW_STAFF',
     run: async (ctx) => {
       const r = await attendance.getShiftReport(ctx.outletId, {});
@@ -359,7 +359,7 @@ const TOOLS = [
   {
     name: 'help_howto',
     description: 'How to DO something in the app — step-by-step help for POS, payments, tables, menu, inventory, purchase orders, EOD, discounts, offline mode, staff/attendance, payroll and account security. Use for "how do I…", "where is…", "how to…" questions about using the software (not about live data).',
-    keywords: ['how do i', 'how to', 'how can i', 'how does', 'where is', 'where do i', 'where can i', 'steps to', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'use the', 'using', 'explain how', 'walk me through', 'show me how'],
+    keywords: ['how do i', 'how do i create', 'how do i add', 'how do i make', 'how do i set', 'how to', 'how can i', 'how do you', 'where is', 'where do i', 'where can i', 'where to', 'steps to', 'step by step', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'explain how', 'walk me through'],
     permission: null,
     run: (ctx, question) => ({ matches: searchKnowledge(question, 3) }),
     summarize: (d) => {

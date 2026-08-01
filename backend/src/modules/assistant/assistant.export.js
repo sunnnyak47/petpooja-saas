@@ -105,9 +105,17 @@ function parseDateRange(question, now = new Date()) {
  */
 function detectExport(question) {
   const q = String(question || '').toLowerCase();
-  const wantsFile = /\b(download|export|generate|save|send me|give me|get me|pull|extract)\b/.test(q);
+  // Tiered intent: STRONG verbs (download/export) unambiguously mean "a file".
+  // WEAK verbs ("give me", "get me", …) are everyday data-question words — they
+  // only mean a file when paired with a format word (pdf/excel/csv) or a file-ish
+  // noun (report/file/statement). Without the tier, "give me today's sales"
+  // returned a download link instead of an answer.
+  const strongVerb = /\b(download|export)\b/.test(q);
+  const weakVerb = /\b(generate|save|send me|give me|get me|pull|extract)\b/.test(q);
   const formatWord = /\b(pdf|excel|xlsx|xls|spreadsheet|csv)\b/.test(q);
-  if (!wantsFile && !formatWord) return null;
+  const fileNoun = /\b(report|file|statement)\b/.test(q);
+  const wantsFile = strongVerb || formatWord || (weakVerb && fileNoun);
+  if (!wantsFile) return null;
 
   const format = /\bpdf\b/.test(q) ? 'pdf' : 'csv';
   let module = null;
@@ -116,7 +124,7 @@ function detectExport(question) {
   else if (/(sales|revenue|takings|turnover)/.test(q)) module = 'sales';
 
   // "export a report" with no explicit module → default to a sales report.
-  if (!module) { if (/\breport\b/.test(q) && (wantsFile || formatWord)) module = 'sales'; else return null; }
+  if (!module) { if (/\breport\b/.test(q)) module = 'sales'; else return null; }
   return { module, format };
 }
 
