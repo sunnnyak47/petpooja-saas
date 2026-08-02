@@ -161,6 +161,38 @@ const CORES = {
     'riskiest team member', 'staff risk scores', 'which staff have alerts', 'risky employees list',
     'flag risky staff',
   ],
+  tax_figures: [
+    'gst collected vs paid', 'gst collected this month', 'how much gst collected on sales',
+    'gst on sales this period', 'gst on purchases this month', 'net gst payable', 'net gst for the period',
+    'my tax collected vs tax paid', 'input tax credit this month', 'net gst payable amount',
+    'tax liability this quarter', 'bas figures for the quarter', 'how much gst to pay the ato',
+    'gst refund or amount to pay', 'gst breakdown collected and paid', 'tax collected and tax paid',
+    'gst on sales and purchases', 'net gst amount this month', 'net gst payable breakdown',
+  ],
+  cash_flow: [
+    'cash flow this month', 'show me cash flow', 'cash in vs cash out', 'net cash movement',
+    'am i cash flow positive', 'my cash position', 'net cash this month', 'cash inflow and outflow',
+    'money in and out this month', 'cashflow summary', 'how is my cash flow', 'cash coming in and going out',
+    'whats my cashflow', 'cash flow position this month',
+  ],
+  supplier_balances: [
+    'how much do i owe each supplier', 'supplier balances', 'vendor balances', 'outstanding by supplier',
+    'which supplier do i owe most', 'supplier wise payables', 'balance due to each vendor',
+    'supplier payables breakdown', 'unpaid bills by supplier', 'how much due per vendor',
+    'supplier dues breakdown', 'vendor dues breakdown', 'balance due per supplier', 'payables by supplier',
+  ],
+  budget_vs_actual: [
+    'budget vs actual', 'am i over budget this month', 'how am i tracking against budget',
+    'planned vs actual spend', 'budget variance report', 'are we over or under budget',
+    'did we hit our budget', 'budgeted revenue vs actual', 'how far off budget are we',
+    'expense budget comparison', 'budget performance this period', 'actuals against budget plan',
+    'on budget or over', 'am i within budget',
+  ],
+  credit_notes: [
+    'how many credit notes', 'outstanding credit notes', 'total credit notes value', 'credit notes issued this month',
+    'any credit memos', 'show me credit notes', 'credit note total', 'customer credit notes',
+    'value of credit notes issued', 'list credit notes', 'credit notes summary', 'credit memo total',
+  ],
   help_howto: [
     'how do i take a new order', 'how to split a bill', 'where do i 86 an item', 'how do i add a menu item',
     'how to connect the thermal printer', 'how do i create a purchase order', 'how to run payroll',
@@ -169,7 +201,7 @@ const CORES = {
     'how do i connect uber eats', 'how to generate qr codes', 'how do i change my password',
     'how to use offline mode', 'where do i configure the receipt printer', 'how do i transfer a table',
     'how to set up dynamic pricing', 'how do i log wastage', 'how to make a roster', 'where do i see the audit log',
-    'how do i push my menu to aggregators', 'how to issue a credit note', 'how do i set the gst rate',
+    'how do i push my menu to aggregators', 'how to create a credit note', 'how do i set the gst rate',
     'how to enable auto-86', 'how do i run a marketing campaign', 'how to import a settlement',
   ],
 };

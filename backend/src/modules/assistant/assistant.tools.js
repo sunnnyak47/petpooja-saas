@@ -28,6 +28,10 @@ const fraud = require('../fraud/fraud.service');
 const attendance = require('../staff/attendance.service');
 const eod = require('../reports/eod.service');
 const statements = require('../accounting/accounting.statements.service');
+const bas = require('../accounting/accounting.bas.service');
+const aging = require('../accounting/accounting.aging.service');
+const budgetSvc = require('../accounting/accounting.budget.service');
+const creditNotes = require('../financial-docs/creditnote.service');
 const { computeForecast } = require('./assistant.forecast');
 const { searchKnowledge } = require('./assistant.knowledge');
 
@@ -477,6 +481,128 @@ const TOOLS = [
       return d.matches[0].text;
     },
   },
+
+  {
+    name: 'tax_figures',
+    description: 'GST/BAS tax figures this month: tax collected on sales, tax paid on purchases (input credit), and the net amount you owe or are due back',
+    keywords: ['gst collected', 'gst on sales', 'gst on purchases', 'net gst', 'tax collected', 'tax paid', 'input tax credit', 'gst payable', 'collected vs paid', 'tax liability', 'bas figures', 'pay the ato', 'gst refund', 'gst breakdown'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const r = await bas.getBASReport(ctx.outletId, monthStart(), today());
+      return {
+        currency: ctx.currency,
+        tax_type: ctx.currency === 'INR' ? 'GST' : 'BAS',
+        period: r.period_label,
+        tax_collected: num(r.gst_on_sales_1A),
+        tax_paid: num(r.gst_on_purchases_1B),
+        net_owed: num(r.net_gst),
+        is_payable: !!r.payable,
+      };
+    },
+    summarize: (d) => {
+      const label = d.tax_type || 'GST';
+      if (!d.tax_collected && !d.tax_paid) return `No ${label} activity recorded for ${d.period || 'this period'} yet.`;
+      const net = money(d.currency, Math.abs(d.net_owed));
+      return d.net_owed >= 0
+        ? `${label} for ${d.period}: collected ${money(d.currency, d.tax_collected)}, paid ${money(d.currency, d.tax_paid)} — you owe ${net}.`
+        : `${label} for ${d.period}: collected ${money(d.currency, d.tax_collected)}, paid ${money(d.currency, d.tax_paid)} — you're due a refund of ${net}.`;
+    },
+  },
+
+  {
+    name: 'cash_flow',
+    description: 'Cash flow this month: how much cash came in vs went out, the net movement, and the biggest inflows and outflows',
+    keywords: ['cash flow', 'cashflow', 'cash in vs cash out', 'cash in and out', 'net cash', 'cash movement', 'money in and out', 'cash position', 'cash coming in', 'cash going out', 'cash inflow', 'cash outflow'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const cf = await bas.getCashFlow(ctx.outletId, monthStart(), today());
+      return {
+        currency: ctx.currency,
+        cash_in: num(cf.total_in),
+        cash_out: num(cf.total_out),
+        net_change: num(cf.net_change),
+        inflows: (cf.inflows || []).map((i) => ({ label: i.label, amount: num(i.amount) })),
+        outflows: (cf.outflows || []).map((o) => ({ label: o.label, amount: num(o.amount) })),
+      };
+    },
+    summarize: (d) => {
+      if (!d.cash_in && !d.cash_out) return 'No cash movement recorded this month yet.';
+      const dir = d.net_change >= 0 ? 'up' : 'down';
+      return `This month: ${money(d.currency, d.cash_in)} cash in, ${money(d.currency, d.cash_out)} out — net ${dir} ${money(d.currency, Math.abs(d.net_change))}.`;
+    },
+  },
+
+  {
+    name: 'supplier_balances',
+    description: 'How much you owe each supplier — outstanding payables broken down by vendor, largest first',
+    keywords: ['each supplier', 'by supplier', 'per supplier', 'which supplier', 'supplier balance', 'vendor balance', 'supplier balances', 'vendor balances', 'supplier payables', 'supplier wise', 'each vendor', 'per vendor', 'vendor dues', 'supplier dues', 'owe each'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const report = await aging.getPayablesAging(ctx.outletId);
+      const bySupplier = {};
+      for (const it of (report.items || [])) {
+        const name = it.supplier || '—';
+        const row = bySupplier[name] || (bySupplier[name] = { supplier: name, owed: 0, bills: 0, oldest_days: 0 });
+        row.owed = Math.round((row.owed + num(it.amount)) * 100) / 100;
+        row.bills += 1;
+        if (num(it.days) > row.oldest_days) row.oldest_days = num(it.days);
+      }
+      const suppliers = Object.values(bySupplier).sort((a, b) => b.owed - a.owed).slice(0, 20);
+      return { currency: ctx.currency, total_owed: num(report.total), supplier_count: suppliers.length, suppliers };
+    },
+    summarize: (d) => {
+      if (!d.supplier_count) return 'You have no outstanding supplier balances — all bills are paid.';
+      const top = d.suppliers.slice(0, 3).map((s) => `${s.supplier} (${money(d.currency, s.owed)})`).join(', ');
+      return `You owe ${money(d.currency, d.total_owed)} across ${d.supplier_count} supplier${d.supplier_count === 1 ? '' : 's'}. Most: ${top}.`;
+    },
+  },
+
+  {
+    name: 'budget_vs_actual',
+    description: 'Budget vs actual this month: how your real revenue and expenses compare to your budget, with the biggest variances',
+    keywords: ['budget vs actual', 'over budget', 'under budget', 'against budget', 'budget variance', 'budget target', 'planned vs actual', 'on budget', 'budget performance', 'budgeted', 'budget comparison', 'hit our budget', 'vs actual', 'budget'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const budgets = await budgetSvc.listBudgets(ctx.outletId);
+      if (!budgets || !budgets.length) return { currency: ctx.currency, has_budget: false };
+      const latest = budgets[0];
+      const r = await budgetSvc.getBudgetVsActual(ctx.outletId, latest.id, monthStart(), today());
+      const lines = (r.lines || [])
+        .map((l) => ({ account: l.account_name || l.account_code, budget: num(l.budget), actual: num(l.actual), variance: num(l.variance), variance_pct: l.variance_pct }))
+        .sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+        .slice(0, 8);
+      return { currency: ctx.currency, has_budget: true, budget_name: r.name, fy_year: r.fy_year, totals: r.totals, lines };
+    },
+    summarize: (d) => {
+      if (!d.has_budget) return "You haven't set up a budget yet, so I can't compare actuals against it.";
+      const t = d.totals || {};
+      const worst = d.lines && d.lines[0];
+      let s = `Against your "${d.budget_name}" budget: actual ${money(d.currency, num(t.actual))} vs budgeted ${money(d.currency, num(t.budget))}.`;
+      if (worst) s += ` Biggest gap: ${worst.account} (${money(d.currency, worst.actual)} vs ${money(d.currency, worst.budget)}).`;
+      return s;
+    },
+  },
+
+  {
+    name: 'credit_notes',
+    description: 'Credit notes issued: how many, their total value and tax, and the most recent ones',
+    keywords: ['credit note', 'credit notes', 'credit memo', 'credit notes issued', 'outstanding credit notes', 'credit note value'],
+    permission: null,
+    run: async (ctx) => {
+      const s = await creditNotes.stats(ctx.outletId, {});
+      let recent = [];
+      try {
+        const r = await creditNotes.list(ctx.outletId, { status: 'issued', limit: 5 });
+        recent = (r.rows || []).slice(0, 5).map((n) => ({ number: n.credit_note_no, customer: n.customer_name || '—', amount: num(n.total_amount), issued: n.issued_at }));
+      } catch (_) { /* recent list is best-effort */ }
+      return { currency: ctx.currency, count: num(s.count), total: num(s.total_amount), tax: num(s.tax_amount), notes: recent };
+    },
+    summarize: (d) => {
+      if (!d.count) return 'No credit notes have been issued.';
+      return `${d.count} credit note${d.count === 1 ? '' : 's'} issued, totalling ${money(d.currency, d.total)} (incl. ${money(d.currency, d.tax)} tax).`;
+    },
+  },
+
 ];
 
 const SUGGESTIONS = [
