@@ -103,4 +103,20 @@ async function act(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act };
+/**
+ * GET /api/assistant/alerts — proactive alerts for the user's outlet.
+ */
+async function getAlerts(req, res, next) {
+  try {
+    const userCtx = {
+      id: req.user.id,
+      role: req.user.role,
+      outletId: req.query.outlet_id || req.user.outlet_id || null,
+      permissions: Array.isArray(req.user.permissions) ? req.user.permissions : [],
+    };
+    const list = await assistant.alerts(userCtx);
+    return sendSuccess(res, { alerts: list, count: list.length }, 'Alerts');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act, getAlerts };

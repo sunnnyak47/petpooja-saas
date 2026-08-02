@@ -11,7 +11,7 @@
  * res.data.answer. Pure helpers below are unit-tested (no React / RN imports).
  */
 import { useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useOutlet } from '../context/OutletContext';
 import { buildAskPayload, extractAnswer, errorText, EXAMPLE_PROMPTS } from '../lib/assistant';
@@ -63,7 +63,17 @@ export function useAssistant() {
     [askM, messages],
   );
 
+  // Proactive alerts — what needs the owner's attention right now.
+  const alertsQuery = useQuery({
+    queryKey: ['assistant-alerts', outletId],
+    queryFn: () => api.get('/assistant/alerts', outletId ? { params: { outlet_id: outletId } } : undefined),
+    enabled: !!outletId,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const alerts = alertsQuery.data?.data?.alerts || [];
+
   const reset = useCallback(() => { setMessages([]); setResolved({}); }, []);
 
-  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS, resolved, confirmAction, cancelAction, isActing: actM.isPending };
+  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS, resolved, confirmAction, cancelAction, isActing: actM.isPending, alerts };
 }

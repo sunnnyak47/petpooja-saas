@@ -12,6 +12,7 @@ const { authenticate } = require('../../middleware/auth.middleware');
 const { uploadLimiter } = require('../../middleware/rateLimit.middleware');
 
 router.get('/capabilities', authenticate, c.capabilities);
+router.get('/alerts', authenticate, c.getAlerts);
 router.post('/ask', authenticate, uploadLimiter, c.ask);
 // Confirm + execute a previewed write action. Permission is re-checked inside
 // the service against the signed token; rate-limited like /ask.

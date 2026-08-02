@@ -16,6 +16,7 @@ const logger = require('../../config/logger');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const xport = require('./assistant.export');
 const actions = require('./assistant.actions');
+const alertsModule = require('./assistant.alerts');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
@@ -290,4 +291,15 @@ async function confirmAction(userCtx, token) {
   return { answer: res.message, source: res.ok ? 'action_done' : 'action_error', done: res.ok };
 }
 
-module.exports = { ask, confirmAction, allowedTools, keywordSelect, helpAnswer, normalizeHistory, isFollowup, lastToolFromHistory };
+/**
+ * Proactive alerts for the user's outlet (severity-sorted). Read-only.
+ * @param {object} userCtx  same shape as ask()'s userCtx
+ * @returns {Promise<Array>}
+ */
+async function alerts(userCtx) {
+  if (!userCtx.outletId) return [];
+  await resolveOutletContext(userCtx); // for currency (region) + name
+  return alertsModule.computeAlerts(userCtx);
+}
+
+module.exports = { ask, confirmAction, alerts, allowedTools, keywordSelect, helpAnswer, normalizeHistory, isFollowup, lastToolFromHistory };

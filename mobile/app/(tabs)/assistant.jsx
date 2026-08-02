@@ -28,9 +28,18 @@ import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAssistant } from '../../src/hooks/useAssistant';
 
+// Tapping a proactive alert asks the assistant the matching question, so the
+// full grounded answer lands in the chat thread.
+const ALERT_Q = {
+  low_stock: "what's running low on stock?",
+  sales_drop: 'how are sales this week?',
+  tax_due: 'how much GST or BAS do I owe?',
+  fraud_open: 'any fraud alerts?',
+};
+
 export default function AssistantScreen() {
   const { colors, isDark } = useTheme();
-  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing } = useAssistant();
+  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing, alerts } = useAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
@@ -52,6 +61,7 @@ export default function AssistantScreen() {
 
   const s = styles(colors);
   const empty = messages.length === 0;
+  const sevColor = (sev) => (sev === 'high' ? '#dc2626' : sev === 'medium' ? '#d97706' : colors.accent);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -79,9 +89,25 @@ export default function AssistantScreen() {
         <ScrollView
           ref={scrollRef}
           style={s.flex}
-          contentContainerStyle={[s.scrollBody, empty && s.scrollBodyEmpty]}
+          contentContainerStyle={[s.scrollBody, empty && alerts.length === 0 && s.scrollBodyEmpty]}
           keyboardShouldPersistTaps="handled"
         >
+          {alerts.length > 0 && (
+            <View style={s.alertBlock}>
+              <Text style={s.alertHeading}>Needs your attention</Text>
+              {alerts.map((al) => (
+                <TouchableOpacity
+                  key={al.key}
+                  activeOpacity={0.7}
+                  onPress={() => submit(ALERT_Q[al.key] || al.title)}
+                  style={[s.alertCard, { borderLeftColor: sevColor(al.severity) }]}
+                >
+                  <Text style={s.alertTitle}>{al.title}</Text>
+                  <Text style={s.alertMsg}>{al.message}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           {empty ? (
             <View style={s.intro}>
               <View style={s.introIcon}>
@@ -193,6 +219,13 @@ const styles = (c) =>
 
     scrollBody: { padding: 16, paddingBottom: 24, gap: 10 },
     scrollBodyEmpty: { flexGrow: 1, justifyContent: 'center' },
+
+    // Proactive alerts
+    alertBlock: { gap: 8, marginBottom: 6 },
+    alertHeading: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', color: c.textMuted },
+    alertCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderLeftWidth: 3, borderRadius: 12, padding: 12 },
+    alertTitle: { fontSize: 13.5, fontWeight: '600', color: c.text },
+    alertMsg: { fontSize: 12.5, color: c.textMuted, lineHeight: 18, marginTop: 3 },
 
     // Empty / intro
     intro: { alignItems: 'center', paddingHorizontal: 8 },

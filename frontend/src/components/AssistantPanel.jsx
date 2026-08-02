@@ -1,12 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { Sparkles, X, Send, Loader2, Download, Check } from 'lucide-react';
 
 // The API base already includes /api; the export download path is relative to it.
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const downloadHref = (path) => `${API_BASE}${path}`;
+
+// Tapping an alert asks the assistant for the detail behind it.
+const ALERT_Q = {
+  low_stock: "what's running low on stock?",
+  sales_drop: 'how are sales this week?',
+  tax_due: 'how much GST or BAS do I owe?',
+  fraud_open: 'any fraud alerts?',
+};
 
 /**
  * AssistantPanel — global, read-only AI assistant. A floating button on every
@@ -62,6 +70,18 @@ export default function AssistantPanel() {
     setMessages((m) => [...m, { role: 'bot', text: 'Okay — cancelled. Nothing was changed.' }]);
   };
 
+  // Proactive alerts — the assistant "pings" you with what needs attention.
+  const alertsQuery = useQuery({
+    queryKey: ['assistant-alerts', outletId],
+    queryFn: () => api.get('/assistant/alerts', { params: outletId ? { outlet_id: outletId } : {} }),
+    enabled: !!user && user.role !== 'super_admin' && !!outletId,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const alerts = alertsQuery.data?.data?.alerts || [];
+  const sevColor = (s) => (s === 'high' ? '#dc2626' : s === 'medium' ? '#d97706' : '#2563eb');
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, askM.isPending]);
@@ -94,6 +114,11 @@ export default function AssistantPanel() {
           }}
         >
           <Sparkles size={16} /> Ask
+          {alerts.length > 0 && (
+            <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+              {alerts.length}
+            </span>
+          )}
         </button>
       )}
 
@@ -126,6 +151,21 @@ export default function AssistantPanel() {
 
           {/* Messages */}
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {alerts.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)' }}>Needs your attention</div>
+                {alerts.map((al) => (
+                  <button
+                    key={al.key}
+                    onClick={() => send(ALERT_Q[al.key] || al.title)}
+                    style={{ textAlign: 'left', border: '1px solid var(--border)', borderLeft: `3px solid ${sevColor(al.severity)}`, background: 'var(--bg-hover)', borderRadius: 10, padding: '8px 10px', cursor: 'pointer' }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{al.title}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: 2 }}>{al.message}</div>
+                  </button>
+                ))}
+              </div>
+            )}
             {messages.length === 0 && (
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
