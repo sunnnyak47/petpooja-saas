@@ -24,15 +24,32 @@ const nextId = () => `m${++_seq}`;
 
 export function useAssistant() {
   const { outletId } = useOutlet();
-  const [messages, setMessages] = useState([]); // { id, role: 'user'|'bot', text }
+  const [messages, setMessages] = useState([]); // { id, role: 'user'|'bot', text, action?, tool? }
+  const [resolved, setResolved] = useState({}); // message id → 'done' | 'cancelled' | 'pending'
 
   const askM = useMutation({
     mutationFn: ({ q, history }) => api.post('/assistant/ask', buildAskPayload(q, outletId, history)),
     onSuccess: (res) =>
-      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one.", tool: res?.data?.tool ?? null }]),
+      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one.", tool: res?.data?.tool ?? null, action: res?.data?.action ?? null }]),
     onError: (e) =>
       setMessages((m) => [...m, { id: nextId(), role: 'bot', text: errorText(e) }]),
   });
+
+  // Confirm + run a previewed write action (preview → approve → run).
+  const actM = useMutation({
+    mutationFn: ({ token }) => api.post('/assistant/act', { token, ...(outletId ? { outlet_id: outletId } : {}) }),
+    onSuccess: (res) => setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || 'Done.' }]),
+    onError: (e) => setMessages((m) => [...m, { id: nextId(), role: 'bot', text: errorText(e) }]),
+  });
+
+  const confirmAction = useCallback((id, token) => {
+    setResolved((r) => (r[id] ? r : { ...r, [id]: 'pending' }));
+    actM.mutate({ token }, { onSettled: () => setResolved((r) => ({ ...r, [id]: 'done' })) });
+  }, [actM]);
+  const cancelAction = useCallback((id) => {
+    setResolved((r) => (r[id] ? r : { ...r, [id]: 'cancelled' }));
+    setMessages((m) => [...m, { id: nextId(), role: 'bot', text: 'Okay — cancelled. Nothing was changed.' }]);
+  }, []);
 
   const send = useCallback(
     (q) => {
@@ -46,7 +63,7 @@ export function useAssistant() {
     [askM, messages],
   );
 
-  const reset = useCallback(() => setMessages([]), []);
+  const reset = useCallback(() => { setMessages([]); setResolved({}); }, []);
 
-  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS };
+  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS, resolved, confirmAction, cancelAction, isActing: actM.isPending };
 }

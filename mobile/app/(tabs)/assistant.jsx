@@ -14,6 +14,7 @@ import {
   StatusBar,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   ScrollView,
   KeyboardAvoidingView,
@@ -29,7 +30,7 @@ import { useAssistant } from '../../src/hooks/useAssistant';
 
 export default function AssistantScreen() {
   const { colors, isDark } = useTheme();
-  const { messages, send, isPending, examples } = useAssistant();
+  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing } = useAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
@@ -107,6 +108,26 @@ export default function AssistantScreen() {
               >
                 <View style={[s.bubble, m.role === 'user' ? s.bubbleUser : s.bubbleBot]}>
                   <Text style={[s.bubbleText, m.role === 'user' ? s.bubbleTextUser : s.bubbleTextBot]}>{m.text}</Text>
+                  {m.action && m.action.token ? (
+                    resolved?.[m.id] === 'done' ? (
+                      <Text style={s.actionResolved}>✓ Actioned</Text>
+                    ) : resolved?.[m.id] === 'cancelled' ? (
+                      <Text style={s.actionResolved}>Cancelled</Text>
+                    ) : (
+                      <View style={s.actionRow}>
+                        <Pressable
+                          onPress={() => confirmAction(m.id, m.action.token)}
+                          disabled={resolved?.[m.id] === 'pending' || isActing}
+                          style={[s.actionBtn, s.actionConfirm, (resolved?.[m.id] === 'pending' || isActing) && { opacity: 0.6 }]}
+                        >
+                          <Text style={s.actionConfirmText}>{resolved?.[m.id] === 'pending' ? 'Working…' : 'Confirm'}</Text>
+                        </Pressable>
+                        <Pressable onPress={() => cancelAction(m.id)} disabled={resolved?.[m.id] === 'pending'} style={[s.actionBtn, s.actionCancel]}>
+                          <Text style={s.actionCancelText}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    )
+                  ) : null}
                 </View>
               </Animated.View>
             ))
@@ -201,6 +222,13 @@ const styles = (c) =>
     bubbleText: { fontSize: 15, lineHeight: 21 },
     bubbleTextUser: { color: '#fff' },
     bubbleTextBot: { color: c.text },
+    actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    actionBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
+    actionConfirm: { backgroundColor: c.primary || c.accent || '#2563eb' },
+    actionConfirmText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    actionCancel: { borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
+    actionCancelText: { color: c.textMuted, fontWeight: '700', fontSize: 13 },
+    actionResolved: { marginTop: 8, fontSize: 12, color: c.textMuted },
     typing: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     typingText: { fontSize: 14, color: c.textMuted },
 
