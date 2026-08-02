@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
-import { Sparkles, X, Send, Loader2, Download } from 'lucide-react';
+import { Sparkles, X, Send, Loader2, Download, Check } from 'lucide-react';
 
 // The API base already includes /api; the export download path is relative to it.
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -28,6 +28,7 @@ export default function AssistantPanel() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
+  const [resolved, setResolved] = useState({}); // index → 'done' | 'cancelled' | 'pending'
   const scrollRef = useRef(null);
 
   const askM = useMutation({
@@ -39,9 +40,27 @@ export default function AssistantPanel() {
       history,
       ...(outletId ? { outlet_id: outletId } : {}),
     }),
-    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null, tool: r?.data?.tool || null }]),
+    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null, tool: r?.data?.tool || null, action: r?.data?.action || null }]),
     onError: (e) => setMessages((m) => [...m, { role: 'bot', text: e?.response?.data?.message || "I couldn't answer that right now — please try again." }]),
   });
+
+  // Confirm a previewed write action (preview → approve → run).
+  const actM = useMutation({
+    mutationFn: ({ token }) => api.post('/assistant/act', { token, ...(outletId ? { outlet_id: outletId } : {}) }),
+    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Done.' }]),
+    onError: (e) => setMessages((m) => [...m, { role: 'bot', text: e?.response?.data?.message || "That didn't go through — please try from the relevant screen." }]),
+  });
+
+  const confirmAction = (idx, token) => {
+    if (resolved[idx]) return;
+    setResolved((r) => ({ ...r, [idx]: 'pending' }));
+    actM.mutate({ token }, { onSettled: () => setResolved((r) => ({ ...r, [idx]: 'done' })) });
+  };
+  const cancelAction = (idx) => {
+    if (resolved[idx]) return;
+    setResolved((r) => ({ ...r, [idx]: 'cancelled' }));
+    setMessages((m) => [...m, { role: 'bot', text: 'Okay — cancelled. Nothing was changed.' }]);
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -110,7 +129,7 @@ export default function AssistantPanel() {
             {messages.length === 0 && (
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
-                  Hi{user?.full_name ? ` ${user.full_name.split(' ')[0]}` : ''} 👋 Ask me anything about your restaurant — sales, tax, stock, who owes you. I only read your data; I can&apos;t change anything.
+                  Hi{user?.full_name ? ` ${user.full_name.split(' ')[0]}` : ''} 👋 Ask me anything about your restaurant — sales, tax, stock, who owes you. I can also do a few things on request (like &ldquo;86 the paneer tikka&rdquo; or &ldquo;mark table 5 clean&rdquo;) — I&apos;ll always show you exactly what I&apos;ll do and wait for your confirmation first.
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {SUGGESTIONS.map((s) => (
@@ -138,6 +157,30 @@ export default function AssistantPanel() {
                     >
                       <Download size={14} /> Download {m.download.format?.toUpperCase()}
                     </a>
+                  )}
+                  {m.action && m.action.token && (
+                    resolved[i] === 'done' ? (
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>✓ Actioned</div>
+                    ) : resolved[i] === 'cancelled' ? (
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Cancelled</div>
+                    ) : (
+                      <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => confirmAction(i, m.action.token)}
+                          disabled={resolved[i] === 'pending'}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: resolved[i] === 'pending' ? 0.6 : 1 }}
+                        >
+                          {resolved[i] === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm
+                        </button>
+                        <button
+                          onClick={() => cancelAction(i)}
+                          disabled={resolved[i] === 'pending'}
+                          style={{ padding: '7px 14px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               )

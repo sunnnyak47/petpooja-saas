@@ -13,6 +13,9 @@ const { uploadLimiter } = require('../../middleware/rateLimit.middleware');
 
 router.get('/capabilities', authenticate, c.capabilities);
 router.post('/ask', authenticate, uploadLimiter, c.ask);
+// Confirm + execute a previewed write action. Permission is re-checked inside
+// the service against the signed token; rate-limited like /ask.
+router.post('/act', authenticate, uploadLimiter, c.act);
 // Public by design — the signed, short-lived, outlet-scoped token in ?t= is the
 // authorisation, so a plain browser download (no bearer header) works.
 router.get('/report', c.downloadReport);

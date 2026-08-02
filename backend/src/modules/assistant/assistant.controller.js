@@ -83,4 +83,24 @@ async function downloadReport(req, res, next) {
   }
 }
 
-module.exports = { ask, capabilities, downloadReport };
+/**
+ * POST /api/assistant/act — confirm + execute a previewed write action.
+ * Body: { token } (the signed action token returned by /ask). The service
+ * re-verifies the token belongs to this user + outlet and re-checks permission.
+ */
+async function act(req, res, next) {
+  try {
+    const token = req.body && req.body.token;
+    if (!token || typeof token !== 'string') return sendError(res, 400, 'Missing confirmation token');
+    const userCtx = {
+      id: req.user.id,
+      role: req.user.role,
+      outletId: req.query.outlet_id || req.body.outlet_id || req.user.outlet_id || null,
+      permissions: Array.isArray(req.user.permissions) ? req.user.permissions : [],
+    };
+    const result = await assistant.confirmAction(userCtx, token);
+    return sendSuccess(res, result, result.done ? 'Action completed' : 'Action not completed');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act };

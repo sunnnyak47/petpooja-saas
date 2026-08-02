@@ -15,14 +15,15 @@ const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const xport = require('./assistant.export');
+const actions = require('./assistant.actions');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
   userCtx.currency = 'AUD';
   if (!userCtx.outletId) return userCtx;
   try {
-    const o = await getDbClient().outlet.findUnique({ where: { id: userCtx.outletId }, select: { currency: true, name: true } });
-    if (o) { userCtx.currency = o.currency || 'AUD'; userCtx.outletName = o.name; }
+    const o = await getDbClient().outlet.findUnique({ where: { id: userCtx.outletId }, select: { currency: true, name: true, head_office_id: true } });
+    if (o) { userCtx.currency = o.currency || 'AUD'; userCtx.outletName = o.name; userCtx.headOfficeId = o.head_office_id || null; }
   } catch (err) {
     logger.warn('assistant: could not resolve outlet currency', { error: err.message });
   }
@@ -236,6 +237,26 @@ async function ask(userCtx, question, history = []) {
     }
   }
 
+  // Write-action short-circuit (Phase 2 agentic). If the question is a write
+  // intent ("86 the paneer tikka", "set table 5 clean"), return a PREVIEW +
+  // signed token and wait for confirmation — never mutate on this turn.
+  if (actions.detectAction(question) && userCtx.outletId) {
+    await resolveOutletContext(userCtx);
+    const preview = await actions.buildActionPreview(userCtx, question);
+    if (preview) {
+      if (preview.denied) return { answer: preview.message, source: 'denied', tool: null, suggestions: SUGGESTIONS };
+      if (preview.clarify) return { answer: preview.message, source: 'clarify', tool: null, suggestions: SUGGESTIONS };
+      return {
+        answer: `${preview.summary}. Shall I go ahead?`,
+        source: 'action_preview',
+        tool: null,
+        action: { name: preview.action, token: preview.token, summary: preview.summary },
+        requires_confirmation: true,
+        suggestions: SUGGESTIONS,
+      };
+    }
+  }
+
   const toolList = allowedTools(userCtx);
   const toolName = await selectTool(question, toolList, hist);
 
@@ -257,4 +278,16 @@ async function ask(userCtx, question, history = []) {
   return { answer, source, tool: toolName, suggestions: SUGGESTIONS };
 }
 
-module.exports = { ask, allowedTools, keywordSelect, helpAnswer, normalizeHistory, isFollowup, lastToolFromHistory };
+/**
+ * Confirm + execute a previously previewed write action.
+ * @param {object} userCtx  same shape as ask()'s userCtx
+ * @param {string} token     the signed action token from the preview
+ * @returns {Promise<{answer:string, source:string, done:boolean}>}
+ */
+async function confirmAction(userCtx, token) {
+  await resolveOutletContext(userCtx);
+  const res = await actions.runAction(userCtx, token);
+  return { answer: res.message, source: res.ok ? 'action_done' : 'action_error', done: res.ok };
+}
+
+module.exports = { ask, confirmAction, allowedTools, keywordSelect, helpAnswer, normalizeHistory, isFollowup, lastToolFromHistory };
