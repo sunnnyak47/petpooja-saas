@@ -48,14 +48,44 @@ function allowedTools(userCtx) {
  * Multi-word keywords score higher (a 2-word match like "sold today" is more
  * specific than a bare "sales"), which disambiguates overlapping topics.
  */
+/** Levenshtein-distance-1 check (single-typo tolerance for OOV words). */
+function within1(a, b) {
+  if (a === b) return true;
+  const la = a.length; const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i += 1;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1);
+  const [sh, lo] = la < lb ? [a, b] : [b, a];
+  return sh.slice(i) === lo.slice(i + 1);
+}
+
 function keywordSelect(question, toolList) {
   const q = String(question || '').toLowerCase();
+  // Typo tolerance: question words that appear NOWHERE in any tool's keyword
+  // vocabulary are treated as possible typos and fuzzy-matched (edit distance 1)
+  // against keyword words. Real vocabulary words never fuzz, so exact scoring
+  // is untouched — this only rescues queries like "sel todya" / "custmer".
+  const qWords = [...new Set(q.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length >= 4))];
+  const vocab = new Set();
+  for (const t of toolList) for (const k of (t.keywords || [])) for (const w of String(k).split(/\s+/)) vocab.add(w);
+  // A plural/singular variant of a known word is NOT a typo ("alerts" vs
+  // "alert") — fuzzing those would let one tool's vocabulary steal another's.
+  const oov = qWords.filter((w) => !vocab.has(w) && !vocab.has(w.endsWith('s') ? w.slice(0, -1) : `${w}s`));
+
   let best = null;
   let bestScore = 0;
   for (const t of toolList) {
     let score = 0;
+    const kwWords = new Set();
     for (const k of (t.keywords || [])) {
       if (q.includes(k)) score += String(k).trim().split(/\s+/).length;
+      for (const w of String(k).split(/\s+/)) if (w.length >= 5) kwWords.add(w);
+    }
+    for (const term of oov) {
+      // Typos virtually never alter the FIRST letter ('todya','custmer','runing');
+      // requiring it blocks filler-word fuzzing like 'there'→'where'.
+      for (const w of kwWords) { if (term[0] === w[0] && within1(term, w)) { score += 1; break; } }
     }
     if (score > bestScore) { bestScore = score; best = t.name; }
   }

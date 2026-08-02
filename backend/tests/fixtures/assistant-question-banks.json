@@ -1,0 +1,5346 @@
+{
+ "kb": [
+  {
+   "q": "How do I take a new order in the POS?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "How do I place an order for a dine-in table?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "What are the steps to create a new order and send it to the kitchen?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "How do I start a takeaway order in the POS Terminal?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "A customer just sat down and told me what they want — how do I key that in?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "Where do I enter what the guests ordered so the kitchen gets it?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "How do I send a customer's food selection through to the kitchen from the front counter?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "What's the process for entering items for a walk-in customer who wants food to go?",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "how do i tkae a new ordr on the pos",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "how to plce an oder for dine in",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "take new order",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "start dine-in order",
+   "expect": "Take a new order (POS)"
+  },
+  {
+   "q": "How do I collect payment on an order?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "How do I split a bill between cash and card?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "How do I settle a table's bill when the guests are done?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "Can I take part payment in cash and the rest by card on one order?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "The customer wants to give half in cash and put the rest on EFTPOS — how do I do that?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "How do I record that a guest handed over some cash and tapped their card for the remainder?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "Why does the cash drawer pop open when I finish an order with cash?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "A group wants to use two different cards for one check — is that possible?",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "how do i collect paymnt for an order",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "how to splt the bil cash and card",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "split bill",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "settle table",
+   "expect": "Collect payment / split a bill"
+  },
+  {
+   "q": "How do I hold an order in POS?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "How do I park an order to finish later?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "Can I save an order without sending it to the kitchen?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "Where do I find my held orders so I can reopen them?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "A phone customer isn't sure yet — can I set their cart aside and pick it up again in a bit?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "Is there a way to keep a partially built cart without firing it to the kitchen?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "The customer stepped out before finishing their order — how do I put it aside for now?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "Can I start an order without a table and stash it until the customer returns?",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "how do i hld an ordr for later",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "how to prak an order in pos",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "hold order",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "park an order",
+   "expect": "Hold / park an order"
+  },
+  {
+   "q": "How do I void an item on an order?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "How do I cancel a whole order?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "Why does voiding an item ask for a Manager PIN?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "Can I cancel an order after it's been sent to the kitchen but before payment?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "A dish was rung in by mistake — how do I take it off the ticket?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "The customer changed their mind right after ordering — how do I scrap the whole thing?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "The waiter keyed in the wrong dish — how do we get it off the order before it's cooked?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "One item needs to come off the check because the guest didn't want it — what do I do?",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "how do i cancl an entire order",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "how to viod an item on a ticket",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "void item",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "cancel order",
+   "expect": "Void or cancel an item / order"
+  },
+  {
+   "q": "How do I apply a discount to an order?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "How do I give a 10% discount on a bill in POS?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "How do I comp an order so it's completely free?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "Can I add a flat amount discount to an open order?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "A regular complained about the wait — how do I knock some money off their bill?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "How do I make a customer's meal free of charge on the till?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "The manager wants to take 15% off this table's total — where do I do that?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "Does the tax recalculate when I lower an order's total for a customer?",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "how to apply a discont on an order",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "how do i give a discunt on a bill",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "discount an order",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "comp a bill",
+   "expect": "Apply a discount to an order"
+  },
+  {
+   "q": "How do I transfer an order to another table?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "How do I merge two tables' orders into one bill?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "How do I split an order so some items go onto a separate bill?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "The guests moved tables — how do I move their order with them?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "Two parties joined up and want everything on a single check — how do I put their orders together?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "A couple at a big group's table wants their items on their own check — how do I separate those out?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "The family switched from table 4 to table 9 mid-meal — how do I update their order?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "Does the old table free up when I move its order somewhere else?",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "how do i transfr an order to a differnt table",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "how to mrege two tables bills into one",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "merge two tables",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "move order tables",
+   "expect": "Transfer, merge or split an order between tables"
+  },
+  {
+   "q": "How does the kitchen display work?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "How do I mark a KOT ticket as ready on the KDS?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "Where do I configure KDS auto-accept and sound alerts?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "How do I advance a kitchen ticket from Preparing to Ready?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "How do the cooks see incoming food orders on the screen at the back?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "How does the chef tell the front counter that a dish is done?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "Can I get an alert when food has been sitting too long in the cooks' queue?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "What do the different columns on the back-of-house order screen mean?",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "how do i use the kitchn display",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "how to mark a kot tickt as redy",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "KDS settings",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "bump a ticket",
+   "expect": "Kitchen display (KOT / KDS)"
+  },
+  {
+   "q": "How do I add a new table?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "What do the table statuses on the Tables screen mean?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "How do I mark a table as cleaned and available again?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "How do I bulk add tables using a prefix and number range?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "How do I set up my dining room layout with capacities and areas in the app?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "A walk-in party just arrived — how do I put them at an empty spot and get them started?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "After the busboy wipes down a spot, how do I show it's ready for the next guests?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "Can I change a table's shape and how many people it fits?",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "how do i add a new tabel",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "how to mark a table as clened",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "add tables",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "table statuses",
+   "expect": "Tables — status, cleaning, seating"
+  },
+  {
+   "q": "How do I create a new reservation?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "How do I book a table for a customer?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "Can I make a reservation without picking a table?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "Do reservations work offline on the desktop app?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "A caller wants to lock in dinner for six people on Friday — how do I record that?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "How do I pencil in a party of eight for tomorrow night?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "Someone phoned ahead to secure a table for Saturday — where do I enter their details?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "If I don't assign a table when noting down a future visit, will the system suggest one?",
+   "expect": "Reservations"
+  },
+  {
+   "q": "how do i make a reservtion",
+   "expect": "Reservations"
+  },
+  {
+   "q": "how to book a tble for tonight",
+   "expect": "Reservations"
+  },
+  {
+   "q": "new reservation",
+   "expect": "Reservations"
+  },
+  {
+   "q": "book a table",
+   "expect": "Reservations"
+  },
+  {
+   "q": "How do I 86 an item?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "How do I mark a dish as sold out?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "Where is the 86 Board?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "How do I make a menu item unavailable without deleting it?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "We ran out of salmon tonight — how do I stop it from being orderable?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "The kitchen can't make the lamb shanks today — how do I switch that dish off temporarily?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "How do I temporarily take a dish off sale but keep it listed on the menu?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "A dish is off for the evening — how do I turn it back on tomorrow?",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "how do i mark an itme as sold uot",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "how to make a dish unavailble",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "86 an item",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "item sold out",
+   "expect": "86 / make a menu item unavailable"
+  },
+  {
+   "q": "Where can I see all live orders?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "How do I view the running orders right now?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "What shows up on the Live Orders screen?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "Can I add items to an active order from Live Orders?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "How do I see every unfinished order across dine-in, takeaway and delivery in one place?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "Is there one screen where I can watch every order that hasn't been settled yet?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "During service I want to keep an eye on all the orders still in play — where do I look?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "Does the screen showing in-progress orders still work when the internet drops on desktop?",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "where do i see runing orders",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "how to view all activ orders",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "live orders",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "open orders now",
+   "expect": "Live / running orders"
+  },
+  {
+   "q": "Where do I find the order history?",
+   "expect": "Order history"
+  },
+  {
+   "q": "How do I look up a past order?",
+   "expect": "Order history"
+  },
+  {
+   "q": "How do I reprint a bill from an old order?",
+   "expect": "Order history"
+  },
+  {
+   "q": "Can I filter previous orders by date and status?",
+   "expect": "Order history"
+  },
+  {
+   "q": "A customer from last week wants a copy of their receipt — where do I get it?",
+   "expect": "Order history"
+  },
+  {
+   "q": "How do I check what a table ordered yesterday?",
+   "expect": "Order history"
+  },
+  {
+   "q": "Where can I pull up a completed order from last month and see its items and payments?",
+   "expect": "Order history"
+  },
+  {
+   "q": "A guest disputes what they were charged on Tuesday — how do I bring up that old order to check it?",
+   "expect": "Order history"
+  },
+  {
+   "q": "how do i reprnt an old bil",
+   "expect": "Order history"
+  },
+  {
+   "q": "where is the ordr histry",
+   "expect": "Order history"
+  },
+  {
+   "q": "order history",
+   "expect": "Order history"
+  },
+  {
+   "q": "past orders",
+   "expect": "Order history"
+  },
+  {
+   "q": "How do I add a new menu item?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "How do I edit an existing dish on the menu?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "What fields do I fill in when creating a menu item?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "How do I upload an image for a menu item?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "We've got a new burger launching Friday — how do I set it up so staff can sell it?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "Where do I set a dish's description, allergens and GST category?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "How do I change the price of just one dish?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "The chef created a new special — how do I put it in the system with a photo and a price?",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "how do i ad a new menu itme",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "how to edt a dish on the meun",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "add a dish",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "edit menu item",
+   "expect": "Add or edit a menu item"
+  },
+  {
+   "q": "How do I add a new menu category?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "How do I rename a category?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "How do I change a category's display order?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "Can I delete a menu category, and who is allowed to?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "I want a Desserts section on my menu — how do I create one?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "How do I change which menu section appears first?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "Our Starters heading should say Entrees instead — how do I update it?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "How do I group my dishes under a new heading in the menu?",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "how do i renam a catagory",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "how to add a new menu catagory",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "rename category",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "new category",
+   "expect": "Add or rename a menu category"
+  },
+  {
+   "q": "How do I add variants to a menu item?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "How do I set up sizes like small, medium and large for a dish?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "How do I give one item multiple prices?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "Where do variants show up in POS when ordering?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "Our pizza comes in three different portions that each cost differently — how do I set that up?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "How can one dish offer a regular serve and a jumbo serve at different rates?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "What does it mean that the first variant sets the base price?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "Coffee is priced differently by cup — how do I configure that on the item?",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "how do i add varients to an item",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "how to set up multple sizs for a dish",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "item sizes",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "add variants",
+   "expect": "Menu item variants and sizes"
+  },
+  {
+   "q": "How do I see all the devices signed into my account?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "Where can I view my login history?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "How do I log out all other devices from my account?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "Can I revoke a single session on a device I don't recognise?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "I think someone else is using my account — how do I kick them off?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "My old phone still has access to my account, how do I remove it?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "Where can I check which computers are currently connected to my account?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "How can I see when and from where my account was last accessed?",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "how do i revok a devcie from my acount",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "log out all other divices",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "signed in devices",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "logout other devices",
+   "expect": "Devices & security (sessions)"
+  },
+  {
+   "q": "How do I check which subscription plan I'm on?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "Where do I pay my invoice for the software?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "How do I upgrade my plan from Starter to Pro?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "Where can I see my usage against my plan limits?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "How many more outlets and staff am I allowed to add before I hit my limit?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "My free period is ending — how do I move to a paid tier?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "Where do I see which features are included in what I'm paying for each month?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "Where do I go to settle what I owe PetPooja for the service itself?",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "how do i pay my invioce",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "upgarde my subscrption plan",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "billing page",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "change my plan",
+   "expect": "Subscription & billing"
+  },
+  {
+   "q": "How do I raise a support ticket?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "How do I contact support about a problem with the app?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "Where do I create a new ticket for an issue I'm having?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "How do I report a problem to the support team and set its priority?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "Something is broken in the app — who do I tell and how?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "I need to reach the PetPooja team about an issue, where do I do that in the app?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "How do I mark my request as urgent when I ask the team to fix something?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "Where can I read the replies to the issue I raised and respond back?",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "how do i rase a suport tiket",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "contct custmer support about an issue",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "raise ticket",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "contact support",
+   "expect": "Raise a support ticket"
+  },
+  {
+   "q": "How do I connect my thermal receipt printer?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "Where do I enter the printer's IP address and port?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "How do I set up an ESC/POS printer to print bills?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "How do I change the paper width to 58mm for my receipt printer?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "Bills keep opening the browser print dialog instead of going straight to the till roll — how do I fix that?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "The kitchen slips aren't coming out — how do I point the app at the right machine on our network?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "How do I get a thank-you footer message printed at the bottom of every bill?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "What do I type in as the address of the receipt machine, something like 192.168.1.100?",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "how to conect my thermal printr",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "setup reciept printer ip adress",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "printer setup",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "connect receipt printer",
+   "expect": "Connect a thermal receipt printer"
+  },
+  {
+   "q": "How do I change the restaurant name shown in the app?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "Where do I change the currency to AUD?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "How do I set the timezone for my outlet in settings?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "How do I turn on 'Require table selection for dine-in'?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "Our receipts show the wrong money symbol — where do I switch from INR to USD?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "How do I make tables free up automatically after the bill is done, with a countdown warning?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "We renamed our venue — where do I update the name across the system?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "Where do I set the grace countdown before a table auto-frees itself?",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "how to chnage currancy in settings",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "set restarant name and timzone",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "change currency",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "auto free table",
+   "expect": "General settings (name, currency, timezone, table rules)"
+  },
+  {
+   "q": "Where do I enter my GSTIN in the app?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "How do I set the default GST slab to 5%?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "Where do I add my ABN and ACN?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "How do I enable GST inclusive pricing?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "My menu prices already include the tax — how do I tell the system that so it stops adding extra?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "How do I add an automatic extra percentage on every bill for service?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "Where do I enter my food safety licence number for India?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "Where do I record my Australian business number in the system?",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "where do i entr my gstin numbr",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "how to set defalt gst slabb",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "gst settings",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "enter gstin",
+   "expect": "Tax & GST settings"
+  },
+  {
+   "q": "Where do I find the Voice POS settings?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "How do I change the voice recognition and speech language?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "How do I turn off 'Confirm Before Adding' in the voice settings?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "Where do I adjust the silence timeout for voice ordering?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "The talking assistant reads responses too fast — how do I slow it down?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "Can I stop the app reading responses out loud when I use the mic?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "Is there a way to check my mic is picking up sound before service starts?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "Dictation cuts off too quickly when I pause between items — which setting fixes that?",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "voice pos setings change langauge",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "adjust speach rate for voice",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "voice settings",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "voice pos options",
+   "expect": "Voice POS settings"
+  },
+  {
+   "q": "Where are the kitchen display settings?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "How do I turn on auto-accept orders on the KDS?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "How do I enable sound alerts on the kitchen display?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "How do I change the alert threshold in minutes for late tickets?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "How do I make the kitchen screen beep when a new order comes in?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "Can orders go straight into preparing without the chef tapping accept every time?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "After how many minutes does a ticket get flagged as late, and can I change that number?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "The kitchen screen isn't making any noise for new tickets — where do I switch that on?",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "kichen display setings sound alert",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "chnage kds alert treshold",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "kds settings",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "kitchen display alerts",
+   "expect": "Kitchen display (KDS) settings"
+  },
+  {
+   "q": "How do I enable EFTPOS in the payment settings?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "Where do I add my UPI VPA and merchant display name?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "How do I disable cash as a payment option?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "Where do I manage which payment methods we accept at billing?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "We stopped taking paper money — how do I remove that option from the till?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "How do I add our GPay/PhonePe id so customers can pay us directly?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "The card machine option isn't showing at checkout — where do I switch it on?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "Which screen lets me choose whether we take card, cash, or both?",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "enable eftpos paymnt method",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "add upi vpa in setings",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "payment methods",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "enable upi",
+   "expect": "Payment method settings"
+  },
+  {
+   "q": "How do I turn on WhatsApp notifications for order confirmations?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "Where do I enable SMS receipts for customers?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "Where do I turn on low stock alerts in the notification settings?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "How do I switch off email notifications for orders?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "Can customers automatically get a text message confirming their order?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "How do I stop the system emailing receipts to guests?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "Can order receipts be sent to customers over WhatsApp instead of email?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "Where do I choose whether guests get their receipt by text or by email?",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "turn on watsapp notifcations for orders",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "enable sms alrts for low stok",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "notification settings",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "enable whatsapp alerts",
+   "expect": "Notification settings"
+  },
+  {
+   "q": "How do I upload our logo in appearance settings?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "How do I change the brand colour to match our restaurant?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "How do I switch the app to dark mode?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "Where do I enable compact layout?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "The app is too bright at night — can I make it darker?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "How do I put our restaurant's colours and emblem into the app's look?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "Is there a setting that squeezes more on screen at once by shrinking the layout?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "As the owner, where do I customise how the app looks — the accent colour and our picture mark?",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "chnage brand color and uplod logo",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "swtich to drak mode",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "dark mode",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "upload logo",
+   "expect": "Appearance / branding (theme, logo, colour)"
+  },
+  {
+   "q": "How do I set up the cash drawer to auto-open on payment?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "Where do I enable the barcode scanner?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "How do I connect a weighing scale in settings?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "Where do I set the serial port for the cash drawer?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "How do I make the money till pop open automatically when we take a payment?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "We got a screen that faces the customer at the counter — how do I turn that on in the app?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "We use a handheld gun to scan item codes — where do I switch that on?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "Where do I enter something like /dev/ttyUSB0 for the till drawer connection?",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "enable cash drawr auto open",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "conect barcod scaner in setings",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "hardware settings",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "cash drawer setup",
+   "expect": "Hardware settings (cash drawer, scanner, scale)"
+  },
+  {
+   "q": "How do I change my password?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "Where do I update my account password in settings?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "What are the password requirements when I set a new one?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "How do I reset my password from the security settings?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "I think a staff member knows my sign-in code — how do I set a new one?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "Owner here — how do I swap out the credentials I use to sign into PetPooja?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "It keeps rejecting my new passphrase — what are the character rules it wants?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "Why does it ask for my current one before letting me pick a new one to log in with?",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "how do i chagne my pasword",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "updte my passwrd in settings",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "change password",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "new password",
+   "expect": "Change your password (security)"
+  },
+  {
+   "q": "Does the desktop app work offline?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "What happens when the internet goes down — can I keep billing?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "How does offline mode sync everything back to the cloud afterwards?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "Can I keep taking orders with no internet connection on the desktop app?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "Our wifi drops out during the dinner rush — will the till keep working?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "If the broadband dies mid-service, do we lose the orders we punch in?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "Do I need to stay connected the whole time to print KOTs and take payments on desktop?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "When the network comes back, do the sales I rang up get uploaded automatically?",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "does the app work ofline with no internt",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "offine mode sycn to cloud",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "offline mode",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "works without internet",
+   "expect": "Offline mode (desktop app)"
+  },
+  {
+   "q": "How do I take an order using Voice POS?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "How do I speak an order into the app so it goes in the cart?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "Can I take orders hands free by talking to the POS?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "How does ordering by voice command work in Voice POS?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "Can I just say 'two butter chicken and a garlic naan' and have it added to the cart?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "Can I dictate an order out loud instead of tapping through the menu?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "My hands are full during rush — can the till listen to me and add the items itself?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "Why does dictating an order on the desktop app need an internet connection?",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "how to take order with voise pos",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "speek the order into the micrphone",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "voice order",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "order by speaking",
+   "expect": "Using Voice POS to take an order"
+  },
+  {
+   "q": "How do I create an add-on group for my menu items?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "How do I link modifiers like extra cheese to a dish?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "Where do I set up toppings and extras for an item?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "How do add-on groups work when the operator rings up an item at POS?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "Customers want to choose their spice level when ordering — how do I set that up?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "How can I let people pay a bit more for additional cheese on a pizza?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "I want optional additions on a burger that change the line total — where do I configure that?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "How do I attach selectable options like sauces to a dish so staff can pick them when taking the order?",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "how to make an adon group for extrs like chees",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "wher do i add modifers to a menu itme",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "add-on groups setup",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "item extras toppings",
+   "expect": "Add-on groups (extras / modifiers)"
+  },
+  {
+   "q": "How do I bulk update prices across my menu?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "How can I increase all my menu prices by 5%?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "Where is the bulk edit option to change prices on many items?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "How do I raise prices on multiple items at once?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "Ingredient costs went up — what's the fastest way to make everything on the menu 10% dearer?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "Can I apply a flat $1 hike to a whole bunch of dishes in one go instead of editing each one?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "Is there a way to make several dishes cheaper at the same time without opening them one by one?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "I need to adjust what we charge across half the menu in a single action — how?",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "how to incrase all menu prcies by 10 percent",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "bulk edit menu pricess at once",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "raise all prices",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "bulk price change",
+   "expect": "Bulk update menu prices"
+  },
+  {
+   "q": "How do I import my menu using AI Sync?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "Can I upload a photo of my menu and have the items created automatically?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "How does the AI menu scan work on the Menu page?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "Where do I bulk add items by importing an existing menu?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "I have my whole menu as text from my old system — can the app read it and build everything for me?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "Is there a way to snap a picture of our printed menu and get all the dishes added automatically?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "We're switching from another POS — what's the quickest way to get 200 dishes in without typing each one?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "Can the system auto-create categories and dishes from a file of our menu instead of manual entry?",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "how do i improt my menue with ai sinc",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "uplod menu foto to create items",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "AI sync menu",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "import menu photo",
+   "expect": "Import / AI-sync a menu"
+  },
+  {
+   "q": "How do I set an availability schedule so an item only sells at certain times?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "How do I set up happy hour items on the menu?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "Can I make a breakfast menu item that's only available in the morning?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "Where do I add time slots for when a dish can be ordered?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "I want our lunch special to stop being orderable after 3pm every day — how?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "Can a cocktail only be sold between 4 and 6 on weekdays?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "How do I make certain dishes sellable only on Saturdays and Sundays?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "Some dishes we serve only in the morning — can the system block them the rest of the day automatically?",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "how to set happpy hour timming for drinks",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "avalability schedual for brekfast items",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "happy hour setup",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "item time slots",
+   "expect": "Schedule item availability / happy hour"
+  },
+  {
+   "q": "How do I add a new material in Inventory?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "How do I add a raw material with its cost per unit?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "Where do I create a new stock item and set its min and max stock?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "How do I add an ingredient to inventory with its unit and reorder quantity?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "We just started buying olive oil — how do I get it into the system so it can be tracked?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "How do I register a new supply like flour along with the price we pay per kilo?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "Setting up the storeroom list for the first time — where do I enter each thing we keep on the shelf?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "What does the AI Fill button do when I'm entering a brand new supply into the system?",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "how to add new inventry materail with unit cost",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "add ingrediant to stok list",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "add material inventory",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "new raw material",
+   "expect": "Add an inventory item / material"
+  },
+  {
+   "q": "How do I see which items are low on stock?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "What does the low stock warning in Inventory mean?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "How does Auto-Order work when stock runs low?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "Where can I check current stock levels for all my materials?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "How can I tell which raw materials are getting close to their minimum?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "Can the system flag ingredients that have dipped below the threshold I set for them?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "Is there a way to have replenishment kick off automatically when a material falls under its minimum?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "Which screen shows everything in the storeroom and highlights what needs topping up?",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "were do i see low stok items in inventry",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "how does auto ordr work when stock is runing low",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "low stock list",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "check stock levels",
+   "expect": "Inventory & low stock"
+  },
+  {
+   "q": "How do I record a received delivery in Inventory?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "A delivery just arrived — how do I add the stock into inventory?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "Where do I enter goods received quantities when supplies come in?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "How do I do a stock in for today's delivery?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "The veggie truck just dropped off today's supplies — how do I log what came in?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "How do I update quantities after the morning drop-off from the market?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "We got 20kg of chicken this morning with no paperwork in the system — how do I put it into the counts?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "What's the quickest way to bump up each ingredient's quantity after a supplier drop-off?",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "how to recieve a delivry in inventory",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "goods recived entry for todays stok",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "received delivery entry",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "log stock in",
+   "expect": "Receive a delivery (stock in)"
+  },
+  {
+   "q": "How do I log wastage in Inventory?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "Where do I record spoilage for expired items?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "How do I write off damaged stock?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "How do I log waste when food goes bad?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "A tray of desserts went off in the fridge overnight — how do I record the loss?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "A cook burnt a whole batch of sauce — how do I deduct those ingredients and note the reason?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "We dropped a whole crate of eggs on the floor — where do I record that in the system?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "How do I account for milk that passed its use-by date so the counts stay accurate?",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "how to log wastge for expird milk",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "were do i record spoilge and dammaged stock",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "log wastage",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "record spoilage",
+   "expect": "Log wastage"
+  },
+  {
+   "q": "How do I adjust stock after a stocktake?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "Where do I make a stock adjustment for an item?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "How do I correct stock when the count in the system is wrong?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "How do I record a manual count in Inventory?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "The system says we have 10kg of rice but the shelf only has 7 — how do I fix the number?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "After our monthly physical count the figures in the app don't match the shelf — how do I set them right?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "How do I record a return to vendor so that quantity comes off what we have on hand?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "I need to remove some quantity from an item because of a transfer to our other site — where do I do that?",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "how to ajust stok after audti",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "stock adjustmet for wrong count",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "adjust stock",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "stocktake correction",
+   "expect": "Adjust stock / stock count"
+  },
+  {
+   "q": "How do I add a supplier in Inventory?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "Where do I manage supplier details like phone and email?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "How do I set payment terms like Net 30 for a supplier?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "How do I add a new vendor to the system?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "We started buying from a new meat wholesaler — how do I put their contact info into the app?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "Where do I record that our produce company lets us pay 30 days after delivery?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "How do I save the details of the companies we buy stock from so I can pick them later on a PO?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "Can I store a contact person and phone number for each of the wholesalers we deal with?",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "how to add a new suplier with paymet terms",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "manage vendr details in inventroy",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "add supplier",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "vendor payment terms",
+   "expect": "Manage suppliers"
+  },
+  {
+   "q": "How do recipes work for ingredient deduction?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "Where do I view recipes in Inventory?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "How do I set up a bill of materials for a dish?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "Does selling a dish auto deduct stock based on its recipe?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "When we sell a butter chicken, does the system automatically take the butter and chicken out of the counts?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "How do I link a dish to the raw materials it uses so quantities go down with every sale?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "Why did my flour level drop after we sold pizzas — is that happening automatically?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "Can the app know that one burger uses one bun and 150g of mince?",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "how do recipies deduct ingrediants from stock",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "bill of materails setup for menu itmes",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "recipe deduction",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "dish ingredient mapping",
+   "expect": "Recipes / ingredient deduction"
+  },
+  {
+   "q": "How do I create a new purchase order?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "How do I mark a PO as received when the goods arrive?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "How do I approve a draft purchase order and download its PDF?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "Can I send a purchase order to a supplier over WhatsApp?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "I need to send our supplier a formal document listing what to deliver with quantities and rates — how do I make that in the app?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "Where do I enter line items with HSN codes, GST and rates when ordering supplies from a vendor?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "The goods from last week's supplier order just arrived — how do I close it out so the stock gets added?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "How do I turn my draft supply order into an approved one I can message to the vendor?",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "how to creat a purchse order and mark it recieved",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "send po to suplier on whatsap",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "new purchase order",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "receive PO stock",
+   "expect": "Create and receive a purchase order (PO)"
+  },
+  {
+   "q": "How do I add a new customer?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "Where do I create a customer profile with phone and email?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "How do I save customer details like birthday and anniversary?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "How do I add someone into the customers list with their segment set to Regular?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "A regular guest gave me her phone number and date of birth — where do I record that?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "How do I put a guest into the system so we remember their diet preference next time?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "Can I mark someone as VIP while entering their name and phone into the database?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "Where do I note a diner's marketing consent when I first enter their information?",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "how to add a new custmer with phone numbr",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "creat customer profil with birthdate",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "add customer",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "new customer profile",
+   "expect": "Add a customer"
+  },
+  {
+   "q": "How do I set up the loyalty program?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "How do customers earn and redeem points on their orders?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "Where do I change the redemption rules and point expiry?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "How do I configure bonus points for signup, birthdays and referrals?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "How can I let regulars build up credit on every paid bill and use it against a future one?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "I want to give guests something back for repeat visits — does the app have a built-in scheme for that?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "How do I change how much a customer gets back per dollar they spend with us?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "Where do I see the leaderboard of top spenders and upcoming birthdays for our repeat-guest scheme?",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "how to setup loyality program and reedeem points",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "change point expirey and earn rate",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "loyalty setup",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "redeem points rules",
+   "expect": "Loyalty & rewards (and how to set the program up)"
+  },
+  {
+   "q": "How does the 86 Board pause items across delivery channels?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "How do I turn on Auto-86 so items pause automatically when stock hits zero?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "What does the Re-sync now button do on the 86 Board?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "How do I stop selling an item online across every channel from the 86 Board?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "We ran out of a dish — how do I pull it off Uber Eats and DoorDash at the same time from one screen?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "Is there a screen that automatically takes dishes off the delivery apps when their ingredients run dry?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "How do I push our current item availability back out to all the ordering platforms at once?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "On the availability screen, what does the Stock column mean where it names an ingredient next to each item?",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "how does the 86 bord work acros channells",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "auto-86 when stok hits zero",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "86 Board channels",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "auto-86 setting",
+   "expect": "86 Board (pause items across channels)"
+  },
+  {
+   "q": "How do I open the Live Dashboard?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "Where can I see orders today and revenue today updating in real time?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "What does the order pipeline on the live dashboard show?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "How often does the live dashboard auto-refresh?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "Is there one screen that shows how the restaurant is doing right this minute — sales, tables in use and what the kitchen is up to?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "I want an at-a-glance snapshot of today's trading while service is on — which screen is that?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "Can I see today's average spend per order and how many staff are on duty on a single screen?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "Why can't I change the date range on the screen that shows today's numbers as they happen?",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "were do i see todays revenu and activ tables live",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "live dashbord not refreshing how often does it updat",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "live dashboard help",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "live view today",
+   "expect": "Live Dashboard (real-time operations)"
+  },
+  {
+   "q": "How do I see my best and worst selling menu items?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "Where is the ABC analysis of my menu?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "How does Menu Analytics rank items into A, B and C tiers?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "Can I switch outlets in Menu Analytics if I have several locations?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "Which dishes should I drop from the menu because nobody orders them?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "I want to know which plates bring in the most money over the past month.",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "Is there a report that groups my dishes into winners and duds?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "How can I decide which dishes to promote and which are just taking up space on the menu?",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "wich items are my top sellars this month",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "menu analitics slow movers were to find",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "worst sellers report",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "abc menu tiers",
+   "expect": "Menu Analytics (best and worst sellers)"
+  },
+  {
+   "q": "How do I compare sales across channels like Uber Eats, dine-in and QR?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Where do I see net revenue by channel after commission?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "How do I check the cancel rate for each sales channel?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Can I change the From/To dates in Channel Analytics?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Does DoorDash or eating in the restaurant make me more money once fees are taken out — where do I compare them?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "I want a side-by-side view of how each ordering platform performs against walk-in trade.",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Which platform has the highest average ticket size?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Is there a breakdown showing my top dishes filtered by where the order came from?",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "chanel analytics comission per platform were do i see it",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "compair uber eats vs dine in sels",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "channel comparison report",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "revenue by channel",
+   "expect": "Channel Analytics (compare sales channels)"
+  },
+  {
+   "q": "Where do I find Prep Time Analytics for the kitchen?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "How do I see the average cook time per item and station?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "How do I check SLA compliance by station?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "Can I export the prep time data to CSV?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "Which dish takes my chefs the longest to get out the door?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "Is there a way to see which hours of the day the kitchen falls behind?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "I want to compare how quickly the bar turns out drinks versus the dessert section.",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "Can I see whether ticket times have improved over the last 90 days?",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "prep tiem analytics slowest itim report",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "kichen speed avrage cook time were",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "slowest dish report",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "prep time stats",
+   "expect": "Prep Time Analytics (kitchen speed)"
+  },
+  {
+   "q": "How do I export my POS sales to Xero?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "Where is Financial Analytics and how do I sync it with Xero?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "How do I use Sync Now to pull my Xero data into the app?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "Can I see P&L, cash flow and BAS tabs from Xero inside Financial Analytics?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "Can I push my daily takings into my accounting software with itemised categories and per-order invoices?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "I want to view my profit and loss and balance sheet from my bookkeeping system inside the app.",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "When sending sales to my accountant's system, what do the toggles like channel tracking and reconcile payments do?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "Where can I look at labour costs and expenses pulled in from my accounting platform?",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "export sals to xero not workin how do i push pos data",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "finantial analytics sinc now with xero",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "xero export sales",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "sync xero data",
+   "expect": "Financial Analytics with Xero"
+  },
+  {
+   "q": "How do I connect Square with OAuth?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "Where do I set up the MYOB integration with an API key?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "How do I connect Google Reviews and reply to reviews from the app?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "How do I disconnect an integration like Square or Pronto?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "Where can I see what customers are saying about us on Google, with sentiment, and respond without leaving the app?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "How do I get sales, expenses and payroll out as CSV files for my MYOB bookkeeper?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "Is there one page where I link up Square, MYOB and the rest of my Aussie business tools?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "I want to unlink Square from my account — where do I do that?",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "conect myob integraton api key",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "how to disconect google reviws",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "connect square",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "myob setup",
+   "expect": "Australian integrations (Xero, Square, MYOB, Google Reviews)"
+  },
+  {
+   "q": "How do I send a marketing campaign to my customers?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "How do I send an SMS campaign to my VIP segment?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "Can I send a WhatsApp campaign to lapsed customers?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "How do I personalise the campaign message with each customer's name?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "I want to text everyone who hasn't visited in a while about our new menu — how?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "Can I email a blast to all my regulars at once?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "Why did some customers not receive the message I sent out to everyone?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "How do I choose which group of diners gets my announcement?",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "send whatsap campain to custmers",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "sms marketting to vips how",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "message all customers",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "birthday campaign send",
+   "expect": "Send a marketing campaign"
+  },
+  {
+   "q": "How do I export a customer's data?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "How do I erase a customer's personal data for privacy compliance?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "A customer invoked their right to erasure under GDPR — what do I do?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "Where is the DPDP option to anonymise a customer's record?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "A diner asked for a copy of everything we hold on them — can I download it?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "Someone asked us to wipe their details from our records — how do I do that without removing the whole account?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "How do I anonymise a guest's phone number and info so we no longer hold it?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "Is deleting a customer the same as removing their personal information for compliance?",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "how to eraze customer personel data gdpr",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "expot customer data privicy request",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "erase customer data",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "customer data export",
+   "expect": "Export or erase customer data (privacy)"
+  },
+  {
+   "q": "How do I create a new promotion with a coupon code?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "How do I set up a BOGO promotion?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "How do I make a discount auto-apply without a code?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "Where do I set the max discount cap and minimum order value on a promo?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "I want customers to get a second pizza free when they buy one — how do I set that deal up?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "How can I give 20% off orders over $50 for the next two weeks?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "Can I limit how many times a voucher can be redeemed?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "How do I set up a deal that switches off automatically on a certain date?",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "creat cupon code for 10% off",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "setup promo buy one get one fre",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "new coupon code",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "create bogo deal",
+   "expect": "Create a discount, coupon or promotion"
+  },
+  {
+   "q": "How do I add a new staff member?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "How do I add an employee and choose their role?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "How do I set a manager PIN when adding a staff member?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "How do I add a new waiter to the system?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "I just hired a cashier — how do I get her set up with a login?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "What happens if I leave the password blank when creating someone on the team?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "Which roles can I pick from when putting a new hire into the system?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "Where do I set the 4-digit approval PIN for a manager when creating their account?",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "how to ad new employe waiter",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "add staf member with maneger pin",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "add new employee",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "create staff login",
+   "expect": "Add a staff member"
+  },
+  {
+   "q": "Where do I edit a staff member's employment details like pay rate and TFN?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "How do I record a staff member's bank BSB and account number?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "Where do I enter superannuation details for an employee?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "How do I update a staff member's compliance records like Right to Work and Police Check?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "Where do I put a team member's emergency contact and home address?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "How do I record which days and hours each employee is available to work?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "I need to change someone's hourly wage in their file — where do I do that?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "I need to update a worker's employee code and employment type — where is that done?",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "edit staff employmnet details tfn and supper",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "were do i add emloyee bank acount bsb",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "staff HR tabs",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "employee bank details",
+   "expect": "Staff HR profile (employment, compliance, certifications)"
+  },
+  {
+   "q": "How do staff clock in and out?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "Where is the attendance screen?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "How do I see the shift report with days present and hours worked?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "Why does clocking in ask for an OTP on some setups?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "How can I total up the hours each person actually worked this fortnight?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "My chef forgot to sign out after her shift — where do I check her recorded times?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "Is there a record of the days each employee actually showed up this month?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "How do we track start and finish times for the team each day?",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "staff clok in not working atendance",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "shift reprot hours workd where",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "clock in staff",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "attendance report",
+   "expect": "Staff attendance / clock in–out"
+  },
+  {
+   "q": "How do I create a new roster?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "How do I assign shifts to staff on the roster calendar?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "How do I publish a roster so it goes live?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "Where is Staff Rostering so I can plan next week's shifts?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "I need to plan who works which days next week — where do I do that?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "How do I put together the weekly work timetable for my team?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "Can I add a role label like 'bar' to someone's shift when I schedule it?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "After filling in everyone's shifts for the week, how do I make the schedule visible to the team?",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "creat new rooster for next week",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "publsh staff shedule shifts",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "publish roster",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "new weekly roster",
+   "expect": "Create and publish a staff roster"
+  },
+  {
+   "q": "How do I add a staff certification like RSA?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "Where do I track Food Safety certificate expiry dates?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "How do I record a WWCC for an employee with its expiry?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "Does the app warn me when a certification is about to expire?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "How will I know if a bartender's alcohol service accreditation is about to lapse?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "Where do I enter the paperwork details for a team member's security licence?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "We got audited — where do I keep proof of everyone's training credentials and their renewal dates?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "How far ahead does the system flag staff licences that are running out?",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "add staff certifcation rsa expirey",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "track wwcc and food safty certs",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "RSA expiry tracking",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "add certification",
+   "expect": "Track staff certifications (RSA, WWCC, Food Safety)"
+  },
+  {
+   "q": "How do I run payroll?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "How do I create a new pay run?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "How do I finalise a draft pay run so it posts to the books?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "Where do I see payslips with Gross, PAYG and Super amounts?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "It's time to sort out fortnightly pay for the team — where do I start?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "How do I lock a completed pay period so it can't be changed?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "Where do I enter each employee's gross and hours for the pay period?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "How do I generate pay statements showing tax withheld and net amounts for the team?",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "how to run payrol pay run",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "finalze payrun and see payslps",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "run pay run",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "payroll help",
+   "expect": "Run payroll (pay run)"
+  },
+  {
+   "q": "How do I download a sales report?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "Where can I see my revenue trend over the last month?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "How do I run a report for a custom date range?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "How do I export or print the full analytics report?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "Where can I see a summary of how much money we made this month?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "I need a CSV of our takings for a chosen week to send to my accountant — where do I get it?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "Which screen shows my revenue trend alongside the payment and cost mix?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "How do I see sales numbers for just one outlet over a date range I choose?",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "how do i downlod the sales reprot",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "where can i see my revanue trend",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "sales report",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "export analytics CSV",
+   "expect": "Reports & analytics"
+  },
+  {
+   "q": "How do I close the day at the end of service?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "How do I run the end of day report?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "Where do I enter the opening float in the EOD wizard?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "What happens when I lock and finalise the day?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "How do I count the till and balance it against sales at night?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "The drawer has more money than expected — where do I record a reason for the difference?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "Where do I enter how many notes and coins of each denomination are in the register?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "Can I save my nightly balancing halfway and finish it after the last table leaves?",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "how do i do the end of day cash cout",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "were do i enter the openning float",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "close the day",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "EOD cash up",
+   "expect": "End of day / close of day (EOD)"
+  },
+  {
+   "q": "Where do I find the Business Health dashboard?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "How do I see the hourly heatmap of sales?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "What do I need to connect before Business Health shows data?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "Where are the advanced reports with P&L and category breakdowns?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "Is there one view that combines my card takings and accounting to show what I'm really earning?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "Where can I see wages as a percentage of sales together with card fees?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "Does the system have a cash forecast for the weeks ahead?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "Which report shows sales intensity by hour and day of the week in a grid?",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "wher is the busines health dashbord",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "advannced reports with hourly heatmapp",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "business health",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "hourly sales heatmap",
+   "expect": "Advanced reports & business health"
+  },
+  {
+   "q": "How do I lodge my BAS?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "Where do I find the GSTR-1 and GSTR-3B summaries?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "How do I download the GST return as JSON?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "Where can I export the HSN summary register?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "How do I prepare the quarterly statement I owe the ATO?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "My accountant needs the period figures we file with the tax department — where do I download them?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "Can I export a rate-wise register of the tax we collected?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "Where do I see the G1 and 1A figures for the quarter?",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "how do i lodg my bas retrun",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "downlaod gstr-3b json fromat",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "lodge BAS",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "GSTR-1 summary",
+   "expect": "GST / BAS returns"
+  },
+  {
+   "q": "How do I set up my chart of accounts?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I post a manual journal entry?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "Where do I view the trial balance?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I lock an accounting period so it can't be changed?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I record a one-off debit and credit that isn't tied to any order?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I stop anyone editing last month's books?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "Does PetPooja have built-in bookkeeping or do I need separate software?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I create the standard list of financial accounts when starting fresh?",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "where is the trail balence",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "how do i post a manual jurnal",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "trial balance",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "seed chart of accounts",
+   "expect": "Accounting (chart of accounts, ledger, statements)"
+  },
+  {
+   "q": "How do I create a tax invoice for a customer?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "How do I issue an invoice so it posts to accounts receivable?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "How do I mark a customer invoice as paid?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "Can I void an invoice I created by mistake?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "A company wants to pay for their catering order on 30-day terms — how do I set that up?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "How do I send a business client a document showing what they owe with a due date?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "How do I record money a corporate customer owes us for an event?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "Where do I add line items with quantity and unit price when charging a client on account?",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "how do i creat a tax invoise",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "mark invocie as payed",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "new customer invoice",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "invoice a company",
+   "expect": "Create a customer (tax) invoice"
+  },
+  {
+   "q": "How do I issue a credit note?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "How do I create an adjustment note linked to an order ID?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "How do I cancel a credit note that has already been issued?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "Where do I add line items and GST% on a credit note?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "We overcharged a client on their account — how do I document a reduction of what they owe?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "How do I give a customer formal credit against a billing mistake?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "I need paperwork that reduces the amount on a bill we already sent — where do I create it?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "A function was cancelled after billing — how do I write down the amount owed with a reason?",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "how to isue a credti note",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "cancle an issued credit not",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "credit note",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "issue credit note",
+   "expect": "Issue a credit note"
+  },
+  {
+   "q": "How do I add a fixed asset to the register?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "How do I run depreciation for the month?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "Where can I see the net book value of my assets?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "How do I set salvage value and useful life for an asset?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "How do I record the new pizza oven so its value writes down over time?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "Where do I track equipment we own and how much value it has lost?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "How do I post the monthly write-down of our kitchen equipment to the books?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "We bought an $8,000 coffee machine — how do I track its declining value?",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "how do i run deprciation",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "add a fixd asset",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "run depreciation",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "asset register",
+   "expect": "Fixed assets & depreciation"
+  },
+  {
+   "q": "How do I create a budget for the financial year?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "Where do I see budget vs actual?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "How is variance shown on the budget report?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "How do I add accounts and amounts to a new budget?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "How do I set spending targets per account and see if we're over or under?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "Where can I compare what we planned to spend with what we actually spent?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "Can I set yearly targets for each expense line and track them?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "How do I tell if a cost line came in favourable or unfavourable against the plan?",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "how do i creat a budgt",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "budget vs actaul report",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "new budget",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "budget variance",
+   "expect": "Budgets (budget vs actual)"
+  },
+  {
+   "q": "How do I import a settlement batch?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "How do I reconcile a Razorpay settlement against recorded payments?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "Where do I paste the settlement lines CSV?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "How do I close a settlement batch after matching it?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "The bank deposit from our card machine doesn't match the POS total — how do I check it line by line?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "How do I tie the amount the card company paid us to individual transactions?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "How do I verify the fees deducted from our card deposits?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "Our UPI provider sent a statement of what they paid out — how do I load it and compare with our records?",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "import setlement batch",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "reconsile card settelments",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "import settlement",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "reconcile settlement batch",
+   "expect": "Settlement reconciliation"
+  },
+  {
+   "q": "How do I accept an incoming Uber Eats order?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "Where do I see live online orders from DoorDash and Menulog?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "How do I turn on auto-accept for online orders?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "How do I mark an aggregator order ready for pickup?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "An order just came in from a food delivery app — where do I confirm it and set how long it will take?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "Can the system confirm incoming platform orders automatically so I don't have to tap each one?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "How do I tell the delivery platform the food is ready for the driver?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "Where's the board that moves incoming app orders from new to preparing to ready?",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "how do i acept an uber eats ordr",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "auto acept for onlin orders",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "accept Uber Eats order",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "online orders board",
+   "expect": "Online / aggregator orders"
+  },
+  {
+   "q": "How do I book a courier with Uber Direct?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "How do I dispatch my own delivery for a phone order?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "How do I get a quote with fee and ETA before requesting a driver?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "How do I track or cancel a delivery I dispatched?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "A customer rang in an order — how do I arrange someone to take it to their address?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "We don't employ drivers — can I book a third-party rider straight from the POS?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "How do I see what it will cost and how long before sending food out to a customer's home?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "Where do I enter the customer's dropoff address to have their order brought to them?",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "book a currier for a delivery",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "uber direcct delivery quote",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "book a driver",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "dispatch own delivery",
+   "expect": "Dispatch your own delivery"
+  },
+  {
+   "q": "How do I generate a QR code for each table?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "How do I download a table's QR as a PNG?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "How do I print QR cards with the restaurant name and table number on them?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "Where do I create the scan-to-order codes for my dining room?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "I want guests to order from their phones at the table — how do I make the printed squares they scan?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "How do I get printable cards with each table's ordering link?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "What do I need to set up before I can make ordering codes for my tables?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "How do I set up phone-based ordering from each seat in the restaurant?",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "genrate qr code for tabel 5",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "print qr cods for tables",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "table QR codes",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "print table QR",
+   "expect": "Generate QR codes for tables"
+  },
+  {
+   "q": "How do I approve a QR order from a table?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "Where do I accept orders customers placed by scanning the table QR?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "What does Accept & KOT do on a QR order card?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "How do I reject a QR self-order and free up the table?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "A guest just ordered from their phone at the table — how do I send it through to the kitchen?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "Do orders that diners place from their seats need my confirmation before the kitchen sees them?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "How do I turn down an order a customer submitted from their own phone at the table?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "An alert popped up saying a table ordered from their phone — what do I do with it?",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "aprove qr ordr from table",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "acept qr self orderd",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "approve QR order",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "reject QR order",
+   "expect": "Approve QR self-orders"
+  },
+  {
+   "q": "How do I connect an integration from the Integrations Hub?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "How do I connect Tyro to PetPooja?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "Where do I enter the API key when configuring an integration?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "How do I enable the Tally integration?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "Is there one place to switch on third-party services and save their credentials?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "How do I link Pine Labs with the system?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "Where do I hook up outside services, filtered by category, and fill in their required fields?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "I got credentials from a payments provider — where in the app do I plug them in to activate the service?",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "how do i conect an integraton",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "enter api ky for tyro",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "integrations hub",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "enable an integration",
+   "expect": "Connect an integration"
+  },
+  {
+   "q": "How do I raise a requisition to the central kitchen for raw materials?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "Where do I approve or reject an indent that a branch sent to my central kitchen?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "How does the requesting branch confirm receipt after the central kitchen dispatches stock?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "How do I check the status of my branch's requests to the central kitchen?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "Our main production unit supplies all our locations — how do I ask them to send more flour to my outlet?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "The commissary approved fewer bags than we asked for — where can I see the approved quantity on our request?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "How do I mark that the goods our main kitchen sent out have actually arrived at my outlet?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "Where do I see incoming ingredient requests from our other locations so I can approve and send them out?",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "how to send a requsition to the centrel kitchen",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "confirm reciept of stock dispached from central kitchen",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "central kitchen indent",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "new branch requisition",
+   "expect": "Central kitchen requisitions (indents)"
+  },
+  {
+   "q": "How do I set up dynamic pricing rules?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "Can prices automatically surge during peak dinner hours with a time-slot rule?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "How do I create a weather-based pricing rule?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "Where do I see which pricing rules are firing live right now?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "Can the system quietly bump my menu up a few percent on rainy days and drop it on slow afternoons?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "I want my slow movers automatically marked down during off-peak hours — is that possible?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "Is there a way to simulate different weather and preview what my menu would charge?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "When my off-peak automatic markdown fires, how do I cap how far the price can drop?",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "how to setup dynamc pricing rulse",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "surge pricng by time of day",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "surge pricing setup",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "weather based prices",
+   "expect": "Dynamic pricing rules"
+  },
+  {
+   "q": "How do I turn on Festival Mode for Diwali?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "Where do I find Holiday Mode in the Australian version?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "How do I configure a festival with a custom banner message and an offer?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "Can I preview upcoming festivals before activating a themed menu?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "Can the app tell me which big celebrations are coming up so I can run a special for each one?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "I want a special banner and a percentage-off deal to run only over the Easter weekend — where do I set that up?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "Where do I browse the full calendar of occasions the system detects, plus my saved configs?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "How do I switch on a celebratory look and a limited-time deal for New Year's Eve?",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "how to enable festivel mode for dewali",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "hollyday mode setup for xmas",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "festival mode",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "diwali offer setup",
+   "expect": "Festival / Holiday Mode"
+  },
+  {
+   "q": "How do I run a fraud scan right now?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "Where do I see fraud alerts filtered by severity?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "How do I resolve a fraud alert with a note or dismiss it?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "Where can I check each staff member's risk score?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "I think a waiter is printing kitchen tickets and then cancelling the orders — does the system flag that pattern automatically?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "Can the software catch employees who hand out way too many markdowns at the till?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "What are these late-night anomaly warnings I keep getting about one of my cashiers?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "Is there a screen that scores my team on dodgy till behaviour and shows a 7-day trend of warnings?",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "how to run a fruad scan",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "staff frad alerts for discont abuse",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "fraud alerts",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "staff risk scores",
+   "expect": "Fraud detection & staff risk"
+  },
+  {
+   "q": "How do I connect Swiggy and copy its webhook URL into the partner dashboard?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "How do I push my menu to Uber Eats?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "Where do I enter my Zomato store ID and API key?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "How do I push my menu to all connected delivery platforms at once?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "How do I get my dishes to actually show up on the delivery apps?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "I updated my prices — how do I republish everything to DoorDash and Menulog?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "Can I fire a simulated test order to check my delivery platform hookup works?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "Where do I check the sync logs after publishing my menu to a delivery platform?",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "how to conect zomato and swigy to my restarant",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "push my menue to uber eatts",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "push menu zomato",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "swiggy webhook URL",
+   "expect": "Connect delivery aggregators & push your menu"
+  },
+  {
+   "q": "Where do I see how much commission Uber Eats took this month?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "How do I check the expected net payout from Zomato for last week?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "How do I create a settlement from a delivery payout row?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "Where's the delivery payout report filtered by platform and date range?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "DoorDash sold $2,000 for us last week — where do I see what actually lands in my bank after their cut?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "Swiggy's transfer looks short — where can I check what they should be paying me for that period?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "For each delivery app, can I see gross sales versus the fee they kept?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "How do I work out whether the delivery platforms have shortchanged us on their weekly transfers?",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "delivry payots from zomato",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "how much comission did ubereats take",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "aggregator payouts",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "zomato commission owed",
+   "expect": "Delivery payouts & commission reconciliation"
+  },
+  {
+   "q": "How do I onboard my restaurant onto ONDC?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "What are the steps to go live on ONDC?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "Where do I submit my outlet for ONDC review?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "How do I accept ONDC orders and move them through Preparing and Ready?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "How do I list my restaurant on India's government-backed open commerce network?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "Where do I enter my FSSAI expiry, GSTIN and PAN so the ONDC wizard can verify my store?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "My ONDC status says under review — what happens next before we're live?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "Where do I set the delivery radius, minimum order and auto-accept for my ONDC listing?",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "how to go live on ondc netwrok",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "ondc onbording steps",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "ONDC setup",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "go live ONDC",
+   "expect": "ONDC seller hub (India)"
+  },
+  {
+   "q": "Where's the audit trail so I can see who did what?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "How do I find out who voided that bill last night?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "How do I filter the activity log to just deletes and refunds?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "Who changed the tax settings yesterday — can I trace that action?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "Is there a record of every single thing my staff did in the system, with timestamps?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "A table's bill disappeared — can I look up which user removed it and when?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "Someone gave money back on an order without telling me — is there a log showing which account performed it?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "Can I see the network address each user was on when they performed sensitive operations?",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "check audti trail for voids",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "activty log for deleets",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "audit trail",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "who voided this",
+   "expect": "Audit trail & activity log"
+  },
+  {
+   "q": "How do I issue a refund on a payment?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "Where do I see all payment transactions for today?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "How do I export the payments list to CSV?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "Refunding a transaction asks for a Manager PIN and a reason — how does that work?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "A customer was charged twice on card — how do I give the money back for one of the charges?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "Where can I look up a settled order by invoice number and see which method it was paid with?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "I need to reverse last night's card charge for order #1042 — what's the process?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "Can I get a CSV of each individual charge we took this week?",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "how to isue a refund for a paymnt",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "export paymets to csv",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "refund a payment",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "payments CSV export",
+   "expect": "Payment transactions & issuing a refund"
+  },
+  {
+   "q": "How do I set up my restaurant for the first time?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "What are the 7 steps in the onboarding wizard?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "Can I skip the setup and go straight to the dashboard?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "Where does the getting-started flow ask for my business profile and cuisines?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "I've just created my account — what's the guided flow that walks me through business details, tables, menu and team?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "In the signup walkthrough, which step asks for my ABN and ACN?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "During the guided walkthrough after registering, can I paste my menu text and let AI build the items?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "The walkthrough is asking about service modes, table count and QR — which step is that and what comes next?",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "onbording wizard steps",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "setup my resturant frst time",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "restaurant setup wizard",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "onboarding steps",
+   "expect": "Set up a new restaurant (onboarding wizard)"
+  },
+  {
+   "q": "How do I set up a new POS terminal in the desktop app?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "What's the 3-step setup when the desktop app runs for the first time?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "How do I link a new terminal to my existing account?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "During terminal setup, where do I enter the thermal printer's IP address?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "I installed the till software on a brand-new counter machine and it's showing a Welcome screen asking for a manager login — what is this?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "On a fresh till install it asks for a printer IP with 192.168.1.100 prefilled — should I enter mine or hit Skip?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "Is the short 3-step flow on a fresh till machine the same as the full restaurant creation wizard, or something separate?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "We bought another counter computer — how do I get the app on it tied to our existing restaurant account?",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "termnal setup printr ip adress",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "conect new pos terminl to my acount",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "terminal setup",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "new till setup",
+   "expect": "Set up a POS terminal / desktop device"
+  },
+  {
+   "q": "What can you do?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "What kinds of questions can I ask you?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "Are you read-only, or can you change things in my restaurant?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "What business data can you report on?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "Can you export my P&L or EOD as a PDF for me?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "If I ask, will you actually modify my menu or just explain how?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "Give me a rundown of everything this chat helper can answer.",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "Do you know things like tomorrow's forecast and who my top customers are?",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "wat can you do assistnt",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "what can u anser abut my busness",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "what can you do",
+   "expect": "What the assistant can do"
+  },
+  {
+   "q": "your capabilities?",
+   "expect": "What the assistant can do"
+  }
+ ],
+ "tools": [
+  {
+   "q": "What orders are active right now?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "How many tables are still open?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "Any running orders at the moment?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "whats cooking right now",
+   "expect": "active_orders"
+  },
+  {
+   "q": "Show me the live orders",
+   "expect": "active_orders"
+  },
+  {
+   "q": "any open bills on the floor?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "How many tickets are live in the kitchen?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "any unpaid orders still sitting there?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "current orders?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "open tables?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "live orders rn",
+   "expect": "active_orders"
+  },
+  {
+   "q": "how many orders r running right now",
+   "expect": "active_orders"
+  },
+  {
+   "q": "wat orders are open",
+   "expect": "active_orders"
+  },
+  {
+   "q": "anything still being prepared in the kitchen?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "which tables still have to pay?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "whats the value of the orders currently in play",
+   "expect": "active_orders"
+  },
+  {
+   "q": "how much money is sitting on open tables right now?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "active tickets?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "orders still going?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "any dine-in orders still open?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "how many takeaways are being prepared right now",
+   "expect": "active_orders"
+  },
+  {
+   "q": "any delivery orders still live?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "whats live in the kitchen",
+   "expect": "active_orders"
+  },
+  {
+   "q": "runing orders",
+   "expect": "active_orders"
+  },
+  {
+   "q": "opne tables rn?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "how many orders is the kitchen working on right now",
+   "expect": "active_orders"
+  },
+  {
+   "q": "any tables waiting to pay?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "what tickets are on the kitchen screen right now",
+   "expect": "active_orders"
+  },
+  {
+   "q": "got any ongoing orders atm?",
+   "expect": "active_orders"
+  },
+  {
+   "q": "whats still open on the floor tonight",
+   "expect": "active_orders"
+  },
+  {
+   "q": "Give me today's end of day summary",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "What does the day close look like so far?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "How much cash vs card did we take today?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "What should the cash in drawer be?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "Run me through the z report for today",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "About to close the day — what are the numbers?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "eod",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "day close figures?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "cash up totals please",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "how many voids and refunds today?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "what should the drawer have in it tonight?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "closing numbers?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "reconcile today for me",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "whats the split between cash and card at close today",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "any refunds today I should know about before closing?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "how many voids did we do today",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "closing figures b4 i cash up",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "end of day plz",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "day close summry",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "cashup",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "z report",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "settle the day — what am I looking at?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "total discounts given today at close?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "what do I need to reconcile tonight?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "tonight's close — totals?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "how much cash should be in the till at close?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "give me the daily close breakdown",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "wats the eod looking like",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "before I lock up, how much cash did we take today?",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "close of day numbers pls",
+   "expect": "eod_summary"
+  },
+  {
+   "q": "What was the gross on the last pay run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "How much PAYG did we withhold this pay run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "What's the super for the latest payroll?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "Total wage bill for the last pay run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "How many payslips went out last run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "net pay total on the latest run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "payroll summary",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "how much are we paying staff this period?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "latest pay run numbers?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "whats my wage bill looking like",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "superannuation owed this run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "gross wages last payroll?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "how much tax did we withhold from wages?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "salary total for the team this cycle?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "whats the status of the latest pay run",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "payrol summary pls",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "wat did the last pay run cost me",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "super total?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "payg withheld?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "wages",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "how big was the last payroll?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "staff wages total?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "what am i paying out in super",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "net vs gross on the latest pay run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "how many staff got payslips in the last run?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "last payslip run — totals?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "how much did payroll come to this time?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "wage bill?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "was the last pay run finalised and what was the net?",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "payrun figures",
+   "expect": "payroll_summary"
+  },
+  {
+   "q": "any fraud alerts?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "do we have any open fraud alerts right now",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "anything suspicious flagged today?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "show me the open loss prevention alerts",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "is anyone abusing voids?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any suspicous voids lately",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "flagged discounts — anything I should look at?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any refund fraud going on?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "are there any staff risk flags open",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "whats being flagged for fraud",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "fraud alerts",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "suspicious activity on the tills?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any theft alerts",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "anything dodgy going on at the registers?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any cash discrepancy alerts open?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "did the system flag any weird voids",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any discount abuse alerts",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "open loss prevention issues",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "is anything flagged as suspicious rn",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any anomalies flagged this week",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "am i losing money to voids — any alerts?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "fruad alerts?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "shrinkage alerts — anything open",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "which staff members are flagged for suspicious refunds",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any high severity fraud alerts",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "whats the most serious fraud alert right now",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "got any red flags on refunds or voids?",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "any unusual cash events flagged",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "is someone giving out too many discounts? any flags",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "count of open fraud alerts pls",
+   "expect": "fraud_alerts"
+  },
+  {
+   "q": "who worked this week?",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who clocked in today",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "staff hours this period",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "how many hours did each staff member work",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "give me the attendance for this period",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "whos been showing up this week",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "hours worked by staff",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who has the most overtime",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "any overtime this period?",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "days present for my staff",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "timesheet summary for the team",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who's on the clock",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "did sarah clock in today?",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "total labour hours this period",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "staff attendance",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who worked the most hours",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "clock ins today",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "how many days has raj worked this month",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "attendence this week",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "whos racking up overtime",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "hours for everyone this week",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who showd up today",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "staff hours pls",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "overtime hours so far this period",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "which staff clocked in this morning",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "give me everyone's hours worked",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "team hours",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who hasn't been coming in this period",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "shift report — hours and days for each staff",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "who worked",
+   "expect": "staff_hours"
+  },
+  {
+   "q": "how do i add a new item to the menu?",
+   "expect": "help_howto"
+  },
+  {
+   "q": "where is the tax settings",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how to set up qr code ordering for tables",
+   "expect": "help_howto"
+  },
+  {
+   "q": "steps to run end of day",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i split a bill between two cards",
+   "expect": "help_howto"
+  },
+  {
+   "q": "walk me through raising a purchase order",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how can i mark a dish as sold out on the pos",
+   "expect": "help_howto"
+  },
+  {
+   "q": "where do i change my password",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how does offline mode work when the internet drops",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how to add a new staff login",
+   "expect": "help_howto"
+  },
+  {
+   "q": "show me how to apply a promo code to an order",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i merge two tables",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i set up payroll",
+   "expect": "help_howto"
+  },
+  {
+   "q": "where do i configure surcharges",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how to connect a receipt printer",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i edit an item's price",
+   "expect": "help_howto"
+  },
+  {
+   "q": "wheres the option to change the receipt footer text",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i move an order to another table",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how to create a combo meal deal",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i set reorder levels for inventory",
+   "expect": "help_howto"
+  },
+  {
+   "q": "explain how kot printing works",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how can i enable tips on the pos",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i set up a happy hour discount",
+   "expect": "help_howto"
+  },
+  {
+   "q": "guide me through doing a stocktake",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how to give a staff member manager permissions",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i chnage the order of menu categories",
+   "expect": "help_howto"
+  },
+  {
+   "q": "where do i turn on online ordering",
+   "expect": "help_howto"
+  },
+  {
+   "q": "how do i cancel an order placed by mistake",
+   "expect": "help_howto"
+  },
+  {
+   "q": "printer setup how?",
+   "expect": "help_howto"
+  },
+  {
+   "q": "eod steps?",
+   "expect": "help_howto"
+  }
+ ],
+ "export": [
+  {
+   "q": "Download the P&L report as a PDF for this month",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "Export profit and loss to excel for last month",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Give me the income statement as CSV for 1 July to 15 July",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Can you generate a pnl report pdf for yesterday?",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "Save the profit & loss statement as a spreadsheet for last week",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Send me the P&L for the past 58 days",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "get me the profit and loss report for 2026-06-01 to 2026-06-30 in excel",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "download pnl pdf",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "Export the income statement for the last 3 weeks as a pdf",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "I need to download the profit and loss for today",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "generate a csv of the P&L for this month",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Can I get the profti and loss report as an xlsx for last month?",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Export P&L statement to PDF, 1 july to 15 july please",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "give me a spreadsheet of the income statement for last week",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "downlaod the pnl report for yesterday as csv",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Save my profit & loss as pdf for the last 3 weeks",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "send me the P&L in excel format for today",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Export the profit and loss report",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Get me a PDF of the income statement for the past 58 days",
+   "expect": "pnl|pdf"
+  },
+  {
+   "q": "please generate the p&l spreadsheet for 2026-06-01 to 2026-06-30",
+   "expect": "pnl|csv"
+  },
+  {
+   "q": "Download the end of day report as PDF for today",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "Export yesterday's day close report to excel",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "give me the z-report as a csv for last week",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "Generate the EOD report pdf for yesterday",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "save the day close summary as a spreadsheet for this month",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "Send me the end of day report for today",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "get me the z report in excel for last month",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "download eod report",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "Export the day close report as pdf for 1 July to 15 July",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "Can you export the end-of-day reports for the past 58 days to csv?",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "I want to download the z-report for yesterday",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "Generate an excel of the day close for the last 3 weeks",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "send me the EOD summary as a pdf for last week",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "give me the end of day report in spreadsheet form for 2026-06-01 to 2026-06-30",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "expot the eod report to pdf for this month",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "Save the z-report as csv for today",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "download the day-close report for last month as a PDF",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "get me the end of day report as xlsx for yesterday",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "Export the z report for the last 3 weeks",
+   "expect": "eod|csv"
+  },
+  {
+   "q": "please generate the day close pdf for the past 58 days",
+   "expect": "eod|pdf"
+  },
+  {
+   "q": "Download the sales report as PDF for today",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "Export sales to excel for last month",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "give me a csv of revenue for last week",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Generate the takings report pdf for yesterday",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "save this month's sales summary as a spreadsheet",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Send me the sales report for 1 July to 15 July",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "get me the revenue report in excel for the past 58 days",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "download sales report",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Export the sales figures as pdf for 2026-06-01 to 2026-06-30",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "Can I download the takings for last week as csv?",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "generate a sales report in xlsx for the last 3 weeks",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "send me a pdf of the revenue report for this month",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "give me the saels report for yesterday in excel",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Save the sales report to csv for today",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "export the takings report as a spreadsheet for last month",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Download a PDF of the sales summary for the last 3 weeks",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "get me the sales revenue report for the past 58 days",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "Export the revenue numbers to a spreadsheat for 1 july to 15 july",
+   "expect": "sales|csv"
+  },
+  {
+   "q": "generate the sales report pdf for last week",
+   "expect": "sales|pdf"
+  },
+  {
+   "q": "send me the takings report as csv for 2026-06-01 to 2026-06-30",
+   "expect": "sales|csv"
+  }
+ ],
+ "adversarial": [
+  {
+   "q": "give me today's sales",
+   "expect": "data:sales_today"
+  },
+  {
+   "q": "get me my top sellers",
+   "expect": "data:top_items"
+  },
+  {
+   "q": "show me the profit this month",
+   "expect": "data:finance_summary"
+  },
+  {
+   "q": "show me the low stock report",
+   "expect": "data:low_stock"
+  },
+  {
+   "q": "give me the end of day summary",
+   "expect": "data:eod_summary"
+  },
+  {
+   "q": "get me the latest payroll figures",
+   "expect": "data:payroll_summary"
+  },
+  {
+   "q": "show me my top customers by spend",
+   "expect": "data:top_customers"
+  },
+  {
+   "q": "give me tomorrow's sales forecast",
+   "expect": "data:sales_forecast"
+  },
+  {
+   "q": "show me the open purchase orders",
+   "expect": "data:open_purchase_orders"
+  },
+  {
+   "q": "give me the active orders right now",
+   "expect": "data:active_orders"
+  },
+  {
+   "q": "show me the fraud alerts report",
+   "expect": "data:fraud_alerts"
+  },
+  {
+   "q": "get me the staff hours report",
+   "expect": "data:staff_hours"
+  },
+  {
+   "q": "give me a breakdown of my menu items",
+   "expect": "data:menu_overview"
+  },
+  {
+   "q": "show me my GST numbers",
+   "expect": "data:finance_summary"
+  },
+  {
+   "q": "get me a summary of how much we made today",
+   "expect": "data:sales_today"
+  },
+  {
+   "q": "give me the stats on my best selling dishes",
+   "expect": "data:top_items"
+  },
+  {
+   "q": "show me the attendance report for this period",
+   "expect": "data:staff_hours"
+  },
+  {
+   "q": "get me the day close numbers",
+   "expect": "data:eod_summary"
+  },
+  {
+   "q": "give me the inventory report on what's running low",
+   "expect": "data:low_stock"
+  },
+  {
+   "q": "show me the revenue figures for today",
+   "expect": "data:sales_today"
+  },
+  {
+   "q": "download my sales report",
+   "expect": "export"
+  },
+  {
+   "q": "p&l as pdf please",
+   "expect": "export"
+  },
+  {
+   "q": "export today's sales to excel",
+   "expect": "export"
+  },
+  {
+   "q": "can I get the item sales as a csv",
+   "expect": "export"
+  },
+  {
+   "q": "download the end of day report as pdf",
+   "expect": "export"
+  },
+  {
+   "q": "export my customer list to csv",
+   "expect": "data:top_customers"
+  },
+  {
+   "q": "give me the payroll summary as an excel file",
+   "expect": "data:payroll_summary"
+  },
+  {
+   "q": "send me the GST report as a pdf",
+   "expect": "export"
+  },
+  {
+   "q": "download the inventory stock report",
+   "expect": "export"
+  },
+  {
+   "q": "export the attendance timesheet to excel",
+   "expect": "data:staff_hours"
+  },
+  {
+   "q": "get me a csv of my top sellers",
+   "expect": "data:top_items"
+  },
+  {
+   "q": "I need the monthly sales report in pdf format",
+   "expect": "export"
+  },
+  {
+   "q": "download this month's profit and loss",
+   "expect": "export"
+  },
+  {
+   "q": "export the open purchase orders to a spreadsheet",
+   "expect": "data:open_purchase_orders"
+  },
+  {
+   "q": "can you export the fraud alerts as csv",
+   "expect": "data:fraud_alerts"
+  },
+  {
+   "q": "hi there",
+   "expect": "null"
+  },
+  {
+   "q": "thanks mate",
+   "expect": "null"
+  },
+  {
+   "q": "what's the weather",
+   "expect": "null"
+  },
+  {
+   "q": "good morning",
+   "expect": "null"
+  },
+  {
+   "q": "who won the cricket last night",
+   "expect": "null"
+  },
+  {
+   "q": "tell me a joke",
+   "expect": "null"
+  },
+  {
+   "q": "cheers, that's all for now",
+   "expect": "null"
+  },
+  {
+   "q": "hello are you there",
+   "expect": "null"
+  },
+  {
+   "q": "what's your name",
+   "expect": "null"
+  },
+  {
+   "q": "happy new year!",
+   "expect": "null"
+  },
+  {
+   "q": "how mch did we sel todya",
+   "expect": "data:sales_today"
+  },
+  {
+   "q": "wats my top sellin itm this mnth",
+   "expect": "data:top_items"
+  },
+  {
+   "q": "wat profitt did we mke this mnth",
+   "expect": "data:finance_summary"
+  },
+  {
+   "q": "whos my bigest spennding custmer",
+   "expect": "data:top_customers"
+  },
+  {
+   "q": "anythng runing lo on stok?",
+   "expect": "data:low_stock"
+  }
+ ]
+}

@@ -119,12 +119,15 @@ function detectExport(question) {
 
   const format = /\bpdf\b/.test(q) ? 'pdf' : 'csv';
   let module = null;
-  if (/(p\s*&\s*l|p and l|pnl|profit\s*(and|&)?\s*loss|income statement)/.test(q)) module = 'pnl';
-  else if (/(eod|end[\s-]*of[\s-]*day|day\s*close|z[\s-]*report|daily\s*close|closing report)/.test(q)) module = 'eod';
+  if (/(p\s*&\s*l|p and l|pnl|prof\w*\s*(and|&|n)?\s*loss|income statement)/.test(q)) module = 'pnl';
+  else if (/(eod|end[\s-]*of[\s-]*day|day[\s-]*close|z[\s-]*report|daily[\s-]*close|closing report)/.test(q)) module = 'eod';
   else if (/(sales|revenue|takings|turnover)/.test(q)) module = 'sales';
 
-  // "export a report" with no explicit module → default to a sales report.
-  if (!module) { if (/\breport\b/.test(q)) module = 'sales'; else return null; }
+  // "export a report" with no explicit module → default to a sales report — but
+  // NOT when the report clearly belongs to another domain we don't export as a
+  // file (staff hours report, inventory report, …): let the data tools answer.
+  const otherDomain = /\b(staff|hours|attendance|timesheet|inventory|stock|customer|payroll|wage|fraud|purchase|supplier|menu|reservation)\b/.test(q);
+  if (!module) { if (/\breport\b/.test(q) && !otherDomain) module = 'sales'; else return null; }
   return { module, format };
 }
 

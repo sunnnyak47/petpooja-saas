@@ -231,7 +231,7 @@ const TOOLS = [
   {
     name: 'active_orders',
     description: 'Orders happening right now — open dine-in tables, takeaway and delivery still being prepared or awaiting payment, with how many and their value',
-    keywords: ['active order', 'open order', 'orders open', 'orders are open', 'running order', 'orders running', 'orders are running', 'are running', 'live order', 'orders right now', 'current order', 'in progress', 'open table', 'open bill', 'unpaid order', 'whats cooking', 'cooking', 'being prepared', 'pending order', 'orders pending', 'orders are pending', 'ongoing', 'still open', 'orders still', 'in play', 'ticket', 'tickets', 'active ticket', 'open ticket'],
+    keywords: ['active order', 'open order', 'orders open', 'orders are open', 'running order', 'orders running', 'orders are running', 'are running', 'live order', 'orders right now', 'current order', 'in progress', 'open table', 'open bill', 'unpaid order', 'whats cooking', 'cooking', 'being prepared', 'pending order', 'orders pending', 'orders are pending', 'ongoing', 'still open', 'orders still', 'in play', 'ticket', 'tickets', 'active ticket', 'open ticket', 'orders are active', 'r running', 'runing', 'waiting to pay', 'have to pay', 'live in the kitchen', 'kitchen working on', 'opne tables'],
     permission: 'VIEW_ORDERS',
     run: async (ctx) => {
       const r = await orders.listOrders(ctx.outletId, { running: 'true', limit: 50 });
@@ -260,7 +260,7 @@ const TOOLS = [
   {
     name: 'eod_summary',
     description: "Today's day-close / end-of-day: total sales, tax, discounts, cash vs card taken, voids and refunds — what you'd reconcile at closing",
-    keywords: ['eod', 'end of day', 'day close', 'day end', 'close the day', 'closing', 'closing report', 'closing figures', 'at close', 'cash up', 'z report', 'reconcile', 'cash in drawer', 'drawer', 'the drawer', 'drawer have', 'cash vs card', 'cash and card', 'takings today', 'day summary', 'daily close', 'settle the day', 'voids today'],
+    keywords: ['eod', 'end of day', 'day close', 'day end', 'close the day', 'closing', 'closing report', 'closing figures', 'at close', 'cash up', 'z report', 'reconcile', 'cash in drawer', 'drawer', 'the drawer', 'drawer have', 'cash vs card', 'cash and card', 'takings today', 'day summary', 'daily close', 'settle the day', 'voids today', 'voids', 'refunds', 'how many voids', 'how many refunds', 'before closing', 'reconcile today', 'close of day', 'lock up', 'tonight', 'cashup', 'cash-up', 'the eod'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const s = await eod.previewToday(ctx.outletId);
@@ -277,7 +277,7 @@ const TOOLS = [
   {
     name: 'payroll_summary',
     description: 'Your latest payroll pay run: gross wages, PAYG tax withheld, superannuation, net pay and number of payslips',
-    keywords: ['payroll', 'pay run', 'wages', 'salary', 'payslip', 'super', 'superannuation', 'paye', 'payg', 'staff pay', 'pay staff', 'paid staff', 'pay my staff', 'wage bill', 'how much pay', 'net pay', 'salary paid'],
+    keywords: ['payroll', 'pay run', 'wages', 'salary', 'payslip', 'super', 'superannuation', 'paye', 'payg', 'staff pay', 'pay staff', 'paid staff', 'pay my staff', 'wage bill', 'how much pay', 'net pay', 'salary paid', 'paying staff', 'withhold', 'withheld', 'payrun', 'pay-run', 'payrol', 'from wages', 'superannuation owed', 'super owed', 'this run'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const runs = await payroll.listPayRuns(ctx.outletId);
@@ -310,7 +310,7 @@ const TOOLS = [
   {
     name: 'fraud_alerts',
     description: 'Open fraud / loss-prevention alerts — suspicious voids, discounts, refunds or cash events flagged for review, most severe first',
-    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'anomalies', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'abuse', 'abusing', 'risky', 'cash discrepancy', 'staff risk', 'shrinkage'],
+    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'anomalies', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'abuse', 'abusing', 'risky', 'cash discrepancy', 'staff risk', 'shrinkage', 'dodgy', 'weird', 'red flag', 'red flags', 'suspicious voids', 'suspicious refunds', 'suspicious void', 'anyone abusing', 'abusing voids', 'suspicous voids', 'any alerts', 'voids lately', 'flag any', 'any flags', 'suspicous', 'fishy'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const r = await fraud.listAlerts(ctx.outletId, { limit: 10 });
@@ -336,7 +336,7 @@ const TOOLS = [
   {
     name: 'staff_hours',
     description: 'Staff attendance this period: who clocked in, their days present and hours worked (including overtime)',
-    keywords: ['staff hours', 'attendance', 'who worked', 'hours worked', 'most hours', 'hours per', 'shift hours', 'hours', 'clock in', 'clocked', 'clocked in', 'shift report', 'timesheet', 'overtime', 'days present', 'present this', 'staff working', 'putting in hours', 'labour hours', 'who is on'],
+    keywords: ['staff hours', 'attendance', 'who worked', 'hours worked', 'most hours', 'hours per', 'shift hours', 'hours', 'clock in', 'clocked', 'clocked in', 'shift report', 'timesheet', 'overtime', 'days present', 'present this', 'staff working', 'putting in hours', 'labour hours', 'who is on', 'showing up', 'showed up', 'on the clock', 'days has', 'worked this', 'attendence', 'whos been', 'been in', 'coming in', 'been coming'],
     permission: 'VIEW_STAFF',
     run: async (ctx) => {
       const r = await attendance.getShiftReport(ctx.outletId, {});
@@ -359,7 +359,7 @@ const TOOLS = [
   {
     name: 'help_howto',
     description: 'How to DO something in the app — step-by-step help for POS, payments, tables, menu, inventory, purchase orders, EOD, discounts, offline mode, staff/attendance, payroll and account security. Use for "how do I…", "where is…", "how to…" questions about using the software (not about live data).',
-    keywords: ['how do i', 'how do i create', 'how do i add', 'how do i make', 'how do i set', 'how to', 'how can i', 'how do you', 'where is', 'where do i', 'where can i', 'where to', 'steps to', 'step by step', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'explain how', 'walk me through'],
+    keywords: ['how do i', 'how do i create', 'how do i add', 'how do i make', 'how do i set', 'how to', 'how to run', 'how can i', 'how do you', 'where is', 'where do i', 'where can i', 'where to', 'steps to', 'steps to run', 'step by step', 'walk me', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'explain how', 'walk me through'],
     permission: null,
     run: (ctx, question) => ({ matches: searchKnowledge(question, 3) }),
     summarize: (d) => {
