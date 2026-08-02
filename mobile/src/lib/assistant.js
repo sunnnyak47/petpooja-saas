@@ -15,11 +15,26 @@ export const EXAMPLE_PROMPTS = [
   'Any open purchase orders?',
 ];
 
-/** Build the /assistant/ask body, scoping to the selected outlet when present. */
-export function buildAskPayload(question, outletId) {
+/** Build the /assistant/ask body, scoping to the selected outlet when present.
+ *  Optionally includes recent chat turns as `history` (bounded to the last 6) so
+ *  the assistant handles follow-ups; bot turns keep their `tool` tag. The server
+ *  sanitizes + bounds this, so passing a rough array is safe. */
+export function buildAskPayload(question, outletId, history) {
   const q = String(question ?? '').trim();
   const payload = { question: q };
   if (outletId) payload.outlet_id = outletId;
+  if (Array.isArray(history) && history.length) {
+    payload.history = history
+      .slice(-6)
+      .map((m) => {
+        const role = m && (m.role === 'bot' || m.role === 'assistant') ? m.role : 'user';
+        const text = String((m && (m.text ?? m.content)) || '').trim();
+        const e = { role, text };
+        if (m && typeof m.tool === 'string' && m.tool) e.tool = m.tool;
+        return e;
+      })
+      .filter((m) => m.text);
+  }
   return payload;
 }
 

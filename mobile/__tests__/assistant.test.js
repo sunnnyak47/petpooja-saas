@@ -20,6 +20,35 @@ describe('buildAskPayload', () => {
     expect(buildAskPayload(undefined, 'O1')).toEqual({ question: '', outlet_id: 'O1' });
     expect(buildAskPayload(null, 'O1')).toEqual({ question: '', outlet_id: 'O1' });
   });
+
+  test('omits history when absent or empty', () => {
+    expect(buildAskPayload('hi', 'O1')).toEqual({ question: 'hi', outlet_id: 'O1' });
+    expect(buildAskPayload('hi', 'O1', [])).toEqual({ question: 'hi', outlet_id: 'O1' });
+    expect(buildAskPayload('hi', 'O1', 'nope')).toEqual({ question: 'hi', outlet_id: 'O1' });
+  });
+
+  test('normalizes history: bot->bot, content alias, tool tag, last 6, drops empties', () => {
+    const raw = [
+      { role: 'user', text: 'how many veg items' },
+      { role: 'bot', content: 'You have 60 veg.', tool: 'menu_overview' },
+      { role: 'user', text: '   ' }, // dropped (empty)
+    ];
+    expect(buildAskPayload('and non-veg?', 'O1', raw)).toEqual({
+      question: 'and non-veg?',
+      outlet_id: 'O1',
+      history: [
+        { role: 'user', text: 'how many veg items' },
+        { role: 'bot', text: 'You have 60 veg.', tool: 'menu_overview' },
+      ],
+    });
+  });
+
+  test('caps history to the last 6 turns', () => {
+    const raw = Array.from({ length: 12 }, (_, i) => ({ role: 'user', text: `q${i}` }));
+    const out = buildAskPayload('x', null, raw);
+    expect(out.history).toHaveLength(6);
+    expect(out.history[0].text).toBe('q6');
+  });
 });
 
 describe('extractAnswer', () => {

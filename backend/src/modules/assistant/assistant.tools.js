@@ -22,10 +22,12 @@ const procurement = require('../inventory/procurement.service');
 const menu = require('../menu/menu.service');
 const customer = require('../customers/customer.service');
 const orders = require('../orders/order.service');
+const tableSvc = require('../orders/table.service');
 const payroll = require('../payroll/payroll.service');
 const fraud = require('../fraud/fraud.service');
 const attendance = require('../staff/attendance.service');
 const eod = require('../reports/eod.service');
+const statements = require('../accounting/accounting.statements.service');
 const { computeForecast } = require('./assistant.forecast');
 const { searchKnowledge } = require('./assistant.knowledge');
 
@@ -310,7 +312,7 @@ const TOOLS = [
   {
     name: 'fraud_alerts',
     description: 'Open fraud / loss-prevention alerts — suspicious voids, discounts, refunds or cash events flagged for review, most severe first',
-    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'anomalies', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'abuse', 'abusing', 'risky', 'cash discrepancy', 'staff risk', 'shrinkage', 'dodgy', 'weird', 'red flag', 'red flags', 'suspicious voids', 'suspicious refunds', 'suspicious void', 'anyone abusing', 'abusing voids', 'suspicous voids', 'any alerts', 'voids lately', 'flag any', 'any flags', 'suspicous', 'fishy'],
+    keywords: ['fraud', 'suspicious', 'loss prevention', 'theft', 'alert', 'anomaly', 'anomalies', 'unusual', 'flagged', 'void abuse', 'discount abuse', 'abuse', 'abusing', 'risky', 'cash discrepancy', 'shrinkage', 'dodgy', 'weird', 'red flag', 'red flags', 'suspicious voids', 'suspicious refunds', 'suspicious void', 'anyone abusing', 'abusing voids', 'suspicous voids', 'any alerts', 'voids lately', 'flag any', 'any flags', 'suspicous', 'fishy'],
     permission: 'VIEW_REPORTS',
     run: async (ctx) => {
       const r = await fraud.listAlerts(ctx.outletId, { limit: 10 });
@@ -353,6 +355,112 @@ const TOOLS = [
       if (!d.staff_count) return 'No staff attendance has been recorded for this period yet.';
       const top = d.staff.slice(0, 3).map((s) => `${s.name} (${s.hours}h)`).join(', ');
       return `${d.staff_count} staff clocked in this period. Most hours: ${top}.`;
+    },
+  },
+
+  {
+    name: 'profit_loss',
+    description: "Profit & loss breakdown this month: total revenue, total expenses, cost of goods sold (COGS), gross profit and net profit",
+    keywords: ['p&l', 'p and l', 'pnl', 'profit and loss', 'profit & loss', 'profit loss statement', 'income statement', 'gross profit', 'cost of goods', 'cogs', 'net profit breakdown', 'pl statement', 'p&l breakdown', 'profit breakdown', 'expenses vs revenue', 'revenue minus expenses', 'revenue and expenses'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const pl = await statements.getProfitAndLoss(ctx.outletId, monthStart(), today());
+      return {
+        currency: ctx.currency,
+        revenue: num(pl.revenue && pl.revenue.total),
+        expenses: num(pl.expenses && pl.expenses.total),
+        cogs: num(pl.cogs_total),
+        gross_profit: num(pl.gross_profit),
+        net_profit: num(pl.net_profit),
+      };
+    },
+    summarize: (d) => {
+      if (!d.revenue && !d.expenses && !d.cogs) return 'No profit & loss activity recorded this month yet.';
+      return `This month: revenue ${money(d.currency, d.revenue)}, COGS ${money(d.currency, d.cogs)}, expenses ${money(d.currency, d.expenses)}. Gross profit ${money(d.currency, d.gross_profit)}, net profit ${money(d.currency, d.net_profit)}.`;
+    },
+  },
+
+  {
+    name: 'sales_trend',
+    description: 'How sales are trending over the last 7 days — daily revenue and orders, the week total, and whether the last few days are up or down',
+    keywords: ['this week', 'last 7 days', 'past week', 'weekly sales', 'sales this week', 'how has this week', 'up or down', 'week so far', 'last week sales', 'recent sales', 'sales lately', 'how are sales going', 'going up', 'going down', 'past 7 days', 'seven days', 'week gone', 'sales for the week', 'this past week'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const series = await reports.getRevenueTrendRange(ctx.outletId, daysAgo(6), today());
+      const days = Array.isArray(series) ? series : [];
+      const totalRev = days.reduce((s, d) => s + num(d.revenue), 0);
+      const totalOrders = days.reduce((s, d) => s + num(d.orders), 0);
+      // Compare the last 3 days to the previous 3 to read direction.
+      const rev = days.map((d) => num(d.revenue));
+      const recent = rev.slice(-3).reduce((s, v) => s + v, 0);
+      const prior = rev.slice(-6, -3).reduce((s, v) => s + v, 0);
+      const changePct = prior > 0 ? Math.round(((recent - prior) / prior) * 100) : null;
+      const best = days.slice().sort((a, b) => num(b.revenue) - num(a.revenue))[0] || null;
+      return {
+        currency: ctx.currency,
+        days_with_data: days.filter((d) => num(d.revenue) > 0).length,
+        total_revenue: totalRev,
+        total_orders: totalOrders,
+        change_pct: changePct,
+        best_day: best ? { date: best.date, revenue: num(best.revenue) } : null,
+      };
+    },
+    summarize: (d) => {
+      if (!d.total_orders) return 'No sales in the last 7 days.';
+      let s = `Last 7 days: ${money(d.currency, d.total_revenue)} from ${d.total_orders} order${d.total_orders === 1 ? '' : 's'}.`;
+      if (d.change_pct != null && Math.abs(d.change_pct) >= 5) s += ` The last 3 days are ${d.change_pct > 0 ? 'up' : 'down'} ${Math.abs(d.change_pct)}% vs the 3 before.`;
+      if (d.best_day) s += ` Best day was ${d.best_day.date} (${money(d.currency, d.best_day.revenue)}).`;
+      return s;
+    },
+  },
+
+  {
+    name: 'table_status',
+    description: 'Live table status right now — how many tables are free, occupied, awaiting bill or being cleaned, and the total floor',
+    keywords: ['table status', 'tables free', 'tables occupied', 'occupied tables', 'how many tables', 'free tables', 'available tables', 'tables available', 'empty tables', 'floor status', 'how full', 'are we full', 'seating', 'free seats', 'tables in use', 'occupancy', 'any tables free', 'table availability', 'tables count', 'seating availability'],
+    permission: null,
+    run: async (ctx) => {
+      const tables = await tableSvc.listTables(ctx.outletId, {});
+      const list = Array.isArray(tables) ? tables : [];
+      const counts = { available: 0, occupied: 0, dirty: 0, reserved: 0, blocked: 0, other: 0 };
+      for (const t of list) {
+        const st = String(t.status || 'available');
+        if (counts[st] != null) counts[st] += 1; else counts.other += 1;
+      }
+      return { total: list.length, ...counts };
+    },
+    summarize: (d) => {
+      if (!d.total) return 'No tables are set up for this outlet yet.';
+      const bits = [`${d.available} free`, `${d.occupied} occupied`];
+      if (d.dirty) bits.push(`${d.dirty} cleaning`);
+      if (d.reserved) bits.push(`${d.reserved} reserved`);
+      return `${d.total} tables: ${bits.join(', ')}.`;
+    },
+  },
+
+  {
+    name: 'staff_risk',
+    description: 'Which staff are the highest loss-prevention risk — ranked by fraud alert score over the last 30 days (voids, discounts, refunds, cash events)',
+    keywords: ['staff risk', 'riskiest staff', 'riskiest employee', 'riskiest team', 'risky staff', 'risky employee', 'risky employees', 'staff risk profile', 'staff risk ranking', 'staff risk score', 'who is high risk', 'high risk', 'high risk staff', 'are high risk', 'which staff is risky', 'which staff high risk', 'which staff have alerts', 'staff fraud risk', 'which staff risky', 'highest risk staff', 'staff loss prevention', 'problem staff', 'who might be stealing', 'stealing', 'who to watch', 'watch on my team', 'employee is high risk'],
+    permission: 'VIEW_REPORTS',
+    run: async (ctx) => {
+      const profiles = await fraud.getStaffRiskProfiles(ctx.outletId);
+      const list = (Array.isArray(profiles) ? profiles : []).filter((p) => num(p.max_risk_score) > 0 || num(p.alert_count) > 0);
+      return {
+        flagged: list.length,
+        staff: list.slice(0, 5).map((p) => ({
+          name: p.full_name,
+          role: p.role,
+          risk: p.risk_level,
+          score: num(p.max_risk_score),
+          alerts: num(p.alert_count),
+        })),
+      };
+    },
+    summarize: (d) => {
+      if (!d.flagged) return 'No staff are flagged for risk — nothing suspicious in the last 30 days.';
+      const top = d.staff.slice(0, 3).map((p) => `${p.name} (${p.risk} · ${p.alerts} alert${p.alerts === 1 ? '' : 's'})`).join(', ');
+      return `${d.flagged} staff flagged over 30 days. Highest risk: ${top}.`;
     },
   },
 

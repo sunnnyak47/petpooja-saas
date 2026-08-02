@@ -27,9 +27,9 @@ export function useAssistant() {
   const [messages, setMessages] = useState([]); // { id, role: 'user'|'bot', text }
 
   const askM = useMutation({
-    mutationFn: (q) => api.post('/assistant/ask', buildAskPayload(q, outletId)),
+    mutationFn: ({ q, history }) => api.post('/assistant/ask', buildAskPayload(q, outletId, history)),
     onSuccess: (res) =>
-      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one." }]),
+      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one.", tool: res?.data?.tool ?? null }]),
     onError: (e) =>
       setMessages((m) => [...m, { id: nextId(), role: 'bot', text: errorText(e) }]),
   });
@@ -38,10 +38,12 @@ export function useAssistant() {
     (q) => {
       const t = String(q ?? '').trim();
       if (!t || askM.isPending) return;
+      // Recent turns (before this one) → history, so follow-ups keep context.
+      const history = messages.slice(-6).map((m) => ({ role: m.role, text: m.text, ...(m.tool ? { tool: m.tool } : {}) }));
       setMessages((m) => [...m, { id: nextId(), role: 'user', text: t }]);
-      askM.mutate(t);
+      askM.mutate({ q: t, history });
     },
-    [askM],
+    [askM, messages],
   );
 
   const reset = useCallback(() => setMessages([]), []);

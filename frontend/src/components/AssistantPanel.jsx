@@ -31,8 +31,15 @@ export default function AssistantPanel() {
   const scrollRef = useRef(null);
 
   const askM = useMutation({
-    mutationFn: (q) => api.post('/assistant/ask', { question: q, ...(outletId ? { outlet_id: outletId } : {}) }),
-    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null }]),
+    // Send the recent turns as `history` so the assistant handles follow-ups
+    // ("what about last month?"). Bot turns carry their `tool` so the backend's
+    // no-LLM fallback can stay on topic. The server bounds/sanitizes it.
+    mutationFn: ({ q, history }) => api.post('/assistant/ask', {
+      question: q,
+      history,
+      ...(outletId ? { outlet_id: outletId } : {}),
+    }),
+    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null, tool: r?.data?.tool || null }]),
     onError: (e) => setMessages((m) => [...m, { role: 'bot', text: e?.response?.data?.message || "I couldn't answer that right now — please try again." }]),
   });
 
@@ -46,9 +53,11 @@ export default function AssistantPanel() {
   const send = (q) => {
     const t = (q ?? input).trim();
     if (!t || askM.isPending) return;
+    // Build history from the turns BEFORE this question (last 6), carrying tool tags.
+    const history = messages.slice(-6).map((m) => ({ role: m.role, text: m.text, ...(m.tool ? { tool: m.tool } : {}) }));
     setMessages((m) => [...m, { role: 'user', text: t }]);
     setInput('');
-    askM.mutate(t);
+    askM.mutate({ q: t, history });
   };
 
   return (

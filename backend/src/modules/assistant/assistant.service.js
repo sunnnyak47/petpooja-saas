@@ -92,13 +92,69 @@ function keywordSelect(question, toolList) {
   return bestScore > 0 ? best : null;
 }
 
+// ── Conversation memory ──────────────────────────────────────────────────────
+const HISTORY_MAX_TURNS = 6;   // keep the last 3 exchanges
+const HISTORY_MAX_LEN = 500;   // clamp each turn's text
+
+/**
+ * Normalize client-supplied chat history into a bounded, trusted shape:
+ * [{ role:'user'|'assistant', text, tool? }]. Accepts {role:'bot'} and
+ * {content} aliases; drops anything malformed. Never throws.
+ * @param {any} history
+ * @returns {{role:string,text:string,tool?:string}[]}
+ */
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  const out = [];
+  for (const h of history) {
+    if (!h || typeof h !== 'object') continue;
+    let role = h.role;
+    if (role === 'bot') role = 'assistant';
+    if (role !== 'user' && role !== 'assistant') continue;
+    const raw = typeof h.text === 'string' ? h.text : (typeof h.content === 'string' ? h.content : '');
+    const text = raw.trim().slice(0, HISTORY_MAX_LEN);
+    if (!text) continue;
+    const e = { role, text };
+    if (typeof h.tool === 'string' && h.tool) e.tool = h.tool;
+    out.push(e);
+  }
+  return out.slice(-HISTORY_MAX_TURNS);
+}
+
+/** Render normalized history as a prompt preamble (empty string when none). */
+function historyText(history) {
+  const h = normalizeHistory(history);
+  if (!h.length) return '';
+  const lines = h.map((e) => `${e.role === 'user' ? 'Owner' : 'Assistant'}: ${e.text}`).join('\n');
+  return `CONVERSATION SO FAR:\n${lines}\n\n`;
+}
+
+/** True for elliptical follow-ups ("what about last month?", "and yesterday?"). */
+function isFollowup(q) {
+  const s = String(q || '').trim().toLowerCase();
+  if (!s) return false;
+  if (/^(what about|how about|and\b|also\b|then\b|same for|what of|ok\b|okay\b|now\b|what if)/.test(s)) return true;
+  return s.split(/\s+/).length <= 3; // short elliptical phrases
+}
+
+/** The tool used in the most recent assistant turn, if it's still allowed. */
+function lastToolFromHistory(history, toolList) {
+  const h = normalizeHistory(history);
+  const names = new Set(toolList.map((t) => t.name));
+  for (let i = h.length - 1; i >= 0; i -= 1) {
+    if (h[i].role === 'assistant' && h[i].tool && names.has(h[i].tool)) return h[i].tool;
+  }
+  return null;
+}
+
 /** Choose a tool (LLM first, keyword fallback). Returns a tool name or null. */
-async function selectTool(question, toolList) {
+async function selectTool(question, toolList, history = []) {
   const catalog = toolList.map((t) => `- ${t.name}: ${t.description}`).join('\n');
   const sys = [
     'You route a restaurant owner\'s question to exactly ONE tool from the list, or null.',
     'The owner types casually, briefly, with typos, slang or vague wording — INFER the underlying intent; never require exact keywords.',
     'Questions about HOW to do something in the app ("how do I…", "where is…", "how to…") go to "help_howto".',
+    'Use the CONVERSATION SO FAR (if present) to resolve follow-ups like "what about last month?" or "and non-veg?" — infer the intent from the previous turns and route to the tool that answers it.',
     'Only return null for greetings, thanks, or clearly off-topic chit-chat.',
     'If the question is clearly about their business but you are unsure which tool fits best, choose "finance_summary" (the overall health overview) rather than null.',
     'Pick only a tool name that appears in the list. Do not invent tools.',
@@ -106,28 +162,37 @@ async function selectTool(question, toolList) {
     'Respond as strict JSON: {"tool": "<tool name or null>"}',
   ].join('\n');
   try {
-    const out = await callLLM(sys, `TOOLS:\n${catalog}\n\nQUESTION: ${question}`);
+    const out = await callLLM(sys, `${historyText(history)}TOOLS:\n${catalog}\n\nQUESTION: ${question}`);
     const t = out ? out.tool : undefined;
     if (t === null) return null;
     if (typeof t === 'string' && toolList.some((x) => x.name === t)) return t;
   } catch (err) {
     logger.warn('assistant: tool selection LLM failed, using keywords', { error: err.message });
   }
-  return keywordSelect(question, toolList);
+  // Deterministic fallback. If keywords match nothing but this reads as a
+  // follow-up, reuse the previous turn's tool so the thread stays on topic.
+  const kw = keywordSelect(question, toolList);
+  if (kw) return kw;
+  if (isFollowup(question)) {
+    const prev = lastToolFromHistory(history, toolList);
+    if (prev) return prev;
+  }
+  return null;
 }
 
 /** Compose the final answer grounded in the tool's data (LLM, else summarize). */
-async function compose(question, tool, data) {
+async function compose(question, tool, data, history = []) {
   const sys = [
     'You are a warm, helpful restaurant back-office assistant.',
     'Answer ONLY using facts/numbers present in DATA. NEVER invent or estimate anything not in DATA.',
     'Be concise and friendly: 1-3 short sentences, plain language, no jargon, no markdown. Include the currency where money is shown.',
     'DATA often holds more than the exact question asks — use whatever fields are relevant to give the most useful answer (e.g. if asked "how many non-veg items", read the non_veg count).',
+    'A CONVERSATION SO FAR may precede the question — use it to interpret a follow-up, but still answer ONLY from DATA.',
     'If DATA truly does not contain what was asked, say so in ONE friendly line and offer a closely related fact you CAN see from the same DATA.',
     'Respond as strict JSON: {"answer": "<your answer>"}',
   ].join('\n');
   try {
-    const out = await callLLM(sys, `QUESTION: ${question}\n\nDATA:\n${JSON.stringify(data)}`);
+    const out = await callLLM(sys, `${historyText(history)}QUESTION: ${question}\n\nDATA:\n${JSON.stringify(data)}`);
     if (out && typeof out.answer === 'string' && out.answer.trim()) {
       return { answer: out.answer.trim(), source: 'ai' };
     }
@@ -149,7 +214,8 @@ function helpAnswer(toolList) {
  * @param {string} question
  * @returns {Promise<{ answer: string, source: string, tool: string|null, suggestions: string[] }>}
  */
-async function ask(userCtx, question) {
+async function ask(userCtx, question, history = []) {
+  const hist = normalizeHistory(history);
   // Export short-circuit: if the user is asking to download a report (EOD / P&L /
   // sales) and may view reports, hand back a signed download link instead of text.
   const canReport =
@@ -171,7 +237,7 @@ async function ask(userCtx, question) {
   }
 
   const toolList = allowedTools(userCtx);
-  const toolName = await selectTool(question, toolList);
+  const toolName = await selectTool(question, toolList, hist);
 
   if (!toolName) {
     return { answer: helpAnswer(toolList), source: 'rules', tool: null, suggestions: SUGGESTIONS };
@@ -187,8 +253,8 @@ async function ask(userCtx, question) {
     return { answer: "I couldn't fetch that just now — please try again in a moment.", source: 'error', tool: toolName, suggestions: SUGGESTIONS };
   }
 
-  const { answer, source } = await compose(question, tool, data);
+  const { answer, source } = await compose(question, tool, data, hist);
   return { answer, source, tool: toolName, suggestions: SUGGESTIONS };
 }
 
-module.exports = { ask, allowedTools, keywordSelect, helpAnswer };
+module.exports = { ask, allowedTools, keywordSelect, helpAnswer, normalizeHistory, isFollowup, lastToolFromHistory };

@@ -26,7 +26,10 @@ async function ask(req, res, next) {
       outletId,
       permissions: Array.isArray(req.user.permissions) ? req.user.permissions : [],
     };
-    const result = await assistant.ask(userCtx, question);
+    // Optional conversation history for multi-turn follow-ups; the service
+    // sanitizes + bounds it, so a malformed value can never break the request.
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
+    const result = await assistant.ask(userCtx, question, history);
     sendSuccess(res, result, 'Answer generated');
   } catch (error) { next(error); }
 }

@@ -238,3 +238,68 @@ describe('ask() — how-to pipeline (no LLM, no DB)', () => {
     expect(res.answer).toMatch(/POS/);
   });
 });
+
+// ── Phase 1c: profit_loss, sales_trend, table_status, staff_risk + memory ──
+describe('new tools (1c) — RBAC + routing + summaries', () => {
+  const t = (n) => TOOLS.find((x) => x.name === n);
+  test('RBAC gating', () => {
+    const owner = assistant.allowedTools(OWNER).map((x) => x.name);
+    expect(owner).toEqual(expect.arrayContaining(['profit_loss', 'sales_trend', 'table_status', 'staff_risk']));
+    const cashier = assistant.allowedTools({ role: 'cashier', permissions: ['VIEW_REPORTS'] }).map((x) => x.name);
+    expect(cashier).toEqual(expect.arrayContaining(['profit_loss', 'sales_trend', 'staff_risk']));
+    expect(cashier).toContain('table_status'); // null permission → everyone
+    const bare = assistant.allowedTools({ role: 'cashier', permissions: [] }).map((x) => x.name);
+    expect(bare).not.toContain('profit_loss'); // needs VIEW_REPORTS
+    expect(bare).toContain('table_status');
+  });
+  test('keyword routing', () => {
+    const pick = (q) => assistant.keywordSelect(q, TOOLS);
+    expect(pick('show me the p&l breakdown')).toBe('profit_loss');
+    expect(pick('gross profit this month')).toBe('profit_loss');
+    expect(pick('how are sales this week')).toBe('sales_trend');
+    expect(pick('how many tables are free')).toBe('table_status');
+    expect(pick('who is my riskiest staff')).toBe('staff_risk');
+    // must NOT poach existing routes
+    expect(pick('what is my net profit')).toBe('finance_summary');
+    expect(pick('are we trending up')).toBe('sales_forecast');
+    expect(pick('anything suspicious')).toBe('fraud_alerts');
+  });
+  test('summaries', () => {
+    expect(t('profit_loss').summarize({ currency: 'AUD', revenue: 10000, expenses: 3000, cogs: 4000, gross_profit: 6000, net_profit: 3000 })).toMatch(/gross profit .*6,000/i);
+    expect(t('profit_loss').summarize({ revenue: 0, expenses: 0, cogs: 0 })).toMatch(/no profit & loss/i);
+    expect(t('sales_trend').summarize({ currency: 'AUD', total_revenue: 9500, total_orders: 120, change_pct: 12, best_day: { date: '2026-08-01', revenue: 3400 } })).toMatch(/up 12%/);
+    expect(t('sales_trend').summarize({ total_orders: 0 })).toMatch(/no sales/i);
+    expect(t('table_status').summarize({ total: 8, available: 3, occupied: 4, dirty: 1 })).toMatch(/3 free, 4 occupied/);
+    expect(t('table_status').summarize({ total: 0 })).toMatch(/no tables/i);
+    expect(t('staff_risk').summarize({ flagged: 2, staff: [{ name: 'Sam', role: 'waiter', risk: 'high', alerts: 3 }] })).toMatch(/Sam/);
+    expect(t('staff_risk').summarize({ flagged: 0, staff: [] })).toMatch(/no staff are flagged/i);
+  });
+});
+
+describe('multi-turn memory', () => {
+  test('normalizeHistory bounds + sanitizes + aliases', () => {
+    expect(assistant.normalizeHistory('garbage')).toEqual([]);
+    expect(assistant.normalizeHistory([null, { x: 1 }, { role: 'user', text: '' }])).toEqual([]);
+    const n = assistant.normalizeHistory([{ role: 'bot', content: 'hi', tool: 'sales_today' }]);
+    expect(n).toEqual([{ role: 'assistant', text: 'hi', tool: 'sales_today' }]);
+    const long = assistant.normalizeHistory(Array.from({ length: 20 }, (_, i) => ({ role: 'user', text: `q${i}` })));
+    expect(long.length).toBe(6); // capped to last 6 turns
+    expect(assistant.normalizeHistory([{ role: 'user', text: 'x'.repeat(9999) }])[0].text.length).toBeLessThanOrEqual(500);
+  });
+  test('isFollowup detects ellipsis, rejects full questions', () => {
+    expect(assistant.isFollowup('and non-veg?')).toBe(true);
+    expect(assistant.isFollowup('what about last month')).toBe(true);
+    expect(assistant.isFollowup('yesterday')).toBe(true);
+    expect(assistant.isFollowup('how much did we sell today please')).toBe(false);
+  });
+  test('lastToolFromHistory returns the previous allowed tool', () => {
+    const h = [{ role: 'user', text: 'q' }, { role: 'bot', text: 'a', tool: 'sales_today' }, { role: 'user', text: 'q2' }];
+    expect(assistant.lastToolFromHistory(h, TOOLS)).toBe('sales_today');
+    expect(assistant.lastToolFromHistory([{ role: 'bot', text: 'a', tool: 'not_a_tool' }], TOOLS)).toBeNull();
+  });
+  test('ask() reuses the prior tool for a keyword-less follow-up (no LLM)', async () => {
+    mockReports.getDailySales.mockResolvedValue({ total_orders: 5, total_revenue: 500, avg_order_value: 100, by_type: {}, by_payment: {} });
+    const res = await assistant.ask({ ...OWNER }, 'what about it', [{ role: 'bot', text: 'Today $X', tool: 'sales_today' }]);
+    expect(res.tool).toBe('sales_today');
+  });
+});
