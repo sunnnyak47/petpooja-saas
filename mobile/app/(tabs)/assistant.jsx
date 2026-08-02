@@ -118,9 +118,9 @@ export default function AssistantScreen() {
                         <Pressable
                           onPress={() => confirmAction(m.id, m.action.token)}
                           disabled={resolved?.[m.id] === 'pending' || isActing}
-                          style={[s.actionBtn, s.actionConfirm, (resolved?.[m.id] === 'pending' || isActing) && { opacity: 0.6 }]}
+                          style={[s.actionBtn, m.action.warn ? s.actionWarn : s.actionConfirm, (resolved?.[m.id] === 'pending' || isActing) && { opacity: 0.6 }]}
                         >
-                          <Text style={s.actionConfirmText}>{resolved?.[m.id] === 'pending' ? 'Working…' : 'Confirm'}</Text>
+                          <Text style={s.actionConfirmText}>{resolved?.[m.id] === 'pending' ? 'Working…' : (m.action.warn ? 'Yes, send' : 'Confirm')}</Text>
                         </Pressable>
                         <Pressable onPress={() => cancelAction(m.id)} disabled={resolved?.[m.id] === 'pending'} style={[s.actionBtn, s.actionCancel]}>
                           <Text style={s.actionCancelText}>Cancel</Text>
@@ -225,6 +225,7 @@ const styles = (c) =>
     actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     actionBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
     actionConfirm: { backgroundColor: c.primary || c.accent || '#2563eb' },
+    actionWarn: { backgroundColor: '#dc2626' },
     actionConfirmText: { color: '#fff', fontWeight: '700', fontSize: 13 },
     actionCancel: { borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
     actionCancelText: { color: c.textMuted, fontWeight: '700', fontSize: 13 },

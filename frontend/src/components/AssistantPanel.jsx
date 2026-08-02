@@ -168,9 +168,9 @@ export default function AssistantPanel() {
                         <button
                           onClick={() => confirmAction(i, m.action.token)}
                           disabled={resolved[i] === 'pending'}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: resolved[i] === 'pending' ? 0.6 : 1 }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: m.action.warn ? '#dc2626' : 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: resolved[i] === 'pending' ? 0.6 : 1 }}
                         >
-                          {resolved[i] === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm
+                          {resolved[i] === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {m.action.warn ? 'Yes, send' : 'Confirm'}
                         </button>
                         <button
                           onClick={() => cancelAction(i)}

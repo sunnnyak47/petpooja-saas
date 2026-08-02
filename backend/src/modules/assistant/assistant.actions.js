@@ -26,6 +26,9 @@ const { getDbClient } = require('../../config/database');
 const menu = require('../menu/menu.service');
 const customer = require('../customers/customer.service');
 const tableSvc = require('../orders/table.service');
+const inventory = require('../inventory/inventory.service');
+const procurement = require('../inventory/procurement.service');
+const reservations = require('../reservations/reservations.service');
 
 // ── permission (mirrors rbac.middleware.hasPermission) ───────────────────────
 function userHasPermission(userCtx, permKey) {
@@ -86,6 +89,67 @@ function isolateName(q, extraStop = []) {
     .filter((w) => w && !STOP.has(w) && !/^\d+(\.\d+)?$/.test(w))
     .join(' ')
     .trim();
+}
+
+// ── reservation date/time + campaign helpers ────────────────────────────────
+const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Parse a reservation date from NL → YMD, or null. `now` injectable for tests. */
+function parseReservationDate(q, now = new Date()) {
+  const s = String(q).toLowerCase();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const at = (n) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + n);
+  if (/\btoday\b|\btonight\b/.test(s)) return ymd(today);
+  if (/\btomorrow\b/.test(s)) return ymd(at(1));
+  const dn = DAYS.findIndex((d) => new RegExp(`\\b(next\\s+)?${d}\\b`).test(s));
+  if (dn >= 0) {
+    let add = (dn - today.getDay() + 7) % 7;
+    if (add === 0 || /\bnext\b/.test(s)) add = add === 0 ? 7 : add;
+    return ymd(at(add));
+  }
+  let m = s.match(/\b(\d{1,2})\s*(?:st|nd|rd|th)?\s+([a-z]{3,9})\b/);
+  if (m) { const mo = MON3.findIndex((x) => m[2].startsWith(x)); if (mo >= 0) return ymd(new Date(now.getFullYear(), mo, parseInt(m[1], 10))); }
+  m = s.match(/\b([a-z]{3,9})\s+(\d{1,2})\b/);
+  if (m) { const mo = MON3.findIndex((x) => m[1].startsWith(x)); if (mo >= 0) return ymd(new Date(now.getFullYear(), mo, parseInt(m[2], 10))); }
+  m = s.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+/** Parse a time → 'HH:MM' (24h), or null. */
+function parseReservationTime(q) {
+  let m = q.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (m) { let h = parseInt(m[1], 10) % 12; if (/pm/i.test(m[3])) h += 12; return `${String(h).padStart(2, '0')}:${m[2] || '00'}`; }
+  m = q.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  return m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : null;
+}
+
+function extractPartySize(q) {
+  const m = q.match(/\b(?:for|party of|table for|group of|of)\s+(\d{1,2})\b/i) || q.match(/\b(\d{1,2})\s*(?:people|guests|pax|persons?|covers?)\b/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+function detectChannel(q) { if (/whatsapp/i.test(q)) return 'whatsapp'; if (/\bemail\b/i.test(q)) return 'email'; return 'sms'; }
+function detectSegment(q) {
+  if (/\bvip/i.test(q)) return 'vip';
+  if (/\bregular/i.test(q)) return 'regular';
+  if (/\bnew\b/i.test(q)) return 'new';
+  if (/\blapsed|inactive|win.?back/i.test(q)) return 'lapsed';
+  return 'all';
+}
+function extractMessage(q) {
+  let m = q.match(/["“'](.+?)["”']/);
+  if (m) return m[1].trim();
+  m = q.match(/\b(?:saying|message|that says|tell them|text[:]?)\s+(.+)$/i);
+  return m ? m[1].trim().replace(/^["']|["']$/g, '') : null;
+}
+
+/** Count the customers a campaign to `segment` would reach (mirrors createCampaign's where). */
+async function countCampaignRecipients(outletId, segment) {
+  const where = { is_deleted: false };
+  if (outletId) where.orders = { some: { outlet_id: outletId, is_deleted: false } };
+  if (segment && segment !== 'all') where.segment = segment;
+  try { return await getDbClient().customer.count({ where }); } catch (_) { return 0; }
 }
 
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
@@ -197,6 +261,90 @@ const ACTIONS = [
       return { message: `Done — added ${p.full_name || 'the customer'} (${p.phone}).`, entity_type: 'customer', entity_id: created && created.id };
     },
   },
+
+  {
+    name: 'draft_po',
+    label: 'draft a purchase order for low-stock items',
+    permission: 'MANAGE_INVENTORY',
+    keywords: ['draft po', 'draft a po', 'draft purchase order', 'create a purchase order', 'create po', 'raise a po', 'raise po', 'order what', 'order low stock', 'reorder low', 'reorder stock', 'restock order', 'purchase order for low', 'order supplies', 'make a po', 'order everything low'],
+    async extract(ctx) {
+      const low = await inventory.getLowStock(ctx.outletId);
+      const items = (Array.isArray(low) ? low : []).filter((i) => i && i.id);
+      if (!items.length) return { error: 'Nothing is running low right now — no purchase order needed.' };
+      const lines = items.map((i) => {
+        const cur = Number(i.current_stock) || 0;
+        const min = Number(i.min_threshold) || 0;
+        const qty = Number(i.reorder_qty) > 0 ? Number(i.reorder_qty) : Math.max(1, Math.ceil(min - cur) || 1);
+        return { inventory_item_id: i.id, item_name: i.name, quantity: qty, unit: i.unit || 'unit', unit_price: Number(i.cost_per_unit) || 0 };
+      });
+      const est = lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+      return { params: { lines, count: lines.length, est } };
+    },
+    plan(ctx, p) {
+      return { summary: `Draft a purchase order for ${p.count} low-stock item${p.count === 1 ? '' : 's'} (estimated ${money(ctx.currency, p.est)})` };
+    },
+    async execute(ctx, p) {
+      const po = await procurement.createPurchaseOrder(ctx.outletId, { items: p.lines }, ctx.id);
+      const num = po && po.po_number ? ` #${po.po_number}` : '';
+      return { message: `Drafted purchase order${num} with ${p.count} item${p.count === 1 ? '' : 's'} — review and approve it in Inventory → Purchase Orders.`, entity_type: 'purchase_order', entity_id: po && po.id };
+    },
+  },
+
+  {
+    name: 'create_reservation',
+    label: 'create a reservation',
+    permission: 'MANAGE_POS',
+    keywords: ['book a table', 'make a reservation', 'new reservation', 'create reservation', 'reserve a table', 'add a booking', 'book table', 'take a booking', 'reservation for', 'booking for'],
+    async extract(ctx, q) {
+      const date = parseReservationDate(q);
+      if (!date) return { error: 'What date is the reservation for? (e.g. "book a table for 4 tomorrow at 7pm for John")' };
+      const time = parseReservationTime(q) || '19:00';
+      const party = extractPartySize(q) || 2;
+      const phone = extractPhone(q);
+      let name = null;
+      const m = q.match(/\b(?:for|under|name[d]?)\s+([a-z][a-z .'-]{1,40})/i);
+      if (m) {
+        let cand = m[1].trim().replace(/\b(at|on|tomorrow|today|tonight|next|people|guests|pax|persons?|covers?)\b.*$/i, '').trim();
+        if (cand && !DAYS.includes(cand.toLowerCase()) && !MON3.includes(cand.slice(0, 3).toLowerCase())) name = cand.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+      return { params: { customer_name: name || 'Guest', customer_phone: phone, party_size: party, reservation_date: date, reservation_time: time } };
+    },
+    plan(ctx, p) {
+      return { summary: `Reserve a table for ${p.party_size} on ${p.reservation_date} at ${p.reservation_time}${p.customer_name && p.customer_name !== 'Guest' ? ` for ${p.customer_name}` : ''}` };
+    },
+    async execute(ctx, p) {
+      const r = await reservations.createReservation(ctx.outletId, {
+        customer_name: p.customer_name, customer_phone: p.customer_phone,
+        party_size: p.party_size, reservation_date: p.reservation_date, reservation_time: p.reservation_time,
+      });
+      return { message: `Done — reserved ${r && r.table_number ? `table ${r.table_number}` : 'a table'} for ${p.party_size} on ${p.reservation_date} at ${p.reservation_time}${p.customer_name && p.customer_name !== 'Guest' ? ` under ${p.customer_name}` : ''}.`, entity_type: 'reservation', entity_id: r && r.id };
+    },
+  },
+
+  {
+    name: 'send_campaign',
+    label: 'send a marketing campaign to customers',
+    permission: 'MANAGE_CAMPAIGNS',
+    warn: true, // outward-facing (messages real customers) → stronger confirmation in the UI
+    keywords: ['send a campaign', 'send campaign', 'marketing campaign', 'send an sms', 'send sms', 'sms to', 'sms my', 'text all customers', 'text my customers', 'text customers', 'text my', 'text all', 'text to', 'message my customers', 'message all', 'email my customers', 'email my', 'email all', 'email vip', 'whatsapp my customers', 'whatsapp my', 'whatsapp all', 'blast', 'promo to customers', 'send promo', 'send a promo'],
+    async extract(ctx, q) {
+      const message = extractMessage(q);
+      if (!message) return { error: 'What message should I send? Put it in quotes, e.g. text VIPs saying "2-for-1 this Friday".' };
+      if (message.length > 1000) return { error: 'That message is too long (max 1000 characters).' };
+      const channel = detectChannel(q);
+      const segment = detectSegment(q);
+      const count = await countCampaignRecipients(ctx.outletId, segment);
+      if (!count) return { error: `There are no ${segment === 'all' ? '' : `${segment} `}customers to message.` };
+      return { params: { channel, segment, message, count, name: `Assistant ${channel.toUpperCase()} — ${segment}` } };
+    },
+    plan(ctx, p) {
+      return { summary: `Send a ${p.channel.toUpperCase()} to ${p.count} ${p.segment === 'all' ? '' : `${p.segment} `}customer${p.count === 1 ? '' : 's'}: “${p.message}”` };
+    },
+    async execute(ctx, p) {
+      await customer.createCampaign(ctx.outletId, { name: p.name, type: p.channel, target_segment: p.segment, message: p.message });
+      return { message: `Sent — your ${p.channel.toUpperCase()} campaign went to ${p.count} customer${p.count === 1 ? '' : 's'}.`, entity_type: 'campaign' };
+    },
+  },
 ];
 
 // money helper (mirrors the tools' formatter)
@@ -256,7 +404,7 @@ async function buildActionPreview(userCtx, question) {
   if (!ex || ex.error) return { clarify: true, message: (ex && ex.error) || 'I need a bit more detail to do that.' };
   const preview = action.plan(userCtx, ex.params);
   const token = signActionToken({ action: action.name, params: ex.params, outletId: userCtx.outletId, userId: userCtx.id });
-  return { action: action.name, summary: preview.summary, token };
+  return { action: action.name, summary: preview.summary, token, warn: !!action.warn };
 }
 
 /**
@@ -320,4 +468,10 @@ module.exports = {
   extractPhone,
   extractTableNumber,
   isolateName,
+  parseReservationDate,
+  parseReservationTime,
+  extractPartySize,
+  detectChannel,
+  detectSegment,
+  extractMessage,
 };

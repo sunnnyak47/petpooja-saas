@@ -195,8 +195,52 @@ async function createPublicReservation(input) {
   };
 }
 
+/**
+ * Staff-created reservation (status 'confirmed'). Resolves the table (honours a
+ * given table_id, else auto-suggests by party size). Same shape as the inline
+ * route create, extracted so the assistant + route can share one implementation.
+ * @param {string} outletId
+ * @param {{customer_name, customer_phone?, party_size?, reservation_date, reservation_time?, special_requests?, table_id?}} input
+ */
+async function createReservation(outletId, input) {
+  const db = getDbClient();
+  const { customer_name, customer_phone, party_size, reservation_date, reservation_time, special_requests, table_id } = input;
+  if (!customer_name || !reservation_date) {
+    const err = new Error('customer_name and reservation_date are required');
+    err.status = 400; throw err;
+  }
+  let tid = null;
+  if (table_id) {
+    const chosen = await db.table.findFirst({ where: { id: table_id, outlet_id: outletId, is_deleted: false }, select: { id: true } });
+    tid = chosen?.id || null;
+  }
+  if (!tid) { const [s] = await suggestTables(outletId, party_size, 1); tid = s?.id || null; }
+  const created = await db.tableReservation.create({
+    data: {
+      outlet_id: outletId,
+      table_id: tid,
+      customer_name,
+      customer_phone: customer_phone || '',
+      party_size: parseInt(party_size, 10) || 2,
+      reservation_date: new Date(reservation_date),
+      reservation_time: parseTime(reservation_time),
+      notes: special_requests || '',
+      status: 'confirmed',
+    },
+    include: { table: { select: { table_number: true } } },
+  });
+  return {
+    id: created.id,
+    customer_name: created.customer_name,
+    party_size: created.party_size,
+    reservation_date: created.reservation_date?.toISOString(),
+    table_number: created.table?.table_number || null,
+  };
+}
+
 module.exports = {
   getOutletTables,
+  createReservation,
   rankTablesByFit,
   suggestTables,
   getPublicOutletInfo,

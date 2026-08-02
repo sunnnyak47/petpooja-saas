@@ -7,9 +7,12 @@
  */
 
 const mockMenu = { listMenuItems: jest.fn(), updateMenuItem: jest.fn() };
-const mockCustomer = { createCustomer: jest.fn() };
+const mockCustomer = { createCustomer: jest.fn(), createCampaign: jest.fn() };
 const mockTable = { listTables: jest.fn(), updateTableStatus: jest.fn() };
-const mockPrisma = { auditLog: { create: jest.fn().mockResolvedValue({}) } };
+const mockInventory = { getLowStock: jest.fn() };
+const mockProcurement = { createPurchaseOrder: jest.fn() };
+const mockReservations = { createReservation: jest.fn() };
+const mockPrisma = { auditLog: { create: jest.fn().mockResolvedValue({}) }, customer: { count: jest.fn() } };
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
 jest.mock('../src/config/app', () => ({ jwt: { secret: 'testsecret' } }));
@@ -17,6 +20,9 @@ jest.mock('../src/config/database', () => ({ getDbClient: () => mockPrisma }));
 jest.mock('../src/modules/menu/menu.service', () => mockMenu);
 jest.mock('../src/modules/customers/customer.service', () => mockCustomer);
 jest.mock('../src/modules/orders/table.service', () => mockTable);
+jest.mock('../src/modules/inventory/inventory.service', () => mockInventory);
+jest.mock('../src/modules/inventory/procurement.service', () => mockProcurement);
+jest.mock('../src/modules/reservations/reservations.service', () => mockReservations);
 
 const actions = require('../src/modules/assistant/assistant.actions');
 
@@ -158,5 +164,80 @@ describe('runAction — confirm + execute + audit + guards', () => {
     const r = await actions.runAction(OWNER, p.token);
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/already exists/i);
+  });
+});
+
+// ── Batch 2 write tools: draft_po, create_reservation, send_campaign ──────────
+describe('draft_po (from low stock)', () => {
+  test('builds a draft PO from low-stock items; preview never writes; confirm creates', async () => {
+    mockInventory.getLowStock.mockResolvedValue([
+      { id: 'i1', name: 'Butter', unit: 'kg', current_stock: 1, min_threshold: 5, reorder_qty: 10, cost_per_unit: 4 },
+      { id: 'i2', name: 'Flour', unit: 'kg', current_stock: 2, min_threshold: 8, cost_per_unit: 2 }, // no reorder_qty → min-cur=6
+    ]);
+    mockProcurement.createPurchaseOrder.mockResolvedValue({ id: 'po1', po_number: 'PO-0007' });
+    const p = await actions.buildActionPreview(OWNER, 'draft a po for what is running low');
+    expect(p.summary).toMatch(/2 low-stock items/);
+    expect(mockProcurement.createPurchaseOrder).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    const [outlet, data] = mockProcurement.createPurchaseOrder.mock.calls[0];
+    expect(outlet).toBe('o1');
+    expect(data.items).toEqual([
+      { inventory_item_id: 'i1', item_name: 'Butter', quantity: 10, unit: 'kg', unit_price: 4 },
+      { inventory_item_id: 'i2', item_name: 'Flour', quantity: 6, unit: 'kg', unit_price: 2 },
+    ]);
+    expect(r.message).toMatch(/PO-0007/);
+  });
+  test('nothing low → clarification, no PO', async () => {
+    mockInventory.getLowStock.mockResolvedValue([]);
+    const p = await actions.buildActionPreview(OWNER, 'draft a po for low stock');
+    expect(p.clarify).toBe(true);
+    expect(mockProcurement.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe('create_reservation', () => {
+  test('parses date/time/party/name; confirm creates via service', async () => {
+    mockReservations.createReservation.mockResolvedValue({ id: 'r1', table_number: '4' });
+    const now = new Date('2026-08-02T10:00:00'); // Sunday (only affects relative dates, computed inside)
+    const p = await actions.buildActionPreview(OWNER, 'book a table for 4 tomorrow at 7pm for John Smith');
+    expect(p.summary).toMatch(/table for 4 on \d{4}-\d{2}-\d{2} at 19:00 for John Smith/);
+    expect(mockReservations.createReservation).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockReservations.createReservation).toHaveBeenCalledWith('o1', expect.objectContaining({ party_size: 4, reservation_time: '19:00', customer_name: 'John Smith' }));
+    expect(r.message).toMatch(/reserved table 4/);
+  });
+  test('no date → clarification', async () => {
+    expect((await actions.buildActionPreview(OWNER, 'make a reservation for 2')).clarify).toBe(true);
+  });
+});
+
+describe('send_campaign (outward-facing, strong confirm)', () => {
+  test('counts recipients, warns, previews without sending; confirm sends', async () => {
+    mockPrisma.customer.count.mockResolvedValue(342);
+    const p = await actions.buildActionPreview(OWNER, 'text my VIP customers saying "2-for-1 this Friday"');
+    expect(p.warn).toBe(true); // stronger confirmation flag
+    expect(p.summary).toMatch(/Send a SMS to 342 vip customers/);
+    expect(p.summary).toMatch(/2-for-1 this Friday/);
+    expect(mockCustomer.createCampaign).not.toHaveBeenCalled(); // preview must not send
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockCustomer.createCampaign).toHaveBeenCalledWith('o1', expect.objectContaining({ type: 'sms', target_segment: 'vip', message: '2-for-1 this Friday' }));
+    expect(r.message).toMatch(/went to 342 customers/);
+  });
+  test('no message → clarification', async () => {
+    mockPrisma.customer.count.mockResolvedValue(10);
+    expect((await actions.buildActionPreview(OWNER, 'send an sms to all customers')).message).toMatch(/what message/i);
+  });
+  test('zero recipients → clarification, no send', async () => {
+    mockPrisma.customer.count.mockResolvedValue(0);
+    const p = await actions.buildActionPreview(OWNER, 'email my vip customers saying "hi"');
+    expect(p.clarify).toBe(true);
+    expect(mockCustomer.createCampaign).not.toHaveBeenCalled();
+  });
+  test('cashier without MANAGE_CAMPAIGNS is denied', async () => {
+    const p = await actions.buildActionPreview(CASHIER([]), 'text all customers saying "hello"');
+    expect(p.denied).toBe(true);
   });
 });

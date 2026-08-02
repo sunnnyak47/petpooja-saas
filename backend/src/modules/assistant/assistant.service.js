@@ -250,7 +250,7 @@ async function ask(userCtx, question, history = []) {
         answer: `${preview.summary}. Shall I go ahead?`,
         source: 'action_preview',
         tool: null,
-        action: { name: preview.action, token: preview.token, summary: preview.summary },
+        action: { name: preview.action, token: preview.token, summary: preview.summary, warn: !!preview.warn },
         requires_confirmation: true,
         suggestions: SUGGESTIONS,
       };
