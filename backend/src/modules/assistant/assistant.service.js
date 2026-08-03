@@ -22,6 +22,7 @@ const guard = require('./assistant.guard');
 const lang = require('./assistant.lang');
 const reason = require('./assistant.reason');
 const docs = require('./assistant.docs');
+const metric = require('./assistant.metric');
 const { CORES } = require('./assistant.querybank');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
@@ -406,6 +407,16 @@ async function answer(userCtx, question, history = []) {
   const toolName = await selectTool(question, toolList, hist);
 
   if (!toolName) {
+    // Text-to-metric: a "<metric> by <breakdown>" question the fixed tools don't
+    // cover (e.g. "revenue by channel last week") — compute it safely + grounded.
+    if (userCtx.outletId) {
+      const mspec = metric.detectMetricQuery(question);
+      if (mspec) {
+        await resolveOutletContext(userCtx);
+        const m = await metric.answerMetric(userCtx, question, mspec);
+        if (m) return { ...m, suggestions: SUGGESTIONS };
+      }
+    }
     // Custom-knowledge RAG: before giving up, try the owner's OWN documents
     // (SOPs / policies they've added) and answer with a citation if relevant.
     if (userCtx.outletId && !GREETING_RE.test(question)) {
