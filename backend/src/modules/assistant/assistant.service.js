@@ -21,6 +21,7 @@ const mail = require('../../utils/mail.service');
 const guard = require('./assistant.guard');
 const lang = require('./assistant.lang');
 const reason = require('./assistant.reason');
+const docs = require('./assistant.docs');
 const { CORES } = require('./assistant.querybank');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
@@ -405,6 +406,12 @@ async function answer(userCtx, question, history = []) {
   const toolName = await selectTool(question, toolList, hist);
 
   if (!toolName) {
+    // Custom-knowledge RAG: before giving up, try the owner's OWN documents
+    // (SOPs / policies they've added) and answer with a citation if relevant.
+    if (userCtx.outletId && !GREETING_RE.test(question)) {
+      const fromDocs = await docs.answerFromDocs(userCtx, question);
+      if (fromDocs) return { ...fromDocs, suggestions: SUGGESTIONS };
+    }
     // Low confidence (router unsure) on a non-greeting → offer "did you mean"
     // options instead of a wall of capabilities. Selecting one re-asks it.
     if (!GREETING_RE.test(question)) {

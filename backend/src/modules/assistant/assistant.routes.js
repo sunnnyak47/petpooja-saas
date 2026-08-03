@@ -18,6 +18,9 @@ router.get('/shortcuts', authenticate, c.getShortcuts);
 router.get('/schedules', authenticate, c.getSchedules);
 router.post('/schedules', authenticate, c.addSchedule);
 router.delete('/schedules/:id', authenticate, c.removeSchedule);
+router.get('/docs', authenticate, c.getDocs);
+router.post('/docs', authenticate, uploadLimiter, c.addDoc);
+router.delete('/docs/:id', authenticate, c.removeDoc);
 router.post('/ask', authenticate, uploadLimiter, c.ask);
 // Confirm + execute a previewed write action. Permission is re-checked inside
 // the service against the signed token; rate-limited like /ask.

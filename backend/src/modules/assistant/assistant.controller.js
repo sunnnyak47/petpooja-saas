@@ -7,6 +7,7 @@ const assistant = require('./assistant.service');
 const insights = require('./assistant.insights');
 const personalize = require('./assistant.personalize');
 const schedule = require('./assistant.schedule');
+const docs = require('./assistant.docs');
 const xport = require('./assistant.export');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
@@ -183,4 +184,43 @@ async function removeSchedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule };
+// ── Custom knowledge documents (RAG) ─────────────────────────────────────────
+function canManageDocs(req) {
+  const role = req.user.role;
+  const perms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+  return role === 'super_admin' || role === 'owner' || perms.includes('MANAGE_SETTINGS');
+}
+
+/** GET /api/assistant/docs — list the outlet's knowledge documents (metadata). */
+async function getDocs(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    return sendSuccess(res, { docs: await docs.listDocs(outletId) }, 'Knowledge documents');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/assistant/docs — add a knowledge document (owner/manager). */
+async function addDoc(req, res, next) {
+  try {
+    if (!canManageDocs(req)) return sendError(res, 403, 'You do not have access to manage knowledge documents');
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    if (!outletId) return sendError(res, 400, 'An outlet is required');
+    const created = await docs.addDoc(outletId, { title: req.body && req.body.title, text: req.body && req.body.text, userId: req.user.id });
+    return sendSuccess(res, { doc: created }, 'Knowledge document added');
+  } catch (error) {
+    if (error.statusCode === 400) return sendError(res, 400, error.message);
+    next(error);
+  }
+}
+
+/** DELETE /api/assistant/docs/:id — remove a knowledge document (owner/manager). */
+async function removeDoc(req, res, next) {
+  try {
+    if (!canManageDocs(req)) return sendError(res, 403, 'You do not have access to manage knowledge documents');
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    const removed = await docs.deleteDoc(outletId, req.params.id);
+    return sendSuccess(res, { removed }, removed ? 'Document removed' : 'Document not found');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule, getDocs, addDoc, removeDoc };
