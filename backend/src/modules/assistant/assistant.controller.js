@@ -4,6 +4,7 @@
  */
 
 const assistant = require('./assistant.service');
+const insights = require('./assistant.insights');
 const xport = require('./assistant.export');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
@@ -119,4 +120,22 @@ async function getAlerts(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts };
+/**
+ * GET /api/assistant/insights — usage-learning report (asks, misses, tools) for
+ * the outlet over the last N days. Owner/super_admin or VIEW_REPORTS only.
+ */
+async function getInsights(req, res, next) {
+  try {
+    const role = req.user.role;
+    const perms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    if (!(role === 'super_admin' || role === 'owner' || perms.includes('VIEW_REPORTS'))) {
+      return sendError(res, 403, 'You do not have access to assistant insights');
+    }
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
+    const report = await insights.mineUsage({ outletId }, { days });
+    return sendSuccess(res, report, 'Assistant usage insights');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights };

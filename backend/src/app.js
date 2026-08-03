@@ -325,6 +325,7 @@ app.use('/api/assets', require('./modules/assets/assets.routes'));
 app.use('/api/performance', require('./modules/performance/performance.routes'));
 // Register the nightly Square auto-pull cron (also exposes the webhook trigger)
 require('./modules/performance/performance.cron');
+require('./modules/assistant/assistant.insights.cron');
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);

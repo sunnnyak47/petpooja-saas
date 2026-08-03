@@ -315,7 +315,7 @@ function auditAsk(userCtx, question, result) {
         outlet_id: userCtx.outletId,
         action: 'ASSISTANT_ASK',
         entity_type: 'assistant',
-        entity_id: (result && (result.tool || result.source)) || 'ask',
+        entity_id: null, // reads have no entity UUID; tool/source live in new_values
         new_values: {
           tool: (result && result.tool) || null,
           source: (result && result.source) || null,
