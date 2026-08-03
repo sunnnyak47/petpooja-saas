@@ -6,6 +6,7 @@
 const assistant = require('./assistant.service');
 const insights = require('./assistant.insights');
 const personalize = require('./assistant.personalize');
+const schedule = require('./assistant.schedule');
 const xport = require('./assistant.export');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
@@ -151,4 +152,35 @@ async function getShortcuts(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts };
+/** GET /api/assistant/schedules — recurring report exports for the outlet. */
+async function getSchedules(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    return sendSuccess(res, { schedules: await schedule.listSchedules(outletId) }, 'Scheduled reports');
+  } catch (error) { next(error); }
+}
+
+/** POST /api/assistant/schedules — schedule a recurring report (VIEW_REPORTS). */
+async function addSchedule(req, res, next) {
+  try {
+    const role = req.user.role;
+    const perms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    if (!(role === 'super_admin' || role === 'owner' || perms.includes('VIEW_REPORTS'))) {
+      return sendError(res, 403, 'You do not have access to schedule reports');
+    }
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    const created = await schedule.createSchedule(outletId, req.body || {});
+    return sendSuccess(res, { schedule: created }, 'Report scheduled');
+  } catch (error) { next(error); }
+}
+
+/** DELETE /api/assistant/schedules/:id — cancel a scheduled report. */
+async function removeSchedule(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    const cancelled = await schedule.cancelSchedule(outletId, req.params.id);
+    return sendSuccess(res, { cancelled }, cancelled ? 'Schedule cancelled' : 'Schedule not found');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule };

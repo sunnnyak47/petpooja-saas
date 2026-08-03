@@ -327,6 +327,8 @@ app.use('/api/performance', require('./modules/performance/performance.routes'))
 require('./modules/performance/performance.cron');
 require('./modules/assistant/assistant.insights.cron');
 require('./modules/assistant/assistant.digest.cron');
+require('./modules/assistant/assistant.push.cron');
+require('./modules/assistant/assistant.schedule.cron');
 // Expense routes — /api/expenses
 app.use('/api', require('./modules/expenses/expense.routes'));
 app.use('/api/customers', customerRoutes);
