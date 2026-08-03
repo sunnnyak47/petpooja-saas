@@ -475,6 +475,58 @@ const KB = [
     keywords: ['assistant', 'what can you do', 'help', 'ask you', 'capabilities', 'what do you know', 'how to use assistant', 'read-only', 'read only', 'can you change things', 'can you export', 'chat helper', 'rundown', 'answer about my business', 'what data can you', 'report on'],
     text: "Ask about your live business data — today's sales, top sellers, low stock, money/tax this month, top customers, tomorrow's forecast, active orders, open purchase orders, payroll, fraud alerts, staff hours — or how to do things in the app (any of the topics here). I can also export EOD/P&L/Sales reports as PDF or Excel. I'm read-only, so I report and explain but never change anything.",
   },
+
+  // ── Troubleshooting (failure modes) ─────────────────────────────────────────
+  {
+    topic: 'Troubleshoot: printer not printing (receipts / bills)',
+    keywords: ['printer not printing', 'printer not working', 'receipt not printing', 'bill not printing', 'nothing prints', 'printer offline', 'no printout', "printer won't print", 'printer wont print', 'printer stopped', 'not printing receipts', 'printer issue', 'printer problem', 'printer error', 'printer not responding', 'cant print the bill'],
+    text: "If the receipt/bill printer isn't printing: 1) check it's powered on, has paper, and is on the SAME network/Wi-Fi as this device; 2) Settings → Receipt Printer — confirm Printer Type (Thermal ESC/POS), IP Address (e.g. 192.168.1.100) and Port (usually 9100), then Test Print; 3) on the desktop app a browser-print fallback appears if the printer is unreachable; 4) power-cycle the printer and re-open the bill. If it still fails, open the printer's IP in a browser to check it's reachable on the network.",
+  },
+  {
+    topic: 'Troubleshoot: KOT not printing to the kitchen',
+    keywords: ['kot not printing', 'kitchen ticket not printing', 'kot not coming', 'kitchen not getting orders', 'order not going to kitchen', 'kot printer not working', 'kitchen printer not working', 'kot not fired', 'kitchen not printing', 'no kot', 'ticket not printing in kitchen', 'kitchen order not printing'],
+    text: "If KOTs aren't reaching the kitchen: 1) make sure you tapped Place Order / Send to Kitchen — a held/parked order does NOT fire a KOT; 2) Settings → KDS/Printer, check the kitchen printer or KDS station is assigned to the item's category; 3) verify the kitchen printer IP/port and that it's online (Test Print); 4) if you use the Kitchen Display (KDS) instead of a printer, open the KDS screen and confirm the ticket shows under New/Pending. Re-fire the KOT from the open order if needed.",
+  },
+  {
+    topic: 'Troubleshoot: sync failed / changes not syncing',
+    keywords: ['sync failed', 'not syncing', 'sync error', "won't sync", 'wont sync', 'changes not syncing', 'sync stuck', 'data not syncing', 'sync problem', 'sync issue', 'failed to sync', 'orders not syncing', 'sync not working', 'pending sync'],
+    text: "If sync failed or data isn't syncing: 1) check your internet connection — the app works offline and syncs when back online; 2) pull to refresh / re-open the app so the write-outbox retries (it uses automatic backoff); 3) confirm you're still logged in (re-login if the session expired); 4) on desktop/offline, check the sync status indicator and use Retry. Orders/invoices created offline are renumbered by the server after sync — that's expected, not a duplicate.",
+  },
+  {
+    topic: "Troubleshoot: order stuck / won't close or move",
+    keywords: ['order stuck', "order won't close", 'order wont close', 'cant close order', 'order not closing', 'order frozen', "order won't move", 'stuck order', 'order not updating', 'cant complete order', 'order hung', 'ticket stuck', 'table wont free'],
+    text: "If an order is stuck or won't close: 1) make sure it's fully paid — an unpaid balance blocks closing (open it → Collect Payment → balance must reach zero); 2) if items are still 'preparing' on the KDS, mark them Ready/Served; 3) for a dine-in table, settle the bill then mark the table for cleaning to free it; 4) if it's genuinely frozen, refresh/re-open the app — offline changes are saved and will sync. A void/cancel needs a Manager PIN and only works before payment.",
+  },
+  {
+    topic: 'Troubleshoot: payment declined or card / EFTPOS not working',
+    keywords: ['payment declined', 'card declined', 'payment failed', 'card not working', 'eftpos not working', 'payment not going through', 'transaction declined', 'card machine not working', 'terminal not working', 'upi failed', 'payment error', 'declined transaction', 'card reader not working'],
+    text: "If a payment is declined or the card/EFTPOS terminal isn't working: 1) retry the card or ask for another card/tender; 2) check the payment terminal is powered, paired and connected (Bluetooth/network); 3) in Australia confirm the EFTPOS integration in Settings → Payments; in India, if a UPI/QR payment fails, re-generate the QR or record another tender; 4) you can record the payment manually (cash/other) and reconcile later. A declined attempt does NOT close the bill — the balance stays open until paid.",
+  },
+  {
+    topic: "Troubleshoot: can't log in / PIN not working",
+    keywords: ["can't log in", 'cant log in', 'cant login', 'login not working', 'password not working', 'pin not working', 'forgot password', 'forgot pin', 'locked out', 'cannot sign in', 'login failed', 'wrong pin', 'staff pin not working', 'unable to login'],
+    text: "If you can't log in: 1) check your email/password and use Forgot Password to reset (a reset link is emailed); 2) staff sign in with their PIN on the POS — an owner/manager can reset a staff member's PIN in Staff management; 3) confirm the account is active and has a role assigned; 4) if you were logged out unexpectedly, the session may have expired or been ended from Devices & Security (Logout-all) — just log in again. Repeated wrong PINs can briefly lock the terminal.",
+  },
+  {
+    topic: 'Troubleshoot: offline mode not syncing when back online',
+    keywords: ['offline not syncing', 'offline mode not working', 'offline data not uploading', 'offline orders not syncing', 'no internet orders', 'offline stuck', 'offline changes not saved', 'sync after offline', 'reconnect not syncing', 'offline queue not clearing'],
+    text: "The app is offline-first: orders, payments and changes are saved locally and upload automatically when the internet returns. If offline changes aren't syncing after you reconnect: 1) confirm you're actually back online; 2) keep the app open briefly so the write-outbox retries (automatic backoff); 3) don't log out while items are pending; 4) check the sync/pending indicator. Offline invoice/order numbers are device-namespaced and renumbered by the server on sync, so duplicates are handled automatically.",
+  },
+  {
+    topic: 'Troubleshoot: app slow, frozen or keeps crashing',
+    keywords: ['app slow', 'app frozen', 'app crashing', 'keeps crashing', 'app not responding', 'app hangs', 'slow app', 'app freezes', 'laggy', 'app stuck', 'app keeps closing', 'crash on open', 'performance issue', 'app is lagging'],
+    text: "If the app is slow, frozen or crashing: 1) close and re-open it — your data is saved and will sync; 2) check the device has network and enough storage/memory; 3) update to the latest version (desktop auto-updates; mobile from the app store); 4) too many old open orders/tables can slow the POS — settle or clean up completed ones; 5) if a specific screen crashes repeatedly, note what you tapped and raise a support ticket so we can fix it.",
+  },
+  {
+    topic: 'Troubleshoot: aggregator order not coming through (Uber Eats / DoorDash / Zomato / Swiggy)',
+    keywords: ['aggregator order not coming', 'uber eats order not showing', 'doordash order missing', 'zomato order not received', 'swiggy order not coming', 'online order not showing', 'delivery app order missing', 'marketplace order not received', 'aggregator not working', 'online orders not appearing', 'menulog order not showing'],
+    text: "If online/aggregator orders (Uber Eats, DoorDash, Menulog, Zomato, Swiggy) aren't appearing: 1) check the integration is connected in Settings → Integrations and the store is set to Online/Open (not paused); 2) make sure the item/store isn't 86'd and the menu is in sync — re-push the menu to the aggregator; 3) confirm auto-accept settings; 4) a network drop can delay orders — they arrive once reconnected. Check the aggregator's own dashboard to confirm the order was actually placed.",
+  },
+  {
+    topic: 'Troubleshoot: cash drawer not opening',
+    keywords: ['drawer not opening', 'cash drawer not opening', 'till not opening', "drawer won't open", 'drawer wont open', 'cash drawer stuck', 'drawer not popping', 'kick drawer not working', 'open drawer manually', 'cash drawer problem'],
+    text: "The cash drawer opens via the receipt printer (it's driven by the printer's kick port). If it won't open: 1) confirm the drawer cable is plugged into the printer's RJ11/kick port; 2) check the printer works — print a test receipt, and the drawer should pop on a cash payment; 3) a cash sale or the Open Drawer action triggers it; 4) if the printer is offline the drawer won't fire, so fix the printer first. There's also a physical key to open it manually.",
+  },
 ];
 
 const STOP = new Set(['the', 'a', 'an', 'to', 'do', 'i', 'how', 'what', 'is', 'my', 'me', 'of', 'in', 'on', 'for', 'and', 'or', 'can', 'you', 'we', 'it', 'this', 'that', 'with', 'get', 'am', 'set', 'up', 'add', 'new']);

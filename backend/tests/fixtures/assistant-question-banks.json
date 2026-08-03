@@ -4175,6 +4175,170 @@
     {
       "q": "your capabilities?",
       "expect": "What the assistant can do"
+    },
+    {
+      "q": "my receipt printer isn't printing",
+      "expect": "Troubleshoot: printer not printing (receipts / bills)"
+    },
+    {
+      "q": "the bill printer won't print anything",
+      "expect": "Troubleshoot: printer not printing (receipts / bills)"
+    },
+    {
+      "q": "printer is not printing receipts",
+      "expect": "Troubleshoot: printer not printing (receipts / bills)"
+    },
+    {
+      "q": "nothing prints when I take a payment",
+      "expect": "Troubleshoot: printer not printing (receipts / bills)"
+    },
+    {
+      "q": "why is the printer not printing",
+      "expect": "Troubleshoot: printer not printing (receipts / bills)"
+    },
+    {
+      "q": "KOT is not printing in the kitchen",
+      "expect": "Troubleshoot: KOT not printing to the kitchen"
+    },
+    {
+      "q": "kitchen isn't getting the order tickets",
+      "expect": "Troubleshoot: KOT not printing to the kitchen"
+    },
+    {
+      "q": "the kitchen printer won't print the KOT",
+      "expect": "Troubleshoot: KOT not printing to the kitchen"
+    },
+    {
+      "q": "orders are not going to the kitchen printer",
+      "expect": "Troubleshoot: KOT not printing to the kitchen"
+    },
+    {
+      "q": "sync failed and my changes aren't uploading",
+      "expect": "Troubleshoot: sync failed / changes not syncing"
+    },
+    {
+      "q": "the app says sync failed",
+      "expect": "Troubleshoot: sync failed / changes not syncing"
+    },
+    {
+      "q": "my data is not syncing to the server",
+      "expect": "Troubleshoot: sync failed / changes not syncing"
+    },
+    {
+      "q": "orders not syncing to head office",
+      "expect": "Troubleshoot: sync failed / changes not syncing"
+    },
+    {
+      "q": "an order is stuck and won't close",
+      "expect": "Troubleshoot: order stuck / won't close or move"
+    },
+    {
+      "q": "I can't close this order",
+      "expect": "Troubleshoot: order stuck / won't close or move"
+    },
+    {
+      "q": "the table wont free up after payment",
+      "expect": "Troubleshoot: order stuck / won't close or move"
+    },
+    {
+      "q": "order is frozen and will not move",
+      "expect": "Troubleshoot: order stuck / won't close or move"
+    },
+    {
+      "q": "the card payment was declined",
+      "expect": "Troubleshoot: payment declined or card / EFTPOS not working"
+    },
+    {
+      "q": "EFTPOS terminal isn't working",
+      "expect": "Troubleshoot: payment declined or card / EFTPOS not working"
+    },
+    {
+      "q": "payment keeps getting declined",
+      "expect": "Troubleshoot: payment declined or card / EFTPOS not working"
+    },
+    {
+      "q": "the card machine is not working",
+      "expect": "Troubleshoot: payment declined or card / EFTPOS not working"
+    },
+    {
+      "q": "I can't log in to the app",
+      "expect": "Troubleshoot: can't log in / PIN not working"
+    },
+    {
+      "q": "my PIN isn't working on the POS",
+      "expect": "Troubleshoot: can't log in / PIN not working"
+    },
+    {
+      "q": "forgot my password and cant sign in",
+      "expect": "Troubleshoot: can't log in / PIN not working"
+    },
+    {
+      "q": "staff pin not working",
+      "expect": "Troubleshoot: can't log in / PIN not working"
+    },
+    {
+      "q": "offline orders aren't syncing after I got back online",
+      "expect": "Troubleshoot: offline mode not syncing when back online"
+    },
+    {
+      "q": "offline mode changes not uploading",
+      "expect": "Troubleshoot: offline mode not syncing when back online"
+    },
+    {
+      "q": "was offline and now nothing is syncing",
+      "expect": "Troubleshoot: offline mode not syncing when back online"
+    },
+    {
+      "q": "the offline queue isn't clearing",
+      "expect": "Troubleshoot: offline mode not syncing when back online"
+    },
+    {
+      "q": "the app keeps crashing",
+      "expect": "Troubleshoot: app slow, frozen or keeps crashing"
+    },
+    {
+      "q": "app is frozen and not responding",
+      "expect": "Troubleshoot: app slow, frozen or keeps crashing"
+    },
+    {
+      "q": "the POS is really slow and laggy",
+      "expect": "Troubleshoot: app slow, frozen or keeps crashing"
+    },
+    {
+      "q": "the app keeps closing on its own",
+      "expect": "Troubleshoot: app slow, frozen or keeps crashing"
+    },
+    {
+      "q": "Uber Eats orders aren't coming through",
+      "expect": "Troubleshoot: aggregator order not coming through (Uber Eats / DoorDash / Zomato / Swiggy)"
+    },
+    {
+      "q": "my DoorDash order is missing",
+      "expect": "Troubleshoot: aggregator order not coming through (Uber Eats / DoorDash / Zomato / Swiggy)"
+    },
+    {
+      "q": "online orders from Zomato are not showing",
+      "expect": "Troubleshoot: aggregator order not coming through (Uber Eats / DoorDash / Zomato / Swiggy)"
+    },
+    {
+      "q": "aggregator orders not appearing on the pos",
+      "expect": "Troubleshoot: aggregator order not coming through (Uber Eats / DoorDash / Zomato / Swiggy)"
+    },
+    {
+      "q": "the cash drawer won't open",
+      "expect": "Troubleshoot: cash drawer not opening"
+    },
+    {
+      "q": "till is not opening on a cash sale",
+      "expect": "Troubleshoot: cash drawer not opening"
+    },
+    {
+      "q": "cash drawer not popping open",
+      "expect": "Troubleshoot: cash drawer not opening"
+    },
+    {
+      "q": "drawer wont open after payment",
+      "expect": "Troubleshoot: cash drawer not opening"
     }
   ],
   "tools": [

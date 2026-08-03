@@ -486,7 +486,9 @@ const TOOLS = [
   {
     name: 'help_howto',
     description: 'How to DO something in the app — step-by-step help for POS, payments, tables, menu, inventory, purchase orders, EOD, discounts, offline mode, staff/attendance, payroll and account security. Use for "how do I…", "where is…", "how to…" questions about using the software (not about live data).',
-    keywords: ['how do i', 'how do i create', 'how do i add', 'how do i make', 'how do i set', 'how to', 'how to run', 'how can i', 'how do you', 'where is', 'where do i', 'where can i', 'where to', 'steps to', 'steps to run', 'step by step', 'walk me', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'explain how', 'walk me through'],
+    keywords: ['how do i', 'how do i create', 'how do i add', 'how do i make', 'how do i set', 'how to', 'how to run', 'how can i', 'how do you', 'where is', 'where do i', 'where can i', 'where to', 'steps to', 'steps to run', 'step by step', 'walk me', 'guide', 'tutorial', 'set up', 'setup', 'configure', 'explain how', 'walk me through',
+      // Troubleshooting triggers (failure-mode help → KB entries)
+      'not printing', 'nothing printing', 'nothing prints', 'wont print', "won't print", 'not working', 'not syncing', 'sync failed', "won't sync", 'wont sync', 'payment declined', 'card declined', 'cant log in', "can't log in", 'cant login', 'keeps crashing', 'app crashing', 'wont close', "won't close", 'not coming through', 'drawer not opening', 'not responding', "won't open", 'wont open', 'troubleshoot'],
     permission: null,
     run: (ctx, question) => ({ matches: searchKnowledge(question, 3) }),
     summarize: (d) => {

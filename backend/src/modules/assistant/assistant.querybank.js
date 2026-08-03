@@ -235,6 +235,11 @@ const CORES = {
     'how to set up dynamic pricing', 'how do i log wastage', 'how to make a roster', 'where do i see the audit log',
     'how do i push my menu to aggregators', 'how to create a credit note', 'how do i set the gst rate',
     'how to enable auto-86', 'how do i run a marketing campaign', 'how to import a settlement',
+    // troubleshooting (failure-mode help)
+    'my printer wont print', 'the receipt is not printing', 'kot not printing to the kitchen', 'sync failed today',
+    'my orders are not syncing', 'payment declined error', 'card declined at the terminal', 'i cant log in',
+    'offline orders not syncing', 'the app keeps crashing', 'order wont close', 'aggregator order not coming through',
+    'cash drawer not opening', 'why is nothing printing', 'my pin is not working',
   ],
 };
 
