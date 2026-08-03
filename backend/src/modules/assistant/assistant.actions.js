@@ -29,6 +29,17 @@ const tableSvc = require('../orders/table.service');
 const inventory = require('../inventory/inventory.service');
 const procurement = require('../inventory/procurement.service');
 const reservations = require('../reservations/reservations.service');
+const orderSvc = require('../orders/order.service');
+// Shared, pure tax/pricing engine — the SAME helpers the order controller's
+// apply-discount path uses. We reuse them (not reimplement the math) so an
+// assistant-applied discount recomputes GST / round-off / grand-total
+// byte-identically to POST /orders/:id/apply-discount. There is no service-level
+// applyDiscount() to call (the logic lives in order.controller), so execute()
+// mirrors that controller path exactly against the same tenant-scoped models.
+const { resolveOutletTaxConfig } = require('../../utils/outlet');
+const { calculateItemTax } = require('../orders/tax.service');
+const { computeGrandTotal } = require('../orders/pricing.service');
+const { round2 } = require('../../utils/money');
 
 // ── permission (mirrors rbac.middleware.hasPermission) ───────────────────────
 function userHasPermission(userCtx, permKey) {
@@ -73,6 +84,38 @@ function extractTableNumber(q) {
   const m = q.match(/table\s*#?\s*([a-z]?\d+[a-z]?)/i) || q.match(/\b(?:no\.?|number)\s*([a-z]?\d+)/i);
   return m ? m[1] : null;
 }
+/** Parse a discount from NL → { discount_type:'percentage'|'flat', discount_value }, or null. */
+function extractDiscount(q) {
+  const s = String(q || '');
+  // Percentage wins if a % / "percent" is present ("10% off", "10 percent").
+  let m = s.match(/(\d+(?:\.\d+)?)\s*%/) || s.match(/(\d+(?:\.\d+)?)\s*per\s?cent/i);
+  if (m) return { discount_type: 'percentage', discount_value: Number(m[1]) };
+  // Flat amount: "$5", "5 dollars/rupees/off", "flat 5", "by 5", "of 5". A bare
+  // trailing number with NO unit word is NOT treated as money (so "order 42" and
+  // "for 4 people" are never mistaken for a $42 / $4 discount).
+  m = s.match(/\$\s*(\d+(?:\.\d{1,2})?)/)
+    || s.match(/\b(?:flat|by|of|off)\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/i)
+    || s.match(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|rupees?|rs|aud|inr|off|flat)\b/i);
+  if (m) return { discount_type: 'flat', discount_value: Number(m[1]) };
+  return null;
+}
+/** Pull an order-number hint ("order 42", "bill #A12", "#7") — must contain a digit. */
+function extractOrderNumber(q) {
+  const s = String(q || '');
+  let m = s.match(/\b(?:order|bill|invoice|ticket|tab|check)\s*(?:no\.?|number)?\s*#?\s*([a-z0-9][a-z0-9-]*)/i);
+  if (m && /\d/.test(m[1])) return m[1];
+  m = s.match(/#\s*([a-z0-9-]*\d[a-z0-9-]*)/i);
+  return m ? m[1] : null;
+}
+/** Optional discount reason — prefer a quoted phrase, then "reason:/because". */
+function extractReason(q) {
+  const quoted = String(q).match(/["“'](.+?)["”']/);
+  if (quoted) return quoted[1].trim().slice(0, 200);
+  const m = String(q).match(/\b(?:reason(?:\s*:)?|because|as a)\s+(.+)$/i);
+  return m ? m[1].trim().replace(/^["']|["']$/g, '').slice(0, 200) : null;
+}
+// Statuses on which a discount may still be applied (mirrors the apply-discount controller).
+const DISCOUNTABLE_STATUSES = ['created', 'confirmed', 'held'];
 /** Strip command/stop words to isolate an item name. */
 function isolateName(q, extraStop = []) {
   const STOP = new Set([
@@ -150,6 +193,105 @@ async function countCampaignRecipients(outletId, segment) {
   if (outletId) where.orders = { some: { outlet_id: outletId, is_deleted: false } };
   if (segment && segment !== 'all') where.segment = segment;
   try { return await getDbClient().customer.count({ where }); } catch (_) { return 0; }
+}
+
+/**
+ * Resolve WHICH open order a discount applies to — never guesses.
+ *   • explicit "order #N" / "bill #N"  → match that running order (else clarify)
+ *   • "table N"                        → the open order on that table (else clarify)
+ *   • otherwise                        → the SINGLE open order, or clarify if 0 / many
+ * @returns {Promise<{order:object} | {error:string}>}
+ */
+async function resolveDiscountOrder(ctx, q) {
+  let candidates = [];
+  try {
+    const r = await orderSvc.listOrders(ctx.outletId, { running: 'true', limit: 200 });
+    candidates = (r && r.orders) || [];
+  } catch (_) { candidates = []; }
+
+  const orderNo = extractOrderNumber(q);
+  if (orderNo) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = norm(orderNo);
+    let m = candidates.filter((o) => norm(o.order_number) === key);
+    if (!m.length) m = candidates.filter((o) => norm(o.order_number).endsWith(key) && key.length >= 2);
+    if (!m.length) return { error: `I couldn't find an open order matching "${orderNo}". Check the order number and try again.` };
+    if (m.length > 1) return { error: `"${orderNo}" matched ${m.length} open orders. Tell me the exact order number.` };
+    if (!DISCOUNTABLE_STATUSES.includes(m[0].status)) return { error: `Order ${m[0].order_number} is '${m[0].status}' — a discount can only be applied before it's billed or paid.` };
+    return { order: m[0] };
+  }
+
+  if (/\btable\b/i.test(q)) {
+    const tnum = extractTableNumber(q);
+    if (tnum) {
+      const tbl = await resolveTable(ctx.outletId, tnum);
+      if (!tbl.length) return { error: `I couldn't find table ${tnum}.` };
+      const m = candidates.filter((o) => o.table_id === tbl[0].id && DISCOUNTABLE_STATUSES.includes(o.status));
+      if (!m.length) return { error: `There's no open order on table ${tnum} to discount.` };
+      if (m.length > 1) return { error: `Table ${tnum} has ${m.length} open orders — tell me the order number.` };
+      return { order: m[0] };
+    }
+  }
+
+  const open = candidates.filter((o) => DISCOUNTABLE_STATUSES.includes(o.status));
+  if (!open.length) return { error: 'There is no open order to apply a discount to right now.' };
+  if (open.length > 1) {
+    const few = open.slice(0, 4).map((o) => `#${o.order_number}`).join(', ');
+    return { error: `There are ${open.length} open orders (${few}). Which one? Tell me the order number or table.` };
+  }
+  return { order: open[0] };
+}
+
+/**
+ * Recompute an order's tax / round-off / grand-total on a discounted base — a
+ * faithful copy of order.controller.recomputeOrderWithDiscount (which is not
+ * exported) using the identical shared helpers, so an assistant discount produces
+ * byte-identical numbers to the UI's apply-discount endpoint. Reads only.
+ */
+async function computeDiscountedTotals(tx, orderId, outlet, requestedDiscount, loyaltyDiscount) {
+  const taxConfig = resolveOutletTaxConfig(outlet);
+  const items = await tx.orderItem.findMany({ where: { order_id: orderId, is_deleted: false } });
+
+  let subtotalPaise = 0;
+  for (const oi of items) subtotalPaise += Math.round(Number(oi.item_total) * 100);
+  const subtotal = subtotalPaise / 100;
+
+  const discount = Math.min(Math.max(Number(requestedDiscount) || 0, 0), subtotal);
+  const loyalty = Math.min(Math.max(Number(loyaltyDiscount) || 0, 0), Math.max(subtotal - discount, 0));
+  const reduction = discount + loyalty;
+  const factor = subtotal > 0 ? Math.max(subtotal - reduction, 0) / subtotal : 0;
+
+  let cgstPaise = 0; let sgstPaise = 0; let igstPaise = 0; let totalTaxPaise = 0;
+  for (const oi of items) {
+    const qty = Number(oi.quantity) || 1;
+    const gstRate = Number(oi.gst_rate) || taxConfig.default_gst_rate || 0;
+    const discountedUnitBase = (Number(oi.item_total) * factor) / qty;
+    const tax = calculateItemTax(
+      { base_price: discountedUnitBase, quantity: qty, gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
+      { country_code: taxConfig.country_code, state: taxConfig.state },
+    );
+    cgstPaise += Math.round(tax.cgst * 100);
+    sgstPaise += Math.round(tax.sgst * 100);
+    igstPaise += Math.round(tax.igst * 100);
+    totalTaxPaise += Math.round(tax.total_tax * 100);
+  }
+
+  const totalTax = totalTaxPaise / 100;
+  const discountedSubtotal = round2(Math.max(subtotal - reduction, 0));
+  const totalAmount = taxConfig.gst_inclusive ? discountedSubtotal : round2(discountedSubtotal + totalTax);
+  const { grandTotal, roundOff } = computeGrandTotal(totalAmount, taxConfig.country_code);
+
+  return {
+    subtotal,
+    discount_amount: round2(discount),
+    cgst: cgstPaise / 100,
+    sgst: sgstPaise / 100,
+    igst: igstPaise / 100,
+    total_tax: totalTax,
+    total_amount: totalAmount,
+    grand_total: grandTotal,
+    round_off: roundOff,
+  };
 }
 
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
@@ -345,6 +487,101 @@ const ACTIONS = [
       return { message: `Sent — your ${p.channel.toUpperCase()} campaign went to ${p.count} customer${p.count === 1 ? '' : 's'}.`, entity_type: 'campaign' };
     },
   },
+
+  {
+    name: 'apply_discount',
+    label: 'apply a discount to an order',
+    // Same RBAC key the discount route enforces: order.routes → hasPermission('MANAGE_ORDERS').
+    permission: 'MANAGE_ORDERS',
+    warn: true, // changes a live bill total → stronger confirmation in the UI
+    keywords: [
+      'apply discount', 'apply a discount', 'apply the discount', 'give a discount', 'give discount',
+      'give them a discount', 'add a discount', 'add discount', 'discount the order', 'discount this order',
+      'discount the bill', 'discount the total', 'discount on order', 'discount order', 'discount of',
+      '% discount', 'percent discount', 'percentage discount', 'comp the order', 'comp this order',
+      'comp the bill', '% off', 'off order', 'off this order', 'off the order', 'off the bill',
+      'off the total', 'off the tab', 'percent off', 'percentage off',
+    ],
+    async extract(ctx, q) {
+      const disc = extractDiscount(q);
+      if (!disc || !(disc.discount_value > 0)) {
+        return { error: 'How much discount should I apply? e.g. "apply 10% off order 42" or "$5 off table 3".' };
+      }
+      if (disc.discount_type === 'percentage' && disc.discount_value > 100) {
+        return { error: "A percentage discount can't be more than 100%." };
+      }
+      const res = await resolveDiscountOrder(ctx, q);
+      if (res.error) return { error: res.error };
+      const o = res.order;
+      const subtotal = Number(o.subtotal) || 0;
+      const est = disc.discount_type === 'percentage'
+        ? round2(subtotal * (Math.min(disc.discount_value, 100) / 100))
+        : round2(Math.min(disc.discount_value, subtotal));
+      return {
+        params: {
+          order_id: o.id,
+          order_number: o.order_number,
+          discount_type: disc.discount_type,
+          discount_value: disc.discount_value,
+          discount_reason: extractReason(q),
+          // display-only snapshot; execute() recomputes off the LIVE order.
+          est_amount: est,
+          subtotal,
+        },
+      };
+    },
+    plan(ctx, p) {
+      const amt = p.discount_type === 'percentage' ? `${p.discount_value}%` : money(ctx.currency, p.discount_value);
+      const est = p.discount_type === 'percentage'
+        ? ` (≈ ${money(ctx.currency, p.est_amount)} off a ${money(ctx.currency, p.subtotal)} bill)`
+        : '';
+      return { summary: `Apply a ${amt} discount to order #${p.order_number}${est}${p.discount_reason ? ` — reason: "${p.discount_reason}"` : ''}` };
+    },
+    async execute(ctx, p) {
+      const prisma = getDbClient();
+      // Re-fetch the LIVE order (with the head_office tax config) exactly like the
+      // apply-discount controller — never trust the preview snapshot for the write.
+      const order = await prisma.order.findFirst({
+        where: { id: p.order_id, is_deleted: false, outlet_id: ctx.outletId },
+        include: { outlet: { include: { head_office: { select: { country_code: true, region: true, gst_inclusive: true, currency: true } } } } },
+      });
+      if (!order) throw new Error('Order not found');
+      if (!DISCOUNTABLE_STATUSES.includes(order.status)) {
+        throw new Error(`Cannot apply discount on an order with status '${order.status}'`);
+      }
+      const subtotal = Number(order.subtotal) || 0;
+      let discountAmount = p.discount_type === 'percentage'
+        ? subtotal * (Math.min(Number(p.discount_value) || 0, 100) / 100)
+        : (Number(p.discount_value) || 0);
+      discountAmount = Math.min(discountAmount, subtotal); // never exceed the bill
+      const loyaltyDiscount = Number(order.loyalty_discount) || 0;
+
+      const totals = await computeDiscountedTotals(prisma, p.order_id, order.outlet, discountAmount, loyaltyDiscount);
+
+      await prisma.order.update({
+        where: { id: p.order_id },
+        data: {
+          discount_type: p.discount_type,
+          discount_value: p.discount_value,
+          discount_amount: totals.discount_amount,
+          discount_reason: p.discount_reason || null,
+          cgst: totals.cgst,
+          sgst: totals.sgst,
+          igst: totals.igst,
+          total_tax: totals.total_tax,
+          total_amount: totals.total_amount,
+          round_off: totals.round_off,
+          grand_total: totals.grand_total,
+        },
+      });
+      const amt = p.discount_type === 'percentage' ? `${p.discount_value}%` : money(ctx.currency, p.discount_value);
+      return {
+        message: `Done — applied a ${amt} discount (${money(ctx.currency, totals.discount_amount)}) to order #${p.order_number}. New total: ${money(ctx.currency, totals.grand_total)}.`,
+        entity_type: 'order',
+        entity_id: p.order_id,
+      };
+    },
+  },
 ];
 
 // money helper (mirrors the tools' formatter)
@@ -474,4 +711,9 @@ module.exports = {
   detectChannel,
   detectSegment,
   extractMessage,
+  extractDiscount,
+  extractOrderNumber,
+  extractReason,
+  resolveDiscountOrder,
+  computeDiscountedTotals,
 };

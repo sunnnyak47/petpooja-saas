@@ -12,7 +12,13 @@ const mockTable = { listTables: jest.fn(), updateTableStatus: jest.fn() };
 const mockInventory = { getLowStock: jest.fn() };
 const mockProcurement = { createPurchaseOrder: jest.fn() };
 const mockReservations = { createReservation: jest.fn() };
-const mockPrisma = { auditLog: { create: jest.fn().mockResolvedValue({}) }, customer: { count: jest.fn() } };
+const mockOrder = { listOrders: jest.fn(), getOrderById: jest.fn() };
+const mockPrisma = {
+  auditLog: { create: jest.fn().mockResolvedValue({}) },
+  customer: { count: jest.fn() },
+  order: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+  orderItem: { findMany: jest.fn().mockResolvedValue([]) },
+};
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
 jest.mock('../src/config/app', () => ({ jwt: { secret: 'testsecret' } }));
@@ -23,6 +29,9 @@ jest.mock('../src/modules/orders/table.service', () => mockTable);
 jest.mock('../src/modules/inventory/inventory.service', () => mockInventory);
 jest.mock('../src/modules/inventory/procurement.service', () => mockProcurement);
 jest.mock('../src/modules/reservations/reservations.service', () => mockReservations);
+jest.mock('../src/modules/orders/order.service', () => mockOrder);
+// The order tax/pricing engine (tax.service, pricing.service, utils/outlet, utils/money)
+// is left UNMOCKED on purpose so the discount recompute is exercised for real.
 
 const actions = require('../src/modules/assistant/assistant.actions');
 
@@ -239,5 +248,131 @@ describe('send_campaign (outward-facing, strong confirm)', () => {
   test('cashier without MANAGE_CAMPAIGNS is denied', async () => {
     const p = await actions.buildActionPreview(CASHIER([]), 'text all customers saying "hello"');
     expect(p.denied).toBe(true);
+  });
+});
+
+// ── apply_discount (write to a live order; preview → approve → run) ────────────
+describe('apply_discount — detection & extraction', () => {
+  test('command phrasings detect as apply_discount', () => {
+    expect(actions.detectAction('apply 10% off order 42').name).toBe('apply_discount');
+    expect(actions.detectAction('give a discount on the bill').name).toBe('apply_discount');
+    expect(actions.detectAction('discount the order by $5').name).toBe('apply_discount');
+  });
+  test('how-to / read questions about discounts are NOT write intents', () => {
+    expect(actions.detectAction('how do i apply a discount')).toBeNull();
+    expect(actions.detectAction('how much discount did we give today')).toBeNull();
+  });
+  test('extractDiscount parses percentage vs flat; bare order number is not money', () => {
+    expect(actions.extractDiscount('apply 10% off')).toEqual({ discount_type: 'percentage', discount_value: 10 });
+    expect(actions.extractDiscount('take 12.5 percent off')).toEqual({ discount_type: 'percentage', discount_value: 12.5 });
+    expect(actions.extractDiscount('$5 off the bill')).toEqual({ discount_type: 'flat', discount_value: 5 });
+    expect(actions.extractDiscount('flat 8 discount')).toEqual({ discount_type: 'flat', discount_value: 8 });
+    expect(actions.extractDiscount('apply a discount to order 42')).toBeNull(); // "42" is the order, not $42
+  });
+  test('extractOrderNumber requires a digit; extractReason prefers quotes', () => {
+    expect(actions.extractOrderNumber('discount order 42')).toBe('42');
+    expect(actions.extractOrderNumber('discount bill #A12 please')).toBe('A12');
+    expect(actions.extractOrderNumber('discount the order by 10%')).toBeNull();
+    expect(actions.extractReason('discount order 42 reason "staff meal"')).toBe('staff meal');
+  });
+});
+
+describe('apply_discount — preview never mutates & resolves the order', () => {
+  const RUNNING = (over = {}) => ({ id: 'ord42', order_number: '42', status: 'confirmed', subtotal: 20, table_id: null, ...over });
+
+  test('resolves the single open order; previews with token; NO update called', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off order 42');
+    expect(p.action).toBe('apply_discount');
+    expect(p.warn).toBe(true); // financial change → strong confirm
+    expect(p.summary).toMatch(/Apply a 10% discount to order #42/);
+    expect(p.token).toBeTruthy();
+    expect(mockPrisma.order.update).not.toHaveBeenCalled(); // preview must not write
+    const params = actions.verifyActionToken(p.token).params;
+    expect(params).toMatchObject({ order_id: 'ord42', discount_type: 'percentage', discount_value: 10 });
+  });
+  test('flat discount summary shows the amount', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'take $5 off order 42');
+    expect(p.summary).toMatch(/Apply a .*5\.00 discount to order #42/);
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
+  });
+  test('auto-picks the single running order when none is named', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% discount');
+    expect(p.action).toBe('apply_discount');
+    expect(p.summary).toMatch(/order #42/);
+  });
+  test('missing amount → clarification', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'apply a discount to order 42');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/how much discount/i);
+  });
+  test('percentage over 100 → clarification', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 150% off order 42');
+    expect(p.message).toMatch(/can't be more than 100/i);
+  });
+  test('no open order → clarification, no mutation', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/no open order/i);
+  });
+  test('several open orders + no order named → clarify (never guess)', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING(), RUNNING({ id: 'ord43', order_number: '43' })] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/which one|open orders/i);
+  });
+  test('named order not found → clarify', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off order 99');
+    expect(p.message).toMatch(/couldn't find/i);
+  });
+  test('order already billed/paid → cannot discount', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING({ status: 'billed' })] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off order 42');
+    expect(p.message).toMatch(/before it's billed or paid/i);
+  });
+  test('cashier without MANAGE_ORDERS is denied; with it is allowed', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [RUNNING()] });
+    expect((await actions.buildActionPreview(CASHIER([]), 'apply 10% off order 42')).denied).toBe(true);
+    expect((await actions.buildActionPreview(CASHIER(['MANAGE_ORDERS']), 'apply 10% off order 42')).action).toBe('apply_discount');
+  });
+});
+
+describe('apply_discount — confirm executes the real recompute + audits', () => {
+  test('recomputes totals against the live order and updates + audits', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [{ id: 'ord42', order_number: '42', status: 'confirmed', subtotal: 20, table_id: null }] });
+    // Live order re-fetched at execute time (AU outlet → GST inclusive).
+    mockPrisma.order.findFirst.mockResolvedValue({
+      id: 'ord42', status: 'confirmed', subtotal: 20, loyalty_discount: 0,
+      outlet: { currency: 'AUD', state: '', head_office: { country_code: 'AU', region: 'AU', gst_inclusive: true, currency: 'AUD' } },
+    });
+    mockPrisma.orderItem.findMany.mockResolvedValue([{ item_total: 20, quantity: 1, gst_rate: 10, is_deleted: false }]);
+
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off order 42');
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+
+    const data = mockPrisma.order.update.mock.calls[0][0].data;
+    expect(data.discount_type).toBe('percentage');
+    expect(data.discount_value).toBe(10);
+    expect(data.discount_amount).toBe(2);     // 10% of a $20 subtotal
+    expect(data.grand_total).toBe(18);        // AU inclusive → 20 - 2
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_APPLY_DISCOUNT');
+    expect(r.message).toMatch(/applied a 10% discount/i);
+  });
+  test('status flipped to paid between preview and confirm → refuses, no update', async () => {
+    mockOrder.listOrders.mockResolvedValue({ orders: [{ id: 'ord42', order_number: '42', status: 'confirmed', subtotal: 20, table_id: null }] });
+    const p = await actions.buildActionPreview(OWNER, 'apply 10% off order 42');
+    mockPrisma.order.findFirst.mockResolvedValue({ id: 'ord42', status: 'paid', subtotal: 20, loyalty_discount: 0, outlet: { currency: 'AUD', head_office: { country_code: 'AU', gst_inclusive: true } } });
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(false);
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
   });
 });
