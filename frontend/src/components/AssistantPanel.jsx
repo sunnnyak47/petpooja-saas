@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
-import { Sparkles, X, Send, Loader2, Download, Check } from 'lucide-react';
+import { Sparkles, X, Send, Loader2, Download, Check, Mic } from 'lucide-react';
 
 // The API base already includes /api; the export download path is relative to it.
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -35,6 +35,8 @@ export default function AssistantPanel() {
   const outletId = user?.outlet_id || user?.outlets?.[0]?.id;
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [resolved, setResolved] = useState({}); // index → 'done' | 'cancelled' | 'pending'
   const scrollRef = useRef(null);
@@ -106,6 +108,32 @@ export default function AssistantPanel() {
     setMessages((m) => [...m, { role: 'user', text: t }]);
     setInput('');
     askM.mutate({ q: t, history });
+  };
+
+  // Voice input — dictate a question with the browser's speech recognition (no
+  // extra deps). Feature-detected, so the mic only shows where it's supported.
+  const SpeechRec = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const toggleMic = () => {
+    if (!SpeechRec) return;
+    if (listening) { recognitionRef.current?.stop(); return; }
+    const rec = new SpeechRec();
+    rec.lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    let finalText = '';
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i += 1) {
+        const seg = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += seg; else interim += seg;
+      }
+      setInput(`${finalText}${interim}`.trim());
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch (_) { setListening(false); }
   };
 
   return (
@@ -272,6 +300,11 @@ export default function AssistantPanel() {
               maxLength={500}
               style={{ flex: 1, fontSize: 13, padding: '9px 12px', borderRadius: 10, outline: 'none', background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             />
+            {SpeechRec && (
+              <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Speak your question'} title={listening ? 'Listening… tap to stop' : 'Speak your question'} style={{ border: 'none', borderRadius: 10, padding: '0 12px', background: listening ? '#dc2626' : 'var(--bg-hover)', color: listening ? '#fff' : 'var(--text-secondary)', cursor: 'pointer' }}>
+                <Mic size={15} />
+              </button>
+            )}
             <button type="submit" disabled={askM.isPending || !input.trim()} aria-label="Send" style={{ border: 'none', borderRadius: 10, padding: '0 14px', background: 'var(--accent)', color: '#fff', cursor: 'pointer', opacity: (askM.isPending || !input.trim()) ? 0.5 : 1 }}>
               <Send size={15} />
             </button>
