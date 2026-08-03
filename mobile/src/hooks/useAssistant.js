@@ -73,7 +73,16 @@ export function useAssistant() {
   });
   const alerts = alertsQuery.data?.data?.alerts || [];
 
+  // Personalized shortcuts — this owner's most-asked questions.
+  const shortcutsQuery = useQuery({
+    queryKey: ['assistant-shortcuts', outletId],
+    queryFn: () => api.get('/assistant/shortcuts', outletId ? { params: { outlet_id: outletId } } : undefined),
+    enabled: !!outletId,
+    staleTime: 5 * 60_000,
+  });
+  const shortcuts = shortcutsQuery.data?.data?.shortcuts || [];
+
   const reset = useCallback(() => { setMessages([]); setResolved({}); }, []);
 
-  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS, resolved, confirmAction, cancelAction, isActing: actM.isPending, alerts };
+  return { messages, send, reset, isPending: askM.isPending, examples: EXAMPLE_PROMPTS, resolved, confirmAction, cancelAction, isActing: actM.isPending, alerts, shortcuts };
 }

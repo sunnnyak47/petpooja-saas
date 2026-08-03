@@ -82,6 +82,15 @@ export default function AssistantPanel() {
   const alerts = alertsQuery.data?.data?.alerts || [];
   const sevColor = (s) => (s === 'high' ? '#dc2626' : s === 'medium' ? '#d97706' : '#2563eb');
 
+  // Personalized shortcuts — this owner's most-asked questions, as quick chips.
+  const shortcutsQuery = useQuery({
+    queryKey: ['assistant-shortcuts', outletId],
+    queryFn: () => api.get('/assistant/shortcuts', { params: outletId ? { outlet_id: outletId } : {} }),
+    enabled: !!user && user.role !== 'super_admin' && !!outletId,
+    staleTime: 5 * 60_000,
+  });
+  const shortcuts = shortcutsQuery.data?.data?.shortcuts || [];
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, askM.isPending]);
@@ -171,6 +180,18 @@ export default function AssistantPanel() {
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
                   Hi{user?.full_name ? ` ${user.full_name.split(' ')[0]}` : ''} 👋 Ask me anything about your restaurant — sales, tax, stock, who owes you. I can also do a few things on request (like &ldquo;86 the paneer tikka&rdquo; or &ldquo;mark table 5 clean&rdquo;) — I&apos;ll always show you exactly what I&apos;ll do and wait for your confirmation first.
                 </div>
+                {shortcuts.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 6 }}>Your shortcuts</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {shortcuts.map((s, i) => (
+                        <button key={i} onClick={() => send(s.query)} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 999, border: '0.5px solid var(--accent)', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {SUGGESTIONS.map((s) => (
                     <button key={s} onClick={() => send(s)} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-secondary)', cursor: 'pointer' }}>

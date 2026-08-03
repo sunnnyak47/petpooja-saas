@@ -39,7 +39,7 @@ const ALERT_Q = {
 
 export default function AssistantScreen() {
   const { colors, isDark } = useTheme();
-  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing, alerts } = useAssistant();
+  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing, alerts, shortcuts } = useAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
@@ -117,6 +117,15 @@ export default function AssistantScreen() {
               <Text style={s.introText}>
                 Sales, stock, your menu, top customers, forecasts and more — grounded in your live data. I can look things up, but I never change anything.
               </Text>
+              {shortcuts.length > 0 && (
+                <View style={s.chips}>
+                  {shortcuts.map((sc, i) => (
+                    <TouchableOpacity key={`sc${i}`} style={[s.chip, s.chipShortcut]} activeOpacity={0.7} onPress={() => submit(sc.query)}>
+                      <Text style={[s.chipText, s.chipShortcutText]}>{sc.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <View style={s.chips}>
                 {examples.map((ex) => (
                   <TouchableOpacity key={ex} style={s.chip} activeOpacity={0.7} onPress={() => submit(ex)}>
@@ -240,6 +249,8 @@ const styles = (c) =>
     clarifyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
     clarifyChip: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg },
     clarifyChipText: { fontSize: 12.5, color: c.text, fontWeight: '500' },
+    chipShortcut: { borderColor: c.accent },
+    chipShortcutText: { color: c.text },
 
     // Empty / intro
     intro: { alignItems: 'center', paddingHorizontal: 8 },
