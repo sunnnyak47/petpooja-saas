@@ -19,6 +19,7 @@ const actions = require('./assistant.actions');
 const alertsModule = require('./assistant.alerts');
 const mail = require('../../utils/mail.service');
 const guard = require('./assistant.guard');
+const lang = require('./assistant.lang');
 const { CORES } = require('./assistant.querybank');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
@@ -197,8 +198,10 @@ async function compose(question, tool, data, history = []) {
     'A CONVERSATION SO FAR may precede the question — use it to interpret a follow-up, but still answer ONLY from DATA.',
     'If DATA truly does not contain what was asked, say so in ONE friendly line and offer a closely related fact you CAN see from the same DATA.',
     guard.GUARD_SYSTEM,
+    // Multilingual: answer in the owner's requested language, numbers/names intact.
+    lang.detect(question) ? `Respond ONLY in ${lang.detect(question)}. Keep every number, currency amount and name exactly as it appears in DATA.` : null,
     'Respond as strict JSON: {"answer": "<your answer>"}',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
   const safeQ = guard.sanitizeForPrompt(question).text;
   try {
     const out = await callLLM(sys, `${historyText(history)}QUESTION: ${safeQ}\n\nDATA:\n${JSON.stringify(data)}`);
