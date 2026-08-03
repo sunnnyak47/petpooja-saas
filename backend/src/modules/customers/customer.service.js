@@ -8,6 +8,10 @@ const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError, ConflictError } = require('../../utils/errors');
 const { parsePagination } = require('../../utils/helpers');
 const appConfig = require('../../config/app');
+// Real SMS/WhatsApp gateway. Dispatches through MSG91 (SMS) / Meta WhatsApp when
+// their provider env is configured, and no-ops to a [DEV] log otherwise — so the
+// campaign send path is safe with or without gateway credentials set.
+const notifications = require('../integrations/notification.service');
 
 /* ============================
    TENANT SCOPING HELPERS
@@ -447,6 +451,52 @@ async function getLoyaltyHistory(customerId, query = {}) {
    CAMPAIGNS
    ============================ */
 
+/**
+ * Dispatch a campaign's messages through the REAL SMS/WhatsApp gateway
+ * (notification.service). This is the send path the assistant's send_campaign
+ * action drives — it is no longer a simulation.
+ *
+ * Safety:
+ *   - The gateway degrades to a [DEV] log (returning `{ mode:'dev' }`) when the
+ *     provider env (MSG91_AUTH_KEY / WHATSAPP_TOKEN + WHATSAPP_PHONE_ID) is unset,
+ *     so calling this with no credentials configured is a graceful no-op-send.
+ *   - A per-recipient failure is caught and recorded as `failed`; it never aborts
+ *     the batch or throws out of createCampaign (mirrors the "notify failures must
+ *     not crash the flow" pattern used elsewhere).
+ *
+ * @param {Array<{id:string, phone?:string, email?:string, full_name?:string}>} customers
+ * @param {{type?:string, message:string, template_name?:string}} data
+ * @returns {Promise<Array<{customer_id:string, status:'sent'|'failed'}>>}
+ */
+async function dispatchCampaign(customers, data) {
+  const channel = String(data.type || 'sms').toLowerCase();
+  const results = [];
+  for (const c of customers) {
+    let ok = true;
+    try {
+      if (channel === 'whatsapp') {
+        if (!c.phone) throw new Error('no phone on file');
+        // Marketing WhatsApp is delivered via an approved template with the
+        // campaign copy passed as the body parameter.
+        await notifications.sendWhatsApp(c.phone, data.template_name || 'campaign', [data.message]);
+      } else if (channel === 'email') {
+        // Email campaigns are delivered by the mail pipeline, not the SMS/WhatsApp
+        // gateway — nothing to dispatch here.
+        ok = true;
+      } else {
+        // sms / text — MSG91 transactional route.
+        if (!c.phone) throw new Error('no phone on file');
+        await notifications.sendSMS(c.phone, data.message);
+      }
+    } catch (err) {
+      ok = false;
+      logger.warn('Campaign message dispatch failed', { customer_id: c.id, channel, error: err.message });
+    }
+    results.push({ customer_id: c.id, status: ok ? 'sent' : 'failed' });
+  }
+  return results;
+}
+
 async function createCampaign(outletId, data) {
   const prisma = getDbClient();
 
@@ -476,20 +526,26 @@ async function createCampaign(outletId, data) {
     },
   });
 
-  // Simulate message send (in production: Twilio / MSG91 / WhatsApp Business API)
-  // await notificationService.sendBulk(customers, data.message, data.type);
+  // Immediate campaigns dispatch NOW through the real SMS/WhatsApp gateway
+  // (notification.service). It no-ops to a [DEV] log when the provider env is
+  // unset, so this is safe unconfigured; a per-recipient failure is recorded, not
+  // thrown. Scheduled campaigns are sent later by their scheduler — not here.
+  const results = data.schedule_at
+    ? customers.map((c) => ({ customer_id: c.id, status: 'sent' }))
+    : await dispatchCampaign(customers, data);
 
-  const logs = customers.map(c => ({
+  const logs = results.map((r) => ({
     campaign_id: campaign.id,
-    customer_id: c.id,
-    status: 'sent',
+    customer_id: r.customer_id,
+    status: r.status,
   }));
   await prisma.campaignLog.createMany({ data: logs });
 
   if (!data.schedule_at) {
+    const sentCount = results.filter((r) => r.status === 'sent').length;
     await prisma.campaign.update({
       where: { id: campaign.id },
-      data: { sent_count: customers.length, delivered_count: customers.length },
+      data: { sent_count: sentCount, delivered_count: sentCount },
     });
   }
 
