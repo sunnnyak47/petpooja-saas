@@ -48,7 +48,7 @@ export default function AssistantPanel() {
       history,
       ...(outletId ? { outlet_id: outletId } : {}),
     }),
-    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null, tool: r?.data?.tool || null, action: r?.data?.action || null }]),
+    onSuccess: (r) => setMessages((m) => [...m, { role: 'bot', text: r?.data?.answer || 'Sorry, I could not answer that.', download: r?.data?.download || null, tool: r?.data?.tool || null, action: r?.data?.action || null, clarify: r?.data?.clarify || null }]),
     onError: (e) => setMessages((m) => [...m, { role: 'bot', text: e?.response?.data?.message || "I couldn't answer that right now — please try again." }]),
   });
 
@@ -187,6 +187,15 @@ export default function AssistantPanel() {
               ) : (
                 <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', padding: '9px 13px', borderRadius: '14px 14px 14px 4px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6 }}>
                   <div>{m.text}</div>
+                  {m.clarify && m.clarify.options && m.clarify.options.length > 0 && (
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {m.clarify.options.map((o, oi) => (
+                        <button key={oi} onClick={() => send(o.query)} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 999, border: '0.5px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {m.download && (
                     <a
                       href={downloadHref(m.download.path)}

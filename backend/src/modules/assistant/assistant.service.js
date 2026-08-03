@@ -267,6 +267,25 @@ async function ask(userCtx, question, history = []) {
 
   const tool = toolList.find((t) => t.name === toolName);
   await resolveOutletContext(userCtx);
+
+  // Clarify-before-read: if the chosen tool needs a detail the question didn't
+  // give (e.g. WHICH customer), ask for it — with tappable options — instead of
+  // guessing or searching an empty string. Read tools opt in via tool.clarify().
+  if (typeof tool.clarify === 'function') {
+    let clarification = null;
+    try { clarification = await tool.clarify(userCtx, question); }
+    catch (err) { logger.warn('assistant: clarify check failed', { tool: toolName, error: err.message }); }
+    if (clarification && clarification.message) {
+      return {
+        answer: clarification.message,
+        source: 'clarify',
+        tool: toolName,
+        clarify: { options: Array.isArray(clarification.options) ? clarification.options : [] },
+        suggestions: SUGGESTIONS,
+      };
+    }
+  }
+
   let data;
   try {
     data = await tool.run(userCtx, question);

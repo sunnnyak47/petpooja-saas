@@ -134,6 +134,15 @@ export default function AssistantScreen() {
               >
                 <View style={[s.bubble, m.role === 'user' ? s.bubbleUser : s.bubbleBot]}>
                   <Text style={[s.bubbleText, m.role === 'user' ? s.bubbleTextUser : s.bubbleTextBot]}>{m.text}</Text>
+                  {m.clarify && Array.isArray(m.clarify.options) && m.clarify.options.length > 0 && (
+                    <View style={s.clarifyRow}>
+                      {m.clarify.options.map((o, oi) => (
+                        <TouchableOpacity key={oi} activeOpacity={0.7} style={s.clarifyChip} onPress={() => submit(o.query)}>
+                          <Text style={s.clarifyChipText}>{o.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                   {m.action && m.action.token ? (
                     resolved?.[m.id] === 'done' ? (
                       <Text style={s.actionResolved}>✓ Actioned</Text>
@@ -226,6 +235,11 @@ const styles = (c) =>
     alertCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderLeftWidth: 3, borderRadius: 12, padding: 12 },
     alertTitle: { fontSize: 13.5, fontWeight: '600', color: c.text },
     alertMsg: { fontSize: 12.5, color: c.textMuted, lineHeight: 18, marginTop: 3 },
+
+    // Clarify quick-pick chips (e.g. "which customer?")
+    clarifyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+    clarifyChip: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg },
+    clarifyChipText: { fontSize: 12.5, color: c.text, fontWeight: '500' },
 
     // Empty / intro
     intro: { alignItems: 'center', paddingHorizontal: 8 },

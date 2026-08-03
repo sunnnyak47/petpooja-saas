@@ -30,7 +30,7 @@ export function useAssistant() {
   const askM = useMutation({
     mutationFn: ({ q, history }) => api.post('/assistant/ask', buildAskPayload(q, outletId, history)),
     onSuccess: (res) =>
-      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one.", tool: res?.data?.tool ?? null, action: res?.data?.action ?? null }]),
+      setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || "Sorry, I couldn't answer that one.", tool: res?.data?.tool ?? null, action: res?.data?.action ?? null, clarify: res?.data?.clarify ?? null }]),
     onError: (e) =>
       setMessages((m) => [...m, { id: nextId(), role: 'bot', text: errorText(e) }]),
   });

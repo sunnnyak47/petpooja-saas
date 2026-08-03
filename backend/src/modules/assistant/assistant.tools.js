@@ -50,6 +50,18 @@ const today = () => ymd(new Date());
 const monthStart = () => { const n = new Date(); return ymd(new Date(n.getFullYear(), n.getMonth(), 1)); };
 const daysAgo = (n) => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() - n)); };
 
+// Pull a customer name or phone out of a free-text lookup question. Returns null
+// when nothing usable is present — the tool then asks a clarifying question
+// rather than searching for an empty string.
+const CUSTOMER_STOPWORDS = ['look', 'lookup', 'find', 'customer', 'customers', 'spend', 'spent', 'points', 'point', 'loyalty', 'order', 'orders', 'last', 'visit', 'visits', 'how', 'much', 'many', 'has', 'have', 'does', 'the', 'who', 'what', 'details', 'profile', 'phone', 'number', 'search', 'show', 'tell', 'about', 'for', 'with', 'their', 'named', 'name', 'called'];
+const extractLookupTerm = (question) => {
+  const q = String(question || '');
+  const digits = (q.match(/\d[\d\s-]{5,}\d/) || [])[0];
+  if (digits) return digits.replace(/[\s-]/g, '');
+  const t = q.replace(/[^a-zA-Z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !CUSTOMER_STOPWORDS.includes(w.toLowerCase())).join(' ').trim();
+  return t || null;
+};
+
 /** @type {Array<{name:string,description:string,keywords:string[],permission:?string,run:Function,summarize:Function}>} */
 const TOOLS = [
   {
@@ -637,13 +649,24 @@ const TOOLS = [
     description: 'Look up ONE customer by name or phone — their total spend, visits, loyalty points and most recent order',
     keywords: ['look up', 'look up customer', 'look up a customer', 'find customer', 'find a customer', 'customer details', 'customer profile', 'search customer', 'lookup customer', 'how much has', 'points for', 'last order', 'how many points'],
     permission: 'VIEW_CUSTOMERS',
+    // Ask WHO before searching, when the question names no customer — offering a
+    // few regulars as quick-picks so the owner can tap instead of retype.
+    clarify: async (ctx, question) => {
+      if (extractLookupTerm(question)) return null;
+      let options = [];
+      try {
+        const crm = await customer.getCRMDashboard(ctx.outletId);
+        options = (crm.topSpenders || []).slice(0, 4).filter((c) => c.full_name).map((c) => ({ label: c.full_name, query: `look up ${c.full_name}` }));
+      } catch (_) { /* quick-pick options are a nicety, not required */ }
+      return {
+        message: options.length
+          ? 'Which customer? Tell me a name or phone number — or tap a regular below.'
+          : 'Which customer? Tell me their name or phone number.',
+        options,
+      };
+    },
     run: async (ctx, question) => {
-      const q = String(question || '');
-      const digits = (q.match(/\d[\d\s-]{5,}\d/) || [])[0];
-      const stop = ['look', 'lookup', 'find', 'customer', 'customers', 'spend', 'spent', 'points', 'point', 'loyalty', 'order', 'orders', 'last', 'visit', 'visits', 'how', 'much', 'many', 'has', 'have', 'does', 'the', 'who', 'what', 'details', 'profile', 'phone', 'number', 'search', 'show', 'tell', 'about', 'for', 'with', 'their'];
-      const term = digits
-        ? digits.replace(/[\s-]/g, '')
-        : q.replace(/[^a-zA-Z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !stop.includes(w.toLowerCase())).join(' ').trim();
+      const term = extractLookupTerm(question);
       if (!term) return { currency: ctx.currency, found: false, need: 'a customer name or phone number' };
       const { customers } = await customer.listCustomers(ctx.outletId, { search: term, limit: 1 }, null);
       if (!customers || !customers.length) return { currency: ctx.currency, found: false, query: term };
