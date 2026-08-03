@@ -99,7 +99,7 @@ async function getTransporter() {
  * Send an email via the configured transport.
  * @returns {Promise<{messageId?: string, previewUrl?: string, transport: string}>}
  */
-async function sendMail({ to, subject, html, text }) {
+async function sendMail({ to, subject, html, text, attachments }) {
   const fromEmail = process.env.MAIL_FROM || process.env.SENDGRID_FROM_EMAIL || 'noreply@ms-rm.local';
   const fromName  = process.env.MAIL_FROM_NAME || 'MS-RM System';
   const from = `"${fromName}" <${fromEmail}>`;
@@ -118,7 +118,7 @@ async function sendMail({ to, subject, html, text }) {
     return { transport: 'console', previewUrl: null };
   }
 
-  const info = await transporter.sendMail({ from, to, subject, html, text });
+  const info = await transporter.sendMail({ from, to, subject, html, text, ...(attachments && attachments.length ? { attachments } : {}) });
   const previewUrl = transportKind === 'ethereal' ? nodemailer.getTestMessageUrl(info) : null;
 
   logger.info('📧 Email sent', {

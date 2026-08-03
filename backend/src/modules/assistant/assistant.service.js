@@ -17,6 +17,7 @@ const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const xport = require('./assistant.export');
 const actions = require('./assistant.actions');
 const alertsModule = require('./assistant.alerts');
+const mail = require('../../utils/mail.service');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
@@ -204,6 +205,42 @@ async function compose(question, tool, data, history = []) {
   return { answer: tool.summarize(data, question), source: 'rules' };
 }
 
+/**
+ * Generate a report and EMAIL it to the requesting user's own address (never a
+ * third party — the recipient is always req.user's email on file). Reuses the
+ * export generator + the transactional mail service. Returns a chat result.
+ */
+async function emailReport(userCtx, question, intent) {
+  let user = null;
+  try { user = await getDbClient().user.findUnique({ where: { id: userCtx.id }, select: { email: true, full_name: true } }); }
+  catch (_) { user = null; }
+  const to = user && user.email;
+  const moduleLabel = xport.MODULE_LABEL[intent.module] || 'report';
+  if (!to) {
+    return { answer: `I don't have an email address on file for your account, so I can't email it — but you can download it: just ask me to "download the ${moduleLabel} report".`, source: 'email', tool: 'email_report', suggestions: SUGGESTIONS };
+  }
+  const { from, to: rangeTo, label } = xport.parseDateRange(question);
+  // Default emailed reports to a readable PDF unless the user named a format.
+  const fmt = /\b(csv|excel|xlsx|xls|spreadsheet|pdf)\b/.test(String(question).toLowerCase()) ? intent.format : 'pdf';
+  try {
+    const file = await xport.generate(
+      { outletId: userCtx.outletId, module: intent.module, from, to: rangeTo, format: fmt, currency: userCtx.currency || 'AUD' },
+      userCtx.outletName,
+      new Date().toISOString().slice(0, 16).replace('T', ' '),
+    );
+    await mail.sendMail({
+      to,
+      subject: `${moduleLabel} report — ${from} to ${rangeTo}`,
+      text: `Hi${user.full_name ? ` ${user.full_name.split(' ')[0]}` : ''},\n\nAttached is your ${moduleLabel} report for ${label} (${from} to ${rangeTo}).\n\n— MS-RM Assistant`,
+      attachments: [{ filename: file.filename, content: file.body, contentType: file.contentType }],
+    });
+    return { answer: `Done — I've emailed the ${moduleLabel} report for ${label} (${from} to ${rangeTo}) to ${to}.`, source: 'email', tool: 'email_report', suggestions: SUGGESTIONS };
+  } catch (err) {
+    logger.error('assistant: email report failed', { error: err.message });
+    return { answer: "I couldn't email that just now — please try downloading it instead.", source: 'email', tool: 'email_report', suggestions: SUGGESTIONS };
+  }
+}
+
 /** Friendly capabilities message (null-tool path / when nothing matches). */
 function helpAnswer(toolList) {
   const caps = toolList.map((t) => `• ${t.description}`).join('\n');
@@ -224,6 +261,19 @@ async function ask(userCtx, question, history = []) {
     userCtx.role === 'super_admin' ||
     userCtx.role === 'owner' ||
     (Array.isArray(userCtx.permissions) && userCtx.permissions.includes('VIEW_REPORTS'));
+  // Email short-circuit: "email me the P&L" → generate + email the report to the
+  // user's OWN address (checked before the download short-circuit so an email
+  // request sends a file rather than returning a link).
+  const ql = String(question).toLowerCase();
+  const emailIntent = /\bemail\b/.test(ql) || /\be-mail\b/.test(ql) || /\bmail (me|it|this|the|my)\b/.test(ql) || /to my (email|inbox)/.test(ql);
+  if (canReport && userCtx.outletId && emailIntent) {
+    const intent = xport.detectExport(`export ${question}`); // prefix a file verb so the module resolves
+    if (intent) {
+      await resolveOutletContext(userCtx);
+      return emailReport(userCtx, question, intent);
+    }
+  }
+
   if (canReport && userCtx.outletId && xport.detectExport(question)) {
     await resolveOutletContext(userCtx);
     const download = xport.buildDescriptor({ outletId: userCtx.outletId, currency: userCtx.currency }, question);
