@@ -19,6 +19,7 @@ const actions = require('./assistant.actions');
 const alertsModule = require('./assistant.alerts');
 const mail = require('../../utils/mail.service');
 const guard = require('./assistant.guard');
+const { CORES } = require('./assistant.querybank');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
@@ -250,6 +251,44 @@ async function emailReport(userCtx, question, intent) {
   }
 }
 
+// Greetings / pleasantries — answered warmly, NOT turned into "did you mean".
+const GREETING_RE = /^\s*(hi+|hey+|hello|yo|sup|thanks|thank you|thankyou|cheers|good (morning|afternoon|evening|day)|namaste|ok|okay)\b/i;
+
+/** Capitalize + ensure a trailing question mark, for a suggestion chip label. */
+function asQuestion(s) {
+  const t = String(s || '').trim();
+  if (!t) return t;
+  const c = t.charAt(0).toUpperCase() + t.slice(1);
+  return /[?.!]$/.test(c) ? c : `${c}?`;
+}
+
+/**
+ * When the router is UNSURE (no confident tool), rank the user's ALLOWED tools by
+ * a soft token overlap with their keywords/description and return the top N as
+ * "did you mean" options (a canonical example question each, from the querybank).
+ * Zero signal → falls back to the natural tool order (sensible defaults).
+ */
+function suggestTools(question, toolList, n = 3) {
+  const q = String(question || '').toLowerCase();
+  const qtokens = [...new Set(q.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length >= 3))];
+  const scored = toolList
+    .filter((t) => t.name !== 'help_howto')
+    .map((t) => {
+      const hay = `${(t.keywords || []).join(' ')} ${t.description}`.toLowerCase();
+      let s = 0;
+      for (const tok of qtokens) if (hay.includes(tok)) s += 1;
+      return { name: t.name, s };
+    })
+    .sort((a, b) => b.s - a.s);
+  const out = [];
+  for (const x of scored) {
+    const ex = CORES[x.name] && CORES[x.name][0];
+    if (ex) out.push({ label: asQuestion(ex), query: ex });
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
 /** Friendly capabilities message (null-tool path / when nothing matches). */
 function helpAnswer(toolList) {
   const caps = toolList.map((t) => `• ${t.description}`).join('\n');
@@ -353,6 +392,20 @@ async function answer(userCtx, question, history = []) {
   const toolName = await selectTool(question, toolList, hist);
 
   if (!toolName) {
+    // Low confidence (router unsure) on a non-greeting → offer "did you mean"
+    // options instead of a wall of capabilities. Selecting one re-asks it.
+    if (!GREETING_RE.test(question)) {
+      const options = suggestTools(question, toolList, 3);
+      if (options.length) {
+        return {
+          answer: "I'm not quite sure what you're after — did you mean one of these?",
+          source: 'suggest',
+          tool: null,
+          clarify: { options },
+          suggestions: SUGGESTIONS,
+        };
+      }
+    }
     return { answer: helpAnswer(toolList), source: 'rules', tool: null, suggestions: SUGGESTIONS };
   }
 
