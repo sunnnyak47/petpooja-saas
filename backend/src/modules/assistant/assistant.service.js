@@ -20,6 +20,7 @@ const alertsModule = require('./assistant.alerts');
 const mail = require('../../utils/mail.service');
 const guard = require('./assistant.guard');
 const lang = require('./assistant.lang');
+const reason = require('./assistant.reason');
 const { CORES } = require('./assistant.querybank');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
@@ -389,6 +390,15 @@ async function answer(userCtx, question, history = []) {
         suggestions: SUGGESTIONS,
       };
     }
+  }
+
+  // Multi-tool reasoning: "why did profit drop", "this month vs last month" — fan
+  // out across several read tools and synthesize ONE grounded answer. Returns null
+  // (→ single-tool path below) unless it's a genuine multi-part/causal question.
+  if (userCtx.outletId && reason.detectMultiIntent(question)) {
+    await resolveOutletContext(userCtx);
+    const multi = await reason.answerMulti(userCtx, question, hist, allowedTools(userCtx));
+    if (multi) return multi;
   }
 
   const toolList = allowedTools(userCtx);
