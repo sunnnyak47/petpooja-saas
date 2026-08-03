@@ -5,6 +5,7 @@
 
 const assistant = require('./assistant.service');
 const insights = require('./assistant.insights');
+const personalize = require('./assistant.personalize');
 const xport = require('./assistant.export');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
@@ -138,4 +139,16 @@ async function getInsights(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights };
+/**
+ * GET /api/assistant/shortcuts — this user's most-asked, answered questions as
+ * quick re-ask chips (clarify.options shape), scoped to their own audit rows.
+ */
+async function getShortcuts(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    const shortcuts = await personalize.topQuestions({ outletId }, { userId: req.user.id, days: 30, limit: 5 });
+    return sendSuccess(res, { shortcuts }, 'Assistant shortcuts');
+  } catch (error) { next(error); }
+}
+
+module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts };
