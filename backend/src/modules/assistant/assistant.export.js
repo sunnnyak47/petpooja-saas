@@ -20,6 +20,8 @@ const logger = require('../../config/logger');
 const reports = require('../reports/reports.service');
 const eod = require('../reports/eod.service');
 const statements = require('../accounting/accounting.statements.service');
+const bas = require('../accounting/accounting.bas.service');
+const payroll = require('../payroll/payroll.service');
 
 const MAX_RANGE_DAYS = 92; // cap per-day EOD iteration so a huge range can't hammer the DB
 
@@ -120,6 +122,11 @@ function detectExport(question) {
   const format = /\bpdf\b/.test(q) ? 'pdf' : (/\b(xlsx|xls|excel|spreadsheet)\b/.test(q) ? 'xlsx' : 'csv');
   let module = null;
   if (/(p\s*&\s*l|p and l|pnl|prof\w*\s*(and|&|n)?\s*loss|income statement)/.test(q)) module = 'pnl';
+  else if (/balance[\s-]*sheet/.test(q)) module = 'balance_sheet';
+  else if (/\b(gst|bas)\b/.test(q) && /(report|return|summary|statement|figures?|owed?)/.test(q)) module = 'bas';
+  else if (/(inventory|stock)\s*(valuation|value|worth)|valuation\s*report/.test(q)) module = 'inventory_valuation';
+  else if (/(payroll|payslip|pay[\s-]*run|wage[\s-]*bill)/.test(q)) module = 'payroll';
+  else if (/(item[\s-]*wise|item[\s-]*level|sales?\s*by\s*item|by[\s-]*item|top\s*items?\s*report|product\s*sales|item\s*sales)/.test(q)) module = 'item_wise';
   else if (/(eod|end[\s-]*of[\s-]*day|day[\s-]*close|z[\s-]*report|daily[\s-]*close|closing report)/.test(q)) module = 'eod';
   else if (/(sales|revenue|takings|turnover)/.test(q)) module = 'sales';
 
@@ -131,7 +138,11 @@ function detectExport(question) {
   return { module, format };
 }
 
-const MODULE_LABEL = { eod: 'End-of-day', pnl: 'Profit & Loss', sales: 'Sales' };
+const MODULE_LABEL = {
+  eod: 'End-of-day', pnl: 'Profit & Loss', sales: 'Sales',
+  item_wise: 'Item-wise Sales', inventory_valuation: 'Inventory Valuation',
+  balance_sheet: 'Balance Sheet', bas: 'GST / BAS', payroll: 'Payroll',
+};
 
 // ── token sign / verify ──────────────────────────────────────────────────────
 function signExportToken(payload) {
@@ -249,6 +260,89 @@ async function pnlTable(outletId, from, to) {
   rows.push({ type: 'total', cells: ['', 'Gross Profit', n2(pl.gross_profit)] });
   rows.push({ type: 'grand', cells: ['', 'Net Profit', n2(pl.net_profit)] });
   return { title: 'Profit & Loss', columns, rows };
+}
+
+async function itemWiseTable(outletId, from, to) {
+  const r = await reports.getItemWiseSales(outletId, from, to, 100);
+  const columns = [
+    { label: 'Item', align: 'left' },
+    { label: 'Qty', align: 'right' },
+    { label: 'Revenue', align: 'right', money: true },
+  ];
+  const items = (r && r.items) || [];
+  const rows = items.map((i) => ({ type: 'data', cells: [i.name, n2(i.total_quantity), n2(i.total_revenue)] }));
+  const totQty = rows.reduce((s, x) => s + Number(x.cells[1]), 0);
+  const totRev = rows.reduce((s, x) => s + Number(x.cells[2]), 0);
+  rows.push({ type: 'total', cells: ['Total', n2(totQty), n2(totRev)] });
+  return { title: 'Item-wise Sales', columns, rows };
+}
+
+async function inventoryValuationTable(outletId) {
+  const r = await reports.getInventoryValuation(outletId);
+  const columns = [
+    { label: 'Category', align: 'left' },
+    { label: 'Items', align: 'right' },
+    { label: 'Stock Value', align: 'right', money: true },
+  ];
+  const cats = (r && r.by_category) || [];
+  const rows = cats.map((c) => ({ type: 'data', cells: [c.category || 'Uncategorised', c.count || 0, n2(c.value)] }));
+  rows.push({ type: 'total', cells: ['Total', (r && r.total_items) || 0, n2(r && r.total_value)] });
+  return { title: 'Inventory Valuation', columns, rows };
+}
+
+async function balanceSheetTable(outletId, asOf) {
+  const bsheet = await statements.getBalanceSheet(outletId, asOf);
+  const columns = [
+    { label: 'Code', align: 'left', w: 55 },
+    { label: 'Account', align: 'left' },
+    { label: 'Amount', align: 'right', money: true },
+  ];
+  const rows = [];
+  const section = (label, grp) => {
+    rows.push({ type: 'section', label });
+    for (const a of (grp && grp.accounts) || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.amount)] });
+    rows.push({ type: 'total', cells: ['', `Total ${label}`, n2(grp && grp.total)] });
+  };
+  section('Assets', bsheet.assets);
+  section('Liabilities', bsheet.liabilities);
+  section('Equity', bsheet.equity);
+  rows.push({ type: 'grand', cells: ['', 'Liabilities + Equity', n2(((bsheet.liabilities && bsheet.liabilities.total) || 0) + ((bsheet.equity && bsheet.equity.total) || 0))] });
+  return { title: 'Balance Sheet', columns, rows };
+}
+
+async function basTable(outletId, from, to) {
+  const r = await bas.getBASReport(outletId, from, to);
+  const columns = [
+    { label: 'Item', align: 'left' },
+    { label: 'Amount', align: 'right', money: true },
+  ];
+  const rows = [
+    { type: 'data', cells: ['Total sales (G1)', n2(r.G1_total_sales)] },
+    { type: 'data', cells: ['Total purchases (G11)', n2(r.G11_purchases)] },
+    { type: 'data', cells: ['GST collected on sales (1A)', n2(r.gst_on_sales_1A)] },
+    { type: 'data', cells: ['GST paid on purchases (1B)', n2(r.gst_on_purchases_1B)] },
+    { type: 'grand', cells: [r.payable ? 'Net GST payable' : 'Net GST refund', n2(Math.abs(Number(r.net_gst) || 0))] },
+  ];
+  return { title: 'GST / BAS Summary', columns, rows };
+}
+
+async function payrollTable(outletId) {
+  const runs = await payroll.listPayRuns(outletId);
+  const columns = [
+    { label: 'Period', align: 'left' },
+    { label: 'Status', align: 'left' },
+    { label: 'Gross', align: 'right', money: true },
+    { label: 'PAYG', align: 'right', money: true },
+    { label: 'Super', align: 'right', money: true },
+    { label: 'Net', align: 'right', money: true },
+    { label: 'Payslips', align: 'right' },
+  ];
+  const list = (Array.isArray(runs) ? runs : []).slice(0, 24);
+  const day = (x) => (x ? new Date(x).toISOString().slice(0, 10) : '');
+  const rows = list.map((r) => ({ type: 'data', cells: [`${day(r.period_start)}–${day(r.period_end)}`, r.status, n2(r.gross_total), n2(r.paye_total), n2(r.super_total), n2(r.net_total), (r._count && r._count.payslips) || 0] }));
+  const sum = (k) => list.reduce((s, r) => s + Number(r[k] || 0), 0);
+  rows.push({ type: 'total', cells: ['Total', '', n2(sum('gross_total')), n2(sum('paye_total')), n2(sum('super_total')), n2(sum('net_total')), list.reduce((s, r) => s + ((r._count && r._count.payslips) || 0), 0)] });
+  return { title: 'Payroll Report', columns, rows };
 }
 
 // ── CSV / PDF renderers ──────────────────────────────────────────────────────
@@ -414,7 +508,12 @@ async function generate(p, outletName, generated) {
   const { outletId, module, from, to, format } = p;
   const table = module === 'pnl' ? await pnlTable(outletId, from, to)
     : module === 'eod' ? await eodRows(outletId, from, to)
-      : await salesRows(outletId, from, to);
+      : module === 'item_wise' ? await itemWiseTable(outletId, from, to)
+        : module === 'inventory_valuation' ? await inventoryValuationTable(outletId)
+          : module === 'balance_sheet' ? await balanceSheetTable(outletId, to)
+            : module === 'bas' ? await basTable(outletId, from, to)
+              : module === 'payroll' ? await payrollTable(outletId)
+                : await salesRows(outletId, from, to);
 
   const meta = { from, to, currency: p.currency, outletName, generated };
   const ext = format === 'pdf' ? 'pdf' : format === 'xlsx' ? 'xlsx' : 'csv';
