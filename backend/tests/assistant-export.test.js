@@ -22,7 +22,8 @@ const NOW = new Date('2026-07-30T10:00:00');
 describe('detectExport', () => {
   test('recognises module + format', () => {
     expect(xport.detectExport('download eod report as pdf')).toEqual({ module: 'eod', format: 'pdf' });
-    expect(xport.detectExport('export p&l this month as excel')).toEqual({ module: 'pnl', format: 'csv' });
+    expect(xport.detectExport('export p&l this month as excel')).toEqual({ module: 'pnl', format: 'xlsx' });
+    expect(xport.detectExport('download sales as xlsx')).toEqual({ module: 'sales', format: 'xlsx' });
     expect(xport.detectExport('give me the sales report last 7 days')).toEqual({ module: 'sales', format: 'csv' });
     expect(xport.detectExport('profit and loss pdf')).toEqual({ module: 'pnl', format: 'pdf' });
   });
@@ -60,7 +61,8 @@ describe('signed token round-trip', () => {
 describe('buildDescriptor', () => {
   test('returns a download path with a valid token', () => {
     const d = xport.buildDescriptor({ outletId: 'o1', currency: 'AUD' }, 'export sales report last month as excel', NOW);
-    expect(d).toMatchObject({ module: 'sales', format: 'csv', from: '2026-06-01', to: '2026-06-30' });
+    expect(d).toMatchObject({ module: 'sales', format: 'xlsx', from: '2026-06-01', to: '2026-06-30' });
+    expect(d.filename).toBe('sales-2026-06-01-to-2026-06-30.xlsx');
     expect(d.path).toMatch(/^\/assistant\/report\?t=/);
     const token = decodeURIComponent(d.path.split('t=')[1]);
     expect(xport.verifyExportToken(token).module).toBe('sales');
@@ -96,6 +98,22 @@ describe('generate — CSV', () => {
     expect(out.body).toMatch(/REVENUE/);
     expect(out.body).toMatch(/200,Food Sales,78450\.25/);
     expect(out.body).toMatch(/Net Profit,46350\.25/);
+  });
+});
+
+describe('generate — XLSX', () => {
+  test('Sales XLSX returns a real .xlsx (zip) buffer with the spreadsheet content-type', async () => {
+    mockReports.getRevenueTrendRange.mockResolvedValue([
+      { date: '2026-07-01', revenue: 1000, orders: 20 },
+      { date: '2026-07-02', revenue: 1500, orders: 25 },
+    ]);
+    const out = await xport.generate({ outletId: 'o1', module: 'sales', from: '2026-07-01', to: '2026-07-02', format: 'xlsx', currency: 'AUD' }, 'Test Cafe');
+    expect(out.contentType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(out.filename).toBe('sales-2026-07-01-to-2026-07-02.xlsx');
+    expect(Buffer.isBuffer(out.body)).toBe(true);
+    // .xlsx is a ZIP — must start with the PK local-file-header signature.
+    expect(out.body.slice(0, 2).toString()).toBe('PK');
+    expect(out.body.length).toBeGreaterThan(500);
   });
 });
 

@@ -117,7 +117,7 @@ function detectExport(question) {
   const wantsFile = strongVerb || formatWord || (weakVerb && fileNoun);
   if (!wantsFile) return null;
 
-  const format = /\bpdf\b/.test(q) ? 'pdf' : 'csv';
+  const format = /\bpdf\b/.test(q) ? 'pdf' : (/\b(xlsx|xls|excel|spreadsheet)\b/.test(q) ? 'xlsx' : 'csv');
   let module = null;
   if (/(p\s*&\s*l|p and l|pnl|prof\w*\s*(and|&|n)?\s*loss|income statement)/.test(q)) module = 'pnl';
   else if (/(eod|end[\s-]*of[\s-]*day|day[\s-]*close|z[\s-]*report|daily[\s-]*close|closing report)/.test(q)) module = 'eod';
@@ -155,7 +155,7 @@ function buildDescriptor(ctx, question, now = new Date()) {
   if (!intent || !ctx.outletId) return null;
   const { from, to, label } = parseDateRange(question, now);
   const token = signExportToken({ outletId: ctx.outletId, module: intent.module, from, to, format: intent.format, currency: ctx.currency || 'AUD' });
-  const ext = intent.format === 'pdf' ? 'pdf' : 'csv';
+  const ext = intent.format === 'pdf' ? 'pdf' : intent.format === 'xlsx' ? 'xlsx' : 'csv';
   const filename = `${intent.module}-${from}-to-${to}.${ext}`;
   return {
     module: intent.module,
@@ -346,6 +346,63 @@ function tableToPdf(t, meta) {
   });
 }
 
+/** Real .xlsx via exceljs: title block, styled header, money cells as NUMBERS
+ *  with a currency number-format (so Excel sums them), section + total shading. */
+async function tableToXlsx(t, meta) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'MS-RM System';
+  const ws = wb.addWorksheet((t.title || 'Report').slice(0, 31));
+  const nCols = t.columns.length;
+  const moneyFmt = (meta.currency === 'INR' ? '₹' : '$') + '#,##0.00';
+
+  let r = 1;
+  ws.mergeCells(r, 1, r, nCols); ws.getCell(r, 1).value = t.title; ws.getCell(r, 1).font = { bold: true, size: 14 }; r += 1;
+  if (meta.outletName) { ws.mergeCells(r, 1, r, nCols); ws.getCell(r, 1).value = meta.outletName; ws.getCell(r, 1).font = { bold: true }; r += 1; }
+  ws.getCell(r, 1).value = 'Period'; ws.getCell(r, 2).value = `${meta.from} to ${meta.to}`; r += 1;
+  ws.getCell(r, 1).value = 'Currency'; ws.getCell(r, 2).value = meta.currency || 'AUD'; r += 2; // blank row after
+
+  const headerRow = ws.getRow(r);
+  t.columns.forEach((c, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = c.label;
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+    cell.alignment = { horizontal: c.align === 'right' ? 'right' : 'left' };
+  });
+  r += 1;
+
+  for (const row of t.rows) {
+    const xr = ws.getRow(r);
+    if (row.type === 'section') {
+      ws.mergeCells(r, 1, r, nCols);
+      const cell = xr.getCell(1);
+      cell.value = String(row.label).toUpperCase();
+      cell.font = { bold: true, color: { argb: 'FF3730A3' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2FF' } };
+      r += 1; continue;
+    }
+    const isTotal = row.type === 'total' || row.type === 'grand';
+    t.columns.forEach((c, i) => {
+      const cell = xr.getCell(i + 1);
+      const val = row.cells[i];
+      if (c.money) { cell.value = Number(val) || 0; cell.numFmt = moneyFmt; }
+      else if (typeof val === 'number') cell.value = val;
+      else cell.value = val == null ? '' : val;
+      cell.alignment = { horizontal: c.align === 'right' ? 'right' : 'left' };
+      if (isTotal) cell.font = { bold: true };
+      if (row.type === 'grand') cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      else if (isTotal) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    });
+    r += 1;
+  }
+
+  t.columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.money ? 16 : (c.align === 'left' ? 24 : 12); });
+
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
+}
+
 /**
  * Generate the report file from a verified token payload.
  * @param {{outletId:string,module:string,from:string,to:string,format:string,currency:string}} p
@@ -360,10 +417,13 @@ async function generate(p, outletName, generated) {
       : await salesRows(outletId, from, to);
 
   const meta = { from, to, currency: p.currency, outletName, generated };
-  const ext = format === 'pdf' ? 'pdf' : 'csv';
+  const ext = format === 'pdf' ? 'pdf' : format === 'xlsx' ? 'xlsx' : 'csv';
   const filename = `${module}-${from}-to-${to}.${ext}`;
   if (format === 'pdf') {
     return { filename, contentType: 'application/pdf', body: await tableToPdf(table, meta) };
+  }
+  if (format === 'xlsx') {
+    return { filename, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: await tableToXlsx(table, meta) };
   }
   return { filename, contentType: 'text/csv; charset=utf-8', body: tableToCsv(table, meta) };
 }
