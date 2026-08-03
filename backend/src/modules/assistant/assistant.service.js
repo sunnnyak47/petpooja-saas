@@ -18,6 +18,7 @@ const xport = require('./assistant.export');
 const actions = require('./assistant.actions');
 const alertsModule = require('./assistant.alerts');
 const mail = require('../../utils/mail.service');
+const guard = require('./assistant.guard');
 
 /** Attach the outlet's currency + name to the user context (for money formatting). */
 async function resolveOutletContext(userCtx) {
@@ -162,10 +163,12 @@ async function selectTool(question, toolList, history = []) {
     'If the question is clearly about their business but you are unsure which tool fits best, choose "finance_summary" (the overall health overview) rather than null.',
     'Pick only a tool name that appears in the list. Do not invent tools.',
     'Examples: "how much did we sell today" → sales_today · "hows business" / "am i doin ok" → finance_summary · "what will tomrw be like" → sales_forecast · "how many non veg" → menu_overview · "who owes me money" → finance_summary · "whats runnin low" → low_stock · "my best regulars" → top_customers · "any orders open right now" / "whats cooking" → active_orders · "close the day" / "cash in drawer" → eod_summary · "how much did i pay staff" / "super this run" → payroll_summary · "anything suspicious" / "void abuse" → fraud_alerts · "who worked this week" / "staff hours" → staff_hours · "how do i split a bill" / "where do i 86 an item" → help_howto · "hi there" → null.',
+    guard.GUARD_SYSTEM,
     'Respond as strict JSON: {"tool": "<tool name or null>"}',
   ].join('\n');
+  const safeQ = guard.sanitizeForPrompt(question).text;
   try {
-    const out = await callLLM(sys, `${historyText(history)}TOOLS:\n${catalog}\n\nQUESTION: ${question}`);
+    const out = await callLLM(sys, `${historyText(history)}TOOLS:\n${catalog}\n\nQUESTION: ${safeQ}`);
     const t = out ? out.tool : undefined;
     if (t === null) return null;
     if (typeof t === 'string' && toolList.some((x) => x.name === t)) return t;
@@ -192,12 +195,18 @@ async function compose(question, tool, data, history = []) {
     'DATA often holds more than the exact question asks — use whatever fields are relevant to give the most useful answer (e.g. if asked "how many non-veg items", read the non_veg count).',
     'A CONVERSATION SO FAR may precede the question — use it to interpret a follow-up, but still answer ONLY from DATA.',
     'If DATA truly does not contain what was asked, say so in ONE friendly line and offer a closely related fact you CAN see from the same DATA.',
+    guard.GUARD_SYSTEM,
     'Respond as strict JSON: {"answer": "<your answer>"}',
   ].join('\n');
+  const safeQ = guard.sanitizeForPrompt(question).text;
   try {
-    const out = await callLLM(sys, `${historyText(history)}QUESTION: ${question}\n\nDATA:\n${JSON.stringify(data)}`);
+    const out = await callLLM(sys, `${historyText(history)}QUESTION: ${safeQ}\n\nDATA:\n${JSON.stringify(data)}`);
     if (out && typeof out.answer === 'string' && out.answer.trim()) {
-      return { answer: out.answer.trim(), source: 'ai' };
+      const answer = out.answer.trim();
+      // Anti-hallucination: if the model's answer contains a significant number
+      // that isn't in DATA, don't trust it — fall back to the grounded summary.
+      if (guard.isGrounded(answer, data)) return { answer, source: 'ai' };
+      logger.warn('assistant: ungrounded LLM answer, using summarizer', { tool: tool && tool.name });
     }
   } catch (err) {
     logger.warn('assistant: compose LLM failed, using summarizer', { error: err.message });
@@ -253,7 +262,39 @@ function helpAnswer(toolList) {
  * @param {string} question
  * @returns {Promise<{ answer: string, source: string, tool: string|null, suggestions: string[] }>}
  */
+/**
+ * Best-effort audit of an assistant READ (mirrors the write-action audit). Never
+ * blocks or breaks the response; the question is PII-redacted + truncated.
+ */
+function auditAsk(userCtx, question, result) {
+  try {
+    if (!userCtx || !userCtx.outletId) return;
+    const s = guard.sanitizeForPrompt(question);
+    getDbClient().auditLog.create({
+      data: {
+        user_id: userCtx.id || null,
+        outlet_id: userCtx.outletId,
+        action: 'ASSISTANT_ASK',
+        entity_type: 'assistant',
+        entity_id: (result && (result.tool || result.source)) || 'ask',
+        new_values: {
+          tool: (result && result.tool) || null,
+          source: (result && result.source) || null,
+          question: guard.redactPII(s.text).slice(0, 200),
+          injection_flagged: s.flagged,
+        },
+      },
+    }).catch(() => {});
+  } catch (_) { /* audit is best-effort */ }
+}
+
 async function ask(userCtx, question, history = []) {
+  const result = await answer(userCtx, question, history);
+  auditAsk(userCtx, question, result); // fire-and-forget
+  return result;
+}
+
+async function answer(userCtx, question, history = []) {
   const hist = normalizeHistory(history);
   // Export short-circuit: if the user is asking to download a report (EOD / P&L /
   // sales) and may view reports, hand back a signed download link instead of text.
