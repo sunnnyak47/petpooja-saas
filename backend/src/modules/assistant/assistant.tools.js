@@ -32,6 +32,9 @@ const bas = require('../accounting/accounting.bas.service');
 const aging = require('../accounting/accounting.aging.service');
 const budgetSvc = require('../accounting/accounting.budget.service');
 const creditNotes = require('../financial-docs/creditnote.service');
+const settlements = require('../settlements/settlement.service');
+const aggregatorRecon = require('../integrations/aggregator.reconciliation.service');
+const prepAnalytics = require('../orders/prep-analytics.service');
 const { computeForecast } = require('./assistant.forecast');
 const { searchKnowledge } = require('./assistant.knowledge');
 
@@ -600,6 +603,137 @@ const TOOLS = [
     summarize: (d) => {
       if (!d.count) return 'No credit notes have been issued.';
       return `${d.count} credit note${d.count === 1 ? '' : 's'} issued, totalling ${money(d.currency, d.total)} (incl. ${money(d.currency, d.tax)} tax).`;
+    },
+  },
+
+  {
+    name: 'wastage',
+    description: 'Inventory wastage logged recently: how many entries, the total value thrown away, and the biggest items wasted with their reason',
+    keywords: ['wastage', 'wasted', 'waste', 'food waste', 'spoilage', 'spoiled', 'thrown away', 'throw away', 'dumped', 'expired items', 'wastage log', 'waste value', 'spoiled ingredients', 'wasted stock', 'wasted inventory', 'how much waste'],
+    permission: 'VIEW_INVENTORY',
+    run: async (ctx) => {
+      const logs = await inventory.getWastageLogs(ctx.outletId, { limit: 100 });
+      const list = Array.isArray(logs) ? logs : (logs.items || logs.rows || []);
+      let totalValue = 0;
+      const rows = list.map((w) => {
+        const qty = num(w.quantity);
+        const unitCost = num(w.inventory_item && w.inventory_item.cost_per_unit);
+        const value = Math.round(qty * unitCost * 100) / 100;
+        totalValue += value;
+        return { item: w.inventory_item ? w.inventory_item.name : null, quantity: qty, unit: w.inventory_item ? w.inventory_item.unit : null, reason: w.reason, value };
+      });
+      rows.sort((a, b) => b.value - a.value);
+      return { currency: ctx.currency, count: list.length, total_value: Math.round(totalValue * 100) / 100, items: rows.slice(0, 15) };
+    },
+    summarize: (d) => {
+      if (!d.count) return 'No wastage has been logged recently.';
+      const top = d.items.slice(0, 3).map((i) => `${i.item || 'item'} (${i.quantity}${i.unit ? ` ${i.unit}` : ''})`).join(', ');
+      return `${d.count} wastage entr${d.count === 1 ? 'y' : 'ies'} logged, worth ${money(d.currency, d.total_value)}. Most: ${top}.`;
+    },
+  },
+
+  {
+    name: 'customer_lookup',
+    description: 'Look up ONE customer by name or phone — their total spend, visits, loyalty points and most recent order',
+    keywords: ['look up', 'look up customer', 'look up a customer', 'find customer', 'find a customer', 'customer details', 'customer profile', 'search customer', 'lookup customer', 'how much has', 'points for', 'last order', 'how many points'],
+    permission: 'VIEW_CUSTOMERS',
+    run: async (ctx, question) => {
+      const q = String(question || '');
+      const digits = (q.match(/\d[\d\s-]{5,}\d/) || [])[0];
+      const stop = ['look', 'lookup', 'find', 'customer', 'customers', 'spend', 'spent', 'points', 'point', 'loyalty', 'order', 'orders', 'last', 'visit', 'visits', 'how', 'much', 'many', 'has', 'have', 'does', 'the', 'who', 'what', 'details', 'profile', 'phone', 'number', 'search', 'show', 'tell', 'about', 'for', 'with', 'their'];
+      const term = digits
+        ? digits.replace(/[\s-]/g, '')
+        : q.replace(/[^a-zA-Z\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !stop.includes(w.toLowerCase())).join(' ').trim();
+      if (!term) return { currency: ctx.currency, found: false, need: 'a customer name or phone number' };
+      const { customers } = await customer.listCustomers(ctx.outletId, { search: term, limit: 1 }, null);
+      if (!customers || !customers.length) return { currency: ctx.currency, found: false, query: term };
+      const c = customers[0];
+      let last_order = null;
+      try {
+        const full = await customer.getCustomer(c.id, null);
+        const o = (full.orders || [])[0];
+        if (o) last_order = { number: o.order_number, total: num(o.grand_total), at: o.created_at };
+      } catch (_) { /* last-order enrichment is best-effort */ }
+      return {
+        currency: ctx.currency,
+        found: true,
+        name: c.full_name || '(no name)',
+        phone: c.phone,
+        segment: c.segment,
+        total_spend: num(c.total_spend),
+        total_visits: c.total_visits,
+        order_count: c._count?.orders ?? null,
+        loyalty_points: c.loyalty_points?.current_balance ?? 0,
+        last_visit_at: c.last_visit_at,
+        last_order,
+      };
+    },
+    summarize: (d) => {
+      if (!d.found) return d.need ? `Tell me the customer's name or phone number and I'll look them up.` : `I couldn't find a customer matching "${d.query}".`;
+      let s = `${d.name}${d.phone ? ` (${d.phone})` : ''}: ${money(d.currency, d.total_spend)} across ${d.total_visits || 0} visit${d.total_visits === 1 ? '' : 's'}, ${d.loyalty_points} loyalty point${d.loyalty_points === 1 ? '' : 's'}.`;
+      if (d.last_order) s += ` Last order ${money(d.currency, d.last_order.total)}.`;
+      return s;
+    },
+  },
+
+  {
+    name: 'settlement_status',
+    description: 'Payment settlement / payout status — how much has settled to your bank, net after fees, and any batches still open or with a variance',
+    keywords: ['settlement', 'settlements', 'settlement status', 'payout', 'payout status', 'settled to bank', 'settled', 'bank settlement', 'provider payout', 'gateway payout', 'acquirer', 'razorpay payout', 'upi payout', 'settlement variance', 'unreconciled settlements', 'money hit my bank'],
+    permission: null,
+    run: async (ctx) => {
+      const s = await settlements.stats(ctx.outletId, {});
+      let recent = [];
+      try {
+        const r = await settlements.list(ctx.outletId, { limit: 5 });
+        recent = (r.rows || []).slice(0, 5).map((x) => ({ provider: x.provider, date: x.settlement_date, status: x.status, net: num(x.net_amount), variance: num(x.variance_amount), reference: x.reference }));
+      } catch (_) { /* recent list is best-effort */ }
+      const bs = s.by_status || {};
+      return { currency: ctx.currency, total: num(s.total), by_status: bs, net_to_bank: num(s.total_net), total_variance: num(s.total_variance), recent };
+    },
+    summarize: (d) => {
+      if (!d.total) return 'No settlement batches have been recorded yet.';
+      const bs = d.by_status || {};
+      const open = num(bs.open) + num(bs.variance);
+      let s = `${d.total} settlement batch${d.total === 1 ? '' : 'es'}, ${money(d.currency, d.net_to_bank)} net to bank.`;
+      if (open) s += ` ${open} still open or with a variance.`;
+      return s;
+    },
+  },
+
+  {
+    name: 'aggregator_commission',
+    description: 'Commission owed to delivery aggregators (Uber Eats, DoorDash, Menulog, Swiggy, Zomato) — per platform gross, commission and net payout',
+    keywords: ['commission', 'aggregator commission', 'aggregator', 'swiggy', 'zomato', 'uber eats', 'ubereats', 'doordash', 'menulog', 'delivery apps', 'delivery platform', 'platform fees', 'marketplace commission', 'apps take', 'apps charging'],
+    permission: null,
+    run: async (ctx) => {
+      const { rows, totals } = await aggregatorRecon.commissionReport(ctx.outletId, {});
+      return {
+        currency: ctx.currency,
+        platforms: (rows || []).map((r) => ({ platform: r.platform_name, orders: r.order_count, gross: num(r.gross), commission_pct: r.commission_pct, commission: num(r.commission_amount), net_payout: num(r.net_payout) })),
+        total_commission: num(totals && totals.commission_amount),
+        total_net_payout: num(totals && totals.net_payout),
+      };
+    },
+    summarize: (d) => {
+      if (!d.platforms || !d.platforms.length) return 'No aggregator (delivery app) sales recorded, so there is no commission to report.';
+      const top = d.platforms.slice(0, 3).map((p) => `${p.platform} ${money(d.currency, p.commission)}`).join(', ');
+      return `Aggregator commission totals ${money(d.currency, d.total_commission)} — ${top}. Net payout ${money(d.currency, d.total_net_payout)}.`;
+    },
+  },
+
+  {
+    name: 'prep_time',
+    description: 'Average kitchen prep time this month: how long orders take to make, plus the fastest and slowest ticket',
+    keywords: ['prep time', 'preparation time', 'prep per order', 'cook time', 'kitchen turnaround', 'turnaround time', 'ticket time', 'kot time', 'kitchen speed', 'how long to make', 'how long to prepare', 'minutes to cook', 'how fast is my kitchen', 'how fast is the kitchen'],
+    permission: null,
+    run: async (ctx) => {
+      const s = await prepAnalytics.getSummary(ctx.outletId, monthStart(), today());
+      return { total_kots: num(s.total_kots), avg_prep: s.avg_fmt, avg_secs: num(s.avg_secs), fastest: s.fastest_fmt, slowest: s.slowest_fmt };
+    },
+    summarize: (d) => {
+      if (!d.total_kots) return 'No kitchen tickets recorded this month yet, so there is no prep-time data.';
+      return `Average prep time this month is ${d.avg_prep} across ${d.total_kots} kitchen ticket${d.total_kots === 1 ? '' : 's'} (fastest ${d.fastest}, slowest ${d.slowest}).`;
     },
   },
 

@@ -193,6 +193,38 @@ const CORES = {
     'any credit memos', 'show me credit notes', 'credit note total', 'customer credit notes',
     'value of credit notes issued', 'list credit notes', 'credit notes summary', 'credit memo total',
   ],
+  wastage: [
+    'how much food waste this month', 'wastage this month', 'how much have we wasted', 'what did we throw away',
+    'value of items wasted', 'spoiled ingredients report', 'wastage log', 'food waste value',
+    'how much have we thrown away', 'spoiled and wasted items', 'expired items wasted', 'total wastage value',
+    'show me wastage', 'wasted food recently',
+  ],
+  customer_lookup: [
+    'look up a customer', 'find customer by phone', 'customer details for john', 'how much has this customer spent',
+    'search customer by phone number', 'look up customer by phone', 'loyalty points for a customer',
+    'when did this customer last order', 'customer profile lookup', 'find a customer named sam',
+    'look up total spend for a customer', 'how many points does this customer have', 'find customer details',
+    'look up customer profile',
+  ],
+  settlement_status: [
+    'settlement status', 'has my money settled', 'did the card money hit my bank', 'razorpay payout status',
+    'payout status', 'net after fees settled to bank', 'any unreconciled settlements', 'settlement variance',
+    'bank settlement summary', 'gateway payout to my account', 'has my card money settled', 'provider payout status',
+    'recent settlements', 'upi payout status',
+  ],
+  aggregator_commission: [
+    'how much commission do i owe swiggy', 'zomato commission this month', 'uber eats and doordash commission',
+    'how much do the delivery apps take', 'aggregator commission breakdown', 'swiggy commission cut',
+    'delivery platform fees owed', 'menulog commission cut', 'commission cut by delivery aggregators',
+    'per platform aggregator commission', 'marketplace commission charged', 'doordash net after commission',
+    'how much are the delivery apps charging', 'ubereats commission this month',
+  ],
+  prep_time: [
+    'average prep time', 'how long to make an order', 'kitchen turnaround time', 'how fast is my kitchen',
+    'cook time per order', 'how long to prepare food', 'average kot time', 'ticket time in the kitchen',
+    'kitchen speed this month', 'how many minutes to cook an order', 'prep time per order',
+    'average preparation time', 'turnaround time per order', 'how fast is the kitchen',
+  ],
   help_howto: [
     'how do i take a new order', 'how to split a bill', 'where do i 86 an item', 'how do i add a menu item',
     'how to connect the thermal printer', 'how do i create a purchase order', 'how to run payroll',
