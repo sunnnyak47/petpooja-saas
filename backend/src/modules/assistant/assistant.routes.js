@@ -20,6 +20,8 @@ router.post('/schedules', authenticate, c.addSchedule);
 router.delete('/schedules/:id', authenticate, c.removeSchedule);
 router.get('/docs', authenticate, c.getDocs);
 router.post('/docs', authenticate, uploadLimiter, c.addDoc);
+// Ingest an already-uploaded file (PDF/DOCX/TXT/image) into RAG knowledge.
+router.post('/docs/ingest', authenticate, uploadLimiter, c.ingestDoc);
 router.delete('/docs/:id', authenticate, c.removeDoc);
 router.post('/ask', authenticate, uploadLimiter, c.ask);
 // Confirm + execute a previewed write action. Permission is re-checked inside

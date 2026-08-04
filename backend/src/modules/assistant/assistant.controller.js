@@ -8,6 +8,7 @@ const insights = require('./assistant.insights');
 const personalize = require('./assistant.personalize');
 const schedule = require('./assistant.schedule');
 const docs = require('./assistant.docs');
+const docingest = require('./assistant.docingest');
 const xport = require('./assistant.export');
 const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
@@ -213,6 +214,26 @@ async function addDoc(req, res, next) {
   }
 }
 
+/**
+ * POST /api/assistant/docs/ingest — extract text from an already-uploaded
+ * Document (PDF/DOCX/TXT/image) and store it as assistant knowledge so RAG can
+ * answer from it (owner/manager). Body: { document_id }.
+ */
+async function ingestDoc(req, res, next) {
+  try {
+    if (!canManageDocs(req)) return sendError(res, 403, 'You do not have access to manage knowledge documents');
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    if (!outletId) return sendError(res, 400, 'An outlet is required');
+    const documentId = (req.body && (req.body.document_id || req.body.documentId)) || null;
+    if (!documentId) return sendError(res, 400, 'A document is required');
+    const created = await docingest.ingestDocument(outletId, { documentId, userId: req.user.id });
+    return sendSuccess(res, { doc: created }, 'Knowledge document ingested');
+  } catch (error) {
+    if (error.statusCode) return sendError(res, error.statusCode, error.message);
+    next(error);
+  }
+}
+
 /** DELETE /api/assistant/docs/:id — remove a knowledge document (owner/manager). */
 async function removeDoc(req, res, next) {
   try {
@@ -223,4 +244,4 @@ async function removeDoc(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule, getDocs, addDoc, removeDoc };
+module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule, getDocs, addDoc, ingestDoc, removeDoc };
