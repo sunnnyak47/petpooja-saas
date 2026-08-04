@@ -19,6 +19,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,7 +40,7 @@ const ALERT_Q = {
 
 export default function AssistantScreen() {
   const { colors, isDark } = useTheme();
-  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing, alerts, shortcuts } = useAssistant();
+  const { messages, send, isPending, examples, resolved, confirmAction, cancelAction, isActing, alerts, shortcuts, isRecording, isTranscribing, startRecording, stopRecording } = useAssistant();
   const [input, setInput] = useState('');
   const scrollRef = useRef(null);
 
@@ -58,6 +59,23 @@ export default function AssistantScreen() {
     },
     [input, isPending, send],
   );
+
+  // Mic: tap to record the question, tap again to stop → transcribe → fill input.
+  const toggleMic = useCallback(async () => {
+    if (isTranscribing) return;
+    if (isRecording) {
+      const text = await stopRecording();
+      if (text) setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+      return;
+    }
+    const ok = await startRecording();
+    if (!ok) {
+      Alert.alert(
+        'Microphone unavailable',
+        'Allow microphone access to speak your question, then try again.',
+      );
+    }
+  }, [isRecording, isTranscribing, startRecording, stopRecording]);
 
   const s = styles(colors);
   const empty = messages.length === 0;
@@ -220,7 +238,7 @@ export default function AssistantScreen() {
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask a question…"
+            placeholder={isRecording ? 'Listening… tap the mic to stop' : isTranscribing ? 'Transcribing…' : 'Ask a question…'}
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
@@ -229,6 +247,19 @@ export default function AssistantScreen() {
             onSubmitEditing={() => submit()}
             editable={!isPending}
           />
+          <TouchableOpacity
+            style={[s.micBtn, isRecording && s.micBtnRecording, (isPending || isTranscribing) && s.micBtnDisabled]}
+            onPress={toggleMic}
+            disabled={isPending || isTranscribing}
+            activeOpacity={0.8}
+            accessibilityLabel={isRecording ? 'Stop recording' : 'Ask by voice'}
+          >
+            {isTranscribing ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="mic" size={20} color={isRecording ? '#fff' : colors.accent} />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[s.sendBtn, (!input.trim() || isPending) && s.sendBtnDisabled]}
             onPress={() => submit()}
@@ -342,4 +373,12 @@ const styles = (c) =>
       alignItems: 'center', justifyContent: 'center',
     },
     sendBtnDisabled: { opacity: 0.4 },
+    // Voice input — idle: subtle outlined pill; recording: solid red.
+    micBtn: {
+      width: 44, height: 44, borderRadius: 22, backgroundColor: c.inputBg,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    micBtnRecording: { backgroundColor: c.error, borderColor: c.error },
+    micBtnDisabled: { opacity: 0.4 },
   });
