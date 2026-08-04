@@ -375,14 +375,16 @@ async function answer(userCtx, question, history = []) {
   }
 
   // Write-action short-circuit (Phase 2 agentic). If the question is a write
-  // intent ("86 the paneer tikka", "set table 5 clean"), return a PREVIEW +
-  // signed token and wait for confirmation — never mutate on this turn.
-  if (actions.detectAction(question) && userCtx.outletId) {
+  // intent ("86 the paneer tikka", "set table 5 clean") — or a pronoun follow-up
+  // to one ("change it by 10%") — return a PREVIEW + signed token and wait for
+  // confirmation; never mutate on this turn.
+  if ((actions.detectAction(question) || actions.inferPronounAction(question)) && userCtx.outletId) {
     await resolveOutletContext(userCtx);
     // Batch first: a compound message with 2+ write actions ("86 X and set Y
     // price to 12") returns ONE combined preview + one token. Falls through to
-    // the single-action path (UNCHANGED) when it's just one action.
-    const batch = await actions.buildBatchPreview(userCtx, question);
+    // the single-action path (UNCHANGED) when it's just one action. History lets
+    // a pronoun sub-action resolve off the previous turn.
+    const batch = await actions.buildBatchPreview(userCtx, question, hist);
     if (batch) {
       const list = batch.items.map((it, i) => `${i + 1}) ${it.summary}`).join(' ');
       return {
@@ -394,7 +396,7 @@ async function answer(userCtx, question, history = []) {
         suggestions: SUGGESTIONS,
       };
     }
-    const preview = await actions.buildActionPreview(userCtx, question);
+    const preview = await actions.buildActionPreview(userCtx, question, hist);
     if (preview) {
       if (preview.denied) return { answer: preview.message, source: 'denied', tool: null, suggestions: SUGGESTIONS };
       if (preview.clarify) return { answer: preview.message, source: 'clarify', tool: null, suggestions: SUGGESTIONS };

@@ -152,6 +152,11 @@ function isolateName(q, extraStop = []) {
     .join(' ')
     .trim();
 }
+// Extra stop words for isolating an item name out of a PRICE command ("increase
+// the <item> price by 10%") — verbs/qualifiers that surround the name. Shared by
+// adjust_price.extract and the multi-turn history scan so both isolate names the
+// same way.
+const PRICE_STOPWORDS = ['increase', 'increased', 'decrease', 'decreased', 'reduce', 'reduced', 'reprice', 'revise', 'revised', 'by', 'up', 'down', 'percent', 'per', 'cent', 'pct', 'pc', 'add', 'more', 'less', 'bump', 'hike', 'higher', 'cheaper', 'discount', 'put', 'make', 'bring', 'move'];
 
 // ── reservation date/time + campaign helpers ────────────────────────────────
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -353,7 +358,7 @@ const ACTIONS = [
     match: /(\b(update|updated|updating|change|changing|set|adjust|adjusting|revise|reprice|increase|increasing|decrease|decreasing|raise|lower|reduce|drop|bump|hike|markup|mark up)\b[\s\S]{0,40}\b(price|cost)\b)|(\b(price|cost)\b[\s\S]{0,20}\b(to|by|=|@)\b\s*\$?\d)/i,
     async extract(ctx, q) {
       // Resolve the item FIRST — a relative change ("by 10%") needs its current price.
-      const name = isolateName(q, ['increase', 'increased', 'decrease', 'decreased', 'reduce', 'reduced', 'reprice', 'revise', 'revised', 'by', 'up', 'down', 'percent', 'per', 'cent', 'pct', 'pc', 'add', 'more', 'less', 'bump', 'hike', 'higher', 'cheaper', 'discount', 'put', 'make', 'bring', 'move']);
+      const name = isolateName(q, PRICE_STOPWORDS);
       if (!name) return { error: 'Which item’s price should I change?' };
       const matches = await resolveMenuItem(ctx.outletId, name);
       if (!matches.length) return { error: `I couldn't find a menu item matching "${name}".` };
@@ -619,12 +624,13 @@ function money(cur, n) {
 }
 
 // ── detection (keyword scoring, like the read-tool router) ────────────────────
+// How-to / help phrasings ("how do I 86 an item?", "where do I…", "steps to…")
+// are QUESTIONS about the app, not commands to run — never a write action.
+const HOWTO_RE = /\b(how (do|to|can|does|would)|where (is|do|can)|steps to|step by step|tutorial|guide|explain how|walk me through)\b/;
+
 function detectAction(question) {
   const q = String(question || '').toLowerCase();
-  // How-to / help phrasings ("how do I 86 an item?", "where do I…", "steps to…")
-  // are QUESTIONS about the app, not commands to run — never treat them as a
-  // write action; they belong to help_howto.
-  if (/\b(how (do|to|can|does|would)|where (is|do|can)|steps to|step by step|tutorial|guide|explain how|walk me through)\b/.test(q)) return null;
+  if (HOWTO_RE.test(q)) return null;
   let best = null; let bestScore = 0;
   for (const a of ACTIONS) {
     let score = 0;
@@ -636,6 +642,83 @@ function detectAction(question) {
     if (score > bestScore) { bestScore = score; best = a; }
   }
   return bestScore > 0 ? best : null;
+}
+
+// ── multi-turn: pronoun / anaphora resolution for menu-item actions ───────────
+// A pronoun standing in for "the item we were just talking about".
+const PRONOUN_RE = /\bit\b|\bthat\b|\bthis (one|item|dish)\b|\bsame\b|\bthe item\b/i;
+
+/**
+ * A follow-up that leans on the previous turn ("change it by 10%", "make that
+ * unavailable", "set the same item to 12") won't match a menu-item action's
+ * keywords/regex, because the item name is missing. Infer adjust_price / 86_item
+ * from the pronoun + the price/availability signal so buildActionPreview can then
+ * resolve the actual item from history. Excludes how-to phrasings (same guard as
+ * detectAction). Returns an ACTION or null — never mutates.
+ * @param {string} question
+ * @returns {object|null}
+ */
+function inferPronounAction(question) {
+  const q = String(question || '').toLowerCase();
+  if (!PRONOUN_RE.test(q) || HOWTO_RE.test(q)) return null;
+  const byName = (n) => ACTIONS.find((a) => a.name === n);
+  // Availability signal → 86 / un-86.
+  if (/\b(un[- ]?86|86'?d?|unavailable|available|sold[ -]?out|disable|enable|stop selling|off the menu|back on the menu)\b/.test(q)) return byName('86_item') || null;
+  // Price signal: the word price/cost, or a change verb paired with a number.
+  if (/\b(price|cost)\b/.test(q) || (/\b(change|set|adjust|update|increase|decrease|raise|lower|reduce|drop|bump|hike|revise|reprice|put|bring|make)\b/.test(q) && /\d/.test(q))) return byName('adjust_price') || null;
+  return null;
+}
+
+/** Substitute the resolved item name in for the pronoun so the action's own
+ *  extract (which reads the name out of the question) can resolve it. */
+function injectItemName(question, itemName) {
+  const s = String(question || '');
+  return PRONOUN_RE.test(s) ? s.replace(PRONOUN_RE, itemName) : `${itemName} ${s}`;
+}
+
+/**
+ * Scan chat history NEWEST-first for the most recent USER turn that names exactly
+ * ONE menu item (via the existing resolveMenuItem). Returns that item
+ * {id,name,…} or null — an ambiguous prior turn resolves to null so we never
+ * guess. Accepts both normalized ({role,text}) and raw history entries. Read-only.
+ * @param {string} outletId
+ * @param {{role:string,text:string}[]} history
+ * @returns {Promise<object|null>}
+ */
+async function lastMenuItemFromHistory(outletId, history) {
+  if (!outletId || !Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const h = history[i];
+    if (!h || h.role !== 'user' || typeof h.text !== 'string') continue;
+    const name = isolateName(h.text, PRICE_STOPWORDS);
+    if (!name) continue;
+    const matches = await resolveMenuItem(outletId, name);
+    if (matches.length === 1) return matches[0];
+  }
+  return null;
+}
+
+/**
+ * Anaphora resolution for the two menu-item actions. When the action's own
+ * extract could NOT resolve an item AND the follow-up leans on the previous turn
+ * (a pronoun, or no item named at all), pull the most recent menu item from
+ * `history` and RE-RUN the action's extract with that name substituted for the
+ * pronoun. Returns the improved extract result, or the ORIGINAL `ex` when history
+ * yields nothing (→ the existing clarify). An explicit but unresolved/ambiguous
+ * name is left alone, so it never guesses across items. Read-only.
+ * @returns {Promise<object>} an extract result ({params}|{error})
+ */
+async function resolveMenuItemAnaphora(userCtx, action, question, ex, history) {
+  if (!action || (action.name !== 'adjust_price' && action.name !== '86_item')) return ex;
+  if (ex && ex.params) return ex; // extract already resolved the item
+  const q = String(question || '');
+  // Only resolve from context when the user relied on it: a pronoun, or no item
+  // name at all. An explicit (but unmatched/ambiguous) name keeps its own clarify.
+  if (!PRONOUN_RE.test(q) && isolateName(q, PRICE_STOPWORDS)) return ex;
+  const item = await lastMenuItemFromHistory(userCtx.outletId, history);
+  if (!item) return ex; // nothing usable in history → keep the existing clarify
+  const re = await action.extract(userCtx, injectItemName(q, item.name));
+  return re || ex;
 }
 
 // ── compound (batch) detection ───────────────────────────────────────────────
@@ -695,10 +778,13 @@ function verifyActionToken(token) {
  * null (not a write). NEVER mutates.
  * @param {{id,role,outletId,permissions,currency?,headOfficeId?}} userCtx
  * @param {string} question
+ * @param {{role:string,text:string}[]} [history]  normalized chat history (for pronoun follow-ups)
  * @returns {Promise<null | {denied:true,message} | {clarify:true,message} | {action,summary,token}>}
  */
-async function buildActionPreview(userCtx, question) {
-  const action = detectAction(question);
+async function buildActionPreview(userCtx, question, history = []) {
+  // A pronoun follow-up ("change it by 10%") whose phrasing alone doesn't name an
+  // action still routes to the menu-item action it refers to.
+  const action = detectAction(question) || inferPronounAction(question);
   if (!action || !userCtx.outletId) return null;
   if (!userHasPermission(userCtx, action.permission)) {
     return { denied: true, message: `You don't have permission to ${action.label}. Ask an owner or manager.` };
@@ -710,6 +796,9 @@ async function buildActionPreview(userCtx, question) {
     logger.warn('assistant action extract failed', { action: action.name, error: err.message });
     return { clarify: true, message: `I couldn't work out the details for that — try being more specific.` };
   }
+  // Multi-turn: resolve a pronoun / omitted item from the previous turn before
+  // falling back to a clarify.
+  ex = await resolveMenuItemAnaphora(userCtx, action, question, ex, history);
   if (!ex || ex.error) return { clarify: true, message: (ex && ex.error) || 'I need a bit more detail to do that.' };
   const preview = action.plan(userCtx, ex.params);
   const token = signActionToken({ action: action.name, params: ex.params, outletId: userCtx.outletId, userId: userCtx.id });
@@ -728,9 +817,10 @@ async function buildActionPreview(userCtx, question) {
  * falls through to the UNCHANGED single-action path.
  * @param {{id,role,outletId,permissions,currency?,headOfficeId?}} userCtx
  * @param {string} question
+ * @param {{role:string,text:string}[]} [history]  normalized chat history (for pronoun follow-ups)
  * @returns {Promise<null | {action:'batch', summary:string, warn:boolean, items:{summary:string,warn:boolean}[], token:string}>}
  */
-async function buildBatchPreview(userCtx, question) {
+async function buildBatchPreview(userCtx, question, history = []) {
   if (!userCtx || !userCtx.outletId) return null;
   const detected = detectActions(question);
   if (detected.length < 2) return null;
@@ -752,6 +842,8 @@ async function buildBatchPreview(userCtx, question) {
       items.push({ summary: `${action.label} — I couldn't work out the details`, warn: false });
       continue;
     }
+    // Multi-turn: a pronoun sub-action ("… and 86 it") resolves off history too.
+    ex = await resolveMenuItemAnaphora(userCtx, action, segment, ex, history);
     if (!ex || ex.error) {
       items.push({ summary: (ex && ex.error) || `${action.label} — I need a bit more detail`, warn: false });
       continue;
@@ -877,6 +969,7 @@ module.exports = {
   ACTIONS,
   detectAction,
   detectActions,
+  inferPronounAction,
   buildActionPreview,
   buildBatchPreview,
   runAction,
@@ -884,6 +977,7 @@ module.exports = {
   signActionToken,
   verifyActionToken,
   // exported for tests:
+  lastMenuItemFromHistory,
   resolveMenuItem,
   resolveTable,
   extractPrice,
