@@ -157,20 +157,47 @@ export default function AssistantScreen() {
                       <Text style={s.actionResolved}>✓ Actioned</Text>
                     ) : resolved?.[m.id] === 'cancelled' ? (
                       <Text style={s.actionResolved}>Cancelled</Text>
-                    ) : (
-                      <View style={s.actionRow}>
-                        <Pressable
-                          onPress={() => confirmAction(m.id, m.action.token)}
-                          disabled={resolved?.[m.id] === 'pending' || isActing}
-                          style={[s.actionBtn, m.action.warn ? s.actionWarn : s.actionConfirm, (resolved?.[m.id] === 'pending' || isActing) && { opacity: 0.6 }]}
-                        >
-                          <Text style={s.actionConfirmText}>{resolved?.[m.id] === 'pending' ? 'Working…' : (m.action.warn ? 'Yes, send' : 'Confirm')}</Text>
-                        </Pressable>
-                        <Pressable onPress={() => cancelAction(m.id)} disabled={resolved?.[m.id] === 'pending'} style={[s.actionBtn, s.actionCancel]}>
-                          <Text style={s.actionCancelText}>Cancel</Text>
-                        </Pressable>
-                      </View>
-                    )
+                    ) : (() => {
+                      // Batch preview: >1 sub-action → numbered list + "Do all N".
+                      // Single action (items absent/length<=1) renders as before.
+                      const items = Array.isArray(m.action.items) ? m.action.items : [];
+                      const isBatch = items.length > 1;
+                      const busy = resolved?.[m.id] === 'pending' || isActing;
+                      return (
+                        <>
+                          {isBatch && (
+                            <View style={s.batchList}>
+                              {items.map((it, ii) => (
+                                <View key={ii} style={s.batchItem}>
+                                  <Text style={[s.batchNum, it.warn && s.batchTextWarn]}>{ii + 1}.</Text>
+                                  <Text style={[s.batchText, it.warn && s.batchTextWarn]}>{it.summary}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                          <View style={s.actionRow}>
+                            <Pressable
+                              onPress={() => confirmAction(m.id, m.action.token)}
+                              disabled={busy}
+                              style={[s.actionBtn, m.action.warn ? s.actionWarn : s.actionConfirm, busy && { opacity: 0.6 }]}
+                            >
+                              <Text style={s.actionConfirmText}>
+                                {resolved?.[m.id] === 'pending'
+                                  ? 'Working…'
+                                  : isBatch
+                                    ? `Do all ${items.length}`
+                                    : m.action.warn
+                                      ? 'Yes, send'
+                                      : 'Confirm'}
+                              </Text>
+                            </Pressable>
+                            <Pressable onPress={() => cancelAction(m.id)} disabled={resolved?.[m.id] === 'pending'} style={[s.actionBtn, s.actionCancel]}>
+                              <Text style={s.actionCancelText}>Cancel</Text>
+                            </Pressable>
+                          </View>
+                        </>
+                      );
+                    })()
                   ) : null}
                 </View>
               </Animated.View>
@@ -280,6 +307,12 @@ const styles = (c) =>
     bubbleText: { fontSize: 15, lineHeight: 21 },
     bubbleTextUser: { color: '#fff' },
     bubbleTextBot: { color: c.text },
+    // Batch preview — numbered list of the sub-actions above Confirm/Cancel.
+    batchList: { marginTop: 10, gap: 6 },
+    batchItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+    batchNum: { fontSize: 13, fontWeight: '700', color: c.text, minWidth: 16 },
+    batchText: { flex: 1, fontSize: 13.5, lineHeight: 19, color: c.text },
+    batchTextWarn: { color: '#dc2626' },
     actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     actionBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
     actionConfirm: { backgroundColor: c.primary || c.accent || '#2563eb' },

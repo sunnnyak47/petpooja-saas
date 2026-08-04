@@ -379,6 +379,21 @@ async function answer(userCtx, question, history = []) {
   // signed token and wait for confirmation — never mutate on this turn.
   if (actions.detectAction(question) && userCtx.outletId) {
     await resolveOutletContext(userCtx);
+    // Batch first: a compound message with 2+ write actions ("86 X and set Y
+    // price to 12") returns ONE combined preview + one token. Falls through to
+    // the single-action path (UNCHANGED) when it's just one action.
+    const batch = await actions.buildBatchPreview(userCtx, question);
+    if (batch) {
+      const list = batch.items.map((it, i) => `${i + 1}) ${it.summary}`).join(' ');
+      return {
+        answer: `I'll do these ${batch.items.length} things: ${list}. Shall I go ahead?`,
+        source: 'action_preview',
+        tool: null,
+        action: { name: 'batch', token: batch.token, summary: batch.summary, warn: !!batch.warn, items: batch.items },
+        requires_confirmation: true,
+        suggestions: SUGGESTIONS,
+      };
+    }
     const preview = await actions.buildActionPreview(userCtx, question);
     if (preview) {
       if (preview.denied) return { answer: preview.message, source: 'denied', tool: null, suggestions: SUGGESTIONS };
@@ -482,7 +497,10 @@ async function answer(userCtx, question, history = []) {
 async function confirmAction(userCtx, token) {
   await resolveOutletContext(userCtx);
   const res = await actions.runAction(userCtx, token);
-  return { answer: res.message, source: res.ok ? 'action_done' : 'action_error', done: res.ok };
+  const out = { answer: res.message, source: res.ok ? 'action_done' : 'action_error', done: res.ok };
+  // Batch confirmations carry a per-item breakdown; surface it to the client.
+  if (Array.isArray(res.results)) out.results = res.results;
+  return out;
 }
 
 /**

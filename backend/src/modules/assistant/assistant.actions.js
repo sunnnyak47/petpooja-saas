@@ -638,6 +638,48 @@ function detectAction(question) {
   return bestScore > 0 ? best : null;
 }
 
+// ── compound (batch) detection ───────────────────────────────────────────────
+// Verbs that begin a NEW action clause. Used to decide whether an " and " is a
+// clause boundary ("… and set the price …") or just part of an item name
+// ("fish and chips", "mac and cheese" — right side is a noun, not a verb).
+const ACTION_VERBS = '86|un-?86|set|change|update|adjust|mark|make|free|clean|create|add|draft|order|reserve|book|send|text|email|apply|discount|increase|decrease|raise|lower';
+// Strong, UNCONDITIONAL clause separators (order the longer ' and then ' before
+// ' then ' so the whole connector is consumed as one).
+const STRONG_SPLIT_RE = /\s*;\s*|\n+|\s+and then\s+|\s+then\s+|\s+also\s+|\s+plus\s+/i;
+// An ' and ' that begins a fresh action clause (right side starts with a verb).
+const AND_SPLIT_RE = new RegExp(`\\s+and\\s+(?=(?:${ACTION_VERBS})\\b)`, 'i');
+
+/**
+ * Split a possibly-compound message into per-action segments and detect each.
+ * Splits ONLY on strong connectors (';', ' then ', ' and then ', ' also ',
+ * ' plus ', newline) and on ' and ' when the right side starts with an action
+ * verb — so item names like "fish and chips" are never torn apart. Non-action
+ * (null) segments are dropped and duplicate segments de-duped.
+ * @param {string} question
+ * @returns {{action:object, segment:string}[]}
+ */
+function detectActions(question) {
+  const raw = String(question || '');
+  const segments = [];
+  for (const chunk of raw.split(STRONG_SPLIT_RE)) {
+    for (const piece of String(chunk).split(AND_SPLIT_RE)) {
+      const seg = piece.trim();
+      if (seg) segments.push(seg);
+    }
+  }
+  const out = [];
+  const seen = new Set();
+  for (const seg of segments) {
+    const key = seg.toLowerCase().replace(/\s+/g, ' ');
+    if (seen.has(key)) continue;
+    const action = detectAction(seg);
+    if (!action) continue;
+    seen.add(key);
+    out.push({ action, segment: seg });
+  }
+  return out;
+}
+
 // ── signed action tokens ─────────────────────────────────────────────────────
 function signActionToken(payload) {
   return jwt.sign({ scope: 'assistant_action', ...payload }, appConfig.jwt.secret, { expiresIn: '10m' });
@@ -675,6 +717,56 @@ async function buildActionPreview(userCtx, question) {
 }
 
 /**
+ * Build a COMBINED preview for a compound message that holds 2+ write actions.
+ * REUSES each action's own flow — permission check (userHasPermission) + extract
+ * + plan — all of which are read-only, so this NEVER mutates. Denied or
+ * needs-more-detail sub-actions are still listed (with a note) while the valid
+ * ones proceed. Exactly ONE signed batch token is minted carrying every
+ * executable sub-action's {action, params}.
+ *
+ * Returns null when the message has fewer than 2 detected actions, so the caller
+ * falls through to the UNCHANGED single-action path.
+ * @param {{id,role,outletId,permissions,currency?,headOfficeId?}} userCtx
+ * @param {string} question
+ * @returns {Promise<null | {action:'batch', summary:string, warn:boolean, items:{summary:string,warn:boolean}[], token:string}>}
+ */
+async function buildBatchPreview(userCtx, question) {
+  if (!userCtx || !userCtx.outletId) return null;
+  const detected = detectActions(question);
+  if (detected.length < 2) return null;
+
+  const items = [];       // everything shown in the preview (incl. denied / clarify notes)
+  const executable = [];  // only these carry params → they go into the ONE token
+  let anyWarn = false;
+
+  for (const { action, segment } of detected) {
+    if (!userHasPermission(userCtx, action.permission)) {
+      items.push({ summary: `${action.label} — you don't have permission`, warn: false });
+      continue;
+    }
+    let ex;
+    try {
+      ex = await action.extract(userCtx, segment);
+    } catch (err) {
+      logger.warn('assistant batch extract failed', { action: action.name, error: err.message });
+      items.push({ summary: `${action.label} — I couldn't work out the details`, warn: false });
+      continue;
+    }
+    if (!ex || ex.error) {
+      items.push({ summary: (ex && ex.error) || `${action.label} — I need a bit more detail`, warn: false });
+      continue;
+    }
+    const warn = !!action.warn;
+    if (warn) anyWarn = true;
+    items.push({ summary: action.plan(userCtx, ex.params).summary, warn });
+    executable.push({ action: action.name, params: ex.params });
+  }
+
+  const token = signActionToken({ batch: true, items: executable, outletId: userCtx.outletId, userId: userCtx.id });
+  return { action: 'batch', summary: `these ${items.length} things`, warn: anyWarn, items, token };
+}
+
+/**
  * Execute a previously previewed action after the user confirms. Re-verifies the
  * token, that it belongs to THIS user + outlet, and that the permission still
  * holds, then calls the real service and writes an audit-log entry.
@@ -692,6 +784,8 @@ async function runAction(userCtx, token) {
   if (payload.userId !== userCtx.id || payload.outletId !== userCtx.outletId) {
     return { ok: false, message: 'That confirmation is not valid for this session.' };
   }
+  // Compound confirmation: run every sub-action, reporting per-item success.
+  if (payload.batch) return runBatch(userCtx, payload);
   const action = ACTIONS.find((a) => a.name === payload.action);
   if (!action) return { ok: false, message: 'That action is no longer available.' };
   if (!userHasPermission(userCtx, action.permission)) {
@@ -720,10 +814,71 @@ async function runAction(userCtx, token) {
   return { ok: true, message: result.message };
 }
 
+/**
+ * Execute a confirmed BATCH token. Each sub-action re-checks its own RBAC
+ * permission (in case it was revoked between preview and confirm), runs through
+ * the SAME service the single path uses, and is audited on success as
+ * ASSISTANT_<ACTION> — mirroring runAction()'s single-action audit. One failing
+ * sub-action never aborts the rest; the result reports a per-item ✓/✗ line.
+ * @param {object} userCtx
+ * @param {{items:{action:string,params:object}[]}} payload  verified batch token
+ * @returns {Promise<{ok:boolean, done:boolean, message:string, results:{summary:string,ok:boolean,message:string}[]}>}
+ */
+async function runBatch(userCtx, payload) {
+  const list = Array.isArray(payload.items) ? payload.items : [];
+  const results = [];
+  for (const it of list) {
+    const action = ACTIONS.find((a) => a.name === it.action);
+    // A concise label for the ✓/✗ line — the plan summary, falling back to the
+    // action's label if plan() can't render it.
+    let label = (action && action.label) || it.action;
+    try { if (action) label = action.plan(userCtx, it.params).summary; } catch (_) { /* keep label */ }
+
+    if (!action) { results.push({ summary: label, ok: false, message: 'no longer available' }); continue; }
+    if (!userHasPermission(userCtx, action.permission)) {
+      results.push({ summary: label, ok: false, message: 'no permission' });
+      continue;
+    }
+    let result;
+    try {
+      result = await action.execute(userCtx, it.params);
+    } catch (err) {
+      logger.error('assistant batch item execute failed', { action: action.name, error: err.message });
+      const msg = err.message && /already exists|not found|invalid/i.test(err.message) ? err.message : "didn't go through";
+      results.push({ summary: label, ok: false, message: msg });
+      continue;
+    }
+    // Audit each successful sub-action, exactly like the single-action path.
+    try {
+      await getDbClient().auditLog.create({
+        data: {
+          user_id: userCtx.id,
+          outlet_id: userCtx.outletId,
+          action: `ASSISTANT_${action.name.toUpperCase()}`,
+          entity_type: result.entity_type || 'assistant_action',
+          entity_id: result.entity_id || null,
+          new_values: it.params,
+        },
+      });
+    } catch (e) { logger.warn('assistant batch audit-log failed', { error: e.message }); }
+    results.push({ summary: label, ok: true, message: result.message });
+  }
+  const parts = results.map((r) => (r.ok ? `✓ ${r.summary}` : `✗ ${r.summary} — ${r.message}`));
+  const okAll = results.length > 0 && results.every((r) => r.ok);
+  return {
+    ok: okAll,
+    done: true,
+    message: results.length ? `Done: ${parts.join('; ')}` : 'Nothing to do.',
+    results,
+  };
+}
+
 module.exports = {
   ACTIONS,
   detectAction,
+  detectActions,
   buildActionPreview,
+  buildBatchPreview,
   runAction,
   userHasPermission,
   signActionToken,

@@ -262,21 +262,33 @@ export default function AssistantPanel() {
                     ) : resolved[i] === 'cancelled' ? (
                       <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Cancelled</div>
                     ) : (
-                      <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => confirmAction(i, m.action.token)}
-                          disabled={resolved[i] === 'pending'}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: m.action.warn ? '#dc2626' : 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: resolved[i] === 'pending' ? 0.6 : 1 }}
-                        >
-                          {resolved[i] === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {m.action.warn ? 'Yes, send' : 'Confirm'}
-                        </button>
-                        <button
-                          onClick={() => cancelAction(i)}
-                          disabled={resolved[i] === 'pending'}
-                          style={{ padding: '7px 14px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
+                      <div style={{ marginTop: 10 }}>
+                        {/* Batch preview: numbered checklist of each sub-action, above the buttons. */}
+                        {Array.isArray(m.action.items) && m.action.items.length > 1 && (
+                          <ol style={{ margin: '0 0 10px', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {m.action.items.map((it, ii) => (
+                              <li key={ii} style={{ fontSize: 12, lineHeight: 1.4, color: it.warn ? '#dc2626' : 'var(--text-primary)' }}>
+                                {it.summary}
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => confirmAction(i, m.action.token)}
+                            disabled={resolved[i] === 'pending'}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: m.action.warn ? '#dc2626' : 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: resolved[i] === 'pending' ? 0.6 : 1 }}
+                          >
+                            {resolved[i] === 'pending' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {Array.isArray(m.action.items) && m.action.items.length > 1 ? `Do all ${m.action.items.length}` : (m.action.warn ? 'Yes, send' : 'Confirm')}
+                          </button>
+                          <button
+                            onClick={() => cancelAction(i)}
+                            disabled={resolved[i] === 'pending'}
+                            style={{ padding: '7px 14px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     )
                   )}

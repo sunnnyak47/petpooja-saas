@@ -24,7 +24,11 @@ const nextId = () => `m${++_seq}`;
 
 export function useAssistant() {
   const { outletId } = useOutlet();
-  const [messages, setMessages] = useState([]); // { id, role: 'user'|'bot', text, action?, tool? }
+  // message: { id, role: 'user'|'bot', text, action?, tool? }.
+  // action is stored verbatim from res.data.action, so a batch preview
+  // ({ name:'batch', token, summary, warn, items:[{summary,warn},…] }) carries its
+  // items straight through to the screen; a single action has no items (or length 1).
+  const [messages, setMessages] = useState([]);
   const [resolved, setResolved] = useState({}); // message id → 'done' | 'cancelled' | 'pending'
 
   const askM = useMutation({
@@ -35,7 +39,9 @@ export function useAssistant() {
       setMessages((m) => [...m, { id: nextId(), role: 'bot', text: errorText(e) }]),
   });
 
-  // Confirm + run a previewed write action (preview → approve → run).
+  // Confirm + run a previewed write action (preview → approve → run). Transport is
+  // identical for single and batch: POST /assistant/act { token }. A batch token runs
+  // every sub-action server-side and the reply reports per-item success/failure.
   const actM = useMutation({
     mutationFn: ({ token }) => api.post('/assistant/act', { token, ...(outletId ? { outlet_id: outletId } : {}) }),
     onSuccess: (res) => setMessages((m) => [...m, { id: nextId(), role: 'bot', text: extractAnswer(res) || 'Done.' }]),
