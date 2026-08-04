@@ -441,6 +441,18 @@ export default function TabLayout() {
         <Tabs.Screen name="festival" options={{ title: 'FESTIVAL MODE', href: null }} />
         <Tabs.Screen name="dynamic-pricing" options={{ title: 'DYNAMIC PRICING', href: null }} />
         <Tabs.Screen name="settlements" options={{ title: 'SETTLEMENTS', href: null }} />
+        <Tabs.Screen name="payroll" options={{ title: 'PAYROLL', href: null }} />
+        <Tabs.Screen name="budgets" options={{ title: 'BUDGETS', href: null }} />
+        <Tabs.Screen name="fixed-assets" options={{ title: 'FIXED ASSETS', href: null }} />
+        <Tabs.Screen name="invoicing" options={{ title: 'TAX INVOICES', href: null }} />
+        <Tabs.Screen name="promo-codes" options={{ title: 'PROMO CODES', href: null }} />
+        <Tabs.Screen name="business-health" options={{ title: 'BUSINESS HEALTH', href: null }} />
+        <Tabs.Screen name="advanced-reports" options={{ title: 'ADVANCED REPORTS', href: null }} />
+        <Tabs.Screen name="prep-time" options={{ title: 'PREP-TIME ANALYTICS', href: null }} />
+        <Tabs.Screen name="channel-analytics" options={{ title: 'CHANNEL ANALYTICS', href: null }} />
+        <Tabs.Screen name="auto-86" options={{ title: 'AUTO-86 BOARD', href: null }} />
+        <Tabs.Screen name="ondc" options={{ title: 'ONDC', href: null }} />
+        <Tabs.Screen name="leads" options={{ title: 'LEADS', href: null }} />
       </Tabs>
     </>
   );

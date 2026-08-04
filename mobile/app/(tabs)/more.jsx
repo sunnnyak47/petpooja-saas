@@ -263,6 +263,28 @@ const SECTIONS = [
       },
     ],
   },
+  {
+    title: 'Finance',
+    data: [
+      { icon: 'cash', color: '#16a34a', title: 'Payroll', desc: 'Pay runs & payslips', route: '/(tabs)/payroll' },
+      { icon: 'pie-chart', color: '#8b5cf6', title: 'Budgets', desc: 'Budget vs actual', route: '/(tabs)/budgets' },
+      { icon: 'cube', color: '#0ea5e9', title: 'Fixed Assets', desc: 'Assets & depreciation', route: '/(tabs)/fixed-assets' },
+      { icon: 'document-text', color: '#f59e0b', title: 'Tax Invoices', desc: 'Customer invoices', route: '/(tabs)/invoicing' },
+      { icon: 'pricetags', color: '#ec4899', title: 'Promo Codes', desc: 'Coupons & promos', route: '/(tabs)/promo-codes' },
+    ],
+  },
+  {
+    title: 'Insights & Growth',
+    data: [
+      { icon: 'pulse', color: '#16a34a', title: 'Business Health', desc: 'Health score & KPIs', route: '/(tabs)/business-health' },
+      { icon: 'stats-chart', color: '#2563eb', title: 'Advanced Reports', desc: 'Revenue analytics', route: '/(tabs)/advanced-reports' },
+      { icon: 'timer', color: '#f59e0b', title: 'Prep-Time Analytics', desc: 'Kitchen speed', route: '/(tabs)/prep-time' },
+      { icon: 'git-compare', color: '#06b6d4', title: 'Channel Analytics', desc: 'Per-channel sales', route: '/(tabs)/channel-analytics' },
+      { icon: 'ban', color: '#ef4444', title: 'Auto-86 Board', desc: "86'd items by channel", route: '/(tabs)/auto-86' },
+      { icon: 'globe', color: '#6366f1', title: 'ONDC', desc: 'ONDC network', route: '/(tabs)/ondc' },
+      { icon: 'megaphone', color: '#ec4899', title: 'Leads', desc: 'Sales pipeline', route: '/(tabs)/leads' },
+    ],
+  },
 ];
 
 // ─── Feature Card ────────────────────────────────────────────────────────────
