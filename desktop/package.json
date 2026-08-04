@@ -6,6 +6,7 @@
   "homepage": "./",
   "scripts": {
     "start": "electron .",
+    "test:offline": "electron scripts/offline-selftest.js",
     "dev": "concurrently \"npm run frontend\" \"wait-on http://localhost:3001 && electron .\"",
     "frontend": "cd ../frontend && npm run dev",
     "postinstall": "electron-builder install-app-deps",
