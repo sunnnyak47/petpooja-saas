@@ -76,6 +76,25 @@ function extractPrice(q) {
   const any = q.match(/\$\s*(\d+(?:\.\d{1,2})?)|\b(\d+(?:\.\d{1,2})?)\s*(?:dollars|rupees|rs|aud|inr)?\b/i);
   return any ? Number(any[1] || any[2]) : null;
 }
+/**
+ * Work out a NEW price from the question + the item's CURRENT price. Handles
+ * absolute ("to 8.50"), percentage ("by 10%", "up 10%", "down 5%") and flat
+ * relative ("up by $2", "increase by 3") changes. Returns null if unspecified.
+ */
+function computeNewPrice(q, oldPrice) {
+  const s = String(q || '').toLowerCase();
+  const down = /\b(down|decrease|decreased|lower|lowered|reduce|reduced|less|cut|drop|dropped|discount|cheaper)\b/.test(s);
+  const pct = s.match(/(\d+(?:\.\d+)?)\s*(?:%|percent|per\s?cent|pct)/);
+  if (pct) { const p = Number(pct[1]); return down ? oldPrice * (1 - p / 100) : oldPrice * (1 + p / 100); }
+  const toAbs = s.match(/\b(?:to|at|=|be|@)\s*\$?\s*(\d+(?:\.\d{1,2})?)/);
+  if (toAbs) return Number(toAbs[1]);
+  const up = /\b(up|increase|increased|raise|raised|add|added|more|higher|bump|bumped|hike|hiked|by)\b/.test(s);
+  if (up || down) {
+    const amt = s.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+    if (amt) return down ? oldPrice - Number(amt[1]) : oldPrice + Number(amt[1]);
+  }
+  return extractPrice(q);
+}
 function extractPhone(q) {
   const m = String(q).replace(/[^\d+]/g, ' ').match(/(\+?\d[\d ]{7,14}\d)/);
   return m ? m[1].replace(/\s/g, '') : null;
@@ -329,16 +348,23 @@ const ACTIONS = [
     label: "change a menu item's price",
     permission: 'MANAGE_MENU',
     keywords: ['change price', 'change the price', 'update price', 'set price', 'adjust price', 'new price', 'reprice', 'change cost', 'set the price', 'price to', 'update the price'],
+    // Catches "update <item> price", "change <item>'s price to 12", "increase the
+    // <item> price by 10%" — where the item name sits between the verb and "price".
+    match: /(\b(update|updated|updating|change|changing|set|adjust|adjusting|revise|reprice|increase|increasing|decrease|decreasing|raise|lower|reduce|drop|bump|hike|markup|mark up)\b[\s\S]{0,40}\b(price|cost)\b)|(\b(price|cost)\b[\s\S]{0,20}\b(to|by|=|@)\b\s*\$?\d)/i,
     async extract(ctx, q) {
-      const price = extractPrice(q);
-      if (price == null || !(price >= 0)) return { error: 'What price should I set? (e.g. "set garlic naan to 8.50")' };
-      const name = isolateName(q);
+      // Resolve the item FIRST — a relative change ("by 10%") needs its current price.
+      const name = isolateName(q, ['increase', 'increased', 'decrease', 'decreased', 'reduce', 'reduced', 'reprice', 'revise', 'revised', 'by', 'up', 'down', 'percent', 'per', 'cent', 'pct', 'pc', 'add', 'more', 'less', 'bump', 'hike', 'higher', 'cheaper', 'discount', 'put', 'make', 'bring', 'move']);
       if (!name) return { error: 'Which item’s price should I change?' };
       const matches = await resolveMenuItem(ctx.outletId, name);
       if (!matches.length) return { error: `I couldn't find a menu item matching "${name}".` };
       if (matches.length > 1) return { error: `"${name}" matched ${matches.length} items (${matches.slice(0, 4).map((m) => m.name).join(', ')}). Which one?` };
       const item = matches[0];
-      return { params: { item_id: item.id, item_name: item.name, old_price: Number(item.base_price) || 0, new_price: price } };
+      const oldPrice = Number(item.base_price) || 0;
+      const newPrice = computeNewPrice(q, oldPrice);
+      if (newPrice == null || !(newPrice >= 0)) {
+        return { error: `What should "${item.name}"'s new price be? e.g. "set ${item.name} to 8.50" or "increase it by 10%".` };
+      }
+      return { params: { item_id: item.id, item_name: item.name, old_price: oldPrice, new_price: round2(newPrice) } };
     },
     plan(ctx, p) {
       return { summary: `Change the price of "${p.item_name}" from ${money(ctx.currency, p.old_price)} to ${money(ctx.currency, p.new_price)}` };
@@ -603,6 +629,10 @@ function detectAction(question) {
   for (const a of ACTIONS) {
     let score = 0;
     for (const k of a.keywords) if (q.includes(k)) score += k.trim().split(/\s+/).length;
+    // An action may also declare a `match` regex for intents its keywords can't
+    // catch as contiguous substrings (e.g. "update <item> price", where the item
+    // name sits between the verb and "price"). A regex hit is a strong signal.
+    if (a.match && a.match.test(q)) score += 3;
     if (score > bestScore) { bestScore = score; best = a; }
   }
   return bestScore > 0 ? best : null;

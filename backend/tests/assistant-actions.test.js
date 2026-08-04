@@ -93,6 +93,27 @@ describe('buildActionPreview — never mutates', () => {
     expect(mockMenu.updateMenuItem).not.toHaveBeenCalled(); // preview must not write
     expect(actions.verifyActionToken(p.token).params.item_id).toBe('m1');
   });
+  test('detects "update <item> price" (verb + item + price non-adjacent)', () => {
+    expect(actions.detectAction('update paneer tikka price')?.name).toBe('adjust_price');
+    expect(actions.detectAction("change paneer tikka's price to 15")?.name).toBe('adjust_price');
+    expect(actions.detectAction('increase the paneer tikka price by 10%')?.name).toBe('adjust_price');
+    // a READ price question is NOT a write action
+    expect(actions.detectAction('what is the price of paneer tikka')).toBeNull();
+  });
+  test('"update <item> price" with no amount → clarify for the new price', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'update paneer tikka price');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/new price/i);
+    expect(mockMenu.updateMenuItem).not.toHaveBeenCalled();
+  });
+  test('relative percentage change computes from the current price', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'increase paneer tikka price by 10%');
+    expect(p.summary).toMatch(/13\.20/); // 12.00 → +10% = 13.20
+  });
+  test('relative flat change ("up by 3")', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'put the paneer tikka price up by 3');
+    expect(p.summary).toMatch(/15\.00/); // 12 + 3
+  });
   test('adjust_price shows old → new', async () => {
     const p = await actions.buildActionPreview(OWNER, 'change paneer tikka price to 15');
     expect(p.summary).toMatch(/from .*12.* to .*15/);
