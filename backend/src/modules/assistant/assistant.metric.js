@@ -7,8 +7,11 @@
  * SAFE BY CONSTRUCTION — there is NO arbitrary SQL and no free-form query:
  *   - metric + dimension come from fixed WHITELISTS (unknown → null, we bow out);
  *   - data is a single BOUNDED, outlet-scoped, parameterized order.findMany
- *     (fixed scalar fields, date-range where, capped rows) aggregated in JS, or
- *     the existing reports.getItemWiseSales for by-item;
+ *     (fixed scalar fields, date-range where, capped rows) aggregated in JS —
+ *     with a bounded, soft-delete-filtered payments/staff include for the
+ *     by-payment / by-staff breakdowns — or the existing
+ *     reports.getItemWiseSales (by-item) / reports.getCategoryWiseSales
+ *     (by-category) services;
  *   - timeframe reuses the export date-range parser.
  * It runs only as a FALLBACK when the router matched no fixed tool, so it never
  * changes existing single-tool behaviour.
@@ -35,10 +38,24 @@ const METRICS = {
   net_sales: { words: ['net sales', 'subtotal', 'net revenue', 'pre-tax', 'pre tax'], field: 'subtotal', money: true, label: 'Net sales' },
   avg_order: { words: ['average order', 'avg order', 'average bill', 'average spend', 'average ticket', 'average basket'], avg: true, money: true, label: 'Average order value' },
 };
+// Attribute a (possibly split-payment) order to its dominant tender — the
+// payment with the largest amount — so each order lands in exactly ONE payment
+// bucket, keeping the same one-order-one-bucket shape as the other JS dims.
+// Orders with no payment fall into 'unpaid'; a payment missing a method → 'other'.
+function primaryPaymentMethod(o) {
+  const ps = Array.isArray(o.payments) ? o.payments : [];
+  if (!ps.length) return 'unpaid';
+  let best = ps[0];
+  for (const p of ps) if (Number(p.amount || 0) > Number(best.amount || 0)) best = p;
+  return best.method || 'other';
+}
 // dimension → how to bucket
 const DIMENSIONS = {
   by_item: { words: ['by item', 'per item', 'item-wise', 'item wise', 'by dish', 'by product', 'by menu item'], item: true, label: 'by item' },
+  by_category: { words: ['by category', 'per category', 'category-wise', 'category wise', 'by menu category', 'by section'], category: true, label: 'by category' },
   by_channel: { words: ['by channel', 'by order type', 'per channel', 'by type', 'channel split', 'dine-in vs', 'takeaway vs', 'delivery vs'], key: (o) => o.order_type || 'other', label: 'by channel' },
+  by_payment: { words: ['by payment method', 'by payment', 'by payment type', 'by tender', 'by mode of payment', 'payment method split', 'payment split', 'payment-wise', 'payment wise'], key: (o) => primaryPaymentMethod(o), needsPayments: true, label: 'by payment method' },
+  by_staff: { words: ['by staff', 'by employee', 'by cashier', 'by server', 'by waiter', 'by team member', 'per staff', 'per employee', 'staff-wise', 'staff wise'], key: (o) => (o.staff && o.staff.full_name ? o.staff.full_name : 'Unassigned'), needsStaff: true, label: 'by staff' },
   by_hour: { words: ['by hour', 'per hour', 'hourly', 'hour by hour', 'busiest hour', 'by time of day', 'time of day'], key: (o) => `${pad(new Date(o.created_at).getHours())}:00`, label: 'by hour' },
   by_day: { words: ['by day', 'per day', 'daily', 'day by day', 'each day', 'day-wise', 'day wise', 'day on day'], key: (o) => ymd(o.created_at), label: 'by day' },
 };
@@ -64,8 +81,13 @@ function detectMetricQuery(question, now = new Date()) {
   return { metric: metric.name, dimension: dim.name, from: range.from, to: range.to, range_label: range.label };
 }
 
-async function fetchOrders(outletId, from, to) {
+async function fetchOrders(outletId, from, to, ddef) {
   const prisma = getDbClient();
+  // Base scalars every dimension needs; the payment/staff dims add one bounded,
+  // soft-delete-filtered relation each (fixed fields only — still no free SQL).
+  const select = { grand_total: true, discount_amount: true, subtotal: true, order_type: true, created_at: true };
+  if (ddef && ddef.needsStaff) select.staff = { select: { full_name: true } };
+  if (ddef && ddef.needsPayments) select.payments = { where: { is_deleted: false }, select: { method: true, amount: true } };
   return prisma.order.findMany({
     where: {
       outlet_id: outletId,
@@ -73,7 +95,7 @@ async function fetchOrders(outletId, from, to) {
       status: { notIn: ['cancelled', 'voided', 'refunded'] },
       created_at: { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59`) },
     },
-    select: { grand_total: true, discount_amount: true, subtotal: true, order_type: true, created_at: true },
+    select,
     take: MAX_ROWS,
   });
 }
@@ -99,7 +121,19 @@ async function runMetric(ctx, spec) {
     return { ...base, rows, total: rows.reduce((s, x) => s + x.value, 0) };
   }
 
-  const orders = await fetchOrders(ctx.outletId, spec.from, spec.to);
+  if (ddef.category) {
+    // Revenue-native breakdown from the bounded category-wise groupBy service
+    // (per-item item_total rolled up to category). It returns revenue only, so
+    // that is the value regardless of metric — we never fabricate other fields.
+    const r = await reports.getCategoryWiseSales(ctx.outletId, spec.from, spec.to);
+    const rows = (Array.isArray(r) ? r : []).map((c) => ({
+      bucket: c.category,
+      value: Math.round(Number(c.revenue || 0) * 100) / 100,
+    })).sort((a, b) => b.value - a.value);
+    return { ...base, rows, total: rows.reduce((s, x) => s + x.value, 0) };
+  }
+
+  const orders = await fetchOrders(ctx.outletId, spec.from, spec.to, ddef);
   const groups = {};
   for (const o of orders) { const k = ddef.key(o); (groups[k] = groups[k] || []).push(o); }
   const rows = Object.entries(groups)
