@@ -10,6 +10,8 @@ const {
   DEFAULT_TZ, safeTz, dayKeyInTz, hourInTz, weekdayInTz,
 } = require('./report-helpers');
 const { cached, getPersisted, setPersisted } = require('../../utils/reportCache');
+const { BadRequestError } = require('../../utils/errors');
+const { resolveOutletTaxConfig } = require('../../utils/outlet');
 
 /**
  * Resolve the bucketing timezone for an outlet's reports.
@@ -258,11 +260,20 @@ async function getItemWiseSales(outletId, from, to, topN = 20) {
 async function getRevenueTrend(outletId, from, to) {
   const prisma = getDbClient();
   try {
-    return await cached(`revenue-trend:${outletId}:${new Date(from).toISOString()}:${new Date(to).toISOString()}`, TTL.SHORT, async () => {
+    // Guard: coerce/validate the range up front. Without this, an omitted from/to
+    // made new Date(undefined).toISOString() throw a RangeError in the cache key,
+    // which the global handler surfaced as HTTP 500 (and Prisma would then reject
+    // the Invalid Date). Return a clean 400 instead.
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      throw new BadRequestError('from and to are required (YYYY-MM-DD)');
+    }
+    return await cached(`revenue-trend:${outletId}:${fromDate.toISOString()}:${toDate.toISOString()}`, TTL.SHORT, async () => {
     const summaries = await prisma.dailySummary.findMany({
       where: {
         outlet_id: outletId,
-        summary_date: { gte: new Date(from), lte: new Date(to) },
+        summary_date: { gte: fromDate, lte: toDate },
       },
       orderBy: { summary_date: 'asc' },
     });
@@ -536,15 +547,17 @@ async function getGstReport(outletId, from, to, tz) {
   });
 }
 
-async function getStaffPerformance(outletId, from, to) {
+async function getStaffPerformance(outletId, from, to, tz) {
   const prisma = getDbClient();
-  const fromDate = from ? new Date(from) : new Date();
-  if(!from) fromDate.setHours(0,0,0,0);
-  const toDate = to ? new Date(to) : new Date();
-  if(!to) toDate.setDate(toDate.getDate() + 1);
+  // Use the shared half-open [start, end) day boundaries in the outlet tz. The old
+  // `lte: toDate` where an explicit YYYY-MM-DD `to` parsed to 00:00:00Z excluded the
+  // ENTIRE final day, so single-day / last-day queries returned near-zero rows.
+  // Mirrors getGstReport/getItemWiseSales.
+  const outletTz = await resolveOutletTz(prisma, outletId, tz);
+  const { start, end } = getDateRange(from, to, outletTz);
 
-  return await cached(`staff-perf:${outletId}:${from || 'd'}:${to || 'd'}`, TTL.MEDIUM, async () => {
-    const where = { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: fromDate, lte: toDate } };
+  return await cached(`staff-perf:${outletId}:${from || 'd'}:${to || 'd'}:${outletTz}`, TTL.MEDIUM, async () => {
+    const where = { outlet_id: outletId, is_deleted: false, status: { notIn: ['cancelled', 'voided'] }, created_at: { gte: start, lt: end } };
 
     // Aggregate orders/revenue/discounts per staff_id in the DB.
     // (status excludes 'voided', so the legacy void branch was dead → voids = 0,
@@ -1045,6 +1058,10 @@ async function getBASReport(outletId, from, to) {
         outlet_id: outletId,
         created_at: { gte: new Date(from), lte: new Date(to) },
         is_deleted: false,
+        // Exclude cancelled/voided orders — they persist with total_amount and
+        // would otherwise inflate G1 sales and GST collected. Matches every other
+        // order aggregation in this file.
+        status: { notIn: ['cancelled', 'voided'] },
       },
       select: { total_amount: true, total_tax: true },
     });
@@ -1248,7 +1265,17 @@ async function getAdvancedReport(outletId, range = 'week', tz) {
     const overheads = round2(netRevenue * 0.15);
     const totalExpenses = round2(foodCost + staffCost + overheads);
     const grossProfit = round2(netRevenue - foodCost);
-    const netProfit = round2(netRevenue - totalExpenses - totalTax);
+    // Tax convention: for exclusive-tax markets (India, the default) `subtotal` is
+    // pre-tax, so netRevenue is already tax-exclusive and subtracting totalTax again
+    // double-counts and understates net_profit. Only strip tax for inclusive-tax
+    // markets (AU), where subtotal includes GST. resolveOutletTaxConfig mirrors the
+    // order write path (fetch outlet WITH head_office for every AU/IN signal).
+    const outletRow = await prisma.outlet.findUnique({
+      where: { id: outletId },
+      include: { head_office: true },
+    });
+    const { gst_inclusive: gstInclusive } = resolveOutletTaxConfig(outletRow || {});
+    const netProfit = round2(netRevenue - totalExpenses - (gstInclusive ? totalTax : 0));
 
     const profit_loss = {
       gross_revenue: round2(grossRevenue),

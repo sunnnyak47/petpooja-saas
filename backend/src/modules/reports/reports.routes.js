@@ -71,7 +71,7 @@ router.get('/topSellingItems', authenticate, hasPermission('VIEW_DASHBOARD'), en
 /** GET /api/reports/daily-sales?date=YYYY-MM-DD */
 router.get('/daily-sales', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const data = await reportsService.getDailySales(outletId, date);
     sendSuccess(res, data, 'Daily sales report');
@@ -81,7 +81,7 @@ router.get('/daily-sales', authenticate, hasPermission('VIEW_REPORTS'), enforceO
 /** GET /api/reports/item-wise?from=&to=&top= */
 router.get('/item-wise', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getItemWiseSales(
       outletId, req.query.from, req.query.to, parseInt(req.query.top) || 20
     );
@@ -92,7 +92,7 @@ router.get('/item-wise', authenticate, hasPermission('VIEW_REPORTS'), enforceOut
 /** GET /api/reports/revenue-trend?from=&to= */
 router.get('/revenue-trend', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getRevenueTrend(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'Revenue trend report');
   } catch (error) { next(error); }
@@ -101,7 +101,7 @@ router.get('/revenue-trend', authenticate, hasPermission('VIEW_REPORTS'), enforc
 /** GET /api/reports/hourly?date= */
 router.get('/hourly', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const data = await reportsService.getHourlyBreakdown(outletId, date);
     sendSuccess(res, data, 'Hourly breakdown report');
@@ -111,7 +111,7 @@ router.get('/hourly', authenticate, hasPermission('VIEW_REPORTS'), enforceOutlet
 /** GET /api/reports/categoryWiseSales?from=&to= */
 router.get('/categoryWiseSales', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getCategoryWiseSales(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'Category wise sales');
   } catch (error) { next(error); }
@@ -120,7 +120,7 @@ router.get('/categoryWiseSales', authenticate, hasPermission('VIEW_REPORTS'), en
 /** GET /api/reports/gstReport?from=&to= */
 router.get('/gstReport', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getGstReport(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'GST report');
   } catch (error) { next(error); }
@@ -129,7 +129,7 @@ router.get('/gstReport', authenticate, hasPermission('VIEW_REPORTS'), enforceOut
 /** GET /api/reports/staffPerformance?from=&to= */
 router.get('/staffPerformance', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getStaffPerformance(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'Staff performance');
   } catch (error) { next(error); }
@@ -138,7 +138,7 @@ router.get('/staffPerformance', authenticate, hasPermission('VIEW_REPORTS'), enf
 /** GET /api/reports/gstDetailed?from=&to= */
 router.get('/gstDetailed', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getGstDetailedReport(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'GST detailed report');
   } catch (error) { next(error); }
@@ -147,7 +147,7 @@ router.get('/gstDetailed', authenticate, hasPermission('VIEW_REPORTS'), enforceO
 /** GET /api/reports/exportGst?from=&to=&type=gstr1|gstr3b|hsn|rate_wise */
 router.get('/exportGst', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const { from, to, type = 'gstr1' } = req.query;
     const csv = await reportsService.exportGstCsv(outletId, from, to, type);
     const filename = `GST_${type}_${from}_to_${to}.csv`;
@@ -160,8 +160,8 @@ router.get('/exportGst', authenticate, hasPermission('VIEW_REPORTS'), enforceOut
 /** GET /api/reports/export */
 router.get('/export', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const { type = 'full', outlet_id, from, to } = req.query;
-    const outletId = outlet_id || req.user.outlet_id;
+    const { type = 'full', from, to } = req.query;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
 
     if (['gstr1', 'gstr3b', 'hsn', 'rate_wise'].includes(type)) {
       const csv = await reportsService.exportGstCsv(outletId, from, to, type);
@@ -184,7 +184,7 @@ router.get('/export', authenticate, hasPermission('VIEW_REPORTS'), enforceOutlet
 router.get('/franchise-kpis', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const { sendSuccess } = require('../../utils/response');
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getFranchiseKPIs(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'Franchise KPIs');
   } catch (error) { next(error); }
@@ -194,7 +194,7 @@ router.get('/franchise-kpis', authenticate, hasPermission('VIEW_REPORTS'), enfor
 router.get('/inventory-valuation', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const { sendSuccess } = require('../../utils/response');
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getInventoryValuation(outletId);
     sendSuccess(res, data, 'Inventory valuation');
   } catch (error) { next(error); }
@@ -204,7 +204,7 @@ router.get('/inventory-valuation', authenticate, hasPermission('VIEW_REPORTS'), 
 router.get('/revenue-trend-range', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const { sendSuccess } = require('../../utils/response');
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const data = await reportsService.getRevenueTrendRange(outletId, req.query.from, req.query.to);
     sendSuccess(res, data, 'Revenue trend');
   } catch (error) { next(error); }
@@ -213,7 +213,7 @@ router.get('/revenue-trend-range', authenticate, hasPermission('VIEW_REPORTS'), 
 router.get('/bas-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const { sendSuccess } = require('../../utils/response');
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const { from, to } = req.query;
     const data = await reportsService.getBASReport(outletId, from, to);
     sendSuccess(res, data, 'BAS report');
@@ -226,7 +226,7 @@ router.get('/bas-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOu
  */
 router.get('/advanced', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const range = req.query.range || 'week';
     const data = await reportsService.getAdvancedReport(outletId, range);
     sendSuccess(res, data, 'Advanced report retrieved');
@@ -241,7 +241,7 @@ router.get('/advanced', authenticate, hasPermission('VIEW_REPORTS'), enforceOutl
 router.get('/forecast', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const { getDemandForecast } = require('./forecast.service');
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     if (!outletId) return res.status(400).json({ success: false, message: 'Outlet ID required' });
     const data = await getDemandForecast(outletId);
     sendSuccess(res, data, 'Demand forecast');
@@ -251,7 +251,7 @@ router.get('/forecast', authenticate, hasPermission('VIEW_REPORTS'), enforceOutl
 /** GET /api/reports/payment-breakdown?outlet_id=&from=&to= */
 router.get('/payment-breakdown', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const from = req.query.from;
     const to = req.query.to;
     if (!from || !to) return res.status(400).json({ success: false, message: 'from and to date params required' });
@@ -267,7 +267,7 @@ router.get('/payment-breakdown', authenticate, hasPermission('VIEW_REPORTS'), en
  */
 router.get('/summary', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
-    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const outletId = await resolveOutletId(req); // tenant-verify: owner/super_admin bypass enforceOutletScope, so raw outlet_id was a cross-tenant IDOR
     const range = req.query.range || '7d';
 
     // Map range string to a day count used by the existing services

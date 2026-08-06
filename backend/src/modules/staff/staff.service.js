@@ -267,8 +267,17 @@ async function addCertification(userId, outletId, data) {
   });
 }
 
-async function deleteCertification(certId) {
+async function deleteCertification(certId, user) {
   const prisma = getDbClient();
+  // Tenant guard: resolve the cert's owning outlet and assert it belongs to the
+  // caller's tenant before deactivating — without this any MANAGE_STAFF holder
+  // could soft-delete another tenant's certification by raw id (cross-tenant IDOR).
+  const cert = await prisma.staffCertification.findFirst({
+    where: { id: certId },
+    select: { outlet_id: true },
+  });
+  if (!cert) throw new NotFoundError('Staff record not found');
+  await assertOutletInTenant(cert.outlet_id, user);
   return await prisma.staffCertification.update({
     where: { id: certId },
     data: { is_active: false },

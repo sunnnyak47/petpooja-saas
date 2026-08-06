@@ -219,6 +219,12 @@ async function salesRows(outletId, from, to) {
 }
 
 async function eodRows(outletId, from, to) {
+  // Guard: EOD builds one snapshot per day and dateList() hard-caps iteration at
+  // MAX_RANGE_DAYS, so a longer range would silently sum only the first
+  // MAX_RANGE_DAYS days while the filename/header still claim the full period.
+  // Reject over-long ranges so the label always matches the computed data.
+  const days = Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000) + 1;
+  if (days > MAX_RANGE_DAYS) throw new Error(`EOD export range is limited to ${MAX_RANGE_DAYS} days — please request a shorter period.`);
   const columns = [
     { label: 'Date', align: 'left' },
     { label: 'Orders', align: 'right' },
@@ -347,7 +353,12 @@ async function payrollTable(outletId) {
 
 // ── CSV / PDF renderers ──────────────────────────────────────────────────────
 function csvEscape(v) {
-  const s = String(v ?? '');
+  let s = String(v ?? '');
+  // Neutralise spreadsheet formula injection (CWE-1236): a staff-editable name
+  // like "=HYPERLINK(...)" would execute when the owner opens the export. Prefix
+  // a single quote on cells starting with a formula trigger — but NOT on plain
+  // numbers, so negative money cells (e.g. "-5.00") aren't corrupted.
+  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

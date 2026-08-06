@@ -41,7 +41,10 @@ async function getOverview(outletId, range = 'year') {
     if (t.account_type === 'EXPENSE' || t.account_type === 'DIRECTCOSTS' || t.account_type === 'OVERHEADS') {
       total_expenses += Math.abs(amt);
     }
-    if (t.type === 'Sales Invoice') {
+    // BUG FIX: neither producer ever sets type 'Sales Invoice' (demo + sync both use
+    // 'ACCREC'/'ACCPAY'), so total_orders was always 0 on GET /api/xero/overview.
+    // Key off the revenue account_type like the rest of this file.
+    if (t.account_type === 'REVENUE') {
       total_orders += 1;
     }
   }
@@ -112,14 +115,16 @@ async function getOverview(outletId, range = 'year') {
   }
 
   // --- YoY comparison ---
-  // Use the latest year in the data (not current calendar year) to handle demo/historical data
-  let latestYear = new Date().getFullYear();
+  // Use the latest year in the data (not current calendar year) to handle demo/historical data.
+  // BUG FIX: the old `latestYear === currentYear` clause let any non-current-year row
+  // clobber latestYear downward over an unordered findMany, so latestYear ended up as
+  // the last-iterated revenue row's year (reachable with the default 'year' range whose
+  // window spans two calendar years). Take a deterministic true max instead.
+  let latestYear = -Infinity;
   for (const t of txns) {
-    if (t.account_type === 'REVENUE') {
-      const y = new Date(t.date).getFullYear();
-      if (y > latestYear || latestYear === new Date().getFullYear()) latestYear = y;
-    }
+    if (t.account_type === 'REVENUE') latestYear = Math.max(latestYear, new Date(t.date).getFullYear());
   }
+  if (!isFinite(latestYear)) latestYear = new Date().getFullYear();
   // If we found data years, use the latest; otherwise fall back to current year
   const currentYearStart = new Date(latestYear, 0, 1);
   const prevYearStart = new Date(latestYear - 1, 0, 1);

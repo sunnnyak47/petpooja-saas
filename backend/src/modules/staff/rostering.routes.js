@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const svc = require('./rostering.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+const { hasPermission } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const {
   createRosterSchema,
@@ -74,31 +75,32 @@ router.delete('/:id([0-9a-f-]{36})', authenticate, async (req, res, next) => {
 });
 
 // ── Assignments ──────────────────────────────────────────────────────────
-router.post('/:id([0-9a-f-]{36})/assignments', authenticate, validate(addAssignmentSchema), async (req, res, next) => {
+router.post('/:id([0-9a-f-]{36})/assignments', authenticate, hasPermission('MANAGE_STAFF'), validate(addAssignmentSchema), async (req, res, next) => {
   try {
-    const result = await svc.addAssignment(req.params.id, req.body);
+    // Pass req.user so the service can assert the roster's outlet is in the caller's tenant (blocks cross-tenant IDOR).
+    const result = await svc.addAssignment(req.params.id, req.body, req.user);
     sendSuccess(res, result, 'Assignment added');
   } catch (e) { next(e); }
 });
 
-router.patch('/assignments/:assignmentId', authenticate, validate(updateAssignmentSchema), async (req, res, next) => {
+router.patch('/assignments/:assignmentId', authenticate, hasPermission('MANAGE_STAFF'), validate(updateAssignmentSchema), async (req, res, next) => {
   try {
-    const result = await svc.updateAssignment(req.params.assignmentId, req.body);
+    const result = await svc.updateAssignment(req.params.assignmentId, req.body, req.user);
     sendSuccess(res, result, 'Assignment updated');
   } catch (e) { next(e); }
 });
 
-router.delete('/assignments/:assignmentId', authenticate, async (req, res, next) => {
+router.delete('/assignments/:assignmentId', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
   try {
-    await svc.deleteAssignment(req.params.assignmentId);
+    await svc.deleteAssignment(req.params.assignmentId, req.user);
     sendSuccess(res, null, 'Assignment removed');
   } catch (e) { next(e); }
 });
 
 // ── Availability ─────────────────────────────────────────────────────────
-router.post('/staff/:staffId/availability', authenticate, validate(setAvailabilitySchema), async (req, res, next) => {
+router.post('/staff/:staffId/availability', authenticate, hasPermission('MANAGE_STAFF'), validate(setAvailabilitySchema), async (req, res, next) => {
   try {
-    const result = await svc.setAvailability(req.params.staffId, req.body);
+    const result = await svc.setAvailability(req.params.staffId, req.body, req.user);
     sendSuccess(res, result, 'Availability updated');
   } catch (e) { next(e); }
 });
@@ -119,10 +121,11 @@ router.get('/available-staff', authenticate, async (req, res, next) => {
 });
 
 // ── Certifications ───────────────────────────────────────────────────────
-router.post('/certifications', authenticate, validate(addCertificationSchema), async (req, res, next) => {
+router.post('/certifications', authenticate, hasPermission('MANAGE_STAFF'), validate(addCertificationSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
-    const result = await svc.addCertification(outletId, req.body.staff_id, req.body);
+    // Pass req.user so the service asserts the target outlet is in the caller's tenant.
+    const result = await svc.addCertification(outletId, req.body.staff_id, req.body, req.user);
     sendSuccess(res, result, 'Certification added');
   } catch (e) { next(e); }
 });
@@ -151,9 +154,9 @@ router.get('/staff/:staffId/certifications', authenticate, async (req, res, next
   } catch (e) { next(e); }
 });
 
-router.patch('/certifications/:id', authenticate, validate(updateCertificationSchema), async (req, res, next) => {
+router.patch('/certifications/:id', authenticate, hasPermission('MANAGE_STAFF'), validate(updateCertificationSchema), async (req, res, next) => {
   try {
-    const result = await svc.updateCertification(req.params.id, req.body);
+    const result = await svc.updateCertification(req.params.id, req.body, req.user);
     sendSuccess(res, result, 'Certification updated');
   } catch (e) { next(e); }
 });

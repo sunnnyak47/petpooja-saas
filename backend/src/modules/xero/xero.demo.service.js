@@ -36,6 +36,11 @@ async function seedDemoData(outletId) {
     },
   });
 
+  // BUG FIX: wrap steps 2–9 so a mid-seed failure doesn't leave an orphan connection
+  // row. The findFirst idempotency check above would otherwise permanently return
+  // {skipped:true}, blocking every re-seed until a manual DELETE /api/xero/demo. On
+  // error, roll back the partial data (best-effort) and rethrow.
+  try {
   // ── 2. Chart of Accounts ─────────────────────────────────────────────────
   const accounts = [
     { code: '200', name: 'Food & Beverage Revenue', type: 'REVENUE',  category: 'Revenue' },
@@ -306,6 +311,12 @@ async function seedDemoData(outletId) {
   await prisma.xeroTrackingSummary.createMany({ data: trackRows });
 
   return { skipped: false, connection_id: conn.id, transactions: txnRows.length };
+  } catch (err) {
+    // Roll back any partial seed so the outlet can be re-seeded; best-effort so a
+    // cleanup failure doesn't mask the original error being rethrown.
+    try { await clearDemoData(outletId); } catch (_) { /* ignore */ }
+    throw err;
+  }
 }
 
 /**

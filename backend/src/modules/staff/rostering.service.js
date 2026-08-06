@@ -3,6 +3,9 @@
  */
 const prisma = require('../../config/database').getDbClient();
 const { NotFoundError, BadRequestError } = require('../../utils/errors');
+// Reused for cross-tenant (head-office) ownership checks on write paths. Safe to
+// require here — staff.service does not depend on this module, so there is no cycle.
+const { assertOutletInTenant } = require('./staff.service');
 
 const rosteringService = {
   // ── Roster CRUD ──────────────────────────────────────────────────────
@@ -52,11 +55,14 @@ const rosteringService = {
   },
 
   async updateRoster(rosterId, outletId, data) {
-    return prisma.roster.update({
-      where: { id: rosterId },
-      data: { ...data, updated_at: new Date() },
-      include: { assignments: true }
+    // Scope the mutation by outlet_id (like publishRoster/getRosterById) and 404 on
+    // miss — keying solely on id let any tenant edit another outlet's roster (IDOR).
+    const r = await prisma.roster.updateMany({
+      where: { id: rosterId, outlet_id: outletId },
+      data: { ...data, updated_at: new Date() }
     });
+    if (r.count === 0) throw new NotFoundError('Roster not found');
+    return this.getRosterById(rosterId, outletId);
   },
 
   async publishRoster(rosterId, outletId) {
@@ -73,12 +79,21 @@ const rosteringService = {
   },
 
   async deleteRoster(rosterId, outletId) {
+    // Verify the roster belongs to this outlet before deleting — keying solely on id
+    // let any tenant delete another outlet's roster (IDOR).
+    const roster = await prisma.roster.findFirst({ where: { id: rosterId, outlet_id: outletId } });
+    if (!roster) throw new NotFoundError('Roster not found');
     await prisma.rosterAssignment.deleteMany({ where: { roster_id: rosterId } });
     return prisma.roster.delete({ where: { id: rosterId } });
   },
 
   // ── Assignments ──────────────────────────────────────────────────────
-  async addAssignment(rosterId, { staff_id, date, start_time, end_time, role_label, notes }) {
+  async addAssignment(rosterId, { staff_id, date, start_time, end_time, role_label, notes }, user) {
+    // Tenant guard: resolve the roster's owning outlet and assert it belongs to the
+    // caller's tenant — blocks cross-tenant assignment writes by raw roster id (IDOR).
+    const roster = await prisma.roster.findFirst({ where: { id: rosterId }, select: { outlet_id: true } });
+    if (!roster) throw new NotFoundError('Roster not found');
+    await assertOutletInTenant(roster.outlet_id, user);
     return prisma.rosterAssignment.create({
       data: {
         roster_id: rosterId,
@@ -94,7 +109,15 @@ const rosteringService = {
     });
   },
 
-  async updateAssignment(assignmentId, data) {
+  async updateAssignment(assignmentId, data, user) {
+    // Tenant guard: resolve the parent roster's outlet and assert tenant ownership
+    // before mutating — blocks cross-tenant edits of assignments by raw id (IDOR).
+    const existing = await prisma.rosterAssignment.findFirst({
+      where: { id: assignmentId },
+      select: { roster: { select: { outlet_id: true } } },
+    });
+    if (!existing) throw new NotFoundError('Assignment not found');
+    await assertOutletInTenant(existing.roster.outlet_id, user);
     return prisma.rosterAssignment.update({
       where: { id: assignmentId },
       data,
@@ -102,12 +125,28 @@ const rosteringService = {
     });
   },
 
-  async deleteAssignment(assignmentId) {
+  async deleteAssignment(assignmentId, user) {
+    // Tenant guard: same ownership check before deleting an assignment by raw id.
+    const existing = await prisma.rosterAssignment.findFirst({
+      where: { id: assignmentId },
+      select: { roster: { select: { outlet_id: true } } },
+    });
+    if (!existing) throw new NotFoundError('Assignment not found');
+    await assertOutletInTenant(existing.roster.outlet_id, user);
     return prisma.rosterAssignment.delete({ where: { id: assignmentId } });
   },
 
   // ── Staff Availability ───────────────────────────────────────────────
-  async setAvailability(staffId, { day_of_week, available, start_time, end_time, notes }) {
+  async setAvailability(staffId, { day_of_week, available, start_time, end_time, notes }, user) {
+    // Tenant guard: staffAvailability has no outlet column, so resolve the staff's
+    // outlet via their userRole and assert tenant ownership — blocks writing another
+    // tenant's availability by raw staff id (IDOR).
+    const roleRow = await prisma.userRole.findFirst({
+      where: { user_id: staffId, is_deleted: false },
+      select: { outlet_id: true },
+    });
+    if (!roleRow) throw new NotFoundError('Staff not found');
+    await assertOutletInTenant(roleRow.outlet_id, user);
     return prisma.staffAvailability.upsert({
       where: { staff_id_day_of_week: { staff_id: staffId, day_of_week } },
       create: { staff_id: staffId, day_of_week, available, start_time, end_time, notes },
@@ -154,7 +193,10 @@ const rosteringService = {
   },
 
   // ── Certifications ───────────────────────────────────────────────────
-  async addCertification(outletId, staffId, data) {
+  async addCertification(outletId, staffId, data, user) {
+    // Tenant guard: assert the target outlet belongs to the caller's tenant before
+    // creating a cert there — blocks writing certs into a foreign outlet (IDOR).
+    await assertOutletInTenant(outletId, user);
     return prisma.staffCertification.create({
       data: {
         outlet_id: outletId,
@@ -191,7 +233,15 @@ const rosteringService = {
     });
   },
 
-  async updateCertification(certId, data) {
+  async updateCertification(certId, data, user) {
+    // Tenant guard: resolve the cert's outlet and assert tenant ownership before
+    // mutating — blocks editing another tenant's certification by raw id (IDOR).
+    const cert = await prisma.staffCertification.findFirst({
+      where: { id: certId },
+      select: { outlet_id: true },
+    });
+    if (!cert) throw new NotFoundError('Certification not found');
+    await assertOutletInTenant(cert.outlet_id, user);
     return prisma.staffCertification.update({ where: { id: certId }, data });
   },
 

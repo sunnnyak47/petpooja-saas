@@ -49,17 +49,31 @@ async function getBalanceSheet(outletId, range = 'all') {
       sub_type: l.sub_type,
       balance: round(Number(l.balance)),
     };
-    if (l.account_type === 'ASSET') {
-      assets.push(item);
-      totalAssets += Number(l.balance);
-      if (l.sub_type === 'CURRENT') currentAssets += Number(l.balance);
-    } else if (l.account_type === 'LIABILITY') {
-      liabilities.push(item);
-      totalLiabilities += Number(l.balance);
-      if (l.sub_type === 'CURRENT') currentLiabilities += Number(l.balance);
-    } else if (l.account_type === 'EQUITY') {
+    // BUG FIX: the old 'ASSET'/'LIABILITY' account_type checks never matched, so
+    // assets, liabilities and every ratio were always zero. Neither producer emits
+    // those values: the real Xero sync writes BANK/CURRENT/FIXED (assets) and
+    // CURRENT_LIABILITY/NON_CURRENT (liabilities), while the demo seeder tags BOTH
+    // current assets and current liabilities as 'CURRENT' and only distinguishes them
+    // via sub_type ('CurrentAssets' vs 'CurrentLiabilities'). Classify by account_type
+    // but also detect liabilities/equity via sub_type so both producers — and rows
+    // already seeded under the old convention — are grouped correctly.
+    const subTypeLc = (l.sub_type || '').toLowerCase();
+    const bal = Number(l.balance);
+    if (l.account_type === 'EQUITY' || subTypeLc.includes('equity')) {
       equity.push(item);
-      totalEquity += Number(l.balance);
+      totalEquity += bal;
+    } else if (
+      l.account_type === 'CURRENT_LIABILITY' ||
+      l.account_type === 'NON_CURRENT' ||
+      subTypeLc.includes('liabilit')
+    ) {
+      liabilities.push(item);
+      totalLiabilities += bal;
+      if (subTypeLc.includes('current')) currentLiabilities += bal;
+    } else {
+      assets.push(item);
+      totalAssets += bal;
+      if (subTypeLc.includes('current')) currentAssets += bal;
     }
   }
 
@@ -104,9 +118,13 @@ async function getBalanceSheet(outletId, range = 'all') {
       trendMap[key] = { month: `${SHORT_MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, assets: 0, liabilities: 0, equity: 0 };
     }
     const bal = Number(l.balance);
-    if (l.account_type === 'ASSET') trendMap[key].assets += bal;
-    else if (l.account_type === 'LIABILITY') trendMap[key].liabilities += bal;
-    else if (l.account_type === 'EQUITY') trendMap[key].equity += bal;
+    // BUG FIX: mirror the snapshot grouping — 'ASSET'/'LIABILITY' are never emitted,
+    // so the trend line kept both series at zero. Detect asset/liability/equity from
+    // the real producer values (account_type + sub_type) instead.
+    const subTypeLc = (l.sub_type || '').toLowerCase();
+    if (l.account_type === 'EQUITY' || subTypeLc.includes('equity')) trendMap[key].equity += bal;
+    else if (l.account_type === 'CURRENT_LIABILITY' || l.account_type === 'NON_CURRENT' || subTypeLc.includes('liabilit')) trendMap[key].liabilities += bal;
+    else trendMap[key].assets += bal;
   }
 
   const cutoff = getDateCutoff(range);

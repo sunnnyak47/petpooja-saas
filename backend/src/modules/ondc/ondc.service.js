@@ -51,8 +51,12 @@ async function updateSellerProfile(outletId, data) {
   const prisma = getDbClient();
   const profile = await getSellerProfile(outletId);
 
-  // Sanitize – remove fields that shouldn't be directly set
-  const { status, bpp_id, provider_id, subscriber_id, verified_at, went_live_at, ...safeData } = data;
+  // Sanitize – remove immutable/scoping columns so a PATCH can't reassign outlet_id or forge
+  // ONDC identity/verification fields. The remaining keys are real OndcSellerProfile columns
+  // (whitelisted by updateSellerProfileSchema), so they now persist instead of being silently
+  // stripped — which previously left onboarding fields (store_name, gstin, pan, bank_*, tnc)
+  // unsaved and blocked submit-for-review.
+  const { status, bpp_id, provider_id, subscriber_id, verified_at, went_live_at, outlet_id: _outletId, ...safeData } = data;
 
   const updated = await prisma.ondcSellerProfile.update({
     where: { id: profile.id },
@@ -170,13 +174,11 @@ async function receiveOndcWebhook(payload) {
     });
   }
 
-  // Fallback: use the first live outlet (demo mode)
-  if (!sellerProfile) {
-    sellerProfile = await prisma.ondcSellerProfile.findFirst({
-      where: { status: 'live', is_deleted: false },
-    });
-  }
-
+  // Bug fix: removed the "first live outlet" fallback. This public, unauthenticated webhook
+  // fell back to an arbitrary live tenant when bpp_id was missing/unknown, then created a real
+  // PAID OndcOrder attributed to that outlet — a reachable forgery that polluted its revenue
+  // analytics. An unresolved seller (no matching bpp_id) is now NACK'd. The simulate path always
+  // supplies bpp_id 'ondctest.msrm.in', so no legitimate flow regresses.
   if (!sellerProfile) {
     logger.warn('ONDC webhook: no matching seller profile', { bpp_id: context?.bpp_id });
     return { ack: { status: 'NACK', error: { code: '30004', message: 'Seller not found' } } };
@@ -230,9 +232,9 @@ async function receiveOndcWebhook(payload) {
     },
   });
 
-  // Auto-accept if configured
+  // Auto-accept if configured (scope to the seller's own outlet for consistency)
   if (sellerProfile.auto_accept) {
-    await acceptOrder(ondcOrder.id, sellerProfile.prep_time_minutes || 30);
+    await acceptOrder(ondcOrder.id, sellerProfile.prep_time_minutes || 30, sellerProfile.outlet_id);
   }
 
   logger.info('ONDC order received', { ondcOrderId, outletId: sellerProfile.outlet_id });
@@ -264,9 +266,11 @@ async function listOndcOrders(outletId, query = {}) {
 /**
  * Accept an ONDC order.
  */
-async function acceptOrder(orderId, prepTimeMinutes) {
+async function acceptOrder(orderId, prepTimeMinutes, outletId) {
   const prisma = getDbClient();
-  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false } });
+  // Cross-tenant IDOR fix: when an outlet scope is supplied (non-owner caller), only match
+  // orders belonging to that outlet so a user can't mutate another tenant's ONDC order.
+  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false, ...(outletId ? { outlet_id: outletId } : {}) } });
   if (!order) throw new NotFoundError('ONDC order not found');
   if (!['pending'].includes(order.status)) throw new BadRequestError(`Order already ${order.status}`);
 
@@ -293,9 +297,10 @@ async function acceptOrder(orderId, prepTimeMinutes) {
 /**
  * Reject an ONDC order.
  */
-async function rejectOrder(orderId, reason) {
+async function rejectOrder(orderId, reason, outletId) {
   const prisma = getDbClient();
-  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false } });
+  // Cross-tenant IDOR fix: scope lookup to the caller's outlet when provided.
+  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false, ...(outletId ? { outlet_id: outletId } : {}) } });
   if (!order) throw new NotFoundError('ONDC order not found');
   if (!['pending'].includes(order.status)) throw new BadRequestError(`Order already ${order.status}`);
 
@@ -321,9 +326,10 @@ async function rejectOrder(orderId, reason) {
 /**
  * Mark order ready / picked up.
  */
-async function updateOrderStatus(orderId, newStatus) {
+async function updateOrderStatus(orderId, newStatus, outletId) {
   const prisma = getDbClient();
-  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false } });
+  // Cross-tenant IDOR fix: scope lookup to the caller's outlet when provided.
+  const order = await prisma.ondcOrder.findFirst({ where: { id: orderId, is_deleted: false, ...(outletId ? { outlet_id: outletId } : {}) } });
   if (!order) throw new NotFoundError('ONDC order not found');
 
   const allowed = { accepted: ['preparing'], preparing: ['ready'], ready: ['picked_up'] };

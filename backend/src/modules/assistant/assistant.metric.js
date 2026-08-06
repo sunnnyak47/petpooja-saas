@@ -113,6 +113,11 @@ async function runMetric(ctx, spec) {
   const base = { currency: ctx.currency, metric: mdef.label, dimension: ddef.label, from: spec.from, to: spec.to, money: !!mdef.money };
 
   if (ddef.item) {
+    // The item-wise service only exposes revenue (and quantity for the orders
+    // metric). Any other metric would be revenue mislabeled as e.g. Discounts /
+    // Net sales, so bow out with empty rows — answerMetric then defers to the
+    // docs/suggest path instead of answering with a wrong-labelled figure.
+    if (spec.metric !== 'revenue' && spec.metric !== 'orders') return { ...base, rows: [], total: 0 };
     const r = await reports.getItemWiseSales(ctx.outletId, spec.from, spec.to, 15);
     const rows = (r && r.items ? r.items : []).map((i) => ({
       bucket: i.name,
@@ -122,6 +127,10 @@ async function runMetric(ctx, spec) {
   }
 
   if (ddef.category) {
+    // The category-wise service exposes revenue only, so any non-revenue metric
+    // (discount / net_sales / avg_order) would be revenue mislabeled — bow out
+    // with empty rows so answerMetric defers instead of returning wrong figures.
+    if (spec.metric !== 'revenue') return { ...base, rows: [], total: 0 };
     // Revenue-native breakdown from the bounded category-wise groupBy service
     // (per-item item_total rolled up to category). It returns revenue only, so
     // that is the value regardless of metric — we never fabricate other fields.

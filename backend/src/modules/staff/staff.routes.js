@@ -85,7 +85,8 @@ router.post('/:userId/certifications', authenticate, hasPermission('MANAGE_STAFF
 /** DELETE /api/staff/certifications/:certId — Remove certification */
 router.delete('/certifications/:certId', authenticate, hasPermission('MANAGE_STAFF'), async (req, res, next) => {
   try {
-    await staffService.deleteCertification(req.params.certId);
+    // Pass req.user so the service can assert the cert's outlet is in the caller's tenant.
+    await staffService.deleteCertification(req.params.certId, req.user);
     sendSuccess(res, null, 'Certification removed');
   } catch (error) { next(error); }
 });
@@ -110,6 +111,9 @@ router.put('/:userId/availability', authenticate, hasPermission('MANAGE_STAFF'),
 router.post('/verify-pin', authenticate, validate(verifyPinSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    // Tenant guard: verifyManagerPIN queries by {outlet_id, manager_pin} with no
+    // tenant filter, so without this a foreign tenant could probe/brute-force PINs.
+    await staffService.assertOutletInTenant(outletId, req.user);
     const staff = await staffService.verifyManagerPIN(outletId, req.body.pin);
     if (!staff) return res.status(401).json({ success: false, message: 'Invalid PIN' });
     sendSuccess(res, staff, 'PIN verified');
@@ -120,6 +124,8 @@ router.post('/verify-pin', authenticate, validate(verifyPinSchema), async (req, 
 router.post('/clock-in', authenticate, validate(clockInSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    // Tenant guard: attacker-controlled outlet_id would otherwise write attendance to a foreign outlet.
+    await staffService.assertOutletInTenant(outletId, req.user);
     const record = await staffService.clockIn(req.user.id, outletId, req.body);
     sendCreated(res, record, 'Clocked in successfully');
   } catch (error) { next(error); }
@@ -129,6 +135,8 @@ router.post('/clock-in', authenticate, validate(clockInSchema), async (req, res,
 router.post('/clock-out', authenticate, validate(clockOutSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    // Tenant guard: attacker-controlled outlet_id would otherwise write attendance to a foreign outlet.
+    await staffService.assertOutletInTenant(outletId, req.user);
     const record = await staffService.clockOut(req.user.id, outletId, req.body);
     sendSuccess(res, record, 'Clocked out successfully');
   } catch (error) { next(error); }
@@ -174,6 +182,8 @@ router.post('/otp/generate', authenticate, validate(generateOTPSchema), async (r
   try {
     const { action } = req.body; // clock_in | clock_out
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    // Tenant guard: attacker-controlled outlet_id would otherwise mint OTPs against a foreign outlet.
+    await staffService.assertOutletInTenant(outletId, req.user);
     const result = await staffService.generateClockOTP(req.user.id, outletId, action);
     sendSuccess(res, result, 'OTP generated');
   } catch (error) { next(error); }
@@ -184,13 +194,18 @@ router.post('/otp/verify', authenticate, validate(verifyOTPSchema), async (req, 
   try {
     const { otp, action } = req.body;
     const outletId = req.body.outlet_id || req.user.outlet_id;
+    // Tenant guard: attacker-controlled outlet_id would otherwise write attendance to a foreign outlet.
+    await staffService.assertOutletInTenant(outletId, req.user);
     const record = await staffService.verifyClockOTP(req.user.id, outletId, otp, action);
     sendSuccess(res, record, action === 'clock_in' ? 'Clocked in ✓' : 'Clocked out ✓');
   } catch (error) { next(error); }
 });
 
 /** GET /api/staff/shift-report — Shift/attendance report */
-router.get('/shift-report', authenticate, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
+// enforceOutletScope pins non-owner callers to their own outlet_id (matching the
+// sibling /performance route); without it a VIEW_REPORTS holder could read any
+// outlet's staff attendance PII by passing an arbitrary outlet_id.
+router.get('/shift-report', authenticate, hasPermission('VIEW_REPORTS'), enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const result = await staffService.getShiftReport(outletId, req.query);

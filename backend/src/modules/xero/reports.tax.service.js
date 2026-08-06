@@ -59,7 +59,13 @@ async function getBASReturns(outletId) {
   }
 
   // Find next due
-  const dueReturns = returns.filter(r => r.status === 'DUE');
+  // BUG FIX: the demo seeder only ever writes 'LODGED'/'PENDING' (never 'DUE'), so the
+  // status==='DUE' filter matched nothing and summary.next_due was always null. Treat any
+  // not-yet-lodged return as outstanding and pick the earliest by due_date — this covers
+  // both the demo ('PENDING') and the phase3 script ('DUE') statuses.
+  const dueReturns = returns
+    .filter(r => r.status !== 'LODGED')
+    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
   const nextDue = dueReturns.length > 0 ? dueReturns[0] : null;
 
   // Annual totals for trend
@@ -179,15 +185,18 @@ async function getContactsAnalysis(outletId) {
     diversity_score: diversityScore,
   };
 
+  // BUG FIX: the suppliers.length>0 guard didn't protect the transaction_count divisor.
+  // The real Xero sync never populates transaction_count (defaults to 0), so any active
+  // supplier gave 0/0 = NaN (serialized as null). Guard on the divisor itself.
+  const supplierTxns = suppliers.reduce((s, c) => s + c.transaction_count, 0);
+
   const summary = {
     total_suppliers: suppliers.length,
     total_customers: customers.length,
     total_supplier_spend: round(totalSupplierSpend),
     total_customer_revenue: round(customers.reduce((s, c) => s + c.total_revenue, 0)),
     largest_supplier: suppliers[0] ? { name: suppliers[0].name, spend: suppliers[0].total_spend } : null,
-    avg_transaction_size: suppliers.length > 0
-      ? round(totalSupplierSpend / suppliers.reduce((s, c) => s + c.transaction_count, 0))
-      : 0,
+    avg_transaction_size: supplierTxns > 0 ? round(totalSupplierSpend / supplierTxns) : 0,
   };
 
   return { suppliers, customers, summary, concentration };
