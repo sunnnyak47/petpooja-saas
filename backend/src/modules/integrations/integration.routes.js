@@ -10,7 +10,7 @@ const paymentService = require('./payment.service');
 const notificationService = require('./notification.service');
 const accountingRoutes = require('./accounting/accounting.routes');
 const { authenticate } = require('../../middleware/auth.middleware');
-const { hasPermission } = require('../../middleware/rbac.middleware');
+const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const {
@@ -110,7 +110,11 @@ router.post('/online-orders/:id/ready', authenticate, hasPermission('MANAGE_ORDE
 });
 
 /** GET /api/integrations/online-orders/active */
-router.get('/online-orders/active', authenticate, hasPermission('VIEW_ORDERS'), async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): without enforceOutletScope a restricted role could omit
+// outlet_id, making Prisma drop the tenant filter (outlet_id: undefined) and return every
+// outlet's online orders incl. customer PII. enforceOutletScope defaults req.query.outlet_id
+// to the caller's own outlet for non-owners and rejects foreign outlet ids.
+router.get('/online-orders/active', authenticate, enforceOutletScope, hasPermission('VIEW_ORDERS'), async (req, res, next) => {
   try {
     const orders = await aggregatorService.getActiveOnlineOrders(req.query.outlet_id);
     sendSuccess(res, orders);
@@ -118,7 +122,8 @@ router.get('/online-orders/active', authenticate, hasPermission('VIEW_ORDERS'), 
 });
 
 /** GET /api/integrations/online-orders/history */
-router.get('/online-orders/history', authenticate, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): see /online-orders/active — bind outlet_id to the caller.
+router.get('/online-orders/history', authenticate, enforceOutletScope, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
   try {
     const orders = await aggregatorService.getOnlineOrderHistory(req.query.outlet_id, req.query);
     sendSuccess(res, orders);
@@ -126,7 +131,8 @@ router.get('/online-orders/history', authenticate, hasPermission('VIEW_REPORTS')
 });
 
 /** GET /api/integrations/online-orders/stats */
-router.get('/online-orders/stats', authenticate, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): see /online-orders/active — bind outlet_id to the caller.
+router.get('/online-orders/stats', authenticate, enforceOutletScope, hasPermission('VIEW_REPORTS'), async (req, res, next) => {
   try {
     const stats = await aggregatorService.getOnlineStats(req.query.outlet_id);
     sendSuccess(res, stats);
@@ -273,7 +279,11 @@ router.post('/notify/campaign', authenticate, hasPermission('MANAGE_CAMPAIGNS'),
 });
 
 /** GET /api/integrations/config?outlet_id= */
-router.get('/config', authenticate, async (req, res, next) => {
+// BUG FIX: was authenticate-only + trusted req.query.outlet_id, leaking another outlet's
+// integration_* settings (incl. payment keys) to any authenticated user. enforceOutletScope
+// pins non-owners to their own outlet; MANAGE_INTEGRATIONS restricts these secrets to
+// privileged staff — matching the permission-gating on every sibling config route.
+router.get('/config', authenticate, enforceOutletScope, hasPermission('MANAGE_INTEGRATIONS'), async (req, res, next) => {
   try {
     const { getDbClient } = require('../../config/database');
     const prisma = getDbClient();
@@ -288,7 +298,12 @@ router.get('/config', authenticate, async (req, res, next) => {
 });
 
 /** PUT /api/integrations/config */
-router.put('/config', authenticate, validate(updateIntegrationConfigSchema), async (req, res, next) => {
+// BUG FIX: was authenticate + schema-validation only (no permission, no outlet scoping),
+// so any authenticated low-priv user could upsert integration_* settings (incl. payment
+// keys) onto ANY outlet via body.outlet_id. MANAGE_INTEGRATIONS restricts the write to
+// privileged staff; enforceOutletScope (after validate, so its outlet_id binding survives
+// stripUnknown) binds non-owners to their own outlet and blocks cross-tenant writes.
+router.put('/config', authenticate, hasPermission('MANAGE_INTEGRATIONS'), validate(updateIntegrationConfigSchema), enforceOutletScope, async (req, res, next) => {
   try {
     const { getDbClient } = require('../../config/database');
     const prisma = getDbClient();

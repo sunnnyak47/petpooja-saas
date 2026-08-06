@@ -73,13 +73,16 @@ async function exportProfitLossCSV(outletId, from, to) {
   const rows = [];
   rows.push(['Revenue']);
   for (const a of revenue.accounts || []) {
-    rows.push([a.code, a.name, num(a.balance)]);
+    // Statements service emits account rows keyed `amount`; reading `a.balance`
+    // (undefined) rendered every per-account line as 0.00.
+    rows.push([a.code, a.name, num(a.amount)]);
   }
   rows.push(['Total Revenue', '', num(revenue.total)]);
   rows.push([]);
   rows.push(['Expenses']);
   for (const a of expenses.accounts || []) {
-    rows.push([a.code, a.name, num(a.balance)]);
+    // Account rows are keyed `amount`, not `balance` — see note above.
+    rows.push([a.code, a.name, num(a.amount)]);
   }
   rows.push(['Total Expenses', '', num(expenses.total)]);
   rows.push(['COGS', '', num(pl.cogs_total)]);
@@ -106,7 +109,8 @@ async function exportBalanceSheetCSV(outletId, asOf) {
     const g = group || { accounts: [], total: 0 };
     rows.push([label]);
     for (const a of g.accounts || []) {
-      rows.push([a.code, a.name, num(a.balance)]);
+      // Balance-sheet account rows are keyed `amount`, not `balance`.
+      rows.push([a.code, a.name, num(a.amount)]);
     }
     rows.push([`Total ${label}`, '', num(g.total)]);
   };

@@ -10,7 +10,7 @@ const agg = require('./aggregator.service');
 const pricingService = require('./aggregator.pricing.service');
 const aggStatus = require('./aggregator.status.service');
 const { authenticate } = require('../../middleware/auth.middleware');
-const { hasPermission } = require('../../middleware/rbac.middleware');
+const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { webhookLimiter } = require('../../middleware/rateLimit.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const {
@@ -37,7 +37,12 @@ router.get('/platforms', authenticate, (req, res) => {
 });
 
 /** GET /api/aggregators/config?outlet_id= — all platform configs for outlet */
-router.get('/config', authenticate, async (req, res, next) => {
+// BUG FIX: was `authenticate` only + trusted req.query.outlet_id, so any authenticated
+// user could read another outlet's stored api_key/webhook_secret (cross-tenant secret
+// leak). enforceOutletScope pins non-owners to their own outlet; MANAGE_POS keeps the
+// config (and its secrets) out of low-privilege roles' reach. Secrets are also masked
+// in getAllPlatformConfigs so raw keys are never echoed back.
+router.get('/config', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const configs = await agg.getAllPlatformConfigs(outletId);
@@ -46,7 +51,7 @@ router.get('/config', authenticate, async (req, res, next) => {
 });
 
 /** PUT /api/aggregators/config/:platform — save platform config */
-router.put('/config/:platform', authenticate, hasPermission('MANAGE_POS'), validate(updateAggregatorConfigSchema), async (req, res, next) => {
+router.put('/config/:platform', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), validate(updateAggregatorConfigSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { platform } = req.params;
@@ -69,7 +74,7 @@ router.put('/config/:platform', authenticate, hasPermission('MANAGE_POS'), valid
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/menu/push/:platform — push menu to one platform */
-router.post('/menu/push/:platform', authenticate, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
+router.post('/menu/push/:platform', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const result = await agg.pushMenuToPlatform(outletId, req.params.platform);
@@ -78,7 +83,7 @@ router.post('/menu/push/:platform', authenticate, hasPermission('MANAGE_POS'), v
 });
 
 /** POST /api/aggregators/menu/push-all — push menu to all enabled platforms */
-router.post('/menu/push-all', authenticate, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
+router.post('/menu/push-all', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), validate(pushMenuSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const results = await agg.pushMenuToAllPlatforms(outletId);
@@ -87,7 +92,7 @@ router.post('/menu/push-all', authenticate, hasPermission('MANAGE_POS'), validat
 });
 
 /** GET /api/aggregators/menu/preview — preview what would be pushed */
-router.get('/menu/preview', authenticate, async (req, res, next) => {
+router.get('/menu/preview', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const menu = await agg.buildMenuPayload(outletId);
@@ -101,7 +106,7 @@ router.get('/menu/preview', authenticate, async (req, res, next) => {
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/availability/:platform — toggle items on one platform */
-router.post('/availability/:platform', authenticate, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
+router.post('/availability/:platform', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { item_ids, is_available } = req.body;
@@ -112,7 +117,7 @@ router.post('/availability/:platform', authenticate, hasPermission('MANAGE_POS')
 });
 
 /** POST /api/aggregators/availability/all — toggle items on all platforms */
-router.post('/availability/all', authenticate, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
+router.post('/availability/all', authenticate, enforceOutletScope, hasPermission('MANAGE_POS'), validate(setItemAvailabilitySchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { item_ids, is_available } = req.body;
@@ -189,7 +194,7 @@ router.post('/webhook/:platform', webhookLimiter, express.raw({ type: '*/*' }), 
 ══════════════════════════════════════════════════════ */
 
 /** POST /api/aggregators/simulate/:platform — fire a fake inbound order */
-router.post('/simulate/:platform', authenticate, validate(simulateOrderSchema), async (req, res, next) => {
+router.post('/simulate/:platform', authenticate, enforceOutletScope, validate(simulateOrderSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const order = await agg.simulateIncomingOrder(outletId, req.params.platform, req.body);
@@ -202,7 +207,7 @@ router.post('/simulate/:platform', authenticate, validate(simulateOrderSchema), 
 ══════════════════════════════════════════════════════ */
 
 /** GET /api/aggregators/orders/active */
-router.get('/orders/active', authenticate, async (req, res, next) => {
+router.get('/orders/active', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const orders = await agg.getActiveOnlineOrders(outletId);
@@ -211,7 +216,7 @@ router.get('/orders/active', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/aggregators/orders/history */
-router.get('/orders/history', authenticate, async (req, res, next) => {
+router.get('/orders/history', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const orders = await agg.getOnlineOrderHistory(outletId, req.query);
@@ -220,7 +225,7 @@ router.get('/orders/history', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/aggregators/orders/stats */
-router.get('/orders/stats', authenticate, async (req, res, next) => {
+router.get('/orders/stats', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const stats = await agg.getOnlineStats(outletId);
@@ -257,7 +262,7 @@ router.post('/orders/:id/ready', authenticate, hasPermission('MANAGE_ORDERS'), a
 ══════════════════════════════════════════════════════ */
 
 /** GET /api/aggregators/logs?outlet_id=&platform=&limit= */
-router.get('/logs', authenticate, async (req, res, next) => {
+router.get('/logs', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const logs = await agg.getSyncLogs(outletId, req.query);

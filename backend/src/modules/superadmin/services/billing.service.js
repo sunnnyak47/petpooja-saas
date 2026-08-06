@@ -70,13 +70,19 @@ Object.assign(superadminService, {
       select: { id: true, plan: true, created_at: true, is_active: true, country_code: true },
     });
 
-    const PLAN_MRR = { TRIAL: 0, STARTER: 2999, PRO: 7999, ENTERPRISE: 19999 };
+    // Region-aware pricing: AU chains bill in AUD, IN in INR. Reuse the shared
+    // PLAN_PRICE_BY_REGION table keyed by the chain's country_code (fallback IN).
+    // Fixes the bug where the INR-only PLAN_MRR table was applied to every chain,
+    // inflating AU chains ~50x and summing AUD+INR into a single scalar.
+    const priceTableFor = (c) =>
+      superadminService.PLAN_PRICE_BY_REGION[c.country_code] || superadminService.PLAN_PRICE_BY_REGION.IN;
+    const mrrPriceFor = (c) => priceTableFor(c).prices[c.plan] || 0;
 
     const mrrData = months.map(m => {
       const endOfMonth = new Date(m.year, m.month, 0, 23, 59, 59);
       const startOfMonth = new Date(m.year, m.month - 1, 1);
       const activeChains = chains.filter(c => new Date(c.created_at) <= endOfMonth);
-      const mrr = activeChains.reduce((sum, c) => sum + (PLAN_MRR[c.plan] || 0), 0);
+      const mrr = activeChains.reduce((sum, c) => sum + mrrPriceFor(c), 0);
       const newChains = chains.filter(c => {
         const cd = new Date(c.created_at);
         return cd >= startOfMonth && cd <= endOfMonth;
@@ -84,13 +90,15 @@ Object.assign(superadminService, {
       return { label: m.label, mrr, chains: activeChains.length, new_chains: newChains };
     });
 
-    // Region breakdown
+    // Region breakdown — each region's MRR uses its own price table + currency
+    // so AUD and INR figures are never conflated.
     const byRegion = {};
     chains.forEach(c => {
       const region = c.country_code || 'IN';
-      if (!byRegion[region]) byRegion[region] = { chains: 0, mrr: 0 };
+      const table = priceTableFor(c);
+      if (!byRegion[region]) byRegion[region] = { chains: 0, mrr: 0, currency: table.currency };
       byRegion[region].chains++;
-      byRegion[region].mrr += PLAN_MRR[c.plan] || 0;
+      byRegion[region].mrr += table.prices[c.plan] || 0;
     });
 
     // Plan distribution
@@ -99,15 +107,24 @@ Object.assign(superadminService, {
       byPlan[c.plan] = (byPlan[c.plan] || 0) + 1;
     });
 
-    const currentMrr = chains.reduce((sum, c) => sum + (PLAN_MRR[c.plan] || 0), 0);
+    // MRR split by currency — never sum AUD and INR into one number.
+    const mrrByCurrency = chains.reduce((acc, c) => {
+      const table = priceTableFor(c);
+      acc[table.currency] = (acc[table.currency] || 0) + (table.prices[c.plan] || 0);
+      return acc;
+    }, {});
+    // Backward-compat scalar is INR-only (previously an INR+AUD mix).
+    const currentMrr = mrrByCurrency.INR || 0;
+    // Growth compares region-aware totals month-over-month (same basis both sides).
+    const totalMrr = chains.reduce((sum, c) => sum + mrrPriceFor(c), 0);
     const prevMonth = mrrData[mrrData.length - 2];
-    const mrrGrowth = prevMonth?.mrr > 0 ? ((currentMrr - prevMonth.mrr) / prevMonth.mrr * 100).toFixed(1) : 0;
+    const mrrGrowth = prevMonth?.mrr > 0 ? ((totalMrr - prevMonth.mrr) / prevMonth.mrr * 100).toFixed(1) : 0;
 
     // Churn: chains that are inactive
     const churned = chains.filter(c => !c.is_active).length;
     const churnRate = chains.length > 0 ? ((churned / chains.length) * 100).toFixed(1) : 0;
 
-    return { mrr_trend: mrrData, by_region: byRegion, by_plan: byPlan, current_mrr: currentMrr, mrr_growth: mrrGrowth, churn_rate: churnRate, total_chains: chains.length, churned_chains: churned };
+    return { mrr_trend: mrrData, by_region: byRegion, by_plan: byPlan, current_mrr: currentMrr, mrr_by_currency: mrrByCurrency, mrr_growth: mrrGrowth, churn_rate: churnRate, total_chains: chains.length, churned_chains: churned };
   },
 
   // INVOICE MANAGEMENT — Monthly SaaS invoices per chain

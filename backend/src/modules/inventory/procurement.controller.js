@@ -34,7 +34,9 @@ async function updateSupplier(req, res, next) {
 
 async function deleteSupplier(req, res, next) {
   try {
-    await procurementService.deleteSupplier(req.params.id);
+    // Pass outlet_id so the service scopes the delete — prevents a manager
+    // from soft-deleting another outlet's supplier by id (tenant IDOR).
+    await procurementService.deleteSupplier(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Supplier deleted');
   } catch (error) { next(error); }
 }
@@ -59,14 +61,18 @@ async function createItemPreset(req, res, next) {
 
 async function updateItemPreset(req, res, next) {
   try {
-    const preset = await procurementService.updateItemPreset(req.params.id, req.body);
+    // Service signature is (id, outletId, data); passing outlet_id fixes the
+    // arg shift that made outletId=body and data=undefined (every PATCH errored).
+    const preset = await procurementService.updateItemPreset(req.params.id, req.user.outlet_id, req.body);
     sendSuccess(res, preset, 'Item preset updated');
   } catch (error) { next(error); }
 }
 
 async function deleteItemPreset(req, res, next) {
   try {
-    await procurementService.deleteItemPreset(req.params.id);
+    // Pass outlet_id so the service scopes the delete — prevents soft-deleting
+    // another outlet's preset by id (tenant IDOR).
+    await procurementService.deleteItemPreset(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Item preset deleted');
   } catch (error) { next(error); }
 }
@@ -83,7 +89,10 @@ async function listPurchaseOrders(req, res, next) {
 
 async function getPurchaseOrder(req, res, next) {
   try {
-    const po = await procurementService.getPurchaseOrder(req.params.id);
+    // Scope the lookup for non-owner roles so a manager cannot fetch another
+    // outlet's PO by id (cross-tenant read). Owners/super_admins keep cross-outlet access.
+    const outletId = ['super_admin', 'owner'].includes(req.user.role) ? (req.query.outlet_id || undefined) : req.user.outlet_id;
+    const po = await procurementService.getPurchaseOrder(req.params.id, outletId);
     sendSuccess(res, po, 'Purchase order retrieved');
   } catch (error) { next(error); }
 }
@@ -98,21 +107,27 @@ async function createPurchaseOrder(req, res, next) {
 
 async function updatePurchaseOrder(req, res, next) {
   try {
-    const po = await procurementService.updatePurchaseOrder(req.params.id, req.body);
+    // Service signature is (id, outletId, data); passing outlet_id fixes the arg
+    // shift (outletId=body, data=undefined) that crashed every PATCH, and scopes the update.
+    const po = await procurementService.updatePurchaseOrder(req.params.id, req.user.outlet_id, req.body);
     sendSuccess(res, po, 'Purchase order updated');
   } catch (error) { next(error); }
 }
 
 async function approvePurchaseOrder(req, res, next) {
   try {
-    const po = await procurementService.approvePurchaseOrder(req.params.id, req.user.id);
+    // Pass outlet_id so the service scopes the lookup — prevents a manager from
+    // approving another outlet's PO (tenant IDOR).
+    const po = await procurementService.approvePurchaseOrder(req.params.id, req.user.id, req.user.outlet_id);
     sendSuccess(res, po, 'Purchase order approved');
   } catch (error) { next(error); }
 }
 
 async function deletePurchaseOrder(req, res, next) {
   try {
-    await procurementService.deletePurchaseOrder(req.params.id);
+    // Pass outlet_id so the service scopes the delete — prevents a manager from
+    // soft-deleting another outlet's PO by id (tenant IDOR).
+    await procurementService.deletePurchaseOrder(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Purchase order deleted');
   } catch (error) { next(error); }
 }
@@ -129,8 +144,11 @@ async function receivePurchaseOrder(req, res, next) {
 
 async function generatePdf(req, res, next) {
   try {
+    // Scope the lookup for non-owner roles so a manager cannot fetch another
+    // outlet's PO (and its PDF) by id. Owners/super_admins keep cross-outlet access.
+    const outletId = ['super_admin', 'owner'].includes(req.user.role) ? (req.query.outlet_id || undefined) : req.user.outlet_id;
     // Generate and stream PDF directly — never rely on stored file path
-    const po = await procurementService.getPurchaseOrder(req.params.id);
+    const po = await procurementService.getPurchaseOrder(req.params.id, outletId);
     const { streamPOPdf } = require('./po-pdf.service');
     const filename = `PO-${po.po_number}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
@@ -141,8 +159,11 @@ async function generatePdf(req, res, next) {
 
 async function downloadPdf(req, res, next) {
   try {
+    // Scope the lookup for non-owner roles so a manager cannot fetch another
+    // outlet's PO (and its PDF) by id. Owners/super_admins keep cross-outlet access.
+    const outletId = ['super_admin', 'owner'].includes(req.user.role) ? (req.query.outlet_id || undefined) : req.user.outlet_id;
     // Always generate fresh — Render's ephemeral FS means stored paths are unreliable
-    const po = await procurementService.getPurchaseOrder(req.params.id);
+    const po = await procurementService.getPurchaseOrder(req.params.id, outletId);
     const { streamPOPdf } = require('./po-pdf.service');
     const filename = `PO-${po.po_number}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');

@@ -184,8 +184,11 @@ async function getBudgetVsActual(outletId, id, from, to) {
 
     // Resolve account names from the chart of accounts.
     const codes = budget.lines.map((l) => l.account_code);
+    // Scope by outlet_id: ChartAccount is @@unique([outlet_id, code]), so a
+    // code-only lookup can pull another outlet's row and mislabel the account
+    // name (cross-tenant leak into account_name).
     const accounts = codes.length
-      ? await prisma.chartAccount.findMany({ where: { code: { in: codes } } })
+      ? await prisma.chartAccount.findMany({ where: { outlet_id: outletId, code: { in: codes } } })
       : [];
     const nameMap = {};
     accounts.forEach((a) => {

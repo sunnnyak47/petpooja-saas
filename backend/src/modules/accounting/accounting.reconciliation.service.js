@@ -98,6 +98,16 @@ async function reconcile(outletId, statementLineId, journalLineId) {
     throw new Error('Statement line not found for outlet');
   }
 
+  // Tenant check on the journal line: without it a MANAGE user could link a
+  // foreign outlet's journal line (cross-tenant integrity IDOR), since the
+  // statement-line check above never validated journalLineId's owner.
+  const jl = await prisma.journalLine.findFirst({
+    where: { id: journalLineId, entry: { outlet_id: outletId } },
+  });
+  if (!jl) {
+    throw new Error('Journal line not found for outlet');
+  }
+
   const updated = await prisma.bankStatementLine.update({
     where: { id: statementLineId },
     data: { reconciled: true, matched_journal_line_id: journalLineId },
@@ -136,9 +146,17 @@ async function autoReconcile(outletId, bankAccountId) {
   const matches = await suggestMatches(outletId, bankAccountId);
 
   let reconciled = 0;
+  // Track journal lines already claimed this pass. suggestMatches builds one
+  // snapshot that is never decremented, so without this guard two same-amount
+  // statement lines within 5 days of a single ledger line would both auto-match
+  // to it, double-consuming one transaction.
+  const used = new Set();
   for (const m of matches) {
     if (m.suggestions.length === 1) {
-      await reconcile(outletId, m.statement_line.id, m.suggestions[0].journal_line_id);
+      const jlId = m.suggestions[0].journal_line_id;
+      if (used.has(jlId)) continue;
+      await reconcile(outletId, m.statement_line.id, jlId);
+      used.add(jlId);
       reconciled += 1;
     }
   }

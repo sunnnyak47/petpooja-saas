@@ -153,10 +153,21 @@ Object.assign(superadminService, {
    * Impersonation token with Audit Logging
    */
   async impersonate(head_office_id, adminId, adminEmail) {
-    const user = await prisma.user.findFirst({
-      where: { head_office_id, is_deleted: false },
-      include: { head_office: true }
-    });
+    // Prefer the ACTIVE owner-role user (mirrors resetOwnerPassword/changeOwnerEmail);
+    // the old unordered findFirst could mint an owner token for a non-owner or
+    // deactivated account. Fall back to any active user only if no owner grant exists.
+    const user =
+      (await prisma.user.findFirst({
+        where: {
+          head_office_id, is_deleted: false, is_active: true,
+          user_roles: { some: { is_deleted: false, role: { name: 'owner' } } },
+        },
+        include: { head_office: true },
+      })) ||
+      (await prisma.user.findFirst({
+        where: { head_office_id, is_deleted: false, is_active: true },
+        include: { head_office: true },
+      }));
 
     if (!user) throw new NotFoundError('No user found for this chain');
 
@@ -724,7 +735,10 @@ Object.assign(superadminService, {
     const ho = await prisma.headOffice.findUnique({ where: { id: headOfficeId } });
     if (!ho) throw new NotFoundError('Chain not found');
 
-    const isActive = action === 'activate';
+    // Only 'suspend' deactivates the chain. 'trial' and 'activate' keep it active
+    // (trial also sets plan:'TRIAL' below) — previously 'trial' fell through to
+    // is_active=false, wrongly suspending the chain instead of starting a trial.
+    const isActive = action !== 'suspend';
     const auditAction = action === 'suspend' ? 'CHAIN_SUSPENDED' : 'CHAIN_ACTIVATED';
 
     const existingMeta = ho.metadata || {};
@@ -835,6 +849,10 @@ Object.assign(superadminService, {
     const plan = planName.toUpperCase();
     if (!superadminService.PLANS.includes(plan)) throw new BadRequestError(`Invalid plan. Use one of: ${superadminService.PLANS.join(', ')}`);
 
+    // Capture the OLD plan before the update — reading it from `updated` afterwards
+    // always echoed the new plan, making previous_plan==plan in every audit row.
+    const before = await prisma.headOffice.findUnique({ where: { id: headOfficeId }, select: { plan: true } });
+
     const updated = await prisma.headOffice.update({
       where: { id: headOfficeId },
       data: { plan },
@@ -846,7 +864,7 @@ Object.assign(superadminService, {
         action: 'PLAN_ASSIGNED',
         entity_type: 'restaurant',
         entity_id: headOfficeId,
-        new_values: { plan, previous_plan: updated.plan, name: updated.name },
+        new_values: { plan, previous_plan: before?.plan ?? null, name: updated.name },
       },
     }).catch(() => null);
 

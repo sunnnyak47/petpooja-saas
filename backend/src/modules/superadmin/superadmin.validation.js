@@ -23,7 +23,10 @@ const onboardSchema = Joi.object({
   contact_email: Joi.string().email().required(),
   contact_phone: Joi.string().required().pattern(/^[0-9]{10,15}$/),
   password: Joi.string().required().min(6),
-  plan: Joi.string().valid('starter', 'growth', 'pro', 'enterprise'),
+  // Canonical, uppercased plan set — the old enum whitelisted a non-existent
+  // 'growth' plan and omitted 'trial', letting values persist that match no
+  // PLAN_PRICES/PLAN_LIMITS/PLAN_MRR key and silently degrade billing.
+  plan: Joi.string().uppercase().valid('TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'),
   legal_name: Joi.string().max(200),
   gstin: Joi.string().max(15).allow('', null),
   city: Joi.string().max(100),
@@ -42,7 +45,10 @@ const impersonateSchema = Joi.object({
  * Schema for updating subscription.
  */
 const updateSubscriptionSchema = Joi.object({
-  plan: Joi.string().valid('starter', 'growth', 'pro', 'enterprise'),
+  // Canonical, uppercased plan set. uppercase() also normalizes the value the
+  // middleware writes into req.body, so updateLicense stores an uppercase plan
+  // that matches the billing maps (was writing lowercase/'growth' verbatim).
+  plan: Joi.string().uppercase().valid('TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'),
   is_active: Joi.boolean(),
   expires_at: Joi.date().allow(null),
 });

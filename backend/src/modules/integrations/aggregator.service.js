@@ -109,6 +109,18 @@ async function getAllPlatformConfigs(outletId) {
     }
   }
 
+  // BUG FIX (secret leak): never echo raw api_key/webhook_secret back to the client.
+  // This is the only path that returns config to the API; the real outbound calls use
+  // getPlatformConfig(), and the two internal callers here read only `enabled`, so it's
+  // safe to strip the secrets and expose has_* booleans instead.
+  for (const platform of Object.keys(result)) {
+    const cfg = result[platform];
+    cfg.has_api_key = Boolean(cfg.api_key);
+    cfg.has_webhook_secret = Boolean(cfg.webhook_secret);
+    delete cfg.api_key;
+    delete cfg.webhook_secret;
+  }
+
   return result;
 }
 
@@ -540,7 +552,10 @@ async function processIncomingOrder(platform, webhookData) {
         quantity: extItem.quantity,
         unit_price: unitPrice,
         item_total: itemTotal,
-        gst_rate: internalItem ? Number(internalItem.gst_rate) : 5,
+        // BUG FIX: the hardcoded 5% (India GST) fallback understated tax for unmatched
+        // line items on AU platforms, which must use 10% GST. Derive the fallback from
+        // the platform's region so AU combos/modifiers/unsynced items are taxed correctly.
+        gst_rate: internalItem ? Number(internalItem.gst_rate) : (PLATFORMS[platform]?.region === 'AU' ? 10 : 5),
         kitchen_station: internalItem?.kitchen_station || 'KITCHEN',
         notes: extItem.notes || null,
         variant_price: 0,
@@ -555,8 +570,13 @@ async function processIncomingOrder(platform, webhookData) {
       totalTax += gst.totalTax;
     }
 
-    const grandTotal = Math.round(subtotal + totalTax);
     const pDef = PLATFORMS[platform];
+    // BUG FIX: the unconditional Math.round() forced grand_total to whole units while
+    // total_amount and payment.amount kept 2dp — dropping cents on every AU (AUD) online
+    // order and breaking reconciliation. Use the canonical region-aware helper so
+    // grand_total (2dp for AU, whole-rupee for IN), total_amount and payment.amount agree.
+    const { computeGrandTotal } = require('../orders/pricing.service');
+    const { grandTotal } = computeGrandTotal(subtotal + totalTax, pDef?.region === 'AU' ? 'AU' : 'IN');
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({

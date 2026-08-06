@@ -27,6 +27,31 @@ Object.assign(superadminService, {
     });
   },
 
+  /**
+   * Serialize a read-modify-write over the single tickets JSON blob. The three
+   * mutators (create/update/reply) previously did an unguarded load-mutate-save,
+   * so two concurrent writers could each read the same array and the second
+   * upsert would silently clobber the first (lost update). A per-transaction
+   * Postgres advisory lock on a constant key forces these to run one at a time
+   * cluster-wide; the lock auto-releases on commit/rollback.
+   * @param {(tickets: object[]) => { tickets: object[], result: any }} mutate
+   */
+  async _mutateTickets(mutate) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(4210001)`;
+      let tickets = [];
+      const cfg = await tx.systemConfig.findUnique({ where: { key: superadminService.TICKETS_KEY } });
+      if (cfg?.value) { try { tickets = JSON.parse(cfg.value); } catch { tickets = []; } }
+      const { tickets: next, result } = mutate(tickets);
+      await tx.systemConfig.upsert({
+        where: { key: superadminService.TICKETS_KEY },
+        update: { value: JSON.stringify(next) },
+        create: { key: superadminService.TICKETS_KEY, value: JSON.stringify(next) },
+      });
+      return result;
+    });
+  },
+
   async getTickets({ status, priority, search } = {}) {
     let tickets = await superadminService._loadTickets();
     if (status && status !== 'ALL') tickets = tickets.filter(t => t.status === status);
@@ -39,46 +64,49 @@ Object.assign(superadminService, {
   },
 
   async createTicket({ chain_id, chain_name, subject, body, priority = 'MEDIUM', email }) {
-    const tickets = await superadminService._loadTickets();
-    const ticket = {
-      id: `TKT-${Date.now().toString(36).toUpperCase()}`,
-      chain_id, chain_name, subject, body, priority, email,
-      status: 'OPEN',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      resolved_at: null,
-      replies: [],
-    };
-    await superadminService._saveTickets([ticket, ...tickets]);
-    return ticket;
+    // Serialized load-mutate-save so concurrent creates don't clobber each other.
+    return superadminService._mutateTickets((tickets) => {
+      const ticket = {
+        id: `TKT-${Date.now().toString(36).toUpperCase()}`,
+        chain_id, chain_name, subject, body, priority, email,
+        status: 'OPEN',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        resolved_at: null,
+        replies: [],
+      };
+      return { tickets: [ticket, ...tickets], result: ticket };
+    });
   },
 
   async updateTicket(id, { status, priority, notes }) {
-    const tickets = await superadminService._loadTickets();
-    const idx = tickets.findIndex(t => t.id === id);
-    if (idx === -1) throw new NotFoundError('Ticket not found');
-    tickets[idx] = {
-      ...tickets[idx],
-      ...(status && { status }),
-      ...(priority && { priority }),
-      ...(notes !== undefined && { internal_notes: notes }),
-      updated_at: new Date().toISOString(),
-      ...(status === 'RESOLVED' && !tickets[idx].resolved_at ? { resolved_at: new Date().toISOString() } : {}),
-    };
-    await superadminService._saveTickets(tickets);
-    return tickets[idx];
+    // Serialized load-mutate-save so a concurrent create/reply isn't lost.
+    return superadminService._mutateTickets((tickets) => {
+      const idx = tickets.findIndex(t => t.id === id);
+      if (idx === -1) throw new NotFoundError('Ticket not found');
+      tickets[idx] = {
+        ...tickets[idx],
+        ...(status && { status }),
+        ...(priority && { priority }),
+        ...(notes !== undefined && { internal_notes: notes }),
+        updated_at: new Date().toISOString(),
+        ...(status === 'RESOLVED' && !tickets[idx].resolved_at ? { resolved_at: new Date().toISOString() } : {}),
+      };
+      return { tickets, result: tickets[idx] };
+    });
   },
 
   async replyToTicket(id, { from, body }) {
-    const tickets = await superadminService._loadTickets();
-    const idx = tickets.findIndex(t => t.id === id);
-    if (idx === -1) throw new NotFoundError('Ticket not found');
-    const reply = { id: `RPL-${Date.now()}`, from, body, created_at: new Date().toISOString() };
-    tickets[idx].replies = [...(tickets[idx].replies || []), reply];
-    tickets[idx].updated_at = new Date().toISOString();
-    if (from === 'admin' && tickets[idx].status === 'OPEN') tickets[idx].status = 'IN_PROGRESS';
-    await superadminService._saveTickets(tickets);
-    return tickets[idx];
+    // Serialized load-mutate-save so a concurrent create/update isn't lost.
+    return superadminService._mutateTickets((tickets) => {
+      const idx = tickets.findIndex(t => t.id === id);
+      if (idx === -1) throw new NotFoundError('Ticket not found');
+      const reply = { id: `RPL-${Date.now()}`, from, body, created_at: new Date().toISOString() };
+      tickets[idx].replies = [...(tickets[idx].replies || []), reply];
+      tickets[idx].updated_at = new Date().toISOString();
+      if (from === 'admin' && tickets[idx].status === 'OPEN') tickets[idx].status = 'IN_PROGRESS';
+      return { tickets, result: tickets[idx] };
+    });
   },
 });
 

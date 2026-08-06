@@ -181,7 +181,11 @@ class MyobService {
       },
       include: {
         payments: {
-          where: { is_deleted: false, status: 'completed' },
+          // BUG FIX: Payment.status is stored as 'success' (never 'completed')
+          // across order.service, split, aggregator & razorpay webhook; xero.service
+          // uses the same 'success' filter. Filtering by 'completed' returned an empty
+          // payments array, mislabeling every sales row's Customer & Payment Method.
+          where: { is_deleted: false, status: 'success' },
           select: { method: true, amount: true },
         },
         order_items: {

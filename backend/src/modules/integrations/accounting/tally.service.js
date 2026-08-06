@@ -166,7 +166,10 @@ async function exportReceiptsXML(outletId, startDate, endDate) {
     where: {
       outlet_id: outletId,
       created_at: { gte: new Date(startDate), lte: new Date(endDate) },
-      status: 'completed',
+      // BUG FIX: Payment.status is stored as 'success' (never 'completed') everywhere;
+      // filtering receipts by 'completed' always returned an empty set, so the Tally
+      // Receipt voucher export produced no vouchers.
+      status: 'success',
       is_deleted: false
     },
     include: { order: true }

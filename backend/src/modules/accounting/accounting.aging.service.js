@@ -217,6 +217,15 @@ async function payBill(outletId, { po_id, amount, method, date, created_by } = {
     throw new Error('Payment exceeds outstanding balance');
   }
 
+  // Period-lock pre-check: postJournal throws on a locked period, but only
+  // AFTER the billPayment row below is created — leaving an orphan payment that
+  // paidViaBillPayments()/getPayablesAging count as paid with no ledger entry.
+  // Reject up front so no orphan row is ever written.
+  const period = require('./accounting.period.service');
+  if (await period.isPeriodLocked(outletId, date || new Date())) {
+    throw new Error('Accounting period is locked');
+  }
+
   const payMethod = method || 'bank';
   const account = payMethod === 'cash' ? '090' : '091';
 
@@ -234,18 +243,31 @@ async function payBill(outletId, { po_id, amount, method, date, created_by } = {
     select: { id: true },
   });
 
-  const journalResult = await posting.postJournal(outletId, {
-    entry_date: date || new Date(),
-    source: 'bill_payment',
-    source_id: payment.id,
-    reference: po.po_number,
-    memo: `Payment for ${po.po_number}`,
-    created_by,
-    lines: [
-      { account_code: '800', debit: payAmount, credit: 0, description: 'Accounts Payable settled' },
-      { account_code: account, debit: 0, credit: payAmount, description: 'Bill payment' },
-    ],
-  });
+  // Belt-and-suspenders: if postJournal still throws (e.g. the period is locked
+  // between the pre-check above and here, or any other posting failure),
+  // soft-delete the payment we just created so it is never counted as paid
+  // without a matching ledger entry.
+  let journalResult;
+  try {
+    journalResult = await posting.postJournal(outletId, {
+      entry_date: date || new Date(),
+      source: 'bill_payment',
+      source_id: payment.id,
+      reference: po.po_number,
+      memo: `Payment for ${po.po_number}`,
+      created_by,
+      lines: [
+        { account_code: '800', debit: payAmount, credit: 0, description: 'Accounts Payable settled' },
+        { account_code: account, debit: 0, credit: payAmount, description: 'Bill payment' },
+      ],
+    });
+  } catch (err) {
+    await prisma.billPayment.update({
+      where: { id: payment.id },
+      data: { is_deleted: true },
+    });
+    throw err;
+  }
 
   if (journalResult && journalResult.id) {
     await prisma.billPayment.update({

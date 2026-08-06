@@ -60,7 +60,9 @@ router.post('/restock-order', authenticate, hasPermission('MANAGE_INVENTORY'), v
 router.post('/ai/suggest-items',  authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiSuggestItemsSchema), aiController.suggestItems);
 router.post('/ai/suggest-recipe', authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiSuggestRecipeSchema), aiController.suggestRecipe);
 router.get('/ai/insights',        authenticate, hasPermission('VIEW_INVENTORY'),   enforceOutletScope, aiController.getInsights);
-router.post('/ai/build-po',       authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiBuildPOSchema), aiController.buildPO);
+// enforceOutletScope prevents cross-tenant IDOR: buildSmartPO reads stock/suppliers/consumption
+// solely by req.body.outlet_id, so without scope a manager could pull another outlet's data.
+router.post('/ai/build-po',       authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiBuildPOSchema), enforceOutletScope, aiController.buildPO);
 router.post('/ai/autofill-item',  authenticate, hasPermission('MANAGE_INVENTORY'), validate(aiAutofillItemSchema), aiController.autofillItem);
 
 // ── Mobile app aliases ────────────────────────────────────────────────────────

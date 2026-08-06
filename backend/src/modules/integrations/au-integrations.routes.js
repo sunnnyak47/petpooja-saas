@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth.middleware');
+const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const {
   xeroConnectSchema,
@@ -290,7 +291,10 @@ router.post('/square/connect', authenticate, validate(squareConnectSchema), asyn
 });
 
 // Online card payment (Web Payments SDK tokenizes the card → source_id).
-router.post('/square/process-payment', authenticate, validate(squarePaymentSchema), async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): without enforceOutletScope a non-owner could pass another
+// outlet's outlet_id and charge/act against that tenant's connected Square merchant.
+// enforceOutletScope pins non-owners to their own outlet (no-op for owners/super_admin).
+router.post('/square/process-payment', authenticate, enforceOutletScope, validate(squarePaymentSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { amount, order_id, source_id, idempotency_key } = req.body;
@@ -300,7 +304,8 @@ router.post('/square/process-payment', authenticate, validate(squarePaymentSchem
 });
 
 // In-person payment pushed to a physical Square Terminal/Reader.
-router.post('/square/terminal-checkout', authenticate, validate(squareTerminalSchema), async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): same as process-payment — bind outlet_id to the caller.
+router.post('/square/terminal-checkout', authenticate, enforceOutletScope, validate(squareTerminalSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     const { amount, device_id, order_id, idempotency_key } = req.body;
@@ -309,7 +314,9 @@ router.post('/square/terminal-checkout', authenticate, validate(squareTerminalSc
   } catch (e) { next(e); }
 });
 
-router.delete('/square/disconnect', authenticate, async (req, res, next) => {
+// BUG FIX (cross-tenant IDOR): guard disconnect so a non-owner cannot tear down another
+// outlet's Square connection by supplying its outlet_id.
+router.delete('/square/disconnect', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await squareService.disconnect(outletId), 'Square disconnected');

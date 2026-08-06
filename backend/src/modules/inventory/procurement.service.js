@@ -305,7 +305,11 @@ async function updateItemPreset(id, outletId, data) {
 
 async function deleteItemPreset(id, outletId) {
   const prisma = getDbClient();
-  const p = await prisma.itemPreset.findFirst({ where: { id, outlet_id: outletId } });
+  // Scope by outlet_id when provided so managers can only delete their own
+  // outlet's preset; owners/super_admins (null outlet_id) retain cross-outlet access.
+  const where = { id };
+  if (outletId) where.outlet_id = outletId;
+  const p = await prisma.itemPreset.findFirst({ where });
   if (!p) throw new NotFoundError('Item preset not found');
   return prisma.itemPreset.update({ where: { id }, data: { is_deleted: true } });
 }
@@ -444,9 +448,13 @@ async function updatePurchaseOrder(id, outletId, data) {
   });
 }
 
-async function approvePurchaseOrder(id, userId) {
+async function approvePurchaseOrder(id, userId, outletId) {
   const prisma = getDbClient();
-  const po = await prisma.purchaseOrder.findFirst({ where: { id, is_deleted: false } });
+  // Scope by outlet_id when provided so a manager cannot approve another outlet's
+  // PO; owners/super_admins (null outlet_id) retain cross-outlet access.
+  const where = { id, is_deleted: false };
+  if (outletId) where.outlet_id = outletId;
+  const po = await prisma.purchaseOrder.findFirst({ where });
   if (!po) throw new NotFoundError('Purchase Order not found');
   return prisma.purchaseOrder.update({
     where: { id },
@@ -621,8 +629,12 @@ async function receivePurchaseOrder(outletId, poId, data, userId) {
   });
 }
 
-async function deleteSupplier(id) {
+async function deleteSupplier(id, outletId) {
   const prisma = getDbClient();
+  // Scope by outlet_id (mirrors updateSupplier) so a manager cannot soft-delete
+  // another outlet's supplier by id (tenant IDOR).
+  const s = await prisma.supplier.findFirst({ where: { id, outlet_id: outletId, is_deleted: false } });
+  if (!s) throw new NotFoundError('Supplier not found');
   return prisma.supplier.update({ where: { id }, data: { is_deleted: true, updated_at: new Date() } });
 }
 

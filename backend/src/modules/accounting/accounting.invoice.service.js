@@ -188,6 +188,12 @@ async function markPaid(outletId, id, { method } = {}) {
   if (invoice.status === 'void') {
     throw new Error('Cannot mark a void invoice as paid');
   }
+  // A draft invoice never posted the AR debit (issueInvoice does that), so
+  // marking it paid would credit AR that was never debited — leaving a
+  // spurious AR balance and unrecognised Sales/GST. Only issued invoices pay.
+  if (invoice.status !== 'sent') {
+    throw new Error('Only issued (sent) invoices can be marked paid');
+  }
 
   const total = round2(invoice.total);
   const cashAccount = method === 'cash' ? ACC_CASH : ACC_BANK;

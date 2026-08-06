@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const c = require('./accounting.controller');
 const { authenticate } = require('../../middleware/auth.middleware');
-const { hasPermission } = require('../../middleware/rbac.middleware');
+const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { uploadLimiter } = require('../../middleware/rateLimit.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const bankV = require('./accounting.bank.validation');
@@ -16,6 +16,13 @@ const p7 = require('./accounting.phase7.validation');
 
 const VIEW = hasPermission('VIEW_REPORTS');
 const MANAGE = hasPermission('MANAGE_INVENTORY');
+
+// Pin non-owner roles to their own outlet on every accounting route. Without
+// this, controllers trust req.query/body.outlet_id (overriding the JWT), so any
+// manager with VIEW_REPORTS/MANAGE_INVENTORY could read/mutate another tenant's
+// books via outlet_id. authenticate must run first (it sets req.user), so it is
+// included here; the per-route authenticate below then re-runs harmlessly.
+router.use(authenticate, enforceOutletScope);
 
 /* ── Owner Mode (plain-language dashboard) ──────── */
 router.get('/owner-dashboard', authenticate, VIEW, c.ownerDashboard);
