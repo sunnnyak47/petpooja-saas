@@ -364,14 +364,25 @@ async function deleteMenuItem(itemId, outletId) {
  * @param {object} data - Variant data (name, price_addition, is_default)
  * @returns {Promise<object>} Created variant
  */
-async function createVariant(menuItemId, data) {
+async function createVariant(menuItemId, outletId, data) {
   const prisma = getDbClient();
   try {
+    // Multi-tenant IDOR guard: only attach a variant to an item the caller owns.
+    // Scoped roles pass their outlet_id; owners pass a falsy value and bypass,
+    // mirroring enforceOutletScope. Prevents outlet-A staff writing to outlet-B items.
+    const parent = await prisma.menuItem.findFirst({
+      where: { id: menuItemId, is_deleted: false },
+      select: { outlet_id: true },
+    });
+    if (!parent || (outletId && parent.outlet_id !== outletId)) {
+      throw new NotFoundError('Menu item not found');
+    }
     const variant = await prisma.itemVariant.create({
       data: { ...data, menu_item_id: menuItemId },
     });
     return variant;
   } catch (error) {
+    if (error instanceof NotFoundError) throw error;
     logger.error('Create variant failed', { error: error.message });
     throw error;
   }
@@ -383,11 +394,18 @@ async function createVariant(menuItemId, data) {
  * @param {object} data - Fields to update
  * @returns {Promise<object>}
  */
-async function updateVariant(variantId, data) {
+async function updateVariant(variantId, outletId, data) {
   const prisma = getDbClient();
   try {
-    const existing = await prisma.itemVariant.findFirst({ where: { id: variantId, is_deleted: false } });
-    if (!existing) throw new NotFoundError('Variant not found');
+    // Multi-tenant IDOR guard: reach the variant only through its parent item's
+    // outlet. Scoped roles pass their outlet_id; owners pass falsy → bypass.
+    const existing = await prisma.itemVariant.findFirst({
+      where: { id: variantId, is_deleted: false },
+      include: { menu_item: { select: { outlet_id: true } } },
+    });
+    if (!existing || (outletId && existing.menu_item.outlet_id !== outletId)) {
+      throw new NotFoundError('Variant not found');
+    }
     return await prisma.itemVariant.update({ where: { id: variantId }, data });
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
@@ -400,8 +418,17 @@ async function updateVariant(variantId, data) {
  * @param {string} variantId - Variant UUID
  * @returns {Promise<object>}
  */
-async function deleteVariant(variantId) {
+async function deleteVariant(variantId, outletId) {
   const prisma = getDbClient();
+  // Multi-tenant IDOR guard: verify the variant's parent item belongs to the
+  // caller's outlet before deleting (owners pass falsy → bypass).
+  const existing = await prisma.itemVariant.findFirst({
+    where: { id: variantId, is_deleted: false },
+    include: { menu_item: { select: { outlet_id: true } } },
+  });
+  if (!existing || (outletId && existing.menu_item.outlet_id !== outletId)) {
+    throw new NotFoundError('Variant not found');
+  }
   return await prisma.itemVariant.update({ where: { id: variantId }, data: { is_deleted: true } });
 }
 
@@ -458,8 +485,17 @@ async function createAddon(data) {
  * @param {object} data - Fields to update
  * @returns {Promise<object>}
  */
-async function updateAddon(addonId, data) {
+async function updateAddon(addonId, outletId, data) {
   const prisma = getDbClient();
+  // Multi-tenant IDOR guard: reach the addon only through its parent item's
+  // outlet. Scoped roles pass their outlet_id; owners pass falsy → bypass.
+  const existing = await prisma.itemAddon.findFirst({
+    where: { id: addonId, is_deleted: false },
+    include: { menu_item: { select: { outlet_id: true } } },
+  });
+  if (!existing || (outletId && existing.menu_item.outlet_id !== outletId)) {
+    throw new NotFoundError('Addon not found');
+  }
   return await prisma.itemAddon.update({ where: { id: addonId }, data });
 }
 
@@ -468,8 +504,17 @@ async function updateAddon(addonId, data) {
  * @param {string} addonId - Addon UUID
  * @returns {Promise<object>}
  */
-async function deleteAddon(addonId) {
+async function deleteAddon(addonId, outletId) {
   const prisma = getDbClient();
+  // Multi-tenant IDOR guard: verify the addon's parent item belongs to the
+  // caller's outlet before deleting (owners pass falsy → bypass).
+  const existing = await prisma.itemAddon.findFirst({
+    where: { id: addonId, is_deleted: false },
+    include: { menu_item: { select: { outlet_id: true } } },
+  });
+  if (!existing || (outletId && existing.menu_item.outlet_id !== outletId)) {
+    throw new NotFoundError('Addon not found');
+  }
   return await prisma.itemAddon.update({ where: { id: addonId }, data: { is_deleted: true } });
 }
 
@@ -574,8 +619,17 @@ async function createSchedule(menuItemId, data) {
  * @param {string} scheduleId - Schedule UUID
  * @returns {Promise<object>}
  */
-async function deleteSchedule(scheduleId) {
+async function deleteSchedule(scheduleId, outletId) {
   const prisma = getDbClient();
+  // Multi-tenant IDOR guard: reach the schedule only through its parent item's
+  // outlet (owners pass falsy → bypass). Prevents deleting another outlet's schedule.
+  const existing = await prisma.menuSchedule.findFirst({
+    where: { id: scheduleId, is_deleted: false },
+    include: { menu_item: { select: { outlet_id: true } } },
+  });
+  if (!existing || (outletId && existing.menu_item.outlet_id !== outletId)) {
+    throw new NotFoundError('Schedule not found');
+  }
   return await prisma.menuSchedule.update({
     where: { id: scheduleId },
     data: { is_deleted: true },

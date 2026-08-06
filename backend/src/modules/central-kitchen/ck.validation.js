@@ -27,7 +27,9 @@ const createIndentSchema = Joi.object({
 const approveIndentSchema = Joi.object({
   items: Joi.array().items(
     Joi.object({
-      item_id: Joi.string().uuid().required(),
+      // Field is `id` (not item_id): the service reads item.id and the frontend
+      // sends id; a mismatch here 400s/500s every per-item approval.
+      id: Joi.string().uuid().required(),
       approved_quantity: Joi.number().min(0).required(),
     })
   ),
@@ -39,7 +41,9 @@ const approveIndentSchema = Joi.object({
 const dispatchIndentSchema = Joi.object({
   items: Joi.array().items(
     Joi.object({
-      item_id: Joi.string().uuid().required(),
+      // Field is `id` (not item_id): the service reads item.id and the frontend
+      // sends id; a mismatch here 400s/500s every per-item dispatch.
+      id: Joi.string().uuid().required(),
       dispatched_quantity: Joi.number().min(0).required(),
     })
   ),

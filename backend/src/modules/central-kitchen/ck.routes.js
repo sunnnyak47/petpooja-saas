@@ -39,7 +39,7 @@ router.get('/indents', async (req, res, next) => {
 /** Get single indent with items */
 router.get('/indents/:id', async (req, res, next) => {
   try {
-    const indent = await ckService.getIndent(req.params.id);
+    const indent = await ckService.getIndent(req.params.id, req.user);
     sendSuccess(res, indent, 'Indent retrieved');
   } catch (e) { next(e); }
 });

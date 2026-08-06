@@ -30,14 +30,19 @@ router.post('/ai/parse-csv',   authenticate, hasPermission('MANAGE_MENU'), uploa
 router.post('/ai/confirm-sync',authenticate, hasPermission('MANAGE_MENU'),                          auditLog('menu'), aiMenuController.confirmSync);
 
 /* -- Categories -- */
-router.post('/categories', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), auditLog('menu'), menuController.createCategory);
+// enforceOutletScope pins body.outlet_id to the caller's own outlet for scoped
+// roles (owners/super_admins bypass), preventing a scoped MANAGE_* manager from
+// creating/writing menu data in another outlet via an attacker-supplied outlet_id.
+router.post('/categories', authenticate, enforceOutletScope, hasPermission('MANAGE_CATEGORIES'), validate(createCategorySchema), auditLog('menu'), menuController.createCategory);
 router.get('/categories', authenticate, enforceOutletScope, menuController.listCategories);
 router.patch('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), validate(updateCategorySchema), auditLog('menu'), menuController.updateCategory);
 router.delete('/categories/:id', authenticate, hasPermission('MANAGE_CATEGORIES'), auditLog('menu'), menuController.deleteCategory);
 router.post('/categories/reorder', authenticate, hasPermission('MANAGE_CATEGORIES'), auditLog('menu'), menuController.reorderCategories);
 
 /* -- Menu Items -- */
-router.post('/items', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuItemSchema), auditLog('menu'), menuController.createMenuItem);
+// enforceOutletScope forces body.outlet_id to the caller's outlet (owners bypass),
+// blocking cross-outlet item creation by a scoped manager.
+router.post('/items', authenticate, enforceOutletScope, hasPermission('MANAGE_MENU'), validate(createMenuItemSchema), auditLog('menu'), menuController.createMenuItem);
 router.get('/items', authenticate, enforceOutletScope, menuController.listMenuItems);
 router.get('/items/:id', authenticate, enforceOutletScope, menuController.getMenuItem);
 router.patch('/items/:id', authenticate, hasPermission('MANAGE_MENU'), validate(updateMenuItemSchema), auditLog('menu'), menuController.updateMenuItem);
@@ -57,18 +62,24 @@ router.patch('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog
 router.delete('/addons/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteAddon);
 
 /* -- Bulk Operations -- */
-router.post('/items/bulk-price-update', authenticate, hasPermission('MANAGE_MENU'), validate(bulkPriceUpdateSchema), auditLog('menu'), menuController.bulkPriceUpdate);
-router.post('/items/bulk-availability', authenticate, hasPermission('MANAGE_MENU'), validate(bulkAvailabilitySchema), auditLog('menu'), menuController.bulkAvailability);
+// enforceOutletScope forces body.outlet_id to the caller's outlet (owners bypass),
+// stopping a scoped manager from bulk-mutating another outlet's items.
+router.post('/items/bulk-price-update', authenticate, enforceOutletScope, hasPermission('MANAGE_MENU'), validate(bulkPriceUpdateSchema), auditLog('menu'), menuController.bulkPriceUpdate);
+router.post('/items/bulk-availability', authenticate, enforceOutletScope, hasPermission('MANAGE_MENU'), validate(bulkAvailabilitySchema), auditLog('menu'), menuController.bulkAvailability);
 
 /* -- Outlet Overrides -- */
-router.post('/items/:itemId/outlet-override', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.setOutletOverride);
+// enforceOutletScope forces body.outlet_id to the caller's outlet (owners bypass),
+// preventing a scoped manager from writing a price/availability override for another outlet.
+router.post('/items/:itemId/outlet-override', authenticate, enforceOutletScope, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.setOutletOverride);
 
 /* -- Menu Scheduling -- */
 router.post('/items/:id/schedules', authenticate, hasPermission('MANAGE_MENU'), validate(createMenuScheduleSchema), auditLog('menu'), menuController.createSchedule);
 router.delete('/schedules/:id', authenticate, hasPermission('MANAGE_MENU'), auditLog('menu'), menuController.deleteSchedule);
 
 /* -- Item Combos -- */
-router.post('/combos', authenticate, hasPermission('MANAGE_MENU'), validate(createComboSchema), auditLog('menu'), menuController.createCombo);
+// enforceOutletScope forces body.outlet_id to the caller's outlet (owners bypass),
+// blocking cross-outlet combo creation by a scoped manager.
+router.post('/combos', authenticate, enforceOutletScope, hasPermission('MANAGE_MENU'), validate(createComboSchema), auditLog('menu'), menuController.createCombo);
 router.get('/combos', authenticate, enforceOutletScope, menuController.listCombos);
 
 /* -- AU Menu Templates -- */

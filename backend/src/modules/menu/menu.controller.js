@@ -98,7 +98,8 @@ async function deleteMenuItem(req, res, next) {
 /** POST /api/menu/items/:id/variants */
 async function createVariant(req, res, next) {
   try {
-    const variant = await menuService.createVariant(req.params.id, req.body);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    const variant = await menuService.createVariant(req.params.id, req.user.outlet_id, req.body);
     sendCreated(res, variant, 'Variant created');
   } catch (error) { next(error); }
 }
@@ -106,7 +107,8 @@ async function createVariant(req, res, next) {
 /** PATCH /api/menu/variants/:id */
 async function updateVariant(req, res, next) {
   try {
-    const variant = await menuService.updateVariant(req.params.id, req.body);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    const variant = await menuService.updateVariant(req.params.id, req.user.outlet_id, req.body);
     sendSuccess(res, variant, 'Variant updated');
   } catch (error) { next(error); }
 }
@@ -114,7 +116,8 @@ async function updateVariant(req, res, next) {
 /** DELETE /api/menu/variants/:id */
 async function deleteVariant(req, res, next) {
   try {
-    await menuService.deleteVariant(req.params.id);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    await menuService.deleteVariant(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Variant deleted');
   } catch (error) { next(error); }
 }
@@ -147,7 +150,8 @@ async function createAddon(req, res, next) {
 /** PATCH /api/menu/addons/:id */
 async function updateAddon(req, res, next) {
   try {
-    const addon = await menuService.updateAddon(req.params.id, req.body);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    const addon = await menuService.updateAddon(req.params.id, req.user.outlet_id, req.body);
     sendSuccess(res, addon, 'Addon updated');
   } catch (error) { next(error); }
 }
@@ -155,7 +159,8 @@ async function updateAddon(req, res, next) {
 /** DELETE /api/menu/addons/:id */
 async function deleteAddon(req, res, next) {
   try {
-    await menuService.deleteAddon(req.params.id);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    await menuService.deleteAddon(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Addon deleted');
   } catch (error) { next(error); }
 }
@@ -198,7 +203,8 @@ async function createSchedule(req, res, next) {
 /** DELETE /api/menu/schedules/:id */
 async function deleteSchedule(req, res, next) {
   try {
-    await menuService.deleteSchedule(req.params.id);
+    // Pass caller's outlet_id so the service can scope the write to the parent item's outlet (IDOR guard).
+    await menuService.deleteSchedule(req.params.id, req.user.outlet_id);
     sendSuccess(res, null, 'Menu schedule removed');
   } catch (error) { next(error); }
 }

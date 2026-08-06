@@ -49,10 +49,20 @@ async function listIndents(query, user) {
 /**
  * Get single indent
  */
-async function getIndent(id) {
+async function getIndent(id, user = null) {
   const prisma = getDbClient();
+  // Scope the lookup to the caller's outlet (as requester or CK), mirroring
+  // listIndents. Without this, any authenticated user could read another
+  // tenant's indent by id (the route has only authenticate, no outlet guard).
+  const where = { id, is_deleted: false };
+  if (user && user.outlet_id) {
+    where.OR = [
+      { requesting_outlet_id: user.outlet_id },
+      { ck_outlet_id: user.outlet_id },
+    ];
+  }
   const indent = await prisma.centralKitchenIndent.findFirst({
-    where: { id, is_deleted: false },
+    where,
     include: {
       requesting_outlet: { select: { id: true, name: true, address: true } },
       ck_outlet: { select: { id: true, name: true } },
@@ -171,6 +181,16 @@ async function dispatchIndent(id, body, user) {
   }));
 
   await prisma.$transaction(async (tx) => {
+    // Atomically claim the dispatch first: only the request that flips
+    // pending/approved → dispatched proceeds. Serializes concurrent dispatch
+    // calls so stock is transferred (and stock transactions written) exactly
+    // once instead of double-applying on a race.
+    const flip = await tx.centralKitchenIndent.updateMany({
+      where: { id, is_deleted: false, status: { in: ['approved', 'pending'] } },
+      data: { status: 'dispatched' },
+    });
+    if (flip.count === 0) throw new Error('Indent already dispatched or not dispatchable');
+
     // Update dispatched quantities
     await Promise.all(
       itemUpdates.map((item) =>
@@ -246,11 +266,7 @@ async function dispatchIndent(id, body, user) {
         },
       });
     }
-
-    await tx.centralKitchenIndent.update({
-      where: { id },
-      data: { status: 'dispatched' },
-    });
+    // Status was already flipped atomically at the top of the transaction.
   });
 
   logger.info('CK indent dispatched', { id, user: user.id });

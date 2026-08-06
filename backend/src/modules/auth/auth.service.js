@@ -57,6 +57,31 @@ async function register(userData, auditInfo = {}) {
       }
     }
 
+    // Cross-tenant escalation guard: a client-supplied outlet_id scopes the new
+    // user's POS token into that tenant. register() is optionalAuth and the C3
+    // guard above only covers owner/manager, so without this an anonymous caller
+    // could self-register a cashier/kitchen_staff/delivery_boy against a VICTIM
+    // outlet_id and receive a POS-scoped token inside that tenant. Require an
+    // authenticated elevated caller and (unless super_admin, who is platform-
+    // level) verify the outlet belongs to the caller's OWN head office.
+    if (userData.outlet_id) {
+      const callerRole = auditInfo.performed_by_role || null;
+      const PRIVILEGED_CALLERS = ['super_admin', 'owner', 'manager'];
+      if (!PRIVILEGED_CALLERS.includes(callerRole)) {
+        throw new ForbiddenError('You are not authorized to assign an outlet to this user');
+      }
+      const targetOutlet = await prisma.outlet.findFirst({
+        where: { id: userData.outlet_id, is_deleted: false },
+        select: { id: true, head_office_id: true },
+      });
+      if (!targetOutlet) {
+        throw new BadRequestError('Target outlet not found');
+      }
+      if (callerRole !== 'super_admin' && targetOutlet.head_office_id !== auditInfo.performed_by_head_office) {
+        throw new ForbiddenError('Outlet does not belong to your head office');
+      }
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -144,7 +169,16 @@ async function login(login, password, auditInfo = {}) {
   const redis = getRedisClient();
 
   try {
-    const lockoutKey = `${appConfig.redisKeys.loginAttempts}${login}`;
+    // Normalise the identifier BEFORE keying the lockout counter. Otherwise
+    // casing/format variants of the same account (e.g. "Owner@x.com" vs
+    // "owner@x.com", or +91…/0…/spaced phones) each get a FRESH maxAttempts
+    // budget, defeating both the Redis pre-check and the locked_until DB write.
+    // Canonicalise phone logins to the bare form stored at registration so
+    // login-by-phone matches regardless of how it was typed.
+    const isEmail = login.includes('@');
+    const loginIdentifier = isEmail ? login.toLowerCase() : canonicalizePhone(login);
+
+    const lockoutKey = `${appConfig.redisKeys.loginAttempts}${loginIdentifier}`;
     const attemptsVal = await redis.get(lockoutKey);
     const attempts = attemptsVal ? parseInt(attemptsVal, 10) : 0;
 
@@ -154,11 +188,6 @@ async function login(login, password, auditInfo = {}) {
       );
     }
 
-    const isEmail = login.includes('@');
-    // Canonicalise phone logins (+91…/0…/spaces) to the bare form stored at
-    // registration so login-by-phone matches regardless of how it was typed.
-    const loginIdentifier = isEmail ? login.toLowerCase() : canonicalizePhone(login);
-    
     const startDb = Date.now();
     const user = await prisma.user.findFirst({
       where: {

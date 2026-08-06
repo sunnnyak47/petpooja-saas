@@ -17,7 +17,9 @@ const logger = require('../../config/logger');
  */
 async function register(req, res, next) {
   try {
-    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent'), performed_by: req.user?.id, performed_by_role: req.user?.role };
+    // Forward the caller's head office so the service can verify a supplied
+    // outlet_id belongs to the caller's tenant (cross-tenant escalation guard).
+    const auditInfo = { ip: req.ip, user_agent: req.get('User-Agent'), performed_by: req.user?.id, performed_by_role: req.user?.role, performed_by_head_office: req.user?.head_office_id };
     const user = await authService.register(req.body, auditInfo);
     sendCreated(res, user, 'User registered successfully');
   } catch (error) {

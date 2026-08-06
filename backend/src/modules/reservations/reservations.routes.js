@@ -51,11 +51,30 @@ router.post('/public', publicReservationLimiter, validate(publicReservationSchem
 router.use(authenticate);
 
 /** GET /api/reservations */
-router.get('/', async (req, res, next) => {
+router.get('/', hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
     const { outlet_id, date } = req.query;
     const where = { is_deleted: false };
-    if (outlet_id) where.outlet_id = outlet_id;
+    // SECURITY: never run an unscoped findMany here — with only { is_deleted:false }
+    // any authenticated user would dump every tenant's reservation PII across all
+    // outlets (multi-tenant leak / IDOR). Always derive scope from req.user, and
+    // validate any client-supplied outlet_id against the caller's own tenant.
+    if (['super_admin', 'owner'].includes(req.user.role)) {
+      // Owners/super_admins may span multiple outlets, but only within their tenant.
+      if (outlet_id) {
+        const owned = await getDbClient().outlet.findFirst({
+          where: { id: outlet_id, head_office_id: req.user.head_office_id },
+          select: { id: true },
+        });
+        if (!owned) return sendError(res, 403, 'Access denied: cannot access data from another outlet');
+        where.outlet_id = outlet_id;
+      } else {
+        where.outlet = { head_office_id: req.user.head_office_id };
+      }
+    } else {
+      // Non-privileged staff are locked to their assigned outlet; ignore client outlet_id.
+      where.outlet_id = req.user.outlet_id;
+    }
     if (date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime()))
         return sendError(res, 400, 'Invalid date format, expected YYYY-MM-DD');
@@ -89,9 +108,20 @@ router.post('/', hasPermission('MANAGE_POS'), validate(createReservationSchema),
     if (!customer_name || !reservation_date || !outlet_id)
       return sendError(res, 400, 'customer_name, reservation_date, outlet_id are required');
 
+    // SECURITY: resolve table_id against THIS outlet — never trust a client-supplied
+    // table_id verbatim (as the service functions already do), or a MANAGE_POS user
+    // could attach another outlet's table to the reservation (cross-outlet reference).
+    // An invalid/foreign id resolves to null and falls through to auto-suggest below.
+    let tid = null;
+    if (table_id) {
+      const chosen = await getDbClient().table.findFirst({
+        where: { id: table_id, outlet_id, is_deleted: false },
+        select: { id: true },
+      });
+      tid = chosen?.id || null;
+    }
     // Pick a table if not specified — auto-suggest the best-fit available table
     // for the party size, falling back to any table for the outlet.
-    let tid = table_id;
     if (!tid) {
       const [suggested] = await reservationService.suggestTables(outlet_id, party_size, 1);
       if (suggested) {
@@ -139,6 +169,17 @@ router.patch('/:id', hasPermission('MANAGE_POS'), validate(updateReservationSche
       data.reservation_time = new Date(`1970-01-01T${hh.padStart(2,'0')}:${mm.padStart(2,'0')}:00Z`);
     }
     if (special_requests !== undefined) data.notes = special_requests;
+    // SECURITY: verify the reservation exists AND belongs to the caller's tenant
+    // before mutating by id. Without this an outlet's MANAGE_POS user could edit
+    // another tenant's reservation by id (multi-tenant IDOR). Mirrors enforceOutletScope:
+    // owners/super_admins may cross their own outlets; staff are locked to theirs.
+    const existing = await getDbClient().tableReservation.findFirst({
+      where: { id: req.params.id, is_deleted: false },
+      select: { id: true, outlet_id: true },
+    });
+    if (!existing) return sendError(res, 404, 'Reservation not found');
+    if (!['super_admin', 'owner'].includes(req.user.role) && existing.outlet_id !== req.user.outlet_id)
+      return sendError(res, 403, 'Access denied: cannot access data from another outlet');
     const updated = await getDbClient().tableReservation.update({ where: { id: req.params.id }, data });
     sendSuccess(res, updated, 'Reservation updated');
   } catch (err) { next(err); }
@@ -147,6 +188,15 @@ router.patch('/:id', hasPermission('MANAGE_POS'), validate(updateReservationSche
 /** DELETE /api/reservations/:id */
 router.delete('/:id', hasPermission('MANAGE_POS'), async (req, res, next) => {
   try {
+    // SECURITY: same multi-tenant IDOR guard as PATCH — confirm the reservation
+    // belongs to the caller's tenant before soft-deleting it by id.
+    const existing = await getDbClient().tableReservation.findFirst({
+      where: { id: req.params.id, is_deleted: false },
+      select: { id: true, outlet_id: true },
+    });
+    if (!existing) return sendError(res, 404, 'Reservation not found');
+    if (!['super_admin', 'owner'].includes(req.user.role) && existing.outlet_id !== req.user.outlet_id)
+      return sendError(res, 403, 'Access denied: cannot access data from another outlet');
     await getDbClient().tableReservation.update({ where: { id: req.params.id }, data: { is_deleted: true } });
     sendSuccess(res, { deleted: true }, 'Reservation deleted');
   } catch (err) { next(err); }
