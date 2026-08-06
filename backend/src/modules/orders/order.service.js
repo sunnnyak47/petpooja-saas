@@ -739,7 +739,11 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
             order_id: orderId, menu_item_id: item.menu_item_id, variant_id: item.variant_id || null,
             name: menuItem.name, variant_name: variantName, quantity: item.quantity,
             unit_price: unitPrice, variant_price: variantPrice, addons_total: addonsTotal,
-            item_total: itemTotal, gst_rate: Number(menuItem.gst_rate) || preTxTaxConfig.default_gst_rate || 0,
+            // AU GST is a uniform 10% — coerce like buildOrderItems so an AU order
+            // never persists an Indian per-item slab that a later recompute would trust.
+            item_total: itemTotal, gst_rate: preTxTaxConfig.country_code === 'AU'
+              ? (preTxTaxConfig.default_gst_rate || 10)
+              : (Number(menuItem.gst_rate) || preTxTaxConfig.default_gst_rate || 0),
             kitchen_station: menuItem.kitchen_station, notes: item.notes || null,
           },
         });
@@ -1040,7 +1044,18 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
 
     const amountOwed = round2(grandTotal - loyaltyDiscount - alreadyPaid);
 
-    if (Math.abs(Number(paymentData.amount) - amountOwed) > 1) {
+    // Region-aware match tolerance: AU grand totals are cent-precise (computeGrandTotal
+    // rounds AU to the cent), so the 1-unit slack that absorbs IN whole-rupee rounding
+    // would let an AU bill settle up to ~0.99 short. Use a tight 0.05 for AU (still well
+    // above the 0.01 split-sum tolerance) and keep 1 for IN. The outlet lookup is
+    // best-effort — a missing/unavailable outlet falls back to the existing default.
+    let tolerance = 1;
+    try {
+      const { country_code } = await getOutletTaxConfig(prisma, order.outlet_id);
+      if (country_code === 'AU') tolerance = 0.05;
+    } catch (_) { /* outlet lookup unavailable — keep the default whole-unit tolerance */ }
+
+    if (Math.abs(Number(paymentData.amount) - amountOwed) > tolerance) {
       const priorNote = alreadyPaid > 0 ? ` (already tendered ${alreadyPaid} of ${grandTotal})` : '';
       throw new BadRequestError(
         loyaltyDiscount > 0
@@ -1687,6 +1702,17 @@ async function transferTable(orderId, targetTableId, userId) {
   if (!order) throw new NotFoundError('Order not found');
   if (!targetTableId) throw new BadRequestError('Target table ID required');
 
+  // Cross-outlet guard: the target table MUST belong to the same outlet as the
+  // order. Without this an outlet-A user could seize any outlet-B table by id
+  // (the route now also scopes the order via assertOrderOwnership).
+  const targetTable = await prisma.table.findFirst({
+    where: { id: targetTableId, is_deleted: false },
+    select: { id: true, outlet_id: true },
+  });
+  if (!targetTable || targetTable.outlet_id !== order.outlet_id) {
+    throw new NotFoundError('Target table not found');
+  }
+
   return prisma.$transaction(async (tx) => {
     // Free old table
     if (order.table_id) {
@@ -1694,18 +1720,30 @@ async function transferTable(orderId, targetTableId, userId) {
     }
     // Move order to new table
     await tx.order.update({ where: { id: orderId }, data: { table_id: targetTableId } });
-    await tx.table.update({ where: { id: targetTableId }, data: { status: 'occupied', current_order_id: orderId } });
+    // Conditional seize — never evict another live order already occupying the
+    // target table (keep-both, matching the offline-sync table policy).
+    const seize = await tx.table.updateMany({
+      where: { id: targetTableId, status: { not: 'occupied' } },
+      data: { status: 'occupied', current_order_id: orderId },
+    });
     logger.info('Table transferred', { orderId, from: order.table_id, to: targetTableId, userId });
-    return { success: true, orderId, newTableId: targetTableId };
+    return { success: true, orderId, newTableId: targetTableId, table_occupied: seize.count === 0 };
   });
 }
 
-async function mergeOrder(sourceOrderId, targetOrderId, userId) {
+async function mergeOrder(sourceOrderId, targetOrderId, userId, outletId = null) {
   const prisma = getDbClient();
   if (!targetOrderId || targetOrderId === 'auto') throw new BadRequestError('Valid target order ID required');
+  // Scope BOTH fetches to the caller's outlet when it is known (super_admin/HO
+  // roles pass no outletId and skip). assertOrderOwnership only guards the source
+  // (params.id); the body-supplied target is otherwise unscoped, so scoping it
+  // here makes a cross-outlet target resolve to null -> NotFoundError, blocking
+  // cross-tenant item movement / order cancellation.
+  const sourceWhere = outletId ? { id: sourceOrderId, outlet_id: outletId } : { id: sourceOrderId };
+  const targetWhere = outletId ? { id: targetOrderId, outlet_id: outletId } : { id: targetOrderId };
   const [source, target] = await Promise.all([
-    prisma.order.findUnique({ where: { id: sourceOrderId }, include: { order_items: true } }),
-    prisma.order.findUnique({ where: { id: targetOrderId } }),
+    prisma.order.findFirst({ where: sourceWhere, include: { order_items: true } }),
+    prisma.order.findFirst({ where: targetWhere }),
   ]);
   if (!source || !target) throw new NotFoundError('Source or target order not found');
 
@@ -1761,12 +1799,19 @@ async function mergeOrder(sourceOrderId, targetOrderId, userId) {
  * - Per-order try/catch: one bad order can never fail the batch.
  *
  * @param {Array<object>} orders - Offline order payloads (see syncOfflineOrdersSchema)
- * @param {string} userId - Authenticated user performing the sync (becomes staff_id)
+ * @param {string|object} caller - Authenticated user performing the sync. The real
+ *   controller passes the full req.user object ({ id, role, outlet_id, head_office_id })
+ *   so we can enforce outlet scope; a bare userId STRING is the legacy/trusted path
+ *   (offline self-test) and SKIPS the scope check. Either way it becomes staff_id.
  * @returns {Promise<Array<{id: string, status: 'synced'|'exists'|'failed', order_number?: string, conflict?: string, error?: string}>>}
  */
-async function syncOfflineOrders(orders, userId) {
+async function syncOfflineOrders(orders, caller) {
   const prisma = getDbClient();
   const results = [];
+  // Backward-compatible caller: a bare string is the trusted legacy path (no scope
+  // info) — enforce outlet scope only when a full req.user object was passed.
+  const userId = typeof caller === 'string' ? caller : caller?.id;
+  const scope = (caller && typeof caller === 'object') ? caller : null;
 
   // Normalise an offline status to the cloud lifecycle: a live/created order
   // lands as 'confirmed'; everything else (held/ready/billed/paid/cancelled/
@@ -1813,6 +1858,23 @@ async function syncOfflineOrders(orders, userId) {
       if (!outlet) {
         results.push({ id: o.id, status: 'failed', error: 'Outlet not found' });
         continue;
+      }
+
+      // ── Multi-tenant scope guard ────────────────────────────────────────
+      // The outlet is resolved from the attacker-supplied o.outlet_id, so without
+      // this a CREATE_ORDER user at one outlet could inject orders/payments into
+      // another tenant. Enforce only when a full caller object was passed (the
+      // legacy string path is trusted): super_admin syncs anywhere; an owner is
+      // bounded to their head office; every other role to their own outlet. On
+      // mismatch fail just this order (skipping create AND merge) and continue.
+      if (scope && scope.role !== 'super_admin') {
+        const inScope = scope.role === 'owner'
+          ? outlet.head_office_id === scope.head_office_id
+          : outlet.id === scope.outlet_id;
+        if (!inScope) {
+          results.push({ id: o.id, status: 'failed', error: 'Outlet not in scope' });
+          continue;
+        }
       }
 
       // ── Idempotency + forward-only merge ────────────────────────────────

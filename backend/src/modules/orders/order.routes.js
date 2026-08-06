@@ -103,8 +103,8 @@ router.post('/:id/bill', authenticate, checkLicense, hasPermission('MANAGE_ORDER
 router.post('/:id/cancel', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(cancelOrderSchema), auditLog('order'), orderController.cancelOrder);
 router.post('/:id/void', authenticate, checkLicense, hasPermission('VOID_ORDER'), validate(voidOrderSchema), auditLog('order'), orderController.voidOrder);
 router.post('/:id/refund', authenticate, checkLicense, hasPermission('MANAGE_PAYMENTS'), validate(refundOrderSchema), auditLog('payment'), orderController.refundOrder);
-router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(transferTableSchema), auditLog('order'), orderController.transferTable);
-router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), validate(mergeOrderSchema), auditLog('order'), orderController.mergeOrder);
+router.post('/:id/transfer-table', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(transferTableSchema), auditLog('order'), orderController.transferTable);
+router.post('/:id/merge', authenticate, checkLicense, hasPermission('MANAGE_ORDERS'), assertOrderOwnership, validate(mergeOrderSchema), auditLog('order'), orderController.mergeOrder);
 router.post('/:id/ebill', authenticate, assertOrderOwnership, orderController.sendEBill);
 router.post('/sync', authenticate, checkLicense, hasPermission('CREATE_ORDER'), validate(syncOfflineOrdersSchema), auditLog('order'), orderController.syncOfflineOrders);
 

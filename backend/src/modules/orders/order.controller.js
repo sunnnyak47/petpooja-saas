@@ -57,7 +57,12 @@ async function recomputeOrderWithDiscount(tx, orderId, outlet, requestedDiscount
 
   for (const oi of items) {
     const qty = Number(oi.quantity) || 1;
-    const gstRate = Number(oi.gst_rate) || taxConfig.default_gst_rate || 0;
+    // AU GST is a uniform 10% — coerce like recalcOrderTotals/buildOrderItems so a
+    // stored Indian slab (or an uncoerced rate persisted by addItemsToOrder) can't
+    // leak into an AU bill and understate the GST breakdown on discount/tip/void.
+    const gstRate = taxConfig.country_code === 'AU'
+      ? (taxConfig.default_gst_rate || 10)
+      : (Number(oi.gst_rate) || taxConfig.default_gst_rate || 0);
     const discountedUnitBase = (Number(oi.item_total) * factor) / qty;
     const tax = calculateItemTax(
       { base_price: discountedUnitBase, quantity: qty, gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
@@ -223,7 +228,9 @@ async function transferTable(req, res, next) {
 /** POST /api/orders/:id/merge */
 async function mergeOrder(req, res, next) {
   try {
-    const result = await orderService.mergeOrder(req.params.id, req.body.target_order_id, req.user.id);
+    // Pass the caller's outlet so the service can scope the body-supplied target
+    // order (assertOrderOwnership only guards the source /:id, not target_order_id).
+    const result = await orderService.mergeOrder(req.params.id, req.body.target_order_id, req.user.id, req.user.outlet_id);
     sendSuccess(res, result, 'Orders merged');
   } catch (error) { next(error); }
 }
@@ -231,7 +238,9 @@ async function mergeOrder(req, res, next) {
 /** POST /api/orders/sync — v2 contract: responds { success, data: { results: [...] } } */
 async function syncOfflineOrders(req, res, next) {
   try {
-    const results = await orderService.syncOfflineOrders(req.body.orders || [], req.user.id);
+    // Pass the full req.user (role + outlet_id + head_office_id) so the service can
+    // reject cross-tenant/cross-outlet order injection resolved from o.outlet_id.
+    const results = await orderService.syncOfflineOrders(req.body.orders || [], req.user);
     sendSuccess(res, { results }, 'Orders synced');
   } catch (error) { next(error); }
 }

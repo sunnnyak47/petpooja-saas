@@ -167,7 +167,7 @@ router.post('/tables/bulk', authenticate, enforceOutletScope, async (req, res, n
 
 router.delete('/tables/:id', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
-    await tableService.deleteTable(req.params.id);
+    await tableService.deleteTable(req.params.id, req.user);
     sendSuccess(res, null, 'Table deleted successfully');
   } catch (error) { next(error); }
 });
@@ -184,14 +184,14 @@ router.patch('/tables/bulk-status', authenticate, async (req, res, next) => {
     if (!valid.includes(status)) {
       return res.status(400).json({ success: false, data: null, message: 'Invalid status' });
     }
-    const result = await tableService.bulkUpdateTableStatus(table_ids, status);
+    const result = await tableService.bulkUpdateTableStatus(table_ids, status, req.user);
     sendSuccess(res, result, `${result.updated} table(s) updated`);
   } catch (error) { next(error); }
 });
 
 router.patch('/tables/:id/status', authenticate, async (req, res, next) => {
   try {
-    const table = await tableService.updateTableStatus(req.params.id, req.body.status);
+    const table = await tableService.updateTableStatus(req.params.id, req.body.status, req.user);
     sendSuccess(res, table, 'Table status updated');
   } catch (error) { next(error); }
 });
@@ -216,7 +216,7 @@ router.post('/tables/:id/cleaning-timer', authenticate, async (req, res, next) =
 // Hard "Mark as Free": free immediately + stop the reminder loop.
 router.post('/tables/:id/mark-free', authenticate, async (req, res, next) => {
   try {
-    const table = await tableService.markTableFree(req.params.id);
+    const table = await tableService.markTableFree(req.params.id, req.user);
     sendSuccess(res, table, 'Table marked free');
   } catch (error) { next(error); }
 });
@@ -224,7 +224,7 @@ router.post('/tables/:id/mark-free', authenticate, async (req, res, next) => {
 // "No more reminders": keep the table dirty but stop the auto-reminder loop.
 router.post('/tables/:id/stop-reminders', authenticate, async (req, res, next) => {
   try {
-    const table = await tableService.stopCleaningReminders(req.params.id);
+    const table = await tableService.stopCleaningReminders(req.params.id, req.user);
     sendSuccess(res, table, 'Cleaning reminders stopped');
   } catch (error) { next(error); }
 });
@@ -233,7 +233,7 @@ router.post('/tables/:id/stop-reminders', authenticate, async (req, res, next) =
 // customer — clears the dirty state so it's immediately assignable in POS.
 router.post('/tables/:id/assign-cleaning', authenticate, async (req, res, next) => {
   try {
-    const table = await tableService.assignTableDuringCleaning(req.params.id);
+    const table = await tableService.assignTableDuringCleaning(req.params.id, req.user);
     sendSuccess(res, table, 'Table ready for next customer');
   } catch (error) { next(error); }
 });
@@ -269,7 +269,7 @@ router.delete('/table-areas/:id', authenticate, enforceOutletScope, async (req, 
 
 router.patch('/tables/:id', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
-    const table = await tableService.updateTable(req.params.id, req.body);
+    const table = await tableService.updateTable(req.params.id, req.body, req.user);
     sendSuccess(res, table, 'Table updated');
   } catch (error) { next(error); }
 });

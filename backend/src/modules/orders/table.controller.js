@@ -27,7 +27,7 @@ async function createTable(req, res, next) {
 /** PATCH /api/orders/tables/:id */
 async function updateTable(req, res, next) {
   try {
-    const table = await tableService.updateTable(req.params.id, req.body);
+    const table = await tableService.updateTable(req.params.id, req.body, req.user);
     sendSuccess(res, table, 'Table updated');
   } catch (error) { next(error); }
 }
@@ -35,7 +35,7 @@ async function updateTable(req, res, next) {
 /** PATCH /api/orders/tables/:id/status */
 async function updateTableStatus(req, res, next) {
   try {
-    const table = await tableService.updateTableStatus(req.params.id, req.body.status);
+    const table = await tableService.updateTableStatus(req.params.id, req.body.status, req.user);
     sendSuccess(res, table, 'Table status updated');
   } catch (error) { next(error); }
 }
@@ -43,7 +43,7 @@ async function updateTableStatus(req, res, next) {
 /** PATCH /api/orders/tables/bulk-status — { table_ids: [], status } */
 async function bulkUpdateTableStatus(req, res, next) {
   try {
-    const result = await tableService.bulkUpdateTableStatus(req.body.table_ids, req.body.status);
+    const result = await tableService.bulkUpdateTableStatus(req.body.table_ids, req.body.status, req.user);
     sendSuccess(res, result, `${result.updated} table(s) updated`);
   } catch (error) { next(error); }
 }
@@ -51,7 +51,7 @@ async function bulkUpdateTableStatus(req, res, next) {
 /** DELETE /api/orders/tables/:id */
 async function deleteTable(req, res, next) {
   try {
-    await tableService.deleteTable(req.params.id);
+    await tableService.deleteTable(req.params.id, req.user);
     sendSuccess(res, null, 'Table deleted');
   } catch (error) { next(error); }
 }
@@ -59,7 +59,7 @@ async function deleteTable(req, res, next) {
 /** PATCH /api/orders/tables/:id/auto-free — { action: 'free'|'cancel'|'reschedule', minutes } */
 async function autoFreeAction(req, res, next) {
   try {
-    const result = await tableService.autoFreeAction(req.params.id, req.body.action, req.body.minutes);
+    const result = await tableService.autoFreeAction(req.params.id, req.body.action, req.body.minutes, req.user);
     sendSuccess(res, result, 'Auto-free updated');
   } catch (error) { next(error); }
 }

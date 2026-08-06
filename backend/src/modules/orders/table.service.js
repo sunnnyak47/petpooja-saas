@@ -9,6 +9,28 @@ const logger = require('../../config/logger');
 const { NotFoundError, BadRequestError } = require('../../utils/errors');
 
 /**
+ * Multi-tenant ownership guard for single-table :id mutations. Loads the table
+ * and, for a non-owner/non-super_admin caller, requires it to belong to that
+ * caller's outlet — otherwise throws NotFoundError (the SAME 404 as a missing
+ * row, so a table id in another outlet is indistinguishable from a non-existent
+ * one). owner/super_admin keep legitimate cross-outlet management. A null caller
+ * is the trusted/legacy internal path (e.g. the assistant/cron) and skips the
+ * check, preserving backward compatibility with existing callers.
+ * @param {object} prisma - Prisma client
+ * @param {string} tableId - Table UUID
+ * @param {?{role?: string, outlet_id?: string}} caller - Requesting user, or null
+ * @returns {Promise<object>} The fetched table row (reused by callers)
+ */
+async function assertTableAccess(prisma, tableId, caller) {
+  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
+  if (!table) throw new NotFoundError('Table not found');
+  if (caller && !['owner', 'super_admin'].includes(caller.role) && table.outlet_id !== caller.outlet_id) {
+    throw new NotFoundError('Table not found');
+  }
+  return table;
+}
+
+/**
  * Lists all tables for an outlet with current order status.
  */
 async function listTables(outletId, query = {}) {
@@ -77,11 +99,11 @@ async function createTable(data) {
 /**
  * Updates a single table's properties (number, capacity, shape, position, etc.).
  */
-async function updateTable(tableId, data) {
+async function updateTable(tableId, data, caller = null) {
   const prisma = getDbClient();
   try {
-    const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-    if (!table) throw new NotFoundError('Table not found');
+    // Tenant guard: a restricted caller may only mutate its own outlet's tables.
+    const table = await assertTableAccess(prisma, tableId, caller);
 
     const updateData = {};
     if (data.table_number !== undefined) updateData.table_number = data.table_number;
@@ -106,11 +128,11 @@ async function updateTable(tableId, data) {
 /**
  * Updates table status and emits socket event.
  */
-async function updateTableStatus(tableId, status) {
+async function updateTableStatus(tableId, status, caller = null) {
   const prisma = getDbClient();
   try {
-    const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-    if (!table) throw new NotFoundError('Table not found');
+    // Tenant guard: a restricted caller may only mutate its own outlet's tables.
+    const table = await assertTableAccess(prisma, tableId, caller);
 
     const updated = await prisma.table.update({
       where: { id: tableId },
@@ -233,12 +255,18 @@ async function bulkCreateTables(outletId, rows) {
  * @param {string} status
  * @returns {Promise<{ updated: number, table_ids: string[] }>}
  */
-async function bulkUpdateTableStatus(tableIds, status) {
+async function bulkUpdateTableStatus(tableIds, status, caller = null) {
   const prisma = getDbClient();
-  const tables = await prisma.table.findMany({
+  let tables = await prisma.table.findMany({
     where: { id: { in: tableIds }, is_deleted: false },
     select: { id: true, outlet_id: true, table_number: true },
   });
+  // Tenant guard: a restricted caller may only touch its own outlet's tables —
+  // silently drop any out-of-scope ids before the updateMany (owner/super_admin
+  // and the trusted null-caller path keep full cross-outlet reach).
+  if (caller && !['owner', 'super_admin'].includes(caller.role)) {
+    tables = tables.filter((t) => t.outlet_id === caller.outlet_id);
+  }
   if (tables.length === 0) throw new NotFoundError('No matching tables found');
 
   // When freeing tables, also clear their current order link and any cleaning
@@ -268,11 +296,15 @@ async function bulkUpdateTableStatus(tableIds, status) {
 /**
  * Soft deletes a table.
  */
-async function deleteTable(tableId) {
+async function deleteTable(tableId, caller = null) {
   const prisma = getDbClient();
   try {
+    // Tenant guard: a restricted caller may only delete its own outlet's tables
+    // (the delete routes gate on enforceOutletScope, which never validates :id).
+    await assertTableAccess(prisma, tableId, caller);
     return await prisma.table.update({ where: { id: tableId }, data: { is_deleted: true } });
   } catch (error) {
+    if (error instanceof NotFoundError) throw error;
     logger.error('Delete table failed', { error: error.message });
     throw error;
   }
@@ -427,10 +459,10 @@ async function getTableQR(tableId) {
  *   - 'cancel':     drop the schedule, keep the table occupied (staff will free manually)
  *   - 'reschedule': push the reminder out by `minutes` (snooze — customer still seated)
  */
-async function autoFreeAction(tableId, action, minutes) {
+async function autoFreeAction(tableId, action, minutes, caller = null) {
   const prisma = getDbClient();
-  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-  if (!table) throw new NotFoundError('Table not found');
+  // Tenant guard: a restricted caller may only act on its own outlet's tables.
+  const table = await assertTableAccess(prisma, tableId, caller);
 
   const io = getIO();
   const room = io ? io.of('/orders').to(`outlet:${table.outlet_id}`) : null;
@@ -485,10 +517,10 @@ function emitTableStatus(outletId, tableId, status, tableNumber) {
  * Hard "Mark as Free": frees the table immediately AND stops the auto-reminder
  * loop (clears the reminder schedule + cleaning anchor + count).
  */
-async function markTableFree(tableId) {
+async function markTableFree(tableId, caller = null) {
   const prisma = getDbClient();
-  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-  if (!table) throw new NotFoundError('Table not found');
+  // Tenant guard: a restricted caller may only free its own outlet's tables.
+  const table = await assertTableAccess(prisma, tableId, caller);
 
   const updated = await prisma.table.update({
     where: { id: tableId },
@@ -509,10 +541,10 @@ async function markTableFree(tableId) {
  * drop the reminder schedule so the loop stops nagging. A fresh timer can still
  * be started later via scheduleCleaningReminder.
  */
-async function stopCleaningReminders(tableId) {
+async function stopCleaningReminders(tableId, caller = null) {
   const prisma = getDbClient();
-  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-  if (!table) throw new NotFoundError('Table not found');
+  // Tenant guard: a restricted caller may only act on its own outlet's tables.
+  const table = await assertTableAccess(prisma, tableId, caller);
 
   const updated = await prisma.table.update({
     where: { id: tableId },
@@ -535,11 +567,11 @@ async function stopCleaningReminders(tableId) {
  * (this is what lets the within-window reuse bypass the "dirty blocks reuse" UI
  * rule). Returns the freed table; the caller opens POS with it pre-selected.
  */
-async function assignTableDuringCleaning(tableId) {
+async function assignTableDuringCleaning(tableId, caller = null) {
   const prisma = getDbClient();
   const { CLEANING_WINDOW_MINUTES } = require('./autofree.service');
-  const table = await prisma.table.findFirst({ where: { id: tableId, is_deleted: false } });
-  if (!table) throw new NotFoundError('Table not found');
+  // Tenant guard: a restricted caller may only reassign its own outlet's tables.
+  const table = await assertTableAccess(prisma, tableId, caller);
   if (table.status !== 'dirty') {
     throw new BadRequestError('Table is not in a cleaning state');
   }
