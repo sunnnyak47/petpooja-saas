@@ -92,3 +92,63 @@ describe('updateOrderStatus — completing an order requires settlement', () => 
     expect(mockTransaction).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Guard test for updateOrderStatus: a PAID order must NOT be cancelled/voided via
+ * the generic status endpoint.
+ *
+ * Why: cancelOrder/voidOrder both refuse a paid order and route it through the
+ * refund flow. But updateOrderStatus is a second, generic path to set any status.
+ * Without this guard, PATCHing status='cancelled' on a settled order would leave
+ * the row status='cancelled' AND is_paid=true with the Payment row never reversed:
+ * the collected cash drops out of revenue (voided sale) while the payment still
+ * counts, the table is never freed and stock is never restocked. Block it and
+ * require the refund flow instead.
+ */
+describe('updateOrderStatus — a PAID order cannot be cancelled/voided here', () => {
+  beforeEach(() => {
+    mockFindFirst.mockReset();
+    mockTransaction.mockReset();
+  });
+
+  test('rejects cancelling a PAID order and writes nothing', async () => {
+    mockFindFirst.mockResolvedValue({ ...baseOrder, status: 'paid', is_paid: true });
+
+    await expect(
+      orderService.updateOrderStatus('order-1', 'cancelled', 'staff-1')
+    ).rejects.toThrow(BadRequestError);
+
+    // The guard fires before the transaction — no status flip / history write.
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  test('rejects voiding a PAID order and writes nothing', async () => {
+    mockFindFirst.mockResolvedValue({ ...baseOrder, status: 'paid', is_paid: true });
+
+    await expect(
+      orderService.updateOrderStatus('order-1', 'voided', 'staff-1')
+    ).rejects.toThrow(BadRequestError);
+
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  test('surfaces a refund-related message so staff use the right flow', async () => {
+    mockFindFirst.mockResolvedValue({ ...baseOrder, status: 'paid', is_paid: true });
+
+    await expect(
+      orderService.updateOrderStatus('order-1', 'cancelled', 'staff-1')
+    ).rejects.toThrow(/refund/i);
+  });
+
+  test('still ALLOWS cancelling an UNPAID order — the guard only targets paid orders', async () => {
+    mockFindFirst.mockResolvedValue({ ...baseOrder, status: 'preparing', is_paid: false });
+    const reachedTransaction = new Error('reached transaction');
+    mockTransaction.mockRejectedValue(reachedTransaction);
+
+    await expect(
+      orderService.updateOrderStatus('order-1', 'cancelled', 'staff-1')
+    ).rejects.toBe(reachedTransaction);
+
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+  });
+});

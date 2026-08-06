@@ -174,28 +174,43 @@ function buildKotSocketPayload(kot, order, items) {
  * @param {object} taxConfig - From getOutletTaxConfig
  * @returns {Promise<{subtotal:number, cgst:number, sgst:number, igst:number, totalTax:number, totalAmount:number, grandTotal:number, roundOff:number}>}
  */
-async function recalcOrderTotals(tx, orderId, taxConfig) {
+async function recalcOrderTotals(tx, orderId, taxConfig, discountAmount = 0, loyaltyAmount = 0) {
   const allItems = await tx.orderItem.findMany({
     where: { order_id: orderId, is_deleted: false },
   });
 
   let subtotalPaise = 0;
+  for (const oi of allItems) subtotalPaise += Math.round(Number(oi.item_total) * 100);
+  const subtotal = subtotalPaise / 100;
+
+  // Preserve any order-level discount/loyalty across a totals recompute — adding
+  // items (or merging) must NOT silently drop a discount already on the order,
+  // which would over-charge the guest and tax the un-discounted base. Clamp so
+  // the total can never go negative and spread the reduction proportionally
+  // across the taxable base so GST is charged on the post-discount amount
+  // (mirrors the apply-discount path's recomputeOrderWithDiscount).
+  const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotal);
+  const loyalty = Math.min(Math.max(Number(loyaltyAmount) || 0, 0), Math.max(subtotal - discount, 0));
+  const reduction = discount + loyalty;
+  const factor = subtotal > 0 ? Math.max(subtotal - reduction, 0) / subtotal : 0;
+
   let totalCgstPaise = 0;
   let totalSgstPaise = 0;
   let totalIgstPaise = 0;
   let totalTaxPaise = 0;
 
   for (const oi of allItems) {
+    const qty = Number(oi.quantity) || 1;
     const itemTotal = Number(oi.item_total);
-    subtotalPaise += Math.round(itemTotal * 100);
 
     // AU GST is a uniform 10% — never let an Indian per-item slab (e.g. a menu
     // item seeded with gst_rate=5) leak into an Australian bill.
     const gstRate = taxConfig.country_code === 'AU'
       ? (taxConfig.default_gst_rate || 10)
       : (Number(oi.gst_rate) || taxConfig.default_gst_rate || 0);
+    const discountedUnitBase = (itemTotal * factor) / qty;
     const tax = calculateItemTax(
-      { base_price: itemTotal / Number(oi.quantity), quantity: Number(oi.quantity), gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
+      { base_price: discountedUnitBase, quantity: qty, gst_rate: gstRate, is_inclusive: taxConfig.gst_inclusive },
       { country_code: taxConfig.country_code, state: taxConfig.state }
     );
 
@@ -205,23 +220,24 @@ async function recalcOrderTotals(tx, orderId, taxConfig) {
     totalTaxPaise += Math.round(tax.total_tax * 100);
   }
 
-  const subtotal = subtotalPaise / 100;
   const totalCgst = totalCgstPaise / 100;
   const totalSgst = totalSgstPaise / 100;
   const totalIgst = totalIgstPaise / 100;
   const totalTax = totalTaxPaise / 100;
 
+  const taxableAmount = round2(Math.max(subtotal - reduction, 0));
+
   let totalAmount;
   if (taxConfig.gst_inclusive) {
-    // Price already includes tax — total is just the subtotal
-    totalAmount = subtotal;
+    // Price already includes tax — total is just the (discounted) taxable base.
+    totalAmount = taxableAmount;
   } else {
-    totalAmount = subtotal + totalTax;
+    totalAmount = round2(taxableAmount + totalTax);
   }
 
   const { grandTotal, roundOff } = computeGrandTotal(totalAmount, taxConfig.country_code);
 
-  return { subtotal, cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff };
+  return { subtotal, discount, loyalty, taxableAmount, cgst: totalCgst, sgst: totalSgst, igst: totalIgst, totalTax, totalAmount, grandTotal, roundOff };
 }
 
 /**
@@ -736,15 +752,22 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
         await tx.orderItemAddon.createMany({ data: allAddonRows });
       }
 
-      // Recalculate full order totals using proper tax engine
+      // Recalculate full order totals using proper tax engine — PRESERVING any
+      // discount/loyalty already on the order (else adding items silently drops
+      // the discount and taxes the full base, over-charging the guest).
       const taxConfig = await getOutletTaxConfig(tx, order.outlet_id);
-      const totals = await recalcOrderTotals(tx, orderId, taxConfig);
+      const totals = await recalcOrderTotals(
+        tx, orderId, taxConfig,
+        Number(order.discount_amount) || 0,
+        Number(order.loyalty_discount) || 0,
+      );
 
       await tx.order.update({
         where: { id: orderId },
         data: {
           subtotal: totals.subtotal,
-          taxable_amount: totals.subtotal,
+          taxable_amount: round2(totals.taxableAmount),
+          discount_amount: round2(totals.discount),
           cgst: round2(totals.cgst),
           sgst: round2(totals.sgst),
           igst: round2(totals.igst),
@@ -1090,8 +1113,16 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
         });
       }
 
-      await tx.order.update({
-        where: { id: orderId },
+      // Concurrency guard (H-sev double-tap settle): the is_paid check at the top of
+      // processPayment runs OUTSIDE this transaction, so two near-simultaneous settle
+      // requests can both pass it, both create a payment row and both reach here. The
+      // conditional updateMany only matches while the order is still unpaid — under
+      // READ COMMITTED the second writer blocks on the row lock, then re-evaluates
+      // is_paid=false against the winner's committed row and matches 0 rows. We throw
+      // so the whole transaction rolls back (payment.create, loyalty decrement and
+      // inventory deduction all revert), guaranteeing the order is charged exactly once.
+      const paidFlip = await tx.order.updateMany({
+        where: { id: orderId, is_paid: false },
         data: {
           is_paid: true,
           paid_at: new Date(),
@@ -1101,6 +1132,9 @@ async function processPayment(orderId, paymentData, staffId, outletId = null) {
             : {}),
         },
       });
+      if (paidFlip.count === 0) {
+        throw new BadRequestError('Order is already paid');
+      }
 
       if (order.table_id) {
         // Post-payment the table is NOT freed outright — it enters a 'dirty'
@@ -1527,6 +1561,15 @@ async function updateOrderStatus(orderId, newStatus, staffId, outletId = null) {
       throw new BadRequestError('Cannot mark an unpaid order as completed — collect payment first');
     }
 
+    // A PAID order must go through the refund flow. Cancelling/voiding it via this
+    // status endpoint would BYPASS cancelOrder's paid-order guard, leaving the row
+    // status='cancelled' AND is_paid=true with the payment never reversed, the table
+    // never freed and stock never restocked — collected cash then reads as a voided
+    // sale (dropped from revenue while the Payment row still counts). Block it.
+    if ((newStatus === 'cancelled' || newStatus === 'voided') && order.is_paid) {
+      throw new BadRequestError('Cannot cancel or void a paid order — issue a refund instead');
+    }
+
     await prisma.$transaction(async (tx) => {
       // If transitioning to 'paid' via status update, also set is_paid + paid_at
       // so revenue calculations stay consistent with processPayment flow.
@@ -1669,14 +1712,20 @@ async function mergeOrder(sourceOrderId, targetOrderId, userId) {
   return prisma.$transaction(async (tx) => {
     // Move items from source to target
     await tx.orderItem.updateMany({ where: { order_id: sourceOrderId }, data: { order_id: targetOrderId } });
-    // Recalculate target totals with proper tax engine
+    // Recalculate target totals with proper tax engine — PRESERVE the target
+    // order's existing discount/loyalty (else the merge silently drops it).
     const taxConfig = await getOutletTaxConfig(tx, target.outlet_id);
-    const totals = await recalcOrderTotals(tx, targetOrderId, taxConfig);
+    const totals = await recalcOrderTotals(
+      tx, targetOrderId, taxConfig,
+      Number(target.discount_amount) || 0,
+      Number(target.loyalty_discount) || 0,
+    );
     await tx.order.update({
       where: { id: targetOrderId },
       data: {
         subtotal: totals.subtotal,
-        taxable_amount: totals.subtotal,
+        taxable_amount: round2(totals.taxableAmount),
+        discount_amount: round2(totals.discount),
         cgst: Math.round(totals.cgst * 100) / 100,
         sgst: Math.round(totals.sgst * 100) / 100,
         igst: Math.round(totals.igst * 100) / 100,
@@ -2717,4 +2766,6 @@ module.exports = {
   generateKOT, generateBill, processPayment, cancelOrder, voidOrder, updateOrderStatus,
   generateInvoiceNumber, refundOrder, transferTable, mergeOrder, syncOfflineOrders,
   sendEBill, punchKOT, addTip, authorizeManagerPin,
+  // Exported for regression tests (discount-preserving totals recompute).
+  recalcOrderTotals,
 };
