@@ -251,7 +251,11 @@ async function getCRMDashboard(outletId) {
       include: { customer: { select: { full_name: true, phone: true } } },
     }),
 
+    // Scope loyalty totals to the outlet like every other metric above; without
+    // a where clause the aggregate summed balances across ALL outlets/tenants in
+    // the single-DB row-level-tenant model even when an outletId was supplied.
     prisma.loyaltyPoints.aggregate({
+      where: { is_deleted: false, ...(outletId ? { customer: { orders: { some: { outlet_id: outletId } } } } : {}) },
       _sum: { current_balance: true, total_earned: true, total_redeemed: true },
     }),
   ]);
@@ -356,10 +360,19 @@ async function redeemPoints(customerId, outletId, orderId, points) {
   const discountAmount = points * cfg.redeem_value;
 
   const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.loyaltyPoints.update({
-      where: { customer_id: customerId },
+    // Atomic guarded decrement — the `current_balance >= points` predicate in the
+    // WHERE is what makes concurrent redeems safe. The pre-check above is only a
+    // fast-fail; without this guard two concurrent /loyalty/redeem calls could both
+    // pass the read-time check and overspend, driving the signed Int current_balance
+    // negative (there is no DB check constraint).
+    const dec = await tx.loyaltyPoints.updateMany({
+      where: { customer_id: customerId, current_balance: { gte: points } },
       data: { total_redeemed: { increment: points }, current_balance: { decrement: points } },
     });
+    if (dec.count !== 1) throw new BadRequestError('Insufficient points');
+
+    // Re-read to capture the post-decrement balance for the transaction record.
+    const updated = await tx.loyaltyPoints.findFirst({ where: { customer_id: customerId } });
 
     await tx.loyaltyTransaction.create({
       data: {
@@ -379,17 +392,27 @@ async function redeemPoints(customerId, outletId, orderId, points) {
   return { discount_amount: discountAmount, remaining_balance: result.current_balance };
 }
 
-async function adjustPoints(customerId, outletId, points, reason) {
+async function adjustPoints(customerId, outletId, points, reason, caller) {
   const prisma = getDbClient();
-  const customer = await prisma.customer.findFirst({ where: { id: customerId, is_deleted: false } });
+  // Tenant-scope the lookup so a tenant-A staff member cannot mutate a tenant-B
+  // customer's loyalty by UUID (cross-tenant IDOR); a cross-tenant id 404s.
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
+  });
   if (!customer) throw new NotFoundError('Customer not found');
+
+  // Read the current balance so a negative adjustment cannot drive current_balance
+  // below zero (Int column, no DB floor). For a decrement we set an explicit
+  // clamped value instead of an unbounded increment of a negative number.
+  const current = await prisma.loyaltyPoints.findFirst({ where: { customer_id: customerId } });
+  const currentBalance = current?.current_balance || 0;
 
   const loyalty = await prisma.loyaltyPoints.upsert({
     where: { customer_id: customerId },
     create: { customer_id: customerId, total_earned: Math.max(0, points), current_balance: Math.max(0, points) },
     update: points > 0
       ? { total_earned: { increment: points }, current_balance: { increment: points } }
-      : { current_balance: { increment: points } },
+      : { current_balance: Math.max(0, currentBalance + points) },
   });
 
   await prisma.loyaltyTransaction.create({
@@ -425,9 +448,17 @@ async function updateSegment(customerId) {
   }
 }
 
-async function getLoyaltyHistory(customerId, query = {}) {
+async function getLoyaltyHistory(customerId, query = {}, caller) {
   const prisma = getDbClient();
   const { page, limit, offset } = parsePagination(query);
+
+  // Tenant-scope: verify the customer belongs to the caller's tenant before
+  // returning their loyalty history — this function previously did no customer
+  // check at all, so a tenant-A user could read a tenant-B customer's ledger.
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
+  });
+  if (!customer) throw new NotFoundError('Customer not found');
 
   const [transactions, total, summary] = await Promise.all([
     prisma.loyaltyTransaction.findMany({
@@ -717,6 +748,9 @@ async function updateLoyaltyConfig(outletId, patch) {
 }
 
 module.exports = {
+  // Exported so sibling services (e.g. customer.privacy.service) can apply the
+  // exact same tenant scoping as the scoped CRUD reads, closing cross-tenant IDOR.
+  tenantScopeFilter,
   createCustomer, listCustomers, getCustomer, findByPhone, updateCustomer, deleteCustomer,
   addAddress,
   getCRMDashboard, getBirthdayCustomers,

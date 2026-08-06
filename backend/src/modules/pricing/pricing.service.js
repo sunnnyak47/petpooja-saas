@@ -77,10 +77,13 @@ function isRuleActive(rule, ctx) {
   }
 
   // Day of week
-  const days = rule.days_of_week;
-  if (Array.isArray(days) && days.length > 0) {
-    if (!days.includes(ctx.dayOfWeek)) return false;
-  }
+  // FIX: Joi accepts day names ('mon'..'sun') for API-created rules, but ctx.dayOfWeek is a
+  // number (0-6 from getDay). Comparing them directly filtered out every string-day rule on
+  // all days. Normalize names to numeric indices so both numeric seeds and string API input work.
+  const DAY_IDX = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const days = (Array.isArray(rule.days_of_week) ? rule.days_of_week : [])
+    .map(d => typeof d === 'string' ? DAY_IDX[d.toLowerCase()] : d);
+  if (days.length > 0 && !days.includes(ctx.dayOfWeek)) return false;
 
   // Season
   if (rule.season_trigger && rule.season_trigger !== 'any') {

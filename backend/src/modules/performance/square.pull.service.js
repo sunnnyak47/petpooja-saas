@@ -74,6 +74,31 @@ function toDollars(cents) {
   return Math.round((Number(cents) || 0)) / 100;
 }
 
+/**
+ * Hour-of-day (0–23) in the outlet's local timezone for an ISO/Date-ish value.
+ * Fix: keying the hourly accumulator on getUTCHours() hour-shifted every chart
+ * for AU (UTC+10/11) and IN (UTC+5:30) outlets. Falls back to UTC hours if tz
+ * is missing/invalid. Returns null on an unparseable timestamp.
+ */
+function localHour(value, tz) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  if (tz) {
+    try {
+      const h = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        hour: 'numeric',
+        hour12: false,
+      }).format(d);
+      const n = parseInt(h, 10);
+      if (Number.isFinite(n)) return n % 24; // '24' at midnight → 0
+    } catch (_e) {
+      // invalid tz → fall through to UTC
+    }
+  }
+  return d.getUTCHours();
+}
+
 /** Fresh per-day accumulator with all fields zeroed. */
 function newAccumulator() {
   return {
@@ -121,6 +146,19 @@ async function pullAll(outletId, { days = 30 } = {}) {
   const beginISO = begin.toISOString();
   const endISO = now.toISOString();
 
+  // Outlet-local timezone for hour/daypart bucketing (UTC fallback). Fixes the
+  // UTC-hour mislabeling that hour-shifted charts for all AU/IN outlets.
+  let outletTz = null;
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId },
+      select: { timezone: true },
+    });
+    outletTz = (outlet && outlet.timezone) || null;
+  } catch (e) {
+    logger.warn('[SquarePull] outlet timezone lookup failed', { outletId, error: e.message });
+  }
+
   const map = new Map(); // dateStr -> accumulator
   const modules = {
     payments: false,
@@ -156,8 +194,9 @@ async function pullAll(outletId, { days = 30 } = {}) {
         a.payments_count += 1;
         const brand = p.card_details?.card?.card_brand || 'OTHER';
         a.payment_mix[brand] = (a.payment_mix[brand] || 0) + amount;
-        const hour = new Date(p.created_at).getUTCHours();
-        if (!Number.isNaN(hour)) a.hourly[hour] = (a.hourly[hour] || 0) + amount;
+        // Bucket by outlet-local hour (not UTC) so charts aren't hour-shifted.
+        const hour = localHour(p.created_at, outletTz);
+        if (hour != null) a.hourly[hour] = (a.hourly[hour] || 0) + amount;
       }
       cursor = json.cursor;
     } while (cursor && ++page < MAX_PAGES);
@@ -228,6 +267,13 @@ async function pullAll(outletId, { days = 30 } = {}) {
       const json = await sqGet(ctx, `/v2/disputes${qs}`);
       for (const d of json.disputes || []) {
         const key = dateKey(d.created_at) || dateKey(endISO);
+        // Square ListDisputes has no time params, so window client-side like
+        // every other module. Fix: un-windowed disputes materialized out-of-
+        // range snapshot rows that skewed BETWEEN aggregation and, worse, let
+        // the ON CONFLICT upsert clobber legitimate historical sales rows with
+        // dispute-only zero-sales data.
+        const t = new Date(d.created_at).getTime();
+        if (Number.isFinite(t) && (t < begin.getTime() || t > now.getTime())) continue;
         const a = acc(map, key);
         a.disputes_count += 1;
         a.disputes_amount += Number(d.amount_money?.amount) || 0;
@@ -367,7 +413,7 @@ async function pullAll(outletId, { days = 30 } = {}) {
     const [catalog, inventory, order_economics, staff, rfm, cash_drawer] = await Promise.all([
       fetchCatalog(ctx),
       fetchInventory(ctx, locationId),
-      fetchOrderEconomics(ctx, locationId, beginISO, endISO),
+      fetchOrderEconomics(ctx, locationId, beginISO, endISO, outletTz),
       fetchStaffPerformance(ctx, locationId, beginISO, endISO),
       fetchCustomerRFM(ctx, beginISO, endISO),
       fetchCashDrawer(ctx, locationId, beginISO, endISO),

@@ -493,14 +493,20 @@ async function getBusinessHealth(outletId, { from, to } = {}) {
   // ---- Reconciliation -----------------------------------------------------
   let reconciliation = null;
   if (xero) {
-    const squarePayouts = payoutTotal;
-    // approximate bank deposits as Xero revenue cash receipts
-    const xeroBankDeposits = round2(xero.revenue);
-    const diff = round2(squarePayouts - xeroBankDeposits);
-    const tolerance = Math.max(50, Math.abs(squarePayouts) * 0.01);
+    // Fix: compare like-for-like gross, tax-inclusive figures. Previously this
+    // compared Square NET bank payouts (incl-GST, net of fees) against Xero
+    // EX-GST revenue with a ~1% tolerance, so the ~7%-of-gross structural gap
+    // (GST + card fees) made match=false on virtually every dual-connected
+    // outlet and fired a false "reconcile your accounts" alert. Netting GST +
+    // fees out of each side and widening tolerance for timing/scope drift
+    // preserves a real sales-vs-books reconciliation without the false alarm.
+    const squareGross = round2(grossSales);
+    const xeroGross = round2(num(xero.revenue) + num(xero.gst_estimate));
+    const diff = round2(squareGross - xeroGross);
+    const tolerance = Math.max(50, Math.abs(squareGross) * 0.05);
     reconciliation = {
-      square_payouts: squarePayouts,
-      xero_bank_deposits: xeroBankDeposits,
+      square_payouts: squareGross,
+      xero_bank_deposits: xeroGross,
       diff,
       match: Math.abs(diff) < tolerance,
     };

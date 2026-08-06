@@ -16,10 +16,15 @@ const express = require('express');
 const router = express.Router();
 
 const { authenticate } = require('../../middleware/auth.middleware');
+const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const c = require('./performance.controller');
 
-router.get('/health', authenticate, c.getHealth);
-router.post('/refresh', authenticate, c.refresh);
-router.get('/status', authenticate, c.getStatus);
+// enforceOutletScope prevents a non-owner from reading/refreshing another
+// outlet's financials via an attacker-supplied ?outlet_id (owner/super_admin
+// bypass keeps multi-outlet access; a mismatched outlet_id is rejected, and a
+// non-owner with no outlet_id defaults to their own — matching the controller).
+router.get('/health', authenticate, enforceOutletScope, c.getHealth);
+router.post('/refresh', authenticate, enforceOutletScope, c.refresh);
+router.get('/status', authenticate, enforceOutletScope, c.getStatus);
 
 module.exports = router;

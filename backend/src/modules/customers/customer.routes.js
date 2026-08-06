@@ -54,6 +54,30 @@ async function deleteCustomerScoped(req, res, next) {
   } catch (e) { next(e); }
 }
 
+// Loyalty read/mutate must thread req.user so the service can tenant-scope the
+// customer lookup — the bare controller handlers pass no caller, which is the
+// same IDOR gap (H1) already fixed for the CRUD routes above.
+async function getLoyaltyHistoryScoped(req, res, next) {
+  try {
+    const result = await customerService.getLoyaltyHistory(req.params.id, req.query, req.user);
+    sendSuccess(res, {
+      transactions: result.transactions,
+      summary: result.summary,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    }, 'Loyalty history retrieved');
+  } catch (e) { next(e); }
+}
+
+async function adjustPointsScoped(req, res, next) {
+  try {
+    const outletId = req.body.outlet_id || req.user?.outlet_id;
+    const result = await customerService.adjustPoints(req.params.id, outletId, req.body.points, req.body.reason, req.user);
+    sendSuccess(res, result, 'Points adjusted');
+  } catch (e) { next(e); }
+}
+
 /** CRM Dashboard */
 router.get('/crm/dashboard', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getCRMDashboard);
 
@@ -87,8 +111,8 @@ router.delete('/:id', authenticate, hasPermission('MANAGE_CUSTOMERS'), deleteCus
 router.post('/:id/addresses', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(addAddressSchema), c.addAddress);
 
 /** Loyalty */
-router.get('/:id/loyalty/history', authenticate, hasPermission('VIEW_CUSTOMERS'), c.getLoyaltyHistory);
+router.get('/:id/loyalty/history', authenticate, hasPermission('VIEW_CUSTOMERS'), getLoyaltyHistoryScoped);
 router.post('/:id/loyalty/redeem', authenticate, hasPermission('MANAGE_ORDERS'), validate(redeemPointsSchema), c.redeemPoints);
-router.post('/:id/loyalty/adjust', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(adjustPointsSchema), c.adjustPoints);
+router.post('/:id/loyalty/adjust', authenticate, hasPermission('MANAGE_CUSTOMERS'), validate(adjustPointsSchema), adjustPointsScoped);
 
 module.exports = router;

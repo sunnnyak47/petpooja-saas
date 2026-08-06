@@ -191,6 +191,15 @@ async function rollupHeadOffice(prisma, headOfficeId, period) {
  * @returns {Promise<{period:string, generated:number, skipped:number, failed:number}>}
  */
 async function generateInvoicesForPeriod(period = previousPeriod()) {
+  // Guard: never roll up an open or future period. A partial-month invoice would
+  // trip rollupHeadOffice's idempotency short-circuit (existing invoice → early
+  // return), permanently stranding every later same-period usage event and
+  // chronically under-billing. YYYY-MM sorts lexicographically, so this rejects
+  // the current month and anything after it while leaving the cron's
+  // previous-month path (previousPeriod()) — always a closed month — untouched.
+  if (period >= billingPeriodOf()) {
+    return { period, generated: 0, skipped: 0, failed: 0, reason: 'period not closed' };
+  }
   const prisma = getDbClient();
   const groups = await prisma.billingUsageEvent.groupBy({
     by: ['head_office_id'],

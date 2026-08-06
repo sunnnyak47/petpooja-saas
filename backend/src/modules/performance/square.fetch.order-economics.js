@@ -17,6 +17,33 @@ const logger = require('../../config/logger');
 // Daypart bucket order, used to emit a stable Breakfast→Late night sequence.
 const DAYPART_ORDER = ['Breakfast', 'Lunch', 'Afternoon', 'Dinner', 'Late night'];
 
+/**
+ * Hour-of-day (0–23) in the outlet's local timezone for an ISO/Date-ish value.
+ * Fix: bucketing on getUTCHours() mislabeled dayparts for every AU (UTC+10/11)
+ * and IN (UTC+5:30) outlet. Falls back to UTC hours if tz is missing/invalid.
+ * @param {string} iso
+ * @param {string} [tz]
+ * @returns {number|null}
+ */
+function localHour(iso, tz) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  if (tz) {
+    try {
+      const h = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        hour: 'numeric',
+        hour12: false,
+      }).format(d);
+      const n = parseInt(h, 10);
+      if (Number.isFinite(n)) return n % 24; // '24' at midnight → 0
+    } catch (_e) {
+      // invalid tz → fall through to UTC
+    }
+  }
+  return d.getUTCHours();
+}
+
 /** Map a Square fulfillment type to a human sales channel. */
 function mapFulfillment(order) {
   const type = order.fulfillments?.[0]?.type;
@@ -26,9 +53,10 @@ function mapFulfillment(order) {
   return 'Dine-in';
 }
 
-/** Bucket an order's closing hour (UTC) into a daypart label. */
-function mapDaypart(order) {
-  const h = new Date(order.closed_at || order.created_at).getUTCHours();
+/** Bucket an order's closing hour (outlet-local) into a daypart label. */
+function mapDaypart(order, tz) {
+  const h = localHour(order.closed_at || order.created_at, tz);
+  if (h == null) return 'Late night';
   if (h >= 5 && h <= 10) return 'Breakfast';
   if (h >= 11 && h <= 14) return 'Lunch';
   if (h >= 15 && h <= 16) return 'Afternoon';
@@ -42,9 +70,10 @@ function mapDaypart(order) {
  * @param {string} locationId - Square location id.
  * @param {string} beginISO - Inclusive range start (RFC 3339).
  * @param {string} endISO - Inclusive range end (RFC 3339).
+ * @param {string} [tz] - Outlet IANA timezone for daypart bucketing (UTC fallback).
  * @returns {Promise<object>} Order-economics summary, or { available: false }.
  */
-async function fetchOrderEconomics(ctx, locationId, beginISO, endISO) {
+async function fetchOrderEconomics(ctx, locationId, beginISO, endISO, tz) {
   if (!locationId) return { available: false };
 
   try {
@@ -93,7 +122,7 @@ async function fetchOrderEconomics(ctx, locationId, beginISO, endISO) {
         channelMap.set(channel, ch);
 
         // Daypart breakdown.
-        const part = mapDaypart(order);
+        const part = mapDaypart(order, tz);
         const dp = daypartMap.get(part) || { amount: 0, count: 0 };
         dp.amount += totalCents;
         dp.count += 1;

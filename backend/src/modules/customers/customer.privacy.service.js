@@ -9,6 +9,10 @@
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
 const { NotFoundError } = require('../../utils/errors');
+// Reuse the sibling CRUD service's tenant scoping so privacy operations are
+// restricted to the caller's tenant exactly like getCustomer/updateCustomer/
+// deleteCustomer. Prevents cross-tenant IDOR (export/erase/consent by UUID).
+const { tenantScopeFilter } = require('./customer.service');
 
 /** Max number of order rows included in a data export (most recent first). */
 const EXPORT_ORDER_CAP = 500;
@@ -40,10 +44,12 @@ function erasedPhonePlaceholder(customerId) {
  * @returns {Promise<{ marketing_consent: boolean, consent_at: (Date|null), consent_source: string }>}
  * @throws {NotFoundError} If the customer does not exist or is deleted.
  */
-async function setConsent(customerId, { marketing_consent, source } = {}) {
+async function setConsent(customerId, { marketing_consent, source } = {}, caller) {
   const prisma = getDbClient();
+  // Tenant-scope the lookup so a caller cannot alter another tenant's customer;
+  // a cross-tenant id simply 404s (super_admin/no caller stays unscoped).
   const existing = await prisma.customer.findFirst({
-    where: { id: customerId, is_deleted: false },
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
   });
   if (!existing) throw new NotFoundError('Customer not found');
 
@@ -71,11 +77,14 @@ async function setConsent(customerId, { marketing_consent, source } = {}) {
  * @returns {Promise<object>} A JSON-serialisable data bundle.
  * @throws {NotFoundError} If the customer does not exist or is deleted.
  */
-async function exportCustomerData(customerId) {
+async function exportCustomerData(customerId, caller) {
   const prisma = getDbClient();
 
+  // Tenant-scope the lookup so a caller cannot export another tenant's full PII
+  // bundle by UUID (cross-tenant IDOR); a cross-tenant id 404s here, and the
+  // orders findMany below inherits the check because it is gated by customer_id.
   const customer = await prisma.customer.findFirst({
-    where: { id: customerId, is_deleted: false },
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
     include: {
       addresses: { where: { is_deleted: false } },
       loyalty_points: true,
@@ -131,10 +140,12 @@ async function exportCustomerData(customerId) {
  * @returns {Promise<{ erased: boolean, anonymised_at: Date }>}
  * @throws {NotFoundError} If the customer does not exist or is already erased.
  */
-async function eraseCustomer(customerId) {
+async function eraseCustomer(customerId, caller) {
   const prisma = getDbClient();
+  // Tenant-scope the lookup so a caller cannot erase another tenant's customer
+  // (cross-tenant IDOR); a cross-tenant id 404s (super_admin/no caller unscoped).
   const existing = await prisma.customer.findFirst({
-    where: { id: customerId, is_deleted: false },
+    where: { id: customerId, is_deleted: false, ...(await tenantScopeFilter(caller)) },
   });
   if (!existing) throw new NotFoundError('Customer not found');
 

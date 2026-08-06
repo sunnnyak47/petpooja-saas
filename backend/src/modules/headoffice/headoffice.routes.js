@@ -102,6 +102,14 @@ router.get('/outlet-comparison', authenticate, hasRole('super_admin', 'owner'), 
 router.post('/menu-sync', authenticate, hasRole('super_admin', 'owner'), validate(menuSyncSchema), async (req, res, next) => {
   try {
     const { source_outlet_id, target_outlet_ids, options } = req.body;
+    // Tenant isolation: syncMenu does zero head_office_id/ownership validation, so
+    // without this a caller could read another tenant's menu (source) and
+    // destructively overwrite prices/items on outlets they don't own (targets).
+    // Authorize the source read and every target write against the caller's tenant.
+    await assertOutletOwnership(req, source_outlet_id);
+    for (const t of target_outlet_ids) {
+      await assertOutletOwnership(req, t);
+    }
     const result = await hoService.syncMenu(source_outlet_id, target_outlet_ids, options);
     sendSuccess(res, result, `${result.synced} items synced`);
   } catch (error) { next(error); }
@@ -110,6 +118,22 @@ router.post('/menu-sync', authenticate, hasRole('super_admin', 'owner'), validat
 /** POST /api/ho/indents — Create central kitchen indent */
 router.post('/indents', authenticate, hasPermission('MANAGE_INVENTORY'), validate(createIndentSchema), async (req, res, next) => {
   try {
+    // Tenant isolation: createIndent trusts the client-supplied outlet_id with no
+    // ownership check, so reject any outlet_id that isn't the caller's tenant
+    // (a reachable cross-tenant write via a permission-only guard).
+    await assertOutletOwnership(req, req.body.outlet_id);
+
+    // Defense in depth: every inventory_item_id must belong to that same outlet,
+    // otherwise the indent could reference another outlet's/tenant's inventory.
+    const itemIds = [...new Set((req.body.items || []).map((it) => it.inventory_item_id))];
+    const ownedCount = await require('../../config/database').getDbClient().inventoryItem.count({
+      where: { id: { in: itemIds }, outlet_id: req.body.outlet_id },
+    });
+    if (ownedCount !== itemIds.length) {
+      const { BadRequestError } = require('../../utils/errors');
+      throw new BadRequestError('One or more inventory items do not belong to this outlet');
+    }
+
     const indent = await hoService.createIndent(req.body);
     sendCreated(res, indent, 'Indent created');
   } catch (error) { next(error); }
