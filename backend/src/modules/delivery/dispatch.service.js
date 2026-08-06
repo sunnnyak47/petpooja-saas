@@ -135,7 +135,10 @@ async function getQuote(outletId, { provider, dropoff_address, dropoff_lat, drop
       return {
         provider,
         quote_id: body.id || body.quote_id || body.external_delivery_id || null,
-        fee: round2((Number(feeCents) || 0) / (body.fee != null && body.fee > 1000 ? 100 : 1)),
+        // WHY: Uber Direct & DoorDash Drive both return the fee in integer cents across
+        // all three fields, so divide unconditionally. The old magnitude heuristic left
+        // fees <= $10 (and any fee_amount/delivery_fee source) unscaled, e.g. A$890.
+        fee: round2((Number(feeCents) || 0) / 100),
         currency: body.currency || body.currency_type || 'AUD',
         eta_minutes: body.duration ?? body.dropoff_eta_minutes ?? 30,
         simulated: false,

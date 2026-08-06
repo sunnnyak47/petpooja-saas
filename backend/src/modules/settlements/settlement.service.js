@@ -344,9 +344,14 @@ const settlementService = {
     );
 
     const netAmount = Number(settlement.net_amount);
+    // WHY: Payment.amount is the gross charge while net_amount is net-of-fees, so
+    // differencing net against the gross matched total always leaves the fees behind
+    // (variance = -(fees + tax_on_fees)) and a fully-matched fee-charging batch never
+    // reached 'matched'. Remove provider fees + tax on fees from the matched gross
+    // total first so like-for-like nets to 0 (e.g. 970 - (1000 - 30 - 0) = 0).
     const varianceAmount =
       netAmount > 0
-        ? round2(netAmount - round2(matchedPaymentsTotal))
+        ? round2(netAmount - (round2(matchedPaymentsTotal) - Number(settlement.fees) - Number(settlement.tax_on_fees)))
         : round2(lineVarianceTotal);
 
     const status =

@@ -7,12 +7,15 @@ const express = require('express');
 const router  = express.Router();
 const svc     = require('./festival.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+// WHY: enforceOutletScope closes an IDOR — without it a non-owner could pass another
+// outlet's outlet_id in the query/body to read or mutate that outlet's festival data.
+const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const { saveFestivalConfigSchema, toggleFestivalSchema } = require('./festival.validation');
 const { sendSuccess, sendCreated } = require('../../utils/response');
 
 /** GET /api/festival/detect — upcoming festivals for outlet's region */
-router.get('/detect', authenticate, async (req, res, next) => {
+router.get('/detect', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId  = req.query.outlet_id || req.user.outlet_id;
     const daysAhead = parseInt(req.query.days_ahead) || 45;
@@ -29,7 +32,7 @@ router.get('/master', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/festival/active — currently active mode for POS */
-router.get('/active', authenticate, async (req, res, next) => {
+router.get('/active', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.getActiveFestivalMode(outletId), 'Active festival mode');
@@ -37,7 +40,7 @@ router.get('/active', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/festival/configs — list all saved configs */
-router.get('/configs', authenticate, async (req, res, next) => {
+router.get('/configs', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.listConfigs(outletId), 'Festival configs retrieved');
@@ -45,7 +48,7 @@ router.get('/configs', authenticate, async (req, res, next) => {
 });
 
 /** POST /api/festival/configs — save/update a festival config */
-router.post('/configs', authenticate, validate(saveFestivalConfigSchema), async (req, res, next) => {
+router.post('/configs', authenticate, enforceOutletScope, validate(saveFestivalConfigSchema), async (req, res, next) => {
   try {
     const outletId    = req.body.outlet_id || req.user.outlet_id;
     const { festival_key, ...data } = req.body;
@@ -55,7 +58,7 @@ router.post('/configs', authenticate, validate(saveFestivalConfigSchema), async 
 });
 
 /** POST /api/festival/configs/:id/toggle — activate/deactivate */
-router.post('/configs/:id/toggle', authenticate, validate(toggleFestivalSchema), async (req, res, next) => {
+router.post('/configs/:id/toggle', authenticate, enforceOutletScope, validate(toggleFestivalSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.toggleFestivalMode(outletId, req.params.id), 'Festival mode toggled');
@@ -63,7 +66,7 @@ router.post('/configs/:id/toggle', authenticate, validate(toggleFestivalSchema),
 });
 
 /** DELETE /api/festival/configs/:id — remove config */
-router.delete('/configs/:id', authenticate, async (req, res, next) => {
+router.delete('/configs/:id', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.deleteConfig(outletId, req.params.id), 'Festival config deleted');
@@ -71,7 +74,7 @@ router.delete('/configs/:id', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/festival/menu-suggestions/:key — match festival items to real menu */
-router.get('/menu-suggestions/:key', authenticate, async (req, res, next) => {
+router.get('/menu-suggestions/:key', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.getMenuSuggestions(outletId, req.params.key), 'Menu suggestions ready');

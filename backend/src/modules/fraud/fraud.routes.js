@@ -7,6 +7,9 @@ const express = require('express');
 const router  = express.Router();
 const svc     = require('./fraud.service');
 const { authenticate } = require('../../middleware/auth.middleware');
+// WHY: like audit.routes, fraud routes must enforce outlet ownership — without it any
+// authenticated scoped user could pass another outlet's outlet_id and read/mutate its fraud data.
+const { enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 const { sendSuccess }  = require('../../utils/response');
 const {
@@ -20,7 +23,7 @@ const {
 } = require('./fraud.validation');
 
 /** POST /api/fraud/detect — trigger fraud detection scan */
-router.post('/detect', authenticate, validate(runDetectionSchema), async (req, res, next) => {
+router.post('/detect', authenticate, enforceOutletScope, validate(runDetectionSchema), async (req, res, next) => {
   try {
     const outletId   = req.body.outlet_id || req.user.outlet_id;
     const thresholds = req.body.thresholds || {};
@@ -29,7 +32,7 @@ router.post('/detect', authenticate, validate(runDetectionSchema), async (req, r
 });
 
 /** GET /api/fraud/alerts — list alerts (paginated, filterable) */
-router.get('/alerts', authenticate, async (req, res, next) => {
+router.get('/alerts', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     const opts = {
@@ -45,7 +48,7 @@ router.get('/alerts', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/fraud/stats — summary stats */
-router.get('/stats', authenticate, async (req, res, next) => {
+router.get('/stats', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.getAlertStats(outletId), 'Fraud stats retrieved');
@@ -53,7 +56,7 @@ router.get('/stats', authenticate, async (req, res, next) => {
 });
 
 /** GET /api/fraud/staff-risks — risk profiles for all staff */
-router.get('/staff-risks', authenticate, async (req, res, next) => {
+router.get('/staff-risks', authenticate, enforceOutletScope, async (req, res, next) => {
   try {
     const outletId = req.query.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.getStaffRiskProfiles(outletId), 'Staff risk profiles retrieved');
@@ -61,7 +64,7 @@ router.get('/staff-risks', authenticate, async (req, res, next) => {
 });
 
 /** PATCH /api/fraud/alerts/:id/read */
-router.patch('/alerts/:id/read', authenticate, validate(markReadSchema), async (req, res, next) => {
+router.patch('/alerts/:id/read', authenticate, enforceOutletScope, validate(markReadSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.markRead(outletId, req.params.id), 'Alert marked read');
@@ -69,7 +72,7 @@ router.patch('/alerts/:id/read', authenticate, validate(markReadSchema), async (
 });
 
 /** POST /api/fraud/alerts/read-all */
-router.post('/alerts/read-all', authenticate, validate(markAllReadSchema), async (req, res, next) => {
+router.post('/alerts/read-all', authenticate, enforceOutletScope, validate(markAllReadSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.markAllRead(outletId), 'All alerts marked read');
@@ -77,7 +80,7 @@ router.post('/alerts/read-all', authenticate, validate(markAllReadSchema), async
 });
 
 /** PATCH /api/fraud/alerts/:id/dismiss */
-router.patch('/alerts/:id/dismiss', authenticate, validate(dismissAlertSchema), async (req, res, next) => {
+router.patch('/alerts/:id/dismiss', authenticate, enforceOutletScope, validate(dismissAlertSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.dismissAlert(outletId, req.params.id), 'Alert dismissed');
@@ -85,7 +88,7 @@ router.patch('/alerts/:id/dismiss', authenticate, validate(dismissAlertSchema), 
 });
 
 /** PATCH /api/fraud/alerts/:id/resolve */
-router.patch('/alerts/:id/resolve', authenticate, validate(resolveAlertSchema), async (req, res, next) => {
+router.patch('/alerts/:id/resolve', authenticate, enforceOutletScope, validate(resolveAlertSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.resolveAlert(outletId, req.params.id, req.body.note), 'Alert resolved');
@@ -93,7 +96,7 @@ router.patch('/alerts/:id/resolve', authenticate, validate(resolveAlertSchema), 
 });
 
 /** POST /api/fraud/alerts/:id/approve */
-router.post('/alerts/:id/approve', authenticate, validate(approveAlertSchema), async (req, res, next) => {
+router.post('/alerts/:id/approve', authenticate, enforceOutletScope, validate(approveAlertSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.approveAlert(outletId, req.params.id, req.user.id, req.body.note), 'Alert approved');
@@ -101,7 +104,7 @@ router.post('/alerts/:id/approve', authenticate, validate(approveAlertSchema), a
 });
 
 /** POST /api/fraud/alerts/:id/reject */
-router.post('/alerts/:id/reject', authenticate, validate(rejectAlertSchema), async (req, res, next) => {
+router.post('/alerts/:id/reject', authenticate, enforceOutletScope, validate(rejectAlertSchema), async (req, res, next) => {
   try {
     const outletId = req.body.outlet_id || req.user.outlet_id;
     sendSuccess(res, await svc.rejectAlert(outletId, req.params.id, req.user.id, req.body.note), 'Alert rejected');

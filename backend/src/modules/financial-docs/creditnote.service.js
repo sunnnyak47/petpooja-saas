@@ -180,10 +180,32 @@ const creditNoteService = {
     if (!(totalAmount > 0)) {
       throw new BadRequestError('Credit note total_amount must be greater than zero');
     }
-    if (order && totalAmount > round2(Number(order.grand_total)) + 0.01) {
-      throw new BadRequestError(
-        `Credit note total (${totalAmount}) cannot exceed the linked order total (${round2(Number(order.grand_total))})`
-      );
+    // WHY: Joi validates tax_amount/total_amount independently, so the explicit-
+    // amounts path can accept tax_amount > total_amount — storing a negative
+    // subtotal and CGST/SGST that exceed the document total. Reject cross-field
+    // inconsistency here so BOTH paths are covered (the lines path always yields
+    // tax <= total and subtotal >= 0, so these guards never fire for it).
+    if (taxAmount > round2(totalAmount) + 0.01) {
+      throw new BadRequestError('Credit note tax_amount cannot exceed total_amount');
+    }
+    if (subtotal < 0) {
+      throw new BadRequestError('Credit note subtotal cannot be negative');
+    }
+    // WHY: The old cap compared only this single new note to the order total, so
+    // cumulative credit notes against one order could far exceed it. Aggregate
+    // prior issued (non-deleted) notes and include the new note in the check.
+    if (order) {
+      const cap = round2(Number(order.grand_total));
+      const prior = await prisma.creditNote.aggregate({
+        where: { order_id: order.id, outlet_id: outletId, status: 'issued', is_deleted: false },
+        _sum: { total_amount: true },
+      });
+      const priorTotal = round2(Number(prior._sum.total_amount || 0));
+      if (round2(priorTotal + totalAmount) > cap + 0.01) {
+        throw new BadRequestError(
+          `Credit notes for this order (${round2(priorTotal + totalAmount)}) would exceed the order total (${cap})`
+        );
+      }
     }
 
     const { cgst, sgst, igst } = splitTax(taxAmount, region);

@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth.middleware');
-const { hasPermission, enforceOutletScope } = require('../../middleware/rbac.middleware');
+const { hasRole, enforceOutletScope } = require('../../middleware/rbac.middleware');
 const { getDbClient } = require('../../config/database');
 const { sendPaginated, sendError, sendSuccess } = require('../../utils/response');
 const logger = require('../../config/logger');
@@ -26,7 +26,10 @@ const logger = require('../../config/logger');
  *   start_date - Filter entries from this date (ISO 8601)
  *   end_date   - Filter entries until this date (ISO 8601)
  */
-router.get('/', authenticate, enforceOutletScope, async (req, res) => {
+// WHY: Audit trail is admin-only. enforceOutletScope only forces outlet_id — it does no
+// role check — so without a role guard any authenticated outlet user (cashier, kitchen
+// staff, etc.) could read the full audit trail. Restrict to admin-level roles.
+router.get('/', authenticate, hasRole('super_admin', 'owner', 'manager'), enforceOutletScope, async (req, res) => {
   try {
     const prisma = getDbClient();
 
@@ -100,7 +103,8 @@ router.get('/', authenticate, enforceOutletScope, async (req, res) => {
  * Returns all audit entries for a specific entity (e.g. a particular order).
  * Useful for viewing the complete change history of a single record.
  */
-router.get('/entity/:entityType/:entityId', authenticate, enforceOutletScope, async (req, res) => {
+// WHY: Same admin-only guard as the list route — entity history is part of the audit trail.
+router.get('/entity/:entityType/:entityId', authenticate, hasRole('super_admin', 'owner', 'manager'), enforceOutletScope, async (req, res) => {
   try {
     const prisma = getDbClient();
     const { entityType, entityId } = req.params;

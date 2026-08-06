@@ -89,11 +89,20 @@ async function acceptCustomerOrder(orderId, outletId, staffId) {
   });
   if (!order) throw new NotFoundError('Pending order not found');
 
-  // 1. Update status to 'created' (standard workflow start)
-  const updatedOrder = await prisma.order.update({
-    where: { id: orderId },
+  // 1. Update status to 'created' (standard workflow start).
+  //    WHY: The findFirst above only reads order_number/table_id for the socket
+  //    emits — it does NOT guard the write. A plain update(where:{id}) lets two
+  //    concurrent accepts both win, each generating a KOT for the same order
+  //    (TOCTOU). Gate the transition on status='pending' via updateMany so only
+  //    the single caller whose write flips pending->created (count===1) proceeds
+  //    to KOT generation and the socket emits; the loser gets NotFoundError.
+  const { count } = await prisma.order.updateMany({
+    where: { id: orderId, outlet_id: outletId, status: 'pending', is_deleted: false },
     data: { status: 'created', staff_id: staffId }
   });
+  if (count === 0) throw new NotFoundError('Pending order not found');
+  // Reflect the applied changes for the response without an extra round-trip.
+  const updatedOrder = { ...order, status: 'created', staff_id: staffId };
 
   // 2. Generate KOT (Kitchen Station gets the order now)
   try {
