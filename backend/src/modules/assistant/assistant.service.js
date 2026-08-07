@@ -364,6 +364,18 @@ async function answer(userCtx, question, history = []) {
     await resolveOutletContext(userCtx);
     const download = xport.buildDescriptor({ outletId: userCtx.outletId, currency: userCtx.currency }, question);
     if (download) {
+      // EOD builds one snapshot per day and is capped at MAX_RANGE_DAYS — don't hand
+      // back a link that will 500 on download; ask for a shorter range up front.
+      if (download.module === 'eod') {
+        const spanDays = Math.round((new Date(`${download.to}T00:00:00`) - new Date(`${download.from}T00:00:00`)) / 86400000) + 1;
+        if (spanDays > xport.MAX_RANGE_DAYS) {
+          return {
+            answer: `End-of-day reports cover up to ${xport.MAX_RANGE_DAYS} days at a time (you asked for ${spanDays}). Try a shorter range, or download a Sales report for the whole period.`,
+            source: 'export',
+            suggestions: SUGGESTIONS,
+          };
+        }
+      }
       return {
         answer: `Here's your ${download.module_label} report for ${download.range_label} (${download.from} to ${download.to}) as ${download.format.toUpperCase()}. Tap Download to save it.`,
         source: 'export',
@@ -426,7 +438,10 @@ async function answer(userCtx, question, history = []) {
   if (!toolName) {
     // Text-to-metric: a "<metric> by <breakdown>" question the fixed tools don't
     // cover (e.g. "revenue by channel last week") — compute it safely + grounded.
-    if (userCtx.outletId) {
+    // Gated on canReport (same as exports + the finance read tools): these are
+    // revenue/discount/net-sales figures, so a user without VIEW_REPORTS mustn't
+    // reach them via the metric fallback.
+    if (canReport && userCtx.outletId) {
       const mspec = metric.detectMetricQuery(question);
       if (mspec) {
         await resolveOutletContext(userCtx);

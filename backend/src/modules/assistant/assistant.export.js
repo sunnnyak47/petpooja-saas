@@ -306,10 +306,10 @@ async function pnlTable(outletId, from, to) {
   ];
   const rows = [];
   rows.push({ type: 'section', label: 'Revenue' });
-  for (const a of pl.revenue?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.balance)] });
+  for (const a of pl.revenue?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.amount)] });
   rows.push({ type: 'total', cells: ['', 'Total Revenue', n2(pl.revenue?.total)] });
   rows.push({ type: 'section', label: 'Expenses' });
-  for (const a of pl.expenses?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.balance)] });
+  for (const a of pl.expenses?.accounts || []) rows.push({ type: 'data', cells: [a.code, a.name, n2(a.amount)] });
   rows.push({ type: 'total', cells: ['', 'Total Expenses', n2(pl.expenses?.total)] });
   rows.push({ type: 'total', cells: ['', 'Cost of Goods Sold', n2(pl.cogs_total)] });
   rows.push({ type: 'total', cells: ['', 'Gross Profit', n2(pl.gross_profit)] });

@@ -112,8 +112,9 @@ describe('generate — CSV', () => {
   test('P&L CSV: metadata block + 2-decimal money, sections, net profit', async () => {
     mockStatements.getProfitAndLoss.mockResolvedValue({
       from: '2026-07-01', to: '2026-07-30',
-      revenue: { accounts: [{ code: '200', name: 'Food Sales', balance: 78450.25 }], total: 78450.25 },
-      expenses: { accounts: [{ code: '400', name: 'Wages', balance: 32100 }], total: 32100 },
+      // getProfitAndLoss returns accounts keyed on `amount` (not `balance`) — mock realistically.
+      revenue: { accounts: [{ code: '200', name: 'Food Sales', amount: 78450.25 }], total: 78450.25 },
+      expenses: { accounts: [{ code: '400', name: 'Wages', amount: 32100 }], total: 32100 },
       cogs_total: 29304.11, gross_profit: 49146.14, net_profit: 46350.25,
     });
     const out = await xport.generate({ outletId: 'o1', module: 'pnl', from: '2026-07-01', to: '2026-07-30', format: 'csv', currency: 'AUD' });

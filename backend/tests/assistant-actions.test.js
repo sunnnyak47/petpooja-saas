@@ -477,6 +477,9 @@ describe('inventory pack (record_wastage / adjust_stock / receive_po / create_in
     expect(actions.detectAction('set tomatoes to 5kg').name).toBe('adjust_stock');
     expect(actions.detectAction('add 10kg onions').name).toBe('adjust_stock');
     expect(actions.detectAction('receive PO-000123').name).toBe('receive_po');
+    // a bare PO mention in a READ question must NOT trigger receive_po
+    expect(actions.detectAction("what's on PO-123")).toBeNull();
+    expect(actions.detectAction('status of PO-2024-0045')).toBeNull();
     expect(actions.detectAction('add inventory item Paneer, unit kg').name).toBe('create_inventory_item');
     expect(actions.detectAction('how do I log wastage')).toBeNull();
   });
@@ -695,6 +698,9 @@ describe('promo pack (create_pricing_rule / create_discount / adjust_loyalty_poi
     expect(actions.detectAction('20% off drinks 4-6pm on weekdays').name).toBe('create_pricing_rule');
     expect(actions.detectAction('happy hour 15% off all 5-7pm').name).toBe('create_pricing_rule');
     expect(actions.detectAction('make code WELCOME10 for 10% off').name).toBe('create_discount');
+    // a coupon code + a time window must stay create_discount (must NOT be swallowed
+    // by create_pricing_rule, which would drop the code).
+    expect(actions.detectAction('make code WELCOME10 10% off drinks 5-7pm').name).toBe('create_discount');
     expect(actions.detectAction('give customer 0412345678 50 points').name).toBe('adjust_loyalty_points');
     expect(actions.detectAction('apply 10% off order 42').name).toBe('apply_discount');
     expect(actions.detectAction('how many loyalty points does John have')).toBeNull();
@@ -740,6 +746,13 @@ describe('promo pack (create_pricing_rule / create_discount / adjust_loyalty_poi
     await actions.runAction(OWNER, flat.token);
     expect(mockDiscounts.createDiscount.mock.calls[1][0]).toMatchObject({ code: 'HAPPY', type: 'flat', value: 50 });
     expect((await actions.buildActionPreview(OWNER, 'create code BIG for 150% off')).message).toMatch(/100%/);
+  });
+
+  test('create_discount: a codeless discount is created auto_apply:true (or it would be dead)', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'create a discount for 15% off');
+    expect(p.action).toBe('create_discount');
+    await actions.runAction(OWNER, p.token);
+    expect(mockDiscounts.createDiscount.mock.calls[0][0]).toMatchObject({ code: null, type: 'percentage', value: 15, auto_apply: true });
   });
 
   test('adjust_loyalty_points: by phone (+), by name (-); confirm calls adjustPoints with caller', async () => {

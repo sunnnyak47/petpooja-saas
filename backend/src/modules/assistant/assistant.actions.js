@@ -1132,7 +1132,9 @@ const ACTIONS = [
     label: 'mark a purchase order received',
     permission: 'MANAGE_INVENTORY',
     keywords: ['receive po', 'receive purchase order', 'po received', 'received po', 'received the po', 'mark po received', 'mark received', 'goods received', 'received the order', 'receive the order', 'mark the order', 'po delivered', 'delivered po', 'mark delivered'],
-    match: /\b(receive|received|receiving)\b[\s\S]{0,20}\b(po|p\.?o\.?|purchase order|order|delivery|goods)\b|\bpo[-\s]?\d/i,
+    // Require a receive/deliver verb + a PO/order noun. (A bare "PO-123" alone is
+    // NOT a receive intent — it hijacked read questions like "what's on PO-123".)
+    match: /\b(receive|received|receiving|goods received|delivered)\b[\s\S]{0,20}\b(po|p\.?o\.?|purchase order|order|delivery|goods)\b/i,
     async extract(ctx, q) {
       const hint = invExtractPoHint(q);
       if (!hint) return { error: 'Which purchase order? Tell me the PO number, e.g. "receive PO-000123".' };
@@ -1426,7 +1428,10 @@ const ACTIONS = [
     ],
     // The trailing time/day token distinguishes a scheduled RULE from a one-off
     // apply_discount ("10% off order 42").
-    match: /\b(?:happy[\s-]?hour|pricing rule|time[\s-]?based (?:price|discount|rule)|surge pricing)\b|(?:\d+\s*%|\bflat\b|\$\s*\d)[\s\S]{0,30}\b(?:off|discount|surcharge)\b[\s\S]{0,40}\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|weekdays?|weekends?|between|from|during|every)\b/i,
+    // A message that names a coupon CODE/voucher is a create_discount, not a time
+    // rule — the leading negative lookahead makes this matcher bow out so the code
+    // isn't silently dropped by the pricing-rule path.
+    match: /^(?![\s\S]*\b(?:code|coupon|voucher)\b)(?:[\s\S]*?)(?:\b(?:happy[\s-]?hour|pricing rule|time[\s-]?based (?:price|discount|rule)|surge pricing)\b|(?:\d+\s*%|\bflat\b|\$\s*\d)[\s\S]{0,30}\b(?:off|discount|surcharge)\b[\s\S]{0,40}\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|weekdays?|weekends?|between|from|during|every)\b)/i,
     async extract(ctx, q) {
       const disc = extractDiscount(q);
       if (!disc || !(disc.discount_value > 0)) return { error: 'How much should the rule change prices by? e.g. "happy hour 15% off drinks 5-7pm" or "$5 off all 4-6pm".' };
@@ -1499,7 +1504,10 @@ const ACTIONS = [
     },
     async execute(ctx, p) {
       // NOTE the (data, outletId) argument order of discounts.createDiscount.
-      const created = await discounts.createDiscount({ name: p.name, code: p.code || null, type: p.type, value: p.value }, ctx.outletId);
+      // A codeless discount must be auto_apply:true or it's dead — validateCoupon
+      // needs a code and getAutoDiscounts needs auto_apply, so code=null + auto_apply=false
+      // could never be applied by anything (matches the "auto-applied" preview wording).
+      const created = await discounts.createDiscount({ name: p.name, code: p.code || null, type: p.type, value: p.value, auto_apply: !p.code }, ctx.outletId);
       const codePart = p.code ? `code ${p.code}` : 'discount';
       return { message: `Done — created ${codePart} for ${p.value_label} off. Review it in Promotions → Discounts.`, entity_type: 'discount', entity_id: created && created.id };
     },
