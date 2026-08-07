@@ -13,6 +13,7 @@ const mockInventory = { getLowStock: jest.fn() };
 const mockProcurement = { createPurchaseOrder: jest.fn() };
 const mockReservations = { createReservation: jest.fn() };
 const mockOrder = { listOrders: jest.fn(), getOrderById: jest.fn() };
+const mockStaff = { createStaffWithUser: jest.fn() };
 const mockPrisma = {
   auditLog: { create: jest.fn().mockResolvedValue({}) },
   customer: { count: jest.fn() },
@@ -30,6 +31,7 @@ jest.mock('../src/modules/inventory/inventory.service', () => mockInventory);
 jest.mock('../src/modules/inventory/procurement.service', () => mockProcurement);
 jest.mock('../src/modules/reservations/reservations.service', () => mockReservations);
 jest.mock('../src/modules/orders/order.service', () => mockOrder);
+jest.mock('../src/modules/staff/staff.service', () => mockStaff);
 // The order tax/pricing engine (tax.service, pricing.service, utils/outlet, utils/money)
 // is left UNMOCKED on purpose so the discount recompute is exercised for real.
 
@@ -43,6 +45,7 @@ beforeEach(() => {
   mockMenu.listMenuItems.mockResolvedValue({ items: [{ id: 'm1', name: 'Paneer Tikka', base_price: 12, is_available: true }] });
   mockTable.listTables.mockResolvedValue([{ id: 't5', table_number: '5', status: 'occupied' }]);
   mockCustomer.createCustomer.mockResolvedValue({ id: 'c9' });
+  mockStaff.createStaffWithUser.mockResolvedValue({ id: 'sp1', user_id: 'u9', user: { id: 'u9', full_name: 'Test-1' } });
 });
 
 describe('detectAction', () => {
@@ -51,6 +54,8 @@ describe('detectAction', () => {
     expect(actions.detectAction('change paneer tikka price to 15').name).toBe('adjust_price');
     expect(actions.detectAction('mark table 5 clean').name).toBe('set_table_status');
     expect(actions.detectAction('add customer John Smith 0412345678').name).toBe('create_customer');
+    expect(actions.detectAction('add a new staff as test-1 name').name).toBe('create_staff');
+    expect(actions.detectAction('add staff John Smith as cashier').name).toBe('create_staff');
   });
   test('how-to questions are NOT write intents (route to help)', () => {
     expect(actions.detectAction('how do i 86 an item')).toBeNull();
@@ -124,6 +129,26 @@ describe('buildActionPreview — never mutates', () => {
     expect(p.summary).toMatch(/table 5 to cleaning/);
     expect(mockTable.updateTableStatus).not.toHaveBeenCalled();
   });
+  test('create_staff: parses a hyphen/digit name ("test-1"), previews, does NOT create', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add a new staff as test-1 name');
+    expect(p.action).toBe('create_staff');
+    expect(p.summary).toMatch(/test-1/i);       // literal name preserved (not "test")
+    expect(p.summary).toMatch(/cashier/i);      // defaults to cashier when no role given
+    expect(p.token).toBeTruthy();
+    expect(mockStaff.createStaffWithUser).not.toHaveBeenCalled(); // preview never mutates
+  });
+  test('create_staff: separates the role from the name ("Jane as manager")', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add staff Jane as manager');
+    expect(p.action).toBe('create_staff');
+    expect(p.summary).toMatch(/jane/i);
+    expect(p.summary).toMatch(/manager/i);
+    expect(p.summary).not.toMatch(/jane as manager/i); // "as manager" is the role, not part of the name
+  });
+  test('create_staff: asks for a name when none is given', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add a new staff member');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/name/i);
+  });
   test('create_customer parses name + phone', async () => {
     const p = await actions.buildActionPreview(OWNER, 'add customer John Smith 0412345678');
     expect(p.summary).toMatch(/John Smith.*0412345678/);
@@ -165,6 +190,20 @@ describe('runAction — confirm + execute + audit + guards', () => {
     const cust = await actions.buildActionPreview(OWNER, 'add customer John Smith 0412345678');
     await actions.runAction(OWNER, cust.token);
     expect(mockCustomer.createCustomer).toHaveBeenCalledWith(expect.objectContaining({ phone: '0412345678', full_name: 'John Smith' }), expect.any(Object));
+  });
+  test('create_staff confirm creates through the staff service and audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add staff John Smith as cashier');
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockStaff.createStaffWithUser).toHaveBeenCalledWith('o1', expect.objectContaining({ full_name: 'John Smith', role: 'cashier' }));
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_CREATE_STAFF');
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.entity_type).toBe('staff');
+  });
+  test('create_staff is blocked for a user without MANAGE_STAFF', async () => {
+    const denied = await actions.buildActionPreview(CASHIER([]), 'add staff John Smith');
+    expect(denied.denied).toBe(true);
+    expect(mockStaff.createStaffWithUser).not.toHaveBeenCalled();
   });
   test('garbage / expired token is rejected without mutating', async () => {
     const r = await actions.runAction(OWNER, 'not.a.jwt');

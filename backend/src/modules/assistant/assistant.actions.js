@@ -30,6 +30,7 @@ const inventory = require('../inventory/inventory.service');
 const procurement = require('../inventory/procurement.service');
 const reservations = require('../reservations/reservations.service');
 const orderSvc = require('../orders/order.service');
+const staff = require('../staff/staff.service');
 // Shared, pure tax/pricing engine — the SAME helpers the order controller's
 // apply-discount path uses. We reuse them (not reimplement the math) so an
 // assistant-applied discount recomputes GST / round-off / grand-total
@@ -157,6 +158,50 @@ function isolateName(q, extraStop = []) {
 // adjust_price.extract and the multi-turn history scan so both isolate names the
 // same way.
 const PRICE_STOPWORDS = ['increase', 'increased', 'decrease', 'decreased', 'reduce', 'reduced', 'reprice', 'revise', 'revised', 'by', 'up', 'down', 'percent', 'per', 'cent', 'pct', 'pc', 'add', 'more', 'less', 'bump', 'hike', 'higher', 'cheaper', 'discount', 'put', 'make', 'bring', 'move'];
+
+// ── staff (new hire) helpers ─────────────────────────────────────────────────
+// Words that name a ROLE, not a person — so "add a waiter Jane" / "as manager"
+// never get mistaken for the staff member's name.
+const STAFF_ROLE_WORDS = new Set(['manager', 'cashier', 'waiter', 'server', 'chef', 'cook', 'kitchen', 'delivery', 'rider', 'captain', 'host', 'staff', 'employee', 'member', 'team']);
+// Normalize a spoken role to one the staff service maps to a seeded role
+// (manager/cashier/waiter/chef/delivery/captain). Unknown → null (service defaults cashier).
+const STAFF_ROLE_SYNONYMS = { manager: 'manager', cashier: 'cashier', waiter: 'waiter', server: 'waiter', chef: 'chef', cook: 'chef', kitchen: 'chef', delivery: 'delivery', rider: 'delivery', captain: 'captain', host: 'cashier' };
+
+/** Pull a staff role out of a hire request → a service-friendly role, or null. */
+function extractStaffRole(q) {
+  const m = String(q).toLowerCase().match(/\b(manager|cashier|waiter|server|chef|cook|kitchen|delivery|rider|captain|host)\b/);
+  return m ? (STAFF_ROLE_SYNONYMS[m[1]] || null) : null;
+}
+
+/**
+ * Isolate the new staff member's name from a hire request. Unlike isolateName it
+ * PRESERVES hyphens/digits (e.g. "test-1") and separates the name from a role
+ * ("Jane as manager" → "Jane"). Prefers an explicit "named/called X"; then an
+ * "as X" that isn't a role; then the token(s) right after staff/employee/member.
+ * Returns the trimmed name, or null when none can be found.
+ */
+function extractStaffName(q) {
+  const raw = String(q || '').trim();
+  const CAP = "([A-Za-z][\\w.'-]*(?:\\s+[A-Za-z0-9][\\w.'-]*){0,3})";
+  let m = raw.match(new RegExp(`\\b(?:named|called)\\s+${CAP}`, 'i'));
+  if (!m) {
+    const asM = raw.match(new RegExp(`\\bas\\s+(?:an?\\s+)?${CAP}`, 'i'));
+    if (asM && !STAFF_ROLE_WORDS.has(asM[1].toLowerCase().split(/\s+/)[0])) m = asM;
+  }
+  if (!m) m = raw.match(new RegExp(`\\b(?:staff|employee|team\\s*member|member|user|waiter|cashier|manager|chef|cook|server|host|rider)\\s+(?:member\\s+)?${CAP}`, 'i'));
+  if (!m) return null;
+  // Cut the capture off at a contact/role boundary and drop trailing phone digits,
+  // so "Priya Sharma phone 0412…" → "Priya Sharma" and "Jane as manager" → "Jane".
+  let cand = m[1]
+    .replace(/\s+(?:phone|email|number|mobile|contact|ph|mob|as|role|with|and)\b[\s\S]*$/i, '')
+    .replace(/\s+\d[\d\s()+-]*$/, '');
+  const TAIL = /^(name|named|role|as|with|the|a|an|and|phone|email|number|mobile|please|manager|cashier|waiter|server|chef|cook|kitchen|delivery|rider|captain|host|staff|employee|member|team)$/i;
+  const toks = cand.trim().split(/\s+/);
+  while (toks.length && TAIL.test(toks[toks.length - 1])) toks.pop();
+  while (toks.length && TAIL.test(toks[0])) toks.shift();
+  const name = toks.join(' ').trim();
+  return name || null;
+}
 
 // ── reservation date/time + campaign helpers ────────────────────────────────
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -432,6 +477,51 @@ const ACTIONS = [
         { head_office_id: ctx.headOfficeId || null },
       );
       return { message: `Done — added ${p.full_name || 'the customer'} (${p.phone}).`, entity_type: 'customer', entity_id: created && created.id };
+    },
+  },
+
+  {
+    name: 'create_staff',
+    label: 'add a staff member',
+    permission: 'MANAGE_STAFF',
+    // Unambiguous staff keywords only. Role-word hires ("add a waiter", "add a
+    // chef") are handled by `match` below, which guards against menu phrasings like
+    // "add a chef special" that a bare 'add a chef' keyword would wrongly catch.
+    keywords: ['add staff', 'add a staff', 'add new staff', 'add a new staff', 'create staff', 'new staff', 'new staff member', 'add staff member', 'add employee', 'add an employee', 'new employee', 'register staff', 'onboard staff', 'add a team member', 'add team member', 'hire'],
+    // Catches role-based hires whose words aren't a contiguous keyword — "add a new
+    // waiter named …", "onboard employee …", "hire a manager". The negative lookahead
+    // avoids menu/report/permission phrasings ("add a chef special", "manager report").
+    match: /\b(?:add|create|hire|onboard|register|set\s?up)\b[\s\S]{0,20}\b(?:staff|employee|team\s*member|new\s+hire|waiter|cashier|manager|chef|cook|barista|server|rider)\b(?!\s+(?:special|item|dish|combo|menu|report|role|permission|discount|shift|schedule|section|to\s+(?:section|table|floor|area|zone)))/i,
+    async extract(ctx, q) {
+      const name = extractStaffName(q);
+      if (!name) return { error: 'What is the staff member’s name? e.g. "add staff John Smith as cashier".' };
+      const role = extractStaffRole(q); // manager|cashier|waiter|chef|delivery|captain, or null
+      const phone = extractPhone(q);
+      const em = String(q).match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      const full_name = name.replace(/\b\w/g, (c) => c.toUpperCase());
+      return { params: { full_name, role: role || null, phone: phone || null, email: em ? em[0] : null } };
+    },
+    plan(ctx, p) {
+      const extras = [];
+      if (p.phone) extras.push(`phone ${p.phone}`);
+      if (p.email) extras.push(p.email);
+      const tail = extras.length ? ` (${extras.join(', ')})` : '';
+      // Call out the default password so the owner knows how the new hire signs in.
+      return { summary: `Add a new staff member "${p.full_name}" as ${p.role || 'cashier'}${tail}. They can sign in with the default password Staff@123 — change it and set a PIN in Staff Management.` };
+    },
+    async execute(ctx, p) {
+      const created = await staff.createStaffWithUser(ctx.outletId, {
+        full_name: p.full_name,
+        role: p.role || 'cashier',
+        phone: p.phone || null,
+        email: p.email || null,
+      });
+      const entityId = (created && (created.user_id || (created.user && created.user.id) || created.id)) || null;
+      return {
+        message: `Done — added ${p.full_name} as ${p.role || 'cashier'}. Default password is Staff@123 (ask them to change it); set their PIN and any extra details in Staff Management.`,
+        entity_type: 'staff',
+        entity_id: entityId,
+      };
     },
   },
 
