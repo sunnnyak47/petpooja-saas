@@ -9,8 +9,8 @@
 const mockMenu = { listMenuItems: jest.fn(), updateMenuItem: jest.fn() };
 const mockCustomer = { createCustomer: jest.fn(), createCampaign: jest.fn() };
 const mockTable = { listTables: jest.fn(), updateTableStatus: jest.fn() };
-const mockInventory = { getLowStock: jest.fn() };
-const mockProcurement = { createPurchaseOrder: jest.fn() };
+const mockInventory = { getLowStock: jest.fn(), listInventoryItems: jest.fn(), recordWastage: jest.fn(), adjustStock: jest.fn(), getStock: jest.fn(), createInventoryItem: jest.fn() };
+const mockProcurement = { createPurchaseOrder: jest.fn(), listPurchaseOrders: jest.fn(), receivePurchaseOrder: jest.fn() };
 const mockReservations = { createReservation: jest.fn() };
 const mockOrder = { listOrders: jest.fn(), getOrderById: jest.fn() };
 const mockStaff = { createStaffWithUser: jest.fn() };
@@ -434,5 +434,87 @@ describe('apply_discount — confirm executes the real recompute + audits', () =
     const r = await actions.runAction(OWNER, p.token);
     expect(r.ok).toBe(false);
     expect(mockPrisma.order.update).not.toHaveBeenCalled();
+  });
+});
+
+// ── Pack A: inventory & wastage ──────────────────────────────────────────────
+describe('inventory pack (record_wastage / adjust_stock / receive_po / create_inventory_item)', () => {
+  beforeEach(() => {
+    mockInventory.listInventoryItems.mockResolvedValue({ items: [{ id: 'inv1', name: 'Paneer', unit: 'kg' }] });
+  });
+
+  test('detection routes each inventory intent', () => {
+    expect(actions.detectAction('we threw out 2kg paneer').name).toBe('record_wastage');
+    expect(actions.detectAction('set tomatoes to 5kg').name).toBe('adjust_stock');
+    expect(actions.detectAction('add 10kg onions').name).toBe('adjust_stock');
+    expect(actions.detectAction('receive PO-000123').name).toBe('receive_po');
+    expect(actions.detectAction('add inventory item Paneer, unit kg').name).toBe('create_inventory_item');
+    expect(actions.detectAction('how do I log wastage')).toBeNull();
+  });
+
+  test('record_wastage: preview resolves the item + reason, never writes; confirm records + audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'we threw out 2kg paneer, expired');
+    expect(p.action).toBe('record_wastage');
+    expect(p.summary).toMatch(/2 kg of "Paneer".*expired/i);
+    expect(mockInventory.recordWastage).not.toHaveBeenCalled();
+    mockInventory.recordWastage.mockResolvedValue({ logged: 1 });
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockInventory.recordWastage).toHaveBeenCalledWith('o1', [{ item_id: 'inv1', quantity: 2, reason: 'expired' }], 'u1');
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_RECORD_WASTAGE');
+  });
+
+  test('adjust_stock set: confirm computes delta from live stock', async () => {
+    mockInventory.listInventoryItems.mockResolvedValue({ items: [{ id: 'inv2', name: 'Tomatoes', unit: 'kg' }] });
+    mockInventory.getStock.mockResolvedValue({ items: [{ id: 'inv2', current_stock: 3 }] });
+    mockInventory.adjustStock.mockResolvedValue({ current_stock: 5 });
+    const p = await actions.buildActionPreview(OWNER, 'set tomatoes to 5kg');
+    expect(p.summary).toMatch(/Set "Tomatoes" stock to 5 kg/);
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockInventory.adjustStock).toHaveBeenCalledWith('o1', 'inv2', 2, 'Assistant stock set', 'u1');
+  });
+
+  test('adjust_stock add: positive delta, no live read needed', async () => {
+    mockInventory.listInventoryItems.mockResolvedValue({ items: [{ id: 'inv3', name: 'Onions', unit: 'kg' }] });
+    mockInventory.adjustStock.mockResolvedValue({ current_stock: 12 });
+    const p = await actions.buildActionPreview(OWNER, 'add 10kg onions');
+    await actions.runAction(OWNER, p.token);
+    expect(mockInventory.adjustStock).toHaveBeenCalledWith('o1', 'inv3', 10, 'Assistant stock add', 'u1');
+  });
+
+  test('receive_po: resolves by number, refuses already-received, confirm receives + audits', async () => {
+    mockProcurement.listPurchaseOrders.mockResolvedValue({ items: [{ id: 'po1', po_number: 'PO-000123', status: 'approved' }] });
+    mockProcurement.receivePurchaseOrder.mockResolvedValue({ id: 'grn1', grn_number: 'GRN-123456' });
+    const p = await actions.buildActionPreview(OWNER, 'receive PO-000123');
+    expect(p.action).toBe('receive_po');
+    expect(mockProcurement.receivePurchaseOrder).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(mockProcurement.receivePurchaseOrder).toHaveBeenCalledWith('o1', 'po1', {}, 'u1');
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_RECEIVE_PO');
+
+    mockProcurement.listPurchaseOrders.mockResolvedValue({ items: [{ id: 'po1', po_number: 'PO-000123', status: 'received' }] });
+    const already = await actions.buildActionPreview(OWNER, 'receive PO-000123');
+    expect(already.message).toMatch(/already been received/i);
+  });
+
+  test('create_inventory_item: dup blocked; confirm creates + audits', async () => {
+    mockInventory.listInventoryItems.mockResolvedValue({ items: [] });
+    mockInventory.createInventoryItem.mockResolvedValue({ id: 'inv9', name: 'Paneer' });
+    const p = await actions.buildActionPreview(OWNER, 'add inventory item Paneer, unit kg');
+    expect(p.summary).toMatch(/Create inventory item "Paneer".*unit kg/);
+    const r = await actions.runAction(OWNER, p.token);
+    expect(mockInventory.createInventoryItem).toHaveBeenCalledWith('o1', expect.objectContaining({ name: 'Paneer', unit: 'kg' }));
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_CREATE_INVENTORY_ITEM');
+
+    mockInventory.listInventoryItems.mockResolvedValue({ items: [{ id: 'x', name: 'Paneer', unit: 'kg' }] });
+    const dup = await actions.buildActionPreview(OWNER, 'add inventory item Paneer, unit kg');
+    expect(dup.message).toMatch(/already an inventory item/i);
+  });
+
+  test('cashier without MANAGE_INVENTORY is denied', async () => {
+    const p = await actions.buildActionPreview(CASHIER([]), 'set tomatoes to 5kg');
+    expect(p.denied).toBe(true);
+    expect(mockInventory.adjustStock).not.toHaveBeenCalled();
   });
 });

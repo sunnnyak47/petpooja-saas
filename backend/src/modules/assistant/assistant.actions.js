@@ -363,6 +363,182 @@ async function computeDiscountedTotals(tx, orderId, outlet, requestedDiscount, l
   };
 }
 
+// ── inventory (stock / wastage / PO) helpers ─────────────────────────────────
+// Unit vocabulary shared by the quantity parser and the name isolator. Longer,
+// multi-char units come first so the regex prefers "grams" over a bare "g", etc.
+const INV_UNIT = 'kgs?|kilograms?|kilos?|grams?|gms?|g|litres?|liters?|ltrs?|ltr|mls?|l|pcs?|pieces?|packs?|packets?|pkts?|units?|nos?|dozen|trays?|boxes|box|bottles?|cans?|crates?|bunch(?:es)?';
+// Words that are NOT part of an inventory item's name (verbs/qualifiers around it).
+const INV_BASE_STOP = new Set([
+  'a', 'an', 'the', 'of', 'to', 'by', 'into', 'from', 'for', 'in', 'on', 'off', 'and', 'some', 'it',
+  'is', 'was', 'be', 'that', 'this', 'there', 'we', 'i', 'our', 'my', 'please', 'now', 'up', 'down',
+  'level', 'levels', 'quantity', 'qty', 'stock', 'inventory', 'item', 'items', 'material', 'raw',
+  'ingredient', 'count', 'log', 'logged', 'logging', 'record', 'recorded', 'mark', 'marked', 'make',
+  'set', 'add', 'added', 'adding', 'adjust', 'adjusted', 'increase', 'increased', 'decrease',
+  'decreased', 'reduce', 'reduced', 'remove', 'removed', 'deduct', 'subtract', 'update', 'updated',
+  'top', 'restock', 'received', 'receive', 'threw', 'throw', 'thrown', 'throwing', 'chuck', 'chucked',
+  'bin', 'binned', 'dump', 'dumped', 'trash', 'trashed', 'wrote', 'write', 'wasted', 'wasting',
+  'wastage', 'waste', 'spoiled', 'spoilt', 'spoil', 'expired', 'damaged', 'broken', 'burnt', 'burned',
+  'spill', 'spillage', 'rotten', 'stale', 'contaminated', 'because', 'reason', 'new', 'away', 'out',
+  'order', 'purchase', 'po', 'grn', 'delivered', 'deliver', 'create', 'created', 'correct',
+]);
+// Unit tokens that survive after number stripping ("2 pieces" → "pieces") — drop them too.
+const INV_UNIT_WORDS = new Set([
+  'kg', 'kgs', 'kilogram', 'kilograms', 'kilo', 'kilos', 'g', 'gm', 'gms', 'gram', 'grams', 'l', 'ltr',
+  'ltrs', 'litre', 'liter', 'litres', 'liters', 'ml', 'mls', 'pc', 'pcs', 'piece', 'pieces', 'pack',
+  'packs', 'packet', 'packets', 'pkt', 'pkts', 'unit', 'units', 'no', 'nos', 'dozen', 'tray', 'trays',
+  'box', 'boxes', 'bottle', 'bottles', 'can', 'cans', 'crate', 'crates', 'bunch', 'bunches',
+]);
+
+/**
+ * Parse a quantity (+ optional unit) from NL. Normalizes g→kg and ml→l (÷1000)
+ * since inventory items are usually stored in kg/l; the numeric value is what the
+ * service records, and the item's own `unit` is used for display (the preview is
+ * the guardrail — a mismatched unit shows visibly wrong before the owner confirms).
+ */
+function invExtractQty(q) {
+  const s = String(q || '');
+  const withUnit = s.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${INV_UNIT})\\b`, 'i'));
+  let value = null;
+  let rawUnit = null;
+  if (withUnit) {
+    value = Number(withUnit[1]);
+    rawUnit = String(withUnit[2] || '').toLowerCase();
+  } else {
+    const bare = s.match(/(\d+(?:\.\d+)?)/);
+    if (bare) value = Number(bare[1]);
+  }
+  if (value == null || Number.isNaN(value) || !(value >= 0)) return null;
+  let unit = null;
+  if (rawUnit) {
+    if (/^(g|gm|gms|gram|grams)$/.test(rawUnit)) { value /= 1000; unit = 'kg'; }
+    else if (/^(ml|mls)$/.test(rawUnit)) { value /= 1000; unit = 'l'; }
+    else if (/^(kg|kgs|kilo|kilos|kilogram|kilograms)$/.test(rawUnit)) unit = 'kg';
+    else if (/^(l|ltr|ltrs|litre|liter|litres|liters)$/.test(rawUnit)) unit = 'l';
+    else if (/^(pc|pcs|piece|pieces)$/.test(rawUnit)) unit = 'pcs';
+    else unit = rawUnit;
+  }
+  return { quantity: round2(value), unit };
+}
+
+/** Strip qty/unit/PO tokens + stop words to isolate an inventory item's name. */
+function invIsolateItemName(q, extraStop = []) {
+  const extra = new Set(extraStop.map((w) => String(w).toLowerCase()));
+  return String(q || '')
+    .toLowerCase()
+    .replace(new RegExp(`\\b\\d+(?:\\.\\d+)?\\s*(?:${INV_UNIT})\\b`, 'ig'), ' ')
+    .replace(/\bpo[-\s]?[a-z0-9-]*\d[a-z0-9-]*/ig, ' ')
+    .replace(/#\s*[a-z0-9-]*\d[a-z0-9-]*/ig, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w
+      && !INV_BASE_STOP.has(w)
+      && !INV_UNIT_WORDS.has(w)
+      && !extra.has(w)
+      && !/^\d+(\.\d+)?$/.test(w))
+    .join(' ')
+    .trim();
+}
+
+/** Pull a wastage reason from NL → a short phrase (caller defaults when null). */
+function invExtractWastageReason(q) {
+  const s = String(q || '');
+  const m = s.match(/\b(expired|out of date|spoil(?:ed|t)?|rotten|gone off|damaged|broken|burnt|burned|over-?cook(?:ed)?|over-?portion(?:ed)?|spill(?:age|ed|t)?|contaminated|mould(?:y)?|stale|dropped|returned|theft|infested)\b/i);
+  if (m) return m[1].toLowerCase().replace(/\s+/g, ' ').trim();
+  const quoted = s.match(/["'](.+?)["']/);
+  if (quoted) return quoted[1].trim().slice(0, 200);
+  const because = s.match(/\b(?:because|reason(?:\s*:)?|due to)\s+(.+)$/i);
+  return because ? because[1].trim().replace(/^["']|["']$/g, '').slice(0, 200) : null;
+}
+
+/** set | add | reduce — which kind of stock adjustment the phrasing asks for. */
+function invExtractStockMode(q) {
+  const s = String(q || '').toLowerCase();
+  if (/\b(reduce|reduced|decrease|decreased|remove|removed|deduct|subtract|minus|lower|lowered|drop|dropped|used|consume|consumed|take\s+(?:out|off|away))\b/.test(s)) return 'reduce';
+  if (/\b(add|added|increase|increased|top\s*up|topped\s*up|restock|restocked|plus|more)\b/.test(s)) return 'add';
+  return 'set';
+}
+
+/** Pull a PO identifier hint from NL ("PO-000123", "PO #123", "order 45", "#7"). */
+function invExtractPoHint(q) {
+  const s = String(q || '');
+  let m = s.match(/\bpo[-\s]?([a-z0-9][a-z0-9-]*)/i);
+  if (m && /\d/.test(m[0])) return m[0].trim();
+  m = s.match(/\b(?:purchase order|order|bill|grn)\s*(?:no\.?|number|#)?\s*#?\s*([a-z0-9][a-z0-9-]*)/i);
+  if (m && /\d/.test(m[1])) return m[1];
+  m = s.match(/#\s*([a-z0-9-]*\d[a-z0-9-]*)/i);
+  if (m) return m[1];
+  m = s.match(/\b(\d{2,})\b/);
+  return m ? m[1] : null;
+}
+
+/** Item name for a create request ("add inventory item Paneer, unit kg" → "Paneer"). */
+function invExtractNewItemName(q) {
+  const s = String(q || '');
+  const BOUND = '(?=\\s*(?:,|;|\\bunit\\b|\\bunits\\b|\\bcategory\\b|\\bsku\\b|\\bcost(?:s|ing)?\\b|\\bprice\\b|\\brate\\b|\\bwith\\b|\\bat\\b|\\bin\\b|\\bof\\b|$))';
+  const m = s.match(new RegExp(`\\b(?:item|material|ingredient|product|called|named)\\s+([A-Za-z][A-Za-z0-9 '&-]*?)${BOUND}`, 'i'));
+  let name = m ? m[1].trim() : '';
+  if (!name) name = invIsolateItemName(s, ['product']);
+  name = name.replace(/\s+/g, ' ').trim();
+  return name || null;
+}
+
+/** The item's canonical unit for a create request ("unit kg", "measured in l"). */
+function invExtractUnit(q) {
+  const s = String(q || '');
+  const m = s.match(new RegExp(`\\bunits?\\s+(?:of\\s+|is\\s+|in\\s+|:\\s*)?(${INV_UNIT})\\b`, 'i'))
+    || s.match(new RegExp(`\\b(?:measured in|in)\\s+(${INV_UNIT})\\b`, 'i'));
+  if (!m) return null;
+  const u = m[1].toLowerCase();
+  if (/^(g|gm|gms|gram|grams)$/.test(u)) return 'g';
+  if (/^(kg|kgs|kilo|kilos|kilogram|kilograms)$/.test(u)) return 'kg';
+  if (/^(l|ltr|ltrs|litre|liter|litres|liters)$/.test(u)) return 'l';
+  if (/^(ml|mls)$/.test(u)) return 'ml';
+  if (/^(pc|pcs|piece|pieces)$/.test(u)) return 'pcs';
+  return u;
+}
+
+/** Optional category for a create request ("category Dairy"). */
+function invExtractCategory(q) {
+  const m = String(q || '').match(/\bcategor(?:y|ies)\s+(?:of\s+|is\s+|:\s*)?([A-Za-z][A-Za-z &]*?)(?=\s*(?:,|;|\bunit\b|\bsku\b|\bcost\b|\bprice\b|\brate\b|$))/i);
+  return m ? m[1].trim().replace(/\s+/g, ' ') : null;
+}
+
+/** Optional cost/unit for a create request ("cost 320", "@ $5"). Defaults to 0. */
+function invExtractCostPerUnit(q) {
+  const s = String(q || '');
+  const m = s.match(/\b(?:cost|costs|price|rate|@)\s*(?:of\s+|is\s+|:\s*)?\$?\s*(\d+(?:\.\d+)?)/i)
+    || s.match(/\$\s*(\d+(?:\.\d+)?)/);
+  return m ? round2(Number(m[1])) : 0;
+}
+
+/** Resolve an inventory item by (fuzzy) name → matches ({id,name,unit,…}). */
+async function invResolveInventoryItem(outletId, name) {
+  const q = String(name || '').toLowerCase().trim();
+  if (!q) return [];
+  const r = await inventory.listInventoryItems(outletId, { search: q, limit: 500, page: 1 });
+  const items = (r && r.items) || [];
+  const norm = (s) => String(s || '').toLowerCase().trim();
+  let m = items.filter((i) => norm(i.name) === q);
+  if (!m.length) m = items.filter((i) => norm(i.name).startsWith(q));
+  if (!m.length) m = items.filter((i) => norm(i.name).includes(q));
+  return m;
+}
+
+/** Resolve a PO by number hint → matches ({id,po_number,status,…}). receivePurchaseOrder
+ *  needs the UUID but owners say the po_number, and listPurchaseOrders has no number
+ *  filter, so page a batch and match on an alnum-normalized key (exact→endsWith→includes). */
+async function invResolvePurchaseOrder(outletId, hint) {
+  const key = String(hint || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!key) return [];
+  const r = await procurement.listPurchaseOrders(outletId, { limit: 500, page: 1 });
+  const items = (r && r.items) || [];
+  const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let m = items.filter((o) => norm(o.po_number) === key);
+  if (!m.length && key.length >= 2) m = items.filter((o) => norm(o.po_number).endsWith(key));
+  if (!m.length && key.length >= 2) m = items.filter((o) => norm(o.po_number).includes(key));
+  return m;
+}
+
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
 // extract(ctx, q) → { params } | { error } (clarification/not-found)
 // plan(ctx, params) → { summary }
@@ -550,6 +726,150 @@ const ACTIONS = [
       const po = await procurement.createPurchaseOrder(ctx.outletId, { items: p.lines }, ctx.id);
       const num = po && po.po_number ? ` #${po.po_number}` : '';
       return { message: `Drafted purchase order${num} with ${p.count} item${p.count === 1 ? '' : 's'} — review and approve it in Inventory → Purchase Orders.`, entity_type: 'purchase_order', entity_id: po && po.id };
+    },
+  },
+
+  {
+    name: 'record_wastage',
+    label: 'log wastage for an inventory item',
+    permission: 'MANAGE_INVENTORY',
+    keywords: ['record wastage', 'log wastage', 'log waste', 'wastage', 'wasted', 'threw out', 'throw out', 'thrown out', 'threw away', 'write off', 'wrote off', 'write-off', 'binned', 'spoiled', 'spoilt', 'expired stock', 'chucked out', 'gone off'],
+    // Catches "we threw out 2kg paneer", "chucked the tomatoes". Lone "expired" is
+    // deliberately NOT a keyword (it would catch reads like "what expired today").
+    match: /\b(threw|throw|thrown|chuck(?:ed)?|bin(?:ned)?|dump(?:ed)?|trash(?:ed)?|wasted|wastage|write[- ]?off|wrote\s+off)\b/i,
+    async extract(ctx, q) {
+      const qty = invExtractQty(q);
+      if (!qty || !(qty.quantity > 0)) return { error: 'How much was wasted? e.g. "log 2kg paneer wasted, expired".' };
+      const name = invIsolateItemName(q);
+      if (!name) return { error: 'Which item was wasted? Name the inventory item, e.g. "threw out 2kg paneer".' };
+      const matches = await invResolveInventoryItem(ctx.outletId, name);
+      if (!matches.length) return { error: `I couldn't find an inventory item matching "${name}".` };
+      if (matches.length > 1) return { error: `"${name}" matched ${matches.length} inventory items (${matches.slice(0, 4).map((m) => m.name).join(', ')}). Which one exactly?` };
+      const item = matches[0];
+      const reason = invExtractWastageReason(q) || 'wastage';
+      const unit = item.unit || qty.unit || 'unit';
+      return { params: { item_id: item.id, item_name: item.name, quantity: qty.quantity, unit, reason } };
+    },
+    plan(ctx, p) {
+      return { summary: `Log ${p.quantity} ${p.unit} of "${p.item_name}" as wastage (${p.reason}) and deduct it from stock` };
+    },
+    async execute(ctx, p) {
+      await inventory.recordWastage(ctx.outletId, [{ item_id: p.item_id, quantity: p.quantity, reason: p.reason }], ctx.id);
+      return { message: `Done — logged ${p.quantity} ${p.unit} of "${p.item_name}" as wastage (${p.reason}) and deducted it from stock.`, entity_type: 'inventory_item', entity_id: p.item_id };
+    },
+  },
+
+  {
+    name: 'adjust_stock',
+    label: "adjust an inventory item's stock",
+    permission: 'MANAGE_INVENTORY',
+    keywords: ['set stock', 'adjust stock', 'stock adjustment', 'add stock', 'reduce stock', 'increase stock', 'decrease stock', 'update stock', 'correct stock', 'stock count', 'set the stock'],
+    // "set tomatoes to 5kg", "add 10kg onions", "reduce paneer by 2kg" — an adjust
+    // verb followed (within 40 chars) by "stock" OR a <number><unit> quantity. The
+    // unit sits right after the digits ("5kg"), so anchor on the number.
+    match: /\b(set|add|adjust|increase|decrease|reduce|update|correct)\b[\s\S]{0,40}(?:\bstock\b|\d+(?:\.\d+)?\s*(?:kgs?|grams?|g|litres?|liters?|l|ml|pcs?|pieces?|units?|dozen|packs?|packets?|trays?|boxes|bottles?|crates?)\b)/i,
+    async extract(ctx, q) {
+      const name = invIsolateItemName(q);
+      if (!name) return { error: 'Which item’s stock should I change? e.g. "set tomatoes to 5kg".' };
+      const qty = invExtractQty(q);
+      if (!qty || !(qty.quantity >= 0)) return { error: `How much? e.g. "set ${name} to 5kg", "add 10kg ${name}" or "reduce ${name} by 2kg".` };
+      const matches = await invResolveInventoryItem(ctx.outletId, name);
+      if (!matches.length) return { error: `I couldn't find an inventory item matching "${name}".` };
+      if (matches.length > 1) return { error: `"${name}" matched ${matches.length} inventory items (${matches.slice(0, 4).map((m) => m.name).join(', ')}). Which one?` };
+      const item = matches[0];
+      const mode = invExtractStockMode(q);
+      const unit = item.unit || qty.unit || 'unit';
+      return { params: { item_id: item.id, item_name: item.name, mode, quantity: qty.quantity, unit } };
+    },
+    plan(ctx, p) {
+      if (p.mode === 'add') return { summary: `Add ${p.quantity} ${p.unit} to "${p.item_name}" stock` };
+      if (p.mode === 'reduce') return { summary: `Reduce "${p.item_name}" stock by ${p.quantity} ${p.unit}` };
+      return { summary: `Set "${p.item_name}" stock to ${p.quantity} ${p.unit}` };
+    },
+    async execute(ctx, p) {
+      const reason = `Assistant stock ${p.mode}`;
+      let delta;
+      if (p.mode === 'add') delta = p.quantity;
+      else if (p.mode === 'reduce') delta = -p.quantity;
+      else {
+        // 'set' — adjustStock takes a DELTA (increment), so compute target minus the
+        // LIVE current level (re-read at execute time, never the preview snapshot).
+        let current = 0;
+        try {
+          const s = await inventory.getStock(ctx.outletId, { search: p.item_name, limit: 200 });
+          const row = ((s && s.items) || []).find((it) => it.id === p.item_id);
+          if (row && row.current_stock != null) current = Number(row.current_stock) || 0;
+        } catch (_) { current = 0; }
+        delta = round2(p.quantity - current);
+      }
+      const stock = await inventory.adjustStock(ctx.outletId, p.item_id, delta, reason, ctx.id);
+      const newLevel = stock && stock.current_stock != null ? Number(stock.current_stock)
+        : (p.mode === 'set' ? p.quantity : null);
+      let message;
+      if (p.mode === 'set') message = `Done — "${p.item_name}" stock is now ${newLevel != null ? newLevel : p.quantity} ${p.unit}.`;
+      else if (p.mode === 'add') message = `Done — added ${p.quantity} ${p.unit} to "${p.item_name}"${newLevel != null ? ` (now ${newLevel} ${p.unit})` : ''}.`;
+      else message = `Done — reduced "${p.item_name}" by ${p.quantity} ${p.unit}${newLevel != null ? ` (now ${newLevel} ${p.unit})` : ''}.`;
+      return { message, entity_type: 'inventory_item', entity_id: p.item_id };
+    },
+  },
+
+  {
+    name: 'receive_po',
+    label: 'mark a purchase order received',
+    permission: 'MANAGE_INVENTORY',
+    keywords: ['receive po', 'receive purchase order', 'po received', 'received po', 'received the po', 'mark po received', 'mark received', 'goods received', 'received the order', 'receive the order', 'mark the order', 'po delivered', 'delivered po', 'mark delivered'],
+    match: /\b(receive|received|receiving)\b[\s\S]{0,20}\b(po|p\.?o\.?|purchase order|order|delivery|goods)\b|\bpo[-\s]?\d/i,
+    async extract(ctx, q) {
+      const hint = invExtractPoHint(q);
+      if (!hint) return { error: 'Which purchase order? Tell me the PO number, e.g. "receive PO-000123".' };
+      const matches = await invResolvePurchaseOrder(ctx.outletId, hint);
+      if (!matches.length) return { error: `I couldn't find a purchase order matching "${hint}".` };
+      if (matches.length > 1) return { error: `"${hint}" matched ${matches.length} purchase orders (${matches.slice(0, 4).map((m) => m.po_number).join(', ')}). Which PO number exactly?` };
+      const po = matches[0];
+      if (String(po.status) === 'received') return { error: `Purchase order ${po.po_number} has already been received.` };
+      return { params: { po_id: po.id, po_number: po.po_number } };
+    },
+    plan(ctx, p) {
+      return { summary: `Mark purchase order #${p.po_number} as received and add its ordered items to stock` };
+    },
+    async execute(ctx, p) {
+      // Empty body → service receives every PO line at its ordered quantity.
+      const grn = await procurement.receivePurchaseOrder(ctx.outletId, p.po_id, {}, ctx.id);
+      const g = grn && grn.grn_number ? ` (GRN ${grn.grn_number})` : '';
+      return { message: `Done — received PO #${p.po_number}${g} and added its items to stock.`, entity_type: 'purchase_order', entity_id: p.po_id };
+    },
+  },
+
+  {
+    name: 'create_inventory_item',
+    label: 'add an inventory item',
+    permission: 'MANAGE_INVENTORY',
+    keywords: ['add inventory item', 'create inventory item', 'new inventory item', 'add a raw material', 'add raw material', 'new raw material', 'add ingredient', 'add an ingredient', 'new ingredient', 'add stock item', 'add a stock item', 'create a raw material'],
+    match: /\b(add|create|new|set\s?up)\b[\s\S]{0,24}\b(inventory item|raw material|ingredient|stock item)\b/i,
+    async extract(ctx, q) {
+      const name = invExtractNewItemName(q);
+      if (!name) return { error: 'What should the item be called? e.g. "add inventory item Paneer, unit kg".' };
+      const dup = await invResolveInventoryItem(ctx.outletId, name);
+      if (dup.some((m) => String(m.name).toLowerCase() === name.toLowerCase())) {
+        return { error: `There's already an inventory item called "${name}".` };
+      }
+      const unit = invExtractUnit(q) || 'kg'; // schema default is also "kg"
+      const category = invExtractCategory(q) || null;
+      const cost_per_unit = invExtractCostPerUnit(q);
+      const title = name.replace(/\b\w/g, (c) => c.toUpperCase());
+      return { params: { name: title, unit, category, cost_per_unit } };
+    },
+    plan(ctx, p) {
+      const bits = [`unit ${p.unit}`];
+      if (p.category) bits.push(`category ${p.category}`);
+      if (p.cost_per_unit) bits.push(`cost ${p.cost_per_unit}/${p.unit}`);
+      return { summary: `Create inventory item "${p.name}" (${bits.join(', ')}). It starts at 0 ${p.unit} stock.` };
+    },
+    async execute(ctx, p) {
+      const created = await inventory.createInventoryItem(ctx.outletId, {
+        name: p.name, unit: p.unit, category: p.category, cost_per_unit: p.cost_per_unit,
+      });
+      return { message: `Done — added inventory item "${p.name}" (${p.unit}). Set its opening stock with "set ${p.name} to …" or by receiving a PO.`, entity_type: 'inventory_item', entity_id: created && created.id };
     },
   },
 
