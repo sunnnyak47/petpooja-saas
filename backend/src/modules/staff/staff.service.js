@@ -405,6 +405,42 @@ async function createStaffWithUser(outletId, data) {
 }
 
 /**
+ * Changes a staff member's PRIMARY role within an outlet. The spoken role is
+ * resolved through STAFF_ROLE_MAP (same as createStaffWithUser), so it can only ever
+ * map to a seeded floor role (manager/cashier) — it can NEVER escalate someone to
+ * owner/super_admin. Verifies the user belongs to this outlet, demotes any current
+ * primary role, then makes the target role primary (re-activating an existing
+ * UserRole row rather than violating @@unique([user_id, role_id, outlet_id])).
+ * @param {string} outletId
+ * @param {string} userId
+ * @param {string} role - spoken role (manager|cashier|waiter|chef|delivery|captain)
+ * @returns {Promise<{user_id:string, role:string}>}
+ */
+async function changeStaffRole(outletId, userId, role) {
+  const prisma = getDbClient();
+  const roleName = STAFF_ROLE_MAP[role] || role || 'cashier';
+  const roleRow = await prisma.role.findFirst({ where: { name: roleName } });
+  if (!roleRow) throw new BadRequestError(`Unknown role "${role}"`);
+  return prisma.$transaction(async (tx) => {
+    // Tenant safety: the user must already have a role in this outlet.
+    const existing = await tx.userRole.findFirst({ where: { user_id: userId, outlet_id: outletId } });
+    if (!existing) throw new NotFoundError('Staff member not found in this outlet');
+    // Demote the current primary role(s) for this user+outlet.
+    await tx.userRole.updateMany({
+      where: { user_id: userId, outlet_id: outletId, is_primary: true },
+      data: { is_primary: false },
+    });
+    // Make the target role primary (upsert avoids a duplicate on the unique key).
+    await tx.userRole.upsert({
+      where: { user_id_role_id_outlet_id: { user_id: userId, role_id: roleRow.id, outlet_id: outletId } },
+      update: { is_primary: true },
+      create: { user_id: userId, role_id: roleRow.id, outlet_id: outletId, is_primary: true },
+    });
+    return { user_id: userId, role: roleName };
+  });
+}
+
+/**
  * Gets staff performance metrics based on orders handled.
  */
 async function getStaffPerformance(outletId, from, to) {
@@ -443,7 +479,7 @@ async function getStaffPerformance(outletId, from, to) {
 
 module.exports = {
   assertOutletInTenant,
-  listStaff, getStaffProfile, upsertStaffProfile, verifyManagerPIN, createStaffWithUser,
+  listStaff, getStaffProfile, upsertStaffProfile, verifyManagerPIN, createStaffWithUser, changeStaffRole,
   listCertifications, addCertification, deleteCertification,
   getAvailability, setAvailability,
   getStaffPerformance,

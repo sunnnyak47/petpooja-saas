@@ -585,6 +585,108 @@ function menuExtractName(q, extraStop = []) {
   return n ? n.replace(/\b\w/g, (c) => c.toUpperCase()) : '';
 }
 
+// ── staff update / attendance / roster helpers ───────────────────────────────
+const STF_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const STF_DAY_ABBR = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const STF_SHIFT_PERIODS = ['breakfast', 'brunch', 'lunch', 'dinner', 'supper', 'morning', 'afternoon', 'evening', 'night', 'opening', 'closing', 'mid', 'split', 'late', 'early', 'day', 'graveyard'];
+
+/** Resolve an existing staff member by (fuzzy) name for THIS outlet → matches (each with .user). */
+async function stfResolveStaff(outletId, name) {
+  const q = String(name || '').toLowerCase().trim();
+  if (!outletId || !q) return [];
+  let r;
+  try { r = await staff.listStaff(outletId, { limit: 500 }); } catch (_) { r = null; }
+  const list = (r && r.staff) || [];
+  const nameOf = (sp) => String((sp && sp.user && sp.user.full_name) || '').toLowerCase().trim();
+  let m = list.filter((sp) => nameOf(sp) === q);
+  if (!m.length) m = list.filter((sp) => nameOf(sp).startsWith(q));
+  if (!m.length) m = list.filter((sp) => nameOf(sp).split(/\s+/).includes(q)); // first/last name token
+  if (!m.length) m = list.filter((sp) => nameOf(sp).includes(q));
+  return m;
+}
+
+/** userId out of a resolved StaffProfile (user_id column, or nested user.id). */
+function stfUserId(sp) {
+  return (sp && (sp.user_id || (sp.user && sp.user.id))) || null;
+}
+
+/** Strip leading/trailing command, role and filler words to leave a person name. */
+function stfCleanName(cand) {
+  const STOP = /^(a|an|the|to|as|is|be|now|please|role|pin|passcode|code|password|manager|cashier|waiter|server|chef|cook|kitchen|delivery|rider|captain|host|staff|employee|member|team|and|set|make|change|update|promote|move|give|assign|reassign|turn|new)$/i;
+  const toks = String(cand || '').replace(/['’]s\b/i, '').trim().split(/\s+/).filter((w) => w && !/^\d+$/.test(w));
+  while (toks.length && STOP.test(toks[toks.length - 1])) toks.pop();
+  while (toks.length && STOP.test(toks[0])) toks.shift();
+  const name = toks.join(' ').trim();
+  return name || null;
+}
+
+/** Isolate the TARGET staff member's name from an update command (possessive or verb-led). */
+function stfExtractStaffName(q) {
+  const raw = String(q || '').trim();
+  let m = raw.match(/\b([a-z][a-z .'’-]*?)['’]s\b/i);
+  if (m) { const n = stfCleanName(m[1]); if (n) return n; }
+  m = raw.match(/\b(?:make|set|change|update|promote|move|give|assign|reassign)\s+(?:the\s+)?([a-z][\w.'’-]*(?:\s+[a-z][\w.'’-]*){0,2})/i);
+  if (m) { const n = stfCleanName(m[1]); if (n) return n; }
+  return null;
+}
+
+/** Pull a 4–6 digit PIN — preferring digits that follow pin/passcode/code. */
+function stfExtractPin(q) {
+  const s = String(q || '');
+  let m = s.match(/\b(?:pin|passcode|pass\s?code|code)\b\D{0,10}(\d{4,6})\b/i);
+  if (m) return m[1];
+  m = s.match(/\b(\d{4,6})\b/);
+  return m ? m[1] : null;
+}
+
+/** Isolate the person named in a clock command ("clock in Priya" → "priya"). */
+function stfClockName(q) {
+  const name = isolateName(q, [
+    'clock', 'clocked', 'clocking', 'punch', 'punched', 'punching', 'in', 'out',
+    'for', 'attendance', 'shift', 'time', 'start', 'starting', 'started', 'begin',
+    'end', 'ends', 'finish', 'staff', 'member',
+  ]);
+  return name || null;
+}
+
+/** The staff member's currently-open (not clocked-out) attendance log, or null. */
+async function stfOpenAttendance(outletId, userId) {
+  if (!outletId || !userId) return null;
+  try {
+    return await getDbClient().attendanceLog.findFirst({
+      where: { user_id: userId, outlet_id: outletId, clock_out: null, is_deleted: false },
+      orderBy: { clock_in: 'desc' },
+    });
+  } catch (_) { return null; }
+}
+
+/** Parse a shift time range → { start:'HH:MM', end:'HH:MM' } (24h), or null. */
+function stfParseTimeRange(q) {
+  const re = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to|until|til|till|thru|through)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i;
+  const m = String(q || '').match(re);
+  if (!m) return null;
+  const h1 = parseInt(m[1], 10); const min1 = m[2] ? parseInt(m[2], 10) : 0; let mer1 = m[3] ? m[3].toLowerCase() : null;
+  const h2 = parseInt(m[4], 10); const min2 = m[5] ? parseInt(m[5], 10) : 0; let mer2 = m[6] ? m[6].toLowerCase() : null;
+  if (!mer1 && mer2) mer1 = mer2;
+  if (!mer2 && mer1) mer2 = mer1;
+  const to24 = (h, mer) => (mer === 'pm' ? (h % 12) + 12 : mer === 'am' ? h % 12 : h);
+  const H1 = to24(h1, mer1); const H2 = to24(h2, mer2);
+  if (!(H1 >= 0 && H1 <= 23) || !(H2 >= 0 && H2 <= 23) || min1 > 59 || min2 > 59) return null;
+  const fmt = (H, M) => `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`;
+  return { start: fmt(H1, min1), end: fmt(H2, min2) };
+}
+
+/** Build a human shift name from a day + period ("Friday dinner" → "Friday Dinner"). */
+function stfShiftName(q) {
+  const s = String(q || '').toLowerCase();
+  let day = STF_DAYS.find((d) => new RegExp(`\\b${d}\\b`).test(s));
+  if (!day) { const ab = s.match(/\b(sun|mon|tue|wed|thu|fri|sat)\b/); if (ab) day = STF_DAYS[STF_DAY_ABBR.indexOf(ab[1])]; }
+  const period = STF_SHIFT_PERIODS.find((p) => new RegExp(`\\b${p}\\b`).test(s));
+  const cap = (w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : '');
+  const name = [cap(day), cap(period)].filter(Boolean).join(' ').trim();
+  return name || null;
+}
+
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
 // extract(ctx, q) → { params } | { error } (clarification/not-found)
 // plan(ctx, params) → { summary }
@@ -1015,6 +1117,138 @@ const ACTIONS = [
   },
 
   {
+    name: 'update_staff',
+    label: "update a staff member (role or PIN)",
+    permission: 'MANAGE_STAFF',
+    keywords: [
+      'set pin', 'set the pin', 'set a pin', 'change pin', 'change the pin', 'reset pin',
+      'reset the pin', 'update pin', 'update the pin', 'manager pin', 'new pin', 'set their pin',
+      'change role', 'change the role', 'update role', 'update the role', 'promote', 'make a manager',
+    ],
+    // Two guarded intents: a PIN set, or a role change. 'make'/'set' are NOT bare
+    // keywords (they collide with other actions), so intent is carried by this regex.
+    // The role branch has a negative lookahead against menu/floor phrasings.
+    match: /(\b(?:set|change|reset|update|give)\b[\s\S]{0,20}\b(?:pin|passcode|pass\s?code)\b)|(\b(?:make|promote|change|set|update|move|reassign|assign)\b[\s\S]{0,25}\b(?:manager|cashier|waiter|server|chef|barista|captain|host|rider)\b(?!\s+(?:special|item|dish|combo|menu|report|section|station|table)))/i,
+    async extract(ctx, q) {
+      const wantsPin = /\b(?:pin|passcode|pass\s?code|code)\b/i.test(q);
+      const role = extractStaffRole(q); // manager|cashier|waiter|chef|delivery|captain | null
+      const name = stfExtractStaffName(q);
+      if (!name) return { error: 'Who do you want to update? Name the staff member, e.g. "set Sam’s PIN to 4321" or "make Ravi a manager".' };
+      const matches = await stfResolveStaff(ctx.outletId, name);
+      if (!matches.length) return { error: `I couldn't find a staff member named "${name}".` };
+      if (matches.length > 1) return { error: `"${name}" matched ${matches.length} staff (${matches.slice(0, 4).map((s) => s.user.full_name).join(', ')}). Which one exactly?` };
+      const sp = matches[0];
+      const userId = stfUserId(sp);
+      const fullName = (sp.user && sp.user.full_name) || name;
+      if (wantsPin) {
+        const pin = stfExtractPin(q);
+        if (!pin) return { error: `What PIN should I set for ${fullName}? Use a 4–6 digit number, e.g. "set ${fullName}’s PIN to 4321".` };
+        return { params: { op: 'pin', user_id: userId, full_name: fullName, manager_pin: pin } };
+      }
+      if (role) return { params: { op: 'role', user_id: userId, full_name: fullName, role } };
+      return { error: `What should I change for ${fullName}? I can change their role (e.g. "make ${fullName} a manager") or set their PIN (e.g. "set ${fullName}’s PIN to 4321").` };
+    },
+    plan(ctx, p) {
+      if (p.op === 'role') return { summary: `Change ${p.full_name}'s role to ${p.role}` };
+      return { summary: `Set a new PIN for ${p.full_name}` }; // never echo the PIN
+    },
+    async execute(ctx, p) {
+      if (p.op === 'role') {
+        await staff.changeStaffRole(ctx.outletId, p.user_id, p.role);
+        return { message: `Done — ${p.full_name} is now a ${p.role}.`, entity_type: 'staff', entity_id: p.user_id };
+      }
+      await staff.upsertStaffProfile(p.user_id, ctx.outletId, { manager_pin: p.manager_pin });
+      return { message: `Done — updated ${p.full_name}'s PIN.`, entity_type: 'staff', entity_id: p.user_id };
+    },
+  },
+
+  {
+    name: 'clock_in',
+    label: 'clock a staff member in',
+    // Clocking a NAMED other person in is a supervisory act; the tightest real key
+    // for writing attendance is MANAGE_ATTENDANCE. Owners bypass.
+    permission: 'MANAGE_ATTENDANCE',
+    keywords: ['clock in', 'clock-in', 'clocking in', 'punch in', 'sign in staff', 'start shift for'],
+    match: /\b(?:clock|punch)(?:\s|-)?in\b|\bclock\b[\s\S]{0,20}\bin\b/i,
+    async extract(ctx, q) {
+      const name = stfClockName(q);
+      if (!name) return { error: 'Who should I clock in? e.g. "clock in Priya".' };
+      const matches = await stfResolveStaff(ctx.outletId, name);
+      if (!matches.length) return { error: `I couldn't find a staff member named "${name}".` };
+      if (matches.length > 1) return { error: `"${name}" matched ${matches.length} staff (${matches.slice(0, 4).map((s) => s.user.full_name).join(', ')}). Which one exactly?` };
+      const sp = matches[0];
+      const userId = stfUserId(sp);
+      const fullName = (sp.user && sp.user.full_name) || name;
+      const open = await stfOpenAttendance(ctx.outletId, userId);
+      if (open) return { error: `${fullName} is already clocked in.` };
+      return { params: { user_id: userId, full_name: fullName } };
+    },
+    plan(ctx, p) {
+      return { summary: `Clock ${p.full_name} in` };
+    },
+    async execute(ctx, p) {
+      const rec = await staff.clockIn(p.user_id, ctx.outletId, {});
+      return { message: `Done — clocked ${p.full_name} in.`, entity_type: 'attendance', entity_id: rec && rec.id };
+    },
+  },
+
+  {
+    name: 'clock_out',
+    label: 'clock a staff member out',
+    permission: 'MANAGE_ATTENDANCE',
+    keywords: ['clock out', 'clock-out', 'clocking out', 'punch out', 'sign out staff', 'end shift for'],
+    match: /\b(?:clock|punch)(?:\s|-)?out\b|\bclock\b[\s\S]{0,20}\bout\b/i,
+    async extract(ctx, q) {
+      const name = stfClockName(q);
+      if (!name) return { error: 'Who should I clock out? e.g. "clock out Sam".' };
+      const matches = await stfResolveStaff(ctx.outletId, name);
+      if (!matches.length) return { error: `I couldn't find a staff member named "${name}".` };
+      if (matches.length > 1) return { error: `"${name}" matched ${matches.length} staff (${matches.slice(0, 4).map((s) => s.user.full_name).join(', ')}). Which one exactly?` };
+      const sp = matches[0];
+      const userId = stfUserId(sp);
+      const fullName = (sp.user && sp.user.full_name) || name;
+      const open = await stfOpenAttendance(ctx.outletId, userId);
+      if (!open) return { error: `${fullName} isn't clocked in right now.` };
+      return { params: { user_id: userId, full_name: fullName } };
+    },
+    plan(ctx, p) {
+      return { summary: `Clock ${p.full_name} out` };
+    },
+    async execute(ctx, p) {
+      const rec = await staff.clockOut(p.user_id, ctx.outletId, {});
+      const hrs = rec && rec.hours_worked != null ? ` (${Number(rec.hours_worked)}h)` : '';
+      return { message: `Done — clocked ${p.full_name} out${hrs}.`, entity_type: 'attendance', entity_id: rec && rec.id };
+    },
+  },
+
+  {
+    name: 'create_shift',
+    label: 'create a staff shift',
+    permission: 'MANAGE_STAFF',
+    keywords: ['add a shift', 'create a shift', 'create shift', 'new shift', 'add shift', 'schedule a shift', 'set up a shift', 'add a new shift', 'make a shift'],
+    match: /\b(?:add|create|new|schedule|set\s?up|make)\b[\s\S]{0,30}\bshift\b/i,
+    async extract(ctx, q) {
+      const range = stfParseTimeRange(q);
+      if (!range) return { error: 'What time is the shift? Give a start and end, e.g. "add a Friday dinner shift 6pm-11pm".' };
+      const name = stfShiftName(q) || `${range.start}-${range.end}`;
+      return { params: { name: String(name).slice(0, 50), start_time: range.start, end_time: range.end } };
+    },
+    plan(ctx, p) {
+      return { summary: `Create a "${p.name}" shift from ${p.start_time} to ${p.end_time}` };
+    },
+    async execute(ctx, p) {
+      // StaffShift.start_time/end_time are Postgres TIME columns — Prisma needs a real
+      // Date, not a bare 'HH:MM' string, so build one on the epoch date.
+      const toTime = (hm) => new Date(`1970-01-01T${hm}:00.000Z`);
+      const shift = await staff.createShift({
+        outlet_id: ctx.outletId, name: p.name,
+        start_time: toTime(p.start_time), end_time: toTime(p.end_time),
+      });
+      return { message: `Done — created the "${p.name}" shift (${p.start_time}–${p.end_time}). Assign staff to it in Staff → Shifts.`, entity_type: 'shift', entity_id: shift && shift.id };
+    },
+  },
+
+  {
     name: 'create_reservation',
     label: 'create a reservation',
     permission: 'MANAGE_POS',
@@ -1409,6 +1643,16 @@ async function buildBatchPreview(userCtx, question, history = []) {
   return { action: 'batch', summary: `these ${items.length} things`, warn: anyWarn, items, token };
 }
 
+/** Redact secret params (PIN/password) before they're written to the audit log. */
+function redactActionParams(params) {
+  if (!params || typeof params !== 'object') return params;
+  const clone = { ...params };
+  for (const k of Object.keys(clone)) {
+    if (/pin|passcode|password|secret/i.test(k)) clone[k] = '***';
+  }
+  return clone;
+}
+
 /**
  * Execute a previously previewed action after the user confirms. Re-verifies the
  * token, that it belongs to THIS user + outlet, and that the permission still
@@ -1450,7 +1694,7 @@ async function runAction(userCtx, token) {
         action: `ASSISTANT_${action.name.toUpperCase()}`,
         entity_type: result.entity_type || 'assistant_action',
         entity_id: result.entity_id || null,
-        new_values: payload.params,
+        new_values: redactActionParams(payload.params),
       },
     });
   } catch (e) { logger.warn('assistant action audit-log failed', { error: e.message }); }
@@ -1500,7 +1744,7 @@ async function runBatch(userCtx, payload) {
           action: `ASSISTANT_${action.name.toUpperCase()}`,
           entity_type: result.entity_type || 'assistant_action',
           entity_id: result.entity_id || null,
-          new_values: it.params,
+          new_values: redactActionParams(it.params),
         },
       });
     } catch (e) { logger.warn('assistant batch audit-log failed', { error: e.message }); }
@@ -1547,4 +1791,10 @@ module.exports = {
   resolveDiscountOrder,
   computeDiscountedTotals,
   menuResolveCategory,
+  stfResolveStaff,
+  stfExtractStaffName,
+  stfExtractPin,
+  stfClockName,
+  stfParseTimeRange,
+  stfShiftName,
 };

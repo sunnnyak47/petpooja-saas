@@ -13,12 +13,13 @@ const mockInventory = { getLowStock: jest.fn(), listInventoryItems: jest.fn(), r
 const mockProcurement = { createPurchaseOrder: jest.fn(), listPurchaseOrders: jest.fn(), receivePurchaseOrder: jest.fn() };
 const mockReservations = { createReservation: jest.fn() };
 const mockOrder = { listOrders: jest.fn(), getOrderById: jest.fn() };
-const mockStaff = { createStaffWithUser: jest.fn() };
+const mockStaff = { createStaffWithUser: jest.fn(), listStaff: jest.fn(), upsertStaffProfile: jest.fn(), changeStaffRole: jest.fn(), clockIn: jest.fn(), clockOut: jest.fn(), createShift: jest.fn() };
 const mockPrisma = {
   auditLog: { create: jest.fn().mockResolvedValue({}) },
   customer: { count: jest.fn() },
   order: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
   orderItem: { findMany: jest.fn().mockResolvedValue([]) },
+  attendanceLog: { findFirst: jest.fn().mockResolvedValue(null) },
 };
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
@@ -50,6 +51,12 @@ beforeEach(() => {
   mockMenu.createMenuItem.mockResolvedValue({ id: 'mi1' });
   mockMenu.createCategory.mockResolvedValue({ id: 'cat_new' });
   mockMenu.createCombo.mockResolvedValue({ id: 'combo1' });
+  mockStaff.listStaff.mockResolvedValue({ staff: [{ user_id: 'su1', user: { id: 'su1', full_name: 'Ravi Kumar', user_roles: [] } }], total: 1, page: 1, limit: 500 });
+  mockStaff.upsertStaffProfile.mockResolvedValue({});
+  mockStaff.changeStaffRole.mockResolvedValue({ user_id: 'su1', role: 'manager' });
+  mockStaff.clockIn.mockResolvedValue({ id: 'att1' });
+  mockStaff.clockOut.mockResolvedValue({ id: 'att1', hours_worked: 8 });
+  mockStaff.createShift.mockResolvedValue({ id: 'sh1' });
 });
 
 describe('detectAction', () => {
@@ -579,5 +586,83 @@ describe('menu pack (create_menu_item / create_category / create_combo)', () => 
     expect((await actions.menuResolveCategory('o1', 'mains')).map((c) => c.id)).toEqual(['cat_mains']);
     expect((await actions.menuResolveCategory('o1', 'dess')).map((c) => c.id)).toEqual(['cat_desserts']);
     expect((await actions.menuResolveCategory('o1', 'drinks')).length).toBe(0);
+  });
+});
+
+// ── Pack C: staff & roster ───────────────────────────────────────────────────
+describe('staff pack (update_staff / clock_in / clock_out / create_shift)', () => {
+  test('detection routes each; does not hijack menu/hire phrasings', () => {
+    expect(actions.detectAction("set Sam's PIN to 4321").name).toBe('update_staff');
+    expect(actions.detectAction('make Ravi a manager').name).toBe('update_staff');
+    expect(actions.detectAction('clock in Priya').name).toBe('clock_in');
+    expect(actions.detectAction('clock out Sam').name).toBe('clock_out');
+    expect(actions.detectAction('add a Friday dinner shift 6pm-11pm').name).toBe('create_shift');
+    expect(actions.detectAction('add a chef named Ravi').name).toBe('create_staff'); // hire, not update
+    expect(actions.detectAction('how do i clock in priya')).toBeNull();
+  });
+
+  test('helpers: time range, shift name, staff name, pin', () => {
+    expect(actions.stfParseTimeRange('6pm-11pm')).toEqual({ start: '18:00', end: '23:00' });
+    expect(actions.stfParseTimeRange('6-11pm')).toEqual({ start: '18:00', end: '23:00' }); // inherits pm
+    expect(actions.stfShiftName('add a Friday dinner shift 6pm-11pm')).toBe('Friday Dinner');
+    expect(actions.stfExtractStaffName("set Sam's PIN to 4321")).toBe('Sam');
+    expect(actions.stfExtractStaffName('promote Priya Sharma to manager')).toBe('Priya Sharma');
+    expect(actions.stfExtractPin("set Sam's PIN to 4321")).toBe('4321');
+  });
+
+  test('update_staff PIN: confirm calls upsertStaffProfile; PIN never echoed or audited raw', async () => {
+    mockStaff.listStaff.mockResolvedValue({ staff: [{ user_id: 'su2', user: { id: 'su2', full_name: 'Sam Lee' } }] });
+    const p = await actions.buildActionPreview(OWNER, "set Sam's PIN to 4321");
+    expect(p.action).toBe('update_staff');
+    expect(p.summary).toMatch(/Set a new PIN for Sam Lee/);
+    expect(p.summary).not.toMatch(/4321/);
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockStaff.upsertStaffProfile).toHaveBeenCalledWith('su2', 'o1', { manager_pin: '4321' });
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.new_values.manager_pin).toBe('***'); // redacted
+  });
+
+  test('update_staff role: confirm changes the role via changeStaffRole', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'make Ravi a manager');
+    expect(p.action).toBe('update_staff');
+    expect(p.summary).toMatch(/Change Ravi Kumar's role to manager/);
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockStaff.changeStaffRole).toHaveBeenCalledWith('o1', 'su1', 'manager');
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_UPDATE_STAFF');
+  });
+
+  test('clock_in/out: honours already-in / not-in state; confirm calls the service', async () => {
+    mockStaff.listStaff.mockResolvedValue({ staff: [{ user_id: 'su3', user: { id: 'su3', full_name: 'Priya' } }] });
+    mockPrisma.attendanceLog.findFirst.mockResolvedValue(null);
+    const p = await actions.buildActionPreview(OWNER, 'clock in Priya');
+    expect(p.summary).toMatch(/Clock Priya in/);
+    await actions.runAction(OWNER, p.token);
+    expect(mockStaff.clockIn).toHaveBeenCalledWith('su3', 'o1', {});
+
+    mockPrisma.attendanceLog.findFirst.mockResolvedValue({ id: 'open1' });
+    const already = await actions.buildActionPreview(OWNER, 'clock in Priya');
+    expect(already.message).toMatch(/already clocked in/i);
+    const out = await actions.buildActionPreview(OWNER, 'clock out Priya');
+    const ro = await actions.runAction(OWNER, out.token);
+    expect(ro.ok).toBe(true);
+    expect(mockStaff.clockOut).toHaveBeenCalledWith('su3', 'o1', {});
+  });
+
+  test('create_shift: passes real Date times; no time → clarify', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add a Friday dinner shift 6pm-11pm');
+    expect(p.summary).toMatch(/"Friday Dinner" shift from 18:00 to 23:00/);
+    await actions.runAction(OWNER, p.token);
+    const arg = mockStaff.createShift.mock.calls[0][0];
+    expect(arg).toMatchObject({ outlet_id: 'o1', name: 'Friday Dinner' });
+    expect(arg.start_time).toBeInstanceOf(Date);
+    expect(arg.start_time.toISOString()).toMatch(/T18:00/);
+    const noTime = await actions.buildActionPreview(OWNER, 'add a dinner shift');
+    expect(noTime.message).toMatch(/what time/i);
+  });
+
+  test('cashier lacking the permission is denied (staff + attendance)', async () => {
+    expect((await actions.buildActionPreview(CASHIER([]), "set Sam's PIN to 4321")).denied).toBe(true);
+    expect((await actions.buildActionPreview(CASHIER([]), 'clock in Priya')).denied).toBe(true);
   });
 });
