@@ -22,8 +22,10 @@ const eod = require('../reports/eod.service');
 const statements = require('../accounting/accounting.statements.service');
 const bas = require('../accounting/accounting.bas.service');
 const payroll = require('../payroll/payroll.service');
+const { getDbClient } = require('../../config/database');
 
 const MAX_RANGE_DAYS = 92; // cap per-day EOD iteration so a huge range can't hammer the DB
+const MAX_ORDER_ROWS = 5000; // cap order-history export so a long period can't produce a giant file
 
 // ── date helpers ─────────────────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, '0');
@@ -128,6 +130,9 @@ function detectExport(question) {
   else if (/(payroll|payslip|pay[\s-]*run|wage[\s-]*bill)/.test(q)) module = 'payroll';
   else if (/(item[\s-]*wise|item[\s-]*level|sales?\s*by\s*item|by[\s-]*item|top\s*items?\s*report|product\s*sales|item\s*sales)/.test(q)) module = 'item_wise';
   else if (/(eod|end[\s-]*of[\s-]*day|day[\s-]*close|z[\s-]*report|daily[\s-]*close|closing report)/.test(q)) module = 'eod';
+  // Order history = a LIST of individual orders (not the per-day sales summary).
+  // Exclude "purchase order" (that PDF lives in Inventory) so it doesn't hijack.
+  else if (!/purchase/.test(q) && /(order[\s-]*history|order[\s-]*list|order[\s-]*report|order[\s-]*wise|orders?\b|sales?\s*register|bill[\s-]*wise|transactions?\b)/.test(q)) module = 'orders';
   else if (/(sales|revenue|takings|turnover)/.test(q)) module = 'sales';
 
   // "export a report" with no explicit module → default to a sales report — but
@@ -139,7 +144,7 @@ function detectExport(question) {
 }
 
 const MODULE_LABEL = {
-  eod: 'End-of-day', pnl: 'Profit & Loss', sales: 'Sales',
+  eod: 'End-of-day', pnl: 'Profit & Loss', sales: 'Sales', orders: 'Order history',
   item_wise: 'Item-wise Sales', inventory_valuation: 'Inventory Valuation',
   balance_sheet: 'Balance Sheet', bas: 'GST / BAS', payroll: 'Payroll',
 };
@@ -216,6 +221,50 @@ async function salesRows(outletId, from, to) {
   const totRev = rows.reduce((s, r) => s + Number(r.cells[2]), 0);
   rows.push({ type: 'total', cells: ['Total', totOrders, n2(totRev)] });
   return { title: 'Sales Report', columns, rows };
+}
+
+/** A LIST of individual orders in the range (order history / sales register). One
+ *  row per order; money columns summed in a totals row. Capped at MAX_ORDER_ROWS. */
+async function ordersRows(outletId, from, to) {
+  const prisma = getDbClient();
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T23:59:59.999`);
+  const found = await prisma.order.findMany({
+    where: { outlet_id: outletId, is_deleted: false, created_at: { gte: start, lte: end } },
+    select: {
+      order_number: true, created_at: true, order_type: true, status: true, is_paid: true,
+      subtotal: true, total_tax: true, discount_amount: true, grand_total: true,
+      table: { select: { table_number: true } },
+    },
+    orderBy: { created_at: 'asc' },
+    take: MAX_ORDER_ROWS + 1,
+  });
+  const capped = found.length > MAX_ORDER_ROWS;
+  const list = capped ? found.slice(0, MAX_ORDER_ROWS) : found;
+  const columns = [
+    { label: 'Order #', align: 'left' },
+    { label: 'Date/Time', align: 'left' },
+    { label: 'Type', align: 'left' },
+    { label: 'Table', align: 'left' },
+    { label: 'Subtotal', align: 'right', money: true },
+    { label: 'Tax', align: 'right', money: true },
+    { label: 'Discount', align: 'right', money: true },
+    { label: 'Total', align: 'right', money: true },
+    { label: 'Status', align: 'left' },
+  ];
+  const fmtDt = (d) => { const x = new Date(d); return `${ymd(x)} ${pad(x.getHours())}:${pad(x.getMinutes())}`; };
+  const rows = list.map((o) => ({ type: 'data', cells: [
+    o.order_number || '—',
+    fmtDt(o.created_at),
+    (o.order_type || '').replace(/_/g, ' ') || '—',
+    (o.table && o.table.table_number) ? o.table.table_number : '—',
+    n2(o.subtotal), n2(o.total_tax), n2(o.discount_amount), n2(o.grand_total),
+    o.is_paid ? 'paid' : (o.status || '—'),
+  ] }));
+  const sum = (i) => rows.reduce((s, r) => s + Number(r.cells[i] || 0), 0);
+  rows.push({ type: 'total', cells: ['Total', '', '', '', n2(sum(4)), n2(sum(5)), n2(sum(6)), n2(sum(7)), `${list.length} order${list.length === 1 ? '' : 's'}`] });
+  const title = capped ? `Order History (first ${MAX_ORDER_ROWS} orders)` : 'Order History';
+  return { title, columns, rows };
 }
 
 async function eodRows(outletId, from, to) {
@@ -518,7 +567,8 @@ async function tableToXlsx(t, meta) {
 async function generate(p, outletName, generated) {
   const { outletId, module, from, to, format } = p;
   const table = module === 'pnl' ? await pnlTable(outletId, from, to)
-    : module === 'eod' ? await eodRows(outletId, from, to)
+    : module === 'orders' ? await ordersRows(outletId, from, to)
+      : module === 'eod' ? await eodRows(outletId, from, to)
       : module === 'item_wise' ? await itemWiseTable(outletId, from, to)
         : module === 'inventory_valuation' ? await inventoryValuationTable(outletId)
           : module === 'balance_sheet' ? await balanceSheetTable(outletId, to)

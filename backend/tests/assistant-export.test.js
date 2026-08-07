@@ -10,8 +10,10 @@ const mockAcctExport = { exportProfitLossCSV: jest.fn() };
 const mockStatements = { getProfitAndLoss: jest.fn(), getBalanceSheet: jest.fn() };
 const mockBas = { getBASReport: jest.fn(), getCashFlow: jest.fn() };
 const mockPayroll = { listPayRuns: jest.fn() };
+const mockDb = { order: { findMany: jest.fn() } };
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
+jest.mock('../src/config/database', () => ({ getDbClient: () => mockDb }));
 jest.mock('../src/modules/reports/reports.service', () => mockReports);
 jest.mock('../src/modules/reports/eod.service', () => mockEod);
 jest.mock('../src/modules/accounting/accounting.export.service', () => mockAcctExport);
@@ -38,6 +40,16 @@ describe('detectExport', () => {
     expect(xport.detectExport('download the payroll report')).toEqual({ module: 'payroll', format: 'csv' });
     expect(xport.detectExport('export item-wise sales as xlsx')).toEqual({ module: 'item_wise', format: 'xlsx' });
     expect(xport.detectExport('download sales by item report')).toEqual({ module: 'item_wise', format: 'csv' });
+  });
+  test('recognises order-history exports (and excludes purchase orders)', () => {
+    expect(xport.detectExport('give pdf of order history to download last 30 days')).toEqual({ module: 'orders', format: 'pdf' });
+    expect(xport.detectExport('download order history csv')).toEqual({ module: 'orders', format: 'csv' });
+    expect(xport.detectExport('export orders report')).toEqual({ module: 'orders', format: 'csv' });
+    expect(xport.detectExport('export order list for last 7 days as excel')).toEqual({ module: 'orders', format: 'xlsx' });
+    // "purchase order" must NOT hijack the orders module (its PDF lives in Inventory).
+    expect(xport.detectExport('download purchase order pdf')).toBeNull();
+    // plain sales report is unaffected.
+    expect(xport.detectExport('download sales report pdf')).toEqual({ module: 'sales', format: 'pdf' });
   });
   test('non-export questions return null', () => {
     expect(xport.detectExport('how much did we sell today')).toBeNull();
@@ -192,6 +204,39 @@ describe('generate — PDF', () => {
     expect(out.contentType).toBe('application/pdf');
     expect(Buffer.isBuffer(out.body)).toBe(true);
     expect(out.body.slice(0, 4).toString()).toBe('%PDF');
+    expect(out.body.length).toBeGreaterThan(500);
+  });
+});
+
+describe('order-history export (module: orders)', () => {
+  const SAMPLE = [
+    { order_number: 'ORD-001', created_at: new Date('2026-08-01T12:30:00'), order_type: 'dine_in', status: 'completed', is_paid: true, subtotal: 20, total_tax: 2, discount_amount: 0, grand_total: 22, table: { table_number: '5' } },
+    { order_number: 'ORD-002', created_at: new Date('2026-08-02T19:05:00'), order_type: 'takeaway', status: 'cancelled', is_paid: false, subtotal: 10, total_tax: 1, discount_amount: 1, grand_total: 10, table: null },
+  ];
+  beforeEach(() => { mockDb.order.findMany.mockReset().mockResolvedValue(SAMPLE); });
+
+  test('CSV lists each order with a totals row', async () => {
+    const out = await xport.generate({ outletId: 'o1', module: 'orders', from: '2026-08-01', to: '2026-08-31', format: 'csv', currency: 'AUD' }, 'Silver Oak', '2026-08-07 15:00');
+    expect(out.filename).toBe('orders-2026-08-01-to-2026-08-31.csv');
+    expect(out.contentType).toMatch(/text\/csv/);
+    expect(out.body).toContain('ORD-001');
+    expect(out.body).toContain('ORD-002');
+    expect(out.body).toContain('dine in');     // order_type underscores humanized
+    expect(out.body).toContain('paid');         // is_paid → 'paid'
+    expect(out.body).toContain('cancelled');    // unpaid → status
+    expect(out.body).toMatch(/Total.*2 orders/); // totals row with count
+    // the query was scoped to the outlet + date range
+    const where = mockDb.order.findMany.mock.calls[0][0].where;
+    expect(where.outlet_id).toBe('o1');
+    expect(where.is_deleted).toBe(false);
+    expect(where.created_at.gte).toBeInstanceOf(Date);
+  });
+
+  test('PDF renders to a Buffer', async () => {
+    const out = await xport.generate({ outletId: 'o1', module: 'orders', from: '2026-08-01', to: '2026-08-31', format: 'pdf', currency: 'AUD' }, 'Silver Oak', '2026-08-07 15:00');
+    expect(out.filename).toMatch(/\.pdf$/);
+    expect(out.contentType).toBe('application/pdf');
+    expect(Buffer.isBuffer(out.body)).toBe(true);
     expect(out.body.length).toBeGreaterThan(500);
   });
 });
