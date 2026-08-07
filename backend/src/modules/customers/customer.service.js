@@ -41,8 +41,34 @@ async function tenantScopeFilter(caller) {
 
 async function createCustomer(data, caller) {
   const prisma = getDbClient();
-  const existing = await prisma.customer.findFirst({ where: { phone: data.phone, is_deleted: false } });
-  if (existing) throw new ConflictError('Customer with this phone already exists');
+  // Customer.phone is @unique regardless of is_deleted, so a previously-removed
+  // customer still owns the number. Find any match (deleted or not): an ACTIVE one
+  // is a real duplicate; a soft-deleted one is REVIVED (un-deleted + refreshed)
+  // rather than hitting a raw P2002 that leaves the number un-re-addable.
+  const existing = await prisma.customer.findFirst({ where: { phone: data.phone } });
+  if (existing && !existing.is_deleted) throw new ConflictError('Customer with this phone already exists');
+  if (existing && existing.is_deleted) {
+    const revived = await prisma.customer.update({
+      where: { id: existing.id },
+      data: {
+        is_deleted: false,
+        head_office_id: caller?.head_office_id || data.head_office_id || existing.head_office_id || null,
+        ...(data.full_name ? { full_name: data.full_name } : {}),
+        ...(data.email ? { email: data.email } : {}),
+        ...(data.marketing_consent !== undefined
+          ? {
+              marketing_consent: !!data.marketing_consent,
+              consent_at: data.marketing_consent ? new Date() : null,
+              consent_source: data.marketing_consent ? 'pos' : null,
+            }
+          : {}),
+      },
+    });
+    const hasLoyalty = await prisma.loyaltyPoints.findFirst({ where: { customer_id: revived.id } });
+    if (!hasLoyalty) await prisma.loyaltyPoints.create({ data: { customer_id: revived.id } });
+    logger.info('Customer revived', { id: revived.id });
+    return revived;
+  }
 
   const customer = await prisma.customer.create({
     data: {

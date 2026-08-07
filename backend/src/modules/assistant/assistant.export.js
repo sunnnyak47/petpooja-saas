@@ -282,18 +282,20 @@ async function eodRows(outletId, from, to) {
     { label: 'Discount', align: 'right', money: true },
     { label: 'Cash', align: 'right', money: true },
     { label: 'Card', align: 'right', money: true },
+    { label: 'UPI', align: 'right', money: true },
+    { label: 'Other', align: 'right', money: true },
     { label: 'Voids', align: 'right' },
     { label: 'Refunds', align: 'right' },
   ];
   const rows = [];
-  const t = { orders: 0, rev: 0, tax: 0, disc: 0, cash: 0, card: 0, voids: 0, refunds: 0 };
+  const t = { orders: 0, rev: 0, tax: 0, disc: 0, cash: 0, card: 0, upi: 0, other: 0, voids: 0, refunds: 0 };
   for (const day of dateList(from, to)) {
     const s = await eod.generateSnapshot(outletId, new Date(`${day}T12:00:00`)); // midday = safe inside the local day
-    rows.push({ type: 'data', cells: [day, s.total_orders, n2(s.total_revenue), n2(s.total_tax), n2(s.total_discount), n2(s.cash_system), n2(s.card_system), s.void_count, s.refund_count] });
+    rows.push({ type: 'data', cells: [day, s.total_orders, n2(s.total_revenue), n2(s.total_tax), n2(s.total_discount), n2(s.cash_system), n2(s.card_system), n2(s.upi_system), n2(s.other_system), s.void_count, s.refund_count] });
     t.orders += s.total_orders; t.rev += Number(s.total_revenue); t.tax += Number(s.total_tax); t.disc += Number(s.total_discount);
-    t.cash += Number(s.cash_system); t.card += Number(s.card_system); t.voids += s.void_count; t.refunds += s.refund_count;
+    t.cash += Number(s.cash_system); t.card += Number(s.card_system); t.upi += Number(s.upi_system) || 0; t.other += Number(s.other_system) || 0; t.voids += s.void_count; t.refunds += s.refund_count;
   }
-  rows.push({ type: 'total', cells: ['Total', t.orders, n2(t.rev), n2(t.tax), n2(t.disc), n2(t.cash), n2(t.card), t.voids, t.refunds] });
+  rows.push({ type: 'total', cells: ['Total', t.orders, n2(t.rev), n2(t.tax), n2(t.disc), n2(t.cash), n2(t.card), n2(t.upi), n2(t.other), t.voids, t.refunds] });
   return { title: 'End-of-Day Report', columns, rows };
 }
 
@@ -417,7 +419,7 @@ function tableToCsv(t, meta) {
   const out = [];
   out.push([t.title]);
   if (meta.outletName) out.push([meta.outletName]);
-  out.push(['Period', `${meta.from} to ${meta.to}`]);
+  out.push(['Period', meta.periodLabel || `${meta.from} to ${meta.to}`]);
   out.push(['Currency', meta.currency || 'AUD']);
   out.push([]);
   out.push(t.columns.map((c) => c.label));
@@ -448,7 +450,7 @@ function tableToPdf(t, meta) {
     doc.font('Helvetica-Bold').fontSize(19).fillColor('#0f172a').text(meta.outletName || 'Report', left, doc.page.margins.top);
     doc.font('Helvetica-Bold').fontSize(13).fillColor('#2563eb').text(t.title);
     doc.font('Helvetica').fontSize(9).fillColor('#64748b')
-      .text(`${meta.from} to ${meta.to}   ·   Currency ${meta.currency || 'AUD'}${meta.generated ? `   ·   Generated ${meta.generated}` : ''}`);
+      .text(`${meta.periodLabel || `${meta.from} to ${meta.to}`}   ·   Currency ${meta.currency || 'AUD'}${meta.generated ? `   ·   Generated ${meta.generated}` : ''}`);
     let y = doc.y + 14;
 
     // Column widths: fixed for numeric / explicit-w columns, flex for the rest.
@@ -513,7 +515,7 @@ async function tableToXlsx(t, meta) {
   let r = 1;
   ws.mergeCells(r, 1, r, nCols); ws.getCell(r, 1).value = t.title; ws.getCell(r, 1).font = { bold: true, size: 14 }; r += 1;
   if (meta.outletName) { ws.mergeCells(r, 1, r, nCols); ws.getCell(r, 1).value = meta.outletName; ws.getCell(r, 1).font = { bold: true }; r += 1; }
-  ws.getCell(r, 1).value = 'Period'; ws.getCell(r, 2).value = `${meta.from} to ${meta.to}`; r += 1;
+  ws.getCell(r, 1).value = 'Period'; ws.getCell(r, 2).value = meta.periodLabel || `${meta.from} to ${meta.to}`; r += 1;
   ws.getCell(r, 1).value = 'Currency'; ws.getCell(r, 2).value = meta.currency || 'AUD'; r += 2; // blank row after
 
   const headerRow = ws.getRow(r);
@@ -576,9 +578,15 @@ async function generate(p, outletName, generated) {
               : module === 'payroll' ? await payrollTable(outletId)
                 : await salesRows(outletId, from, to);
 
-  const meta = { from, to, currency: p.currency, outletName, generated };
+  // Payroll (latest N runs) and inventory valuation (a snapshot) are point-in-time,
+  // not ranges — don't claim a "from → to" period in the header/filename.
+  const isPointInTime = module === 'payroll' || module === 'inventory_valuation';
+  const periodLabel = module === 'payroll' ? 'Latest pay runs'
+    : module === 'inventory_valuation' ? `As of ${to}`
+      : `${from} to ${to}`;
+  const meta = { from, to, currency: p.currency, outletName, generated, periodLabel };
   const ext = format === 'pdf' ? 'pdf' : format === 'xlsx' ? 'xlsx' : 'csv';
-  const filename = `${module}-${from}-to-${to}.${ext}`;
+  const filename = isPointInTime ? `${module}-as-of-${to}.${ext}` : `${module}-${from}-to-${to}.${ext}`;
   if (format === 'pdf') {
     return { filename, contentType: 'application/pdf', body: await tableToPdf(table, meta) };
   }

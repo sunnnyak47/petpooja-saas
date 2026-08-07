@@ -52,6 +52,16 @@ function userHasPermission(userCtx, permKey) {
   return Array.isArray(userCtx.permissions) && userCtx.permissions.includes(permKey);
 }
 
+// Whether the caller may run an action. Some real routes are ROLE-gated (e.g. the
+// discount route uses hasRole('super_admin','owner','manager')) rather than keyed on
+// a permission — such actions declare `roles` and we mirror that exactly instead of
+// approximating with a permission key. Owner/super_admin always pass.
+function actionAllowed(userCtx, action) {
+  if (userCtx.role === 'super_admin' || userCtx.role === 'owner') return true;
+  if (Array.isArray(action.roles)) return action.roles.includes(userCtx.role);
+  return userHasPermission(userCtx, action.permission);
+}
+
 // ── entity resolvers (read-only) ─────────────────────────────────────────────
 /** Resolve a menu item by (fuzzy) name → array of {id,name,base_price,is_available}. */
 async function resolveMenuItem(outletId, name) {
@@ -101,7 +111,12 @@ function computeNewPrice(q, oldPrice) {
 }
 function extractPhone(q) {
   const m = String(q).replace(/[^\d+]/g, ' ').match(/(\+?\d[\d ]{7,14}\d)/);
-  return m ? m[1].replace(/\s/g, '') : null;
+  if (!m) return null;
+  const phone = m[1].replace(/\s/g, '');
+  // Customer/User/reservation phone columns are VarChar(15). Reject an over-long
+  // match rather than store a truncated/wrong number — the action then asks again.
+  if (phone.replace(/\D/g, '').length > 15) return null;
+  return phone;
 }
 function extractTableNumber(q) {
   const m = q.match(/table\s*#?\s*([a-z]?\d+[a-z]?)/i) || q.match(/\b(?:no\.?|number)\s*([a-z]?\d+)/i);
@@ -1110,8 +1125,12 @@ const ACTIONS = [
         // LIVE current level (re-read at execute time, never the preview snapshot).
         let current = 0;
         try {
-          const s = await inventory.getStock(ctx.outletId, { search: p.item_name, limit: 200 });
-          const row = ((s && s.items) || []).find((it) => it.id === p.item_id);
+          // Read the stock row directly by its composite key — inventory.getStock
+          // filters is_active:true, which would hide an inactive item and make 'set'
+          // behave like 'add' (delta = target − 0).
+          const row = await getDbClient().inventoryStock.findUnique({
+            where: { outlet_id_inventory_item_id: { outlet_id: ctx.outletId, inventory_item_id: p.item_id } },
+          });
           if (row && row.current_stock != null) current = Number(row.current_stock) || 0;
         } catch (_) { current = 0; }
         delta = round2(p.quantity - current);
@@ -1478,9 +1497,9 @@ const ACTIONS = [
   {
     name: 'create_discount',
     label: 'create a discount / coupon code',
-    // The discount route is role-gated (owner/manager/super_admin); MANAGE_MENU is the
-    // closest RBAC key the manager role holds.
-    permission: 'MANAGE_MENU',
+    // The discount route is ROLE-gated: hasRole('super_admin','owner','manager').
+    // Mirror it exactly (owner/super_admin pass implicitly via actionAllowed).
+    roles: ['manager'],
     keywords: [
       'create discount', 'create a discount', 'make a discount', 'new discount', 'add a discount code',
       'discount code', 'coupon code', 'promo code', 'create coupon', 'make coupon', 'create a coupon',
@@ -1586,6 +1605,9 @@ const ACTIONS = [
     permission: 'MANAGE_CAMPAIGNS',
     warn: true, // outward-facing (messages real customers) → stronger confirmation in the UI
     keywords: ['send a campaign', 'send campaign', 'marketing campaign', 'send an sms', 'send sms', 'sms to', 'sms my', 'text all customers', 'text my customers', 'text customers', 'text my', 'text all', 'text to', 'message my customers', 'message all', 'email my customers', 'email my', 'email all', 'email vip', 'whatsapp my customers', 'whatsapp my', 'whatsapp all', 'blast', 'promo to customers', 'send promo', 'send a promo'],
+    // Catches "text VIPs …", "sms regulars …", "whatsapp new customers …" — a channel
+    // verb + a segment/audience noun that the contiguous keywords miss.
+    match: /\b(text|sms|whatsapp|message|email|blast)\b[\s\S]{0,20}\b(vips?|regulars?|loyal|new|lapsed|inactive|all|everyone|customers?|guests?|diners?)\b/i,
     async extract(ctx, q) {
       const message = extractMessage(q);
       if (!message) return { error: 'What message should I send? Put it in quotes, e.g. text VIPs saying "2-for-1 this Friday".' };
@@ -1872,7 +1894,7 @@ async function buildActionPreview(userCtx, question, history = []) {
   // action still routes to the menu-item action it refers to.
   const action = detectAction(question) || inferPronounAction(question);
   if (!action || !userCtx.outletId) return null;
-  if (!userHasPermission(userCtx, action.permission)) {
+  if (!actionAllowed(userCtx, action)) {
     return { denied: true, message: `You don't have permission to ${action.label}. Ask an owner or manager.` };
   }
   let ex;
@@ -1916,7 +1938,7 @@ async function buildBatchPreview(userCtx, question, history = []) {
   let anyWarn = false;
 
   for (const { action, segment } of detected) {
-    if (!userHasPermission(userCtx, action.permission)) {
+    if (!actionAllowed(userCtx, action)) {
       items.push({ summary: `${action.label} — you don't have permission`, warn: false });
       continue;
     }
@@ -1992,7 +2014,7 @@ async function runAction(userCtx, token) {
   if (payload.batch) return runBatch(userCtx, payload);
   const action = ACTIONS.find((a) => a.name === payload.action);
   if (!action) return { ok: false, message: 'That action is no longer available.' };
-  if (!userHasPermission(userCtx, action.permission)) {
+  if (!actionAllowed(userCtx, action)) {
     return { ok: false, message: `You don't have permission to ${action.label}.` };
   }
   let result;
@@ -2039,7 +2061,7 @@ async function runBatch(userCtx, payload) {
     try { if (action) label = action.plan(userCtx, it.params).summary; } catch (_) { /* keep label */ }
 
     if (!action) { results.push({ summary: label, ok: false, message: 'no longer available' }); continue; }
-    if (!userHasPermission(userCtx, action.permission)) {
+    if (!actionAllowed(userCtx, action)) {
       results.push({ summary: label, ok: false, message: 'no permission' });
       continue;
     }

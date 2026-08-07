@@ -22,6 +22,7 @@ const mockPrisma = {
   order: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
   orderItem: { findMany: jest.fn().mockResolvedValue([]) },
   attendanceLog: { findFirst: jest.fn().mockResolvedValue(null) },
+  inventoryStock: { findUnique: jest.fn().mockResolvedValue(null) },
 };
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
@@ -498,7 +499,8 @@ describe('inventory pack (record_wastage / adjust_stock / receive_po / create_in
 
   test('adjust_stock set: confirm computes delta from live stock', async () => {
     mockInventory.listInventoryItems.mockResolvedValue({ items: [{ id: 'inv2', name: 'Tomatoes', unit: 'kg' }] });
-    mockInventory.getStock.mockResolvedValue({ items: [{ id: 'inv2', current_stock: 3 }] });
+    // 'set' reads the live stock row directly by composite key (not the is_active-filtered getStock).
+    mockPrisma.inventoryStock.findUnique.mockResolvedValue({ current_stock: 3 });
     mockInventory.adjustStock.mockResolvedValue({ current_stock: 5 });
     const p = await actions.buildActionPreview(OWNER, 'set tomatoes to 5kg');
     expect(p.summary).toMatch(/Set "Tomatoes" stock to 5 kg/);
@@ -795,5 +797,23 @@ describe('runAction — safe error surfacing (never leak raw DB/internal errors)
     const r = await actions.runAction(OWNER, p.token);
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/already exists/i);
+  });
+});
+
+// ── deferred-list corrections ────────────────────────────────────────────────
+describe('assistant corrections (roles / phone guard / campaign detection)', () => {
+  test('create_discount mirrors the route role gate (manager yes, cashier no)', async () => {
+    const mgr = await actions.buildActionPreview({ id: 'm', role: 'manager', outletId: 'o1', permissions: [], currency: 'AUD' }, 'make code SAVE10 for 10% off');
+    expect(mgr.action).toBe('create_discount');
+    const csh = await actions.buildActionPreview(CASHIER([]), 'make code SAVE10 for 10% off');
+    expect(csh.denied).toBe(true);
+  });
+  test('extractPhone rejects an over-long (>15 digit) match', () => {
+    expect(actions.extractPhone('call 123456789012345678')).toBeNull(); // 18 digits
+    expect(actions.extractPhone('add customer 0412 345 678')).toBe('0412345678');
+  });
+  test('send_campaign detects channel + audience phrasings ("text VIPs …")', () => {
+    expect(actions.detectAction('text VIPs "2-for-1 Friday"').name).toBe('send_campaign');
+    expect(actions.detectAction('whatsapp new customers our weekend offer').name).toBe('send_campaign');
   });
 });
