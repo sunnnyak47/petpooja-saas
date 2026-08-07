@@ -6,7 +6,7 @@
  * @module tests/assistant-actions.test
  */
 
-const mockMenu = { listMenuItems: jest.fn(), updateMenuItem: jest.fn() };
+const mockMenu = { listMenuItems: jest.fn(), updateMenuItem: jest.fn(), listCategories: jest.fn(), createMenuItem: jest.fn(), createCategory: jest.fn(), createCombo: jest.fn() };
 const mockCustomer = { createCustomer: jest.fn(), createCampaign: jest.fn() };
 const mockTable = { listTables: jest.fn(), updateTableStatus: jest.fn() };
 const mockInventory = { getLowStock: jest.fn(), listInventoryItems: jest.fn(), recordWastage: jest.fn(), adjustStock: jest.fn(), getStock: jest.fn(), createInventoryItem: jest.fn() };
@@ -46,6 +46,10 @@ beforeEach(() => {
   mockTable.listTables.mockResolvedValue([{ id: 't5', table_number: '5', status: 'occupied' }]);
   mockCustomer.createCustomer.mockResolvedValue({ id: 'c9' });
   mockStaff.createStaffWithUser.mockResolvedValue({ id: 'sp1', user_id: 'u9', user: { id: 'u9', full_name: 'Test-1' } });
+  mockMenu.listCategories.mockResolvedValue({ categories: [{ id: 'cat_mains', name: 'Mains', display_order: 0 }, { id: 'cat_desserts', name: 'Desserts', display_order: 1 }], total: 2 });
+  mockMenu.createMenuItem.mockResolvedValue({ id: 'mi1' });
+  mockMenu.createCategory.mockResolvedValue({ id: 'cat_new' });
+  mockMenu.createCombo.mockResolvedValue({ id: 'combo1' });
 });
 
 describe('detectAction', () => {
@@ -516,5 +520,64 @@ describe('inventory pack (record_wastage / adjust_stock / receive_po / create_in
     const p = await actions.buildActionPreview(CASHIER([]), 'set tomatoes to 5kg');
     expect(p.denied).toBe(true);
     expect(mockInventory.adjustStock).not.toHaveBeenCalled();
+  });
+});
+
+// ── Pack B: menu setup ───────────────────────────────────────────────────────
+describe('menu pack (create_menu_item / create_category / create_combo)', () => {
+  test('detection routes each menu-setup intent', () => {
+    expect(actions.detectAction('add dish Butter Chicken $14 in Mains').name).toBe('create_menu_item');
+    expect(actions.detectAction('new item Garlic Naan 3.50').name).toBe('create_menu_item');
+    expect(actions.detectAction("make a 'Lunch Specials' category").name).toBe('create_category');
+    expect(actions.detectAction("create combo 'Lunch Deal' $12").name).toBe('create_combo');
+    expect(actions.detectAction('how do I add a menu item')).toBeNull();
+  });
+
+  test('create_menu_item: named category, preview never writes, confirm creates + audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add dish Butter Chicken $14 in Mains');
+    expect(p.action).toBe('create_menu_item');
+    expect(p.summary).toMatch(/Butter Chicken.*14\.00.*Mains/);
+    expect(mockMenu.createMenuItem).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockMenu.createMenuItem).toHaveBeenCalledWith(expect.objectContaining({ outlet_id: 'o1', category_id: 'cat_mains', name: 'Butter Chicken', base_price: 14 }));
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_CREATE_MENU_ITEM');
+  });
+
+  test('create_menu_item: no category → defaults to first; unknown category / missing price → clarify', async () => {
+    const def = await actions.buildActionPreview(OWNER, 'new item Garlic Naan 3.50');
+    expect(def.summary).toMatch(/Mains/);
+    expect(def.summary).toMatch(/default/i);
+    const unknown = await actions.buildActionPreview(OWNER, 'add dish Tandoori Wings $9 in Starters');
+    expect(unknown.message).toMatch(/couldn't find a category called "Starters"/i);
+    const noPrice = await actions.buildActionPreview(OWNER, 'add dish Butter Chicken in Mains');
+    expect(noPrice.message).toMatch(/price/i);
+    mockMenu.listCategories.mockResolvedValue({ categories: [], total: 0 });
+    const noCats = await actions.buildActionPreview(OWNER, 'new item Garlic Naan 3.50');
+    expect(noCats.message).toMatch(/don't have any menu categories/i);
+  });
+
+  test('create_category: quoted name, confirm creates + audits; needs MANAGE_CATEGORIES', async () => {
+    const p = await actions.buildActionPreview(OWNER, "make a 'Lunch Specials' category");
+    expect(p.action).toBe('create_category');
+    const r = await actions.runAction(OWNER, p.token);
+    expect(mockMenu.createCategory).toHaveBeenCalledWith({ outlet_id: 'o1', name: 'Lunch Specials' });
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_CREATE_CATEGORY');
+    expect((await actions.buildActionPreview(CASHIER(['MANAGE_MENU']), "add category 'Sides'")).denied).toBe(true);
+    expect((await actions.buildActionPreview(CASHIER(['MANAGE_CATEGORIES']), "add category 'Sides'")).action).toBe('create_category');
+  });
+
+  test('create_combo: inactive shell; confirm creates is_active:false + audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, "create combo 'Lunch Deal' $12");
+    expect(p.summary).toMatch(/Lunch Deal.*12\.00/);
+    const r = await actions.runAction(OWNER, p.token);
+    expect(mockMenu.createCombo).toHaveBeenCalledWith(expect.objectContaining({ outlet_id: 'o1', name: 'Lunch Deal', combo_price: 12, is_active: false }));
+    expect(r.message).toMatch(/add its items/i);
+  });
+
+  test('menuResolveCategory: exact, fuzzy, none', async () => {
+    expect((await actions.menuResolveCategory('o1', 'mains')).map((c) => c.id)).toEqual(['cat_mains']);
+    expect((await actions.menuResolveCategory('o1', 'dess')).map((c) => c.id)).toEqual(['cat_desserts']);
+    expect((await actions.menuResolveCategory('o1', 'drinks')).length).toBe(0);
   });
 });

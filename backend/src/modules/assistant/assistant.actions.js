@@ -539,6 +539,52 @@ async function invResolvePurchaseOrder(outletId, hint) {
   return m;
 }
 
+// ── menu-setup helpers ───────────────────────────────────────────────────────
+// Command/filler words to strip when isolating a menu-setup name (layered on top
+// of isolateName's own STOP set).
+const MENU_STOP = [
+  'add', 'added', 'create', 'created', 'new', 'make', 'made', 'set', 'setup', 'up',
+  'menu', 'item', 'items', 'dish', 'dishes', 'category', 'categories', 'combo', 'combos',
+  'called', 'named', 'under', 'into', 'in', 'to', 'please', 'priced', 'price', 'for',
+];
+
+/** All non-deleted categories for an outlet, ordered by display_order (real service). */
+async function menuListCategories(outletId) {
+  const r = await menu.listCategories(outletId, {});
+  return (r && r.categories) || [];
+}
+
+/** Resolve a category by (fuzzy) name → matches ({id,name,…}); exact→prefix→substring. */
+async function menuResolveCategory(outletId, name) {
+  const q = String(name || '').toLowerCase().trim();
+  if (!q) return [];
+  const cats = await menuListCategories(outletId);
+  const norm = (s) => String(s || '').toLowerCase().trim();
+  let m = cats.filter((c) => norm(c.name) === q);
+  if (!m.length) m = cats.filter((c) => norm(c.name).startsWith(q));
+  if (!m.length) m = cats.filter((c) => norm(c.name).includes(q));
+  return m;
+}
+
+/** Split a "new item" phrase into { categoryName, remainder }, peeling a trailing
+ *  "in/under/into <Category>" clause so the leftover yields the item name + price. */
+function menuParseItemCategory(q) {
+  const s = String(q || '');
+  const m = s.match(/\b(?:in|under|into)\s+(?:the\s+)?(?:category\s+)?(?:["'“]([^"'”]+)["'”]|([a-z][\w &'/-]*?))(?:\s+category)?\s*$/i);
+  if (!m) return { categoryName: null, remainder: s };
+  const categoryName = String(m[1] || m[2] || '').trim();
+  return { categoryName: categoryName || null, remainder: s.slice(0, m.index) };
+}
+
+/** Isolate a menu-setup name — a quoted phrase verbatim (keeps casing), else strip
+ *  command words via isolateName and Title-Case. Returns '' when nothing remains. */
+function menuExtractName(q, extraStop = []) {
+  const quoted = String(q || '').match(/["'“]([^"'”]+)["'”]/);
+  if (quoted && quoted[1].trim()) return quoted[1].trim();
+  const n = isolateName(q, [...MENU_STOP, ...extraStop]);
+  return n ? n.replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+}
+
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
 // extract(ctx, q) → { params } | { error } (clarification/not-found)
 // plan(ctx, params) → { summary }
@@ -870,6 +916,101 @@ const ACTIONS = [
         name: p.name, unit: p.unit, category: p.category, cost_per_unit: p.cost_per_unit,
       });
       return { message: `Done — added inventory item "${p.name}" (${p.unit}). Set its opening stock with "set ${p.name} to …" or by receiving a PO.`, entity_type: 'inventory_item', entity_id: created && created.id };
+    },
+  },
+
+  {
+    name: 'create_menu_item',
+    label: 'add a menu item',
+    permission: 'MANAGE_MENU',
+    keywords: [
+      'add dish', 'add a dish', 'new dish', 'add new dish', 'create dish',
+      'add item', 'add an item', 'add a item', 'new item', 'add new item',
+      'add menu item', 'new menu item', 'create menu item', 'create item', 'menu item',
+      'add a menu item', 'add to the menu', 'add to menu', 'put on the menu',
+    ],
+    // "create a new dish called X", "put a menu item on …" — requires the strong noun
+    // so it never fires on category/combo phrasings.
+    match: /\b(?:add|create|new|put)\b[\s\S]{0,24}\b(?:dish|menu\s*item)\b/i,
+    async extract(ctx, q) {
+      const { categoryName, remainder } = menuParseItemCategory(q);
+      const name = menuExtractName(remainder);
+      if (!name) return { error: 'What should I call the new dish? e.g. "add dish Butter Chicken $14 in Mains".' };
+      const price = extractPrice(remainder);
+      if (price == null || !(price >= 0)) return { error: `What price for "${name}"? e.g. "add ${name} $12 in Mains".` };
+      let category;
+      if (categoryName) {
+        const matches = await menuResolveCategory(ctx.outletId, categoryName);
+        if (!matches.length) return { error: `I couldn't find a category called "${categoryName}". Create it first (or say an existing one) and I'll add "${name}".` };
+        if (matches.length > 1) return { error: `"${categoryName}" matched ${matches.length} categories (${matches.slice(0, 4).map((c) => c.name).join(', ')}). Which one exactly?` };
+        category = matches[0];
+      } else {
+        const cats = await menuListCategories(ctx.outletId);
+        if (!cats.length) return { error: `You don't have any menu categories yet — add one first (e.g. "add category Mains"), then I can add "${name}".` };
+        category = cats[0]; // lowest display_order
+      }
+      return { params: { name, base_price: round2(price), category_id: category.id, category_name: category.name, defaulted_category: !categoryName } };
+    },
+    plan(ctx, p) {
+      const where = p.defaulted_category ? `the "${p.category_name}" category (default — no category named)` : `the "${p.category_name}" category`;
+      return { summary: `Add "${p.name}" at ${money(ctx.currency, p.base_price)} to ${where}` };
+    },
+    async execute(ctx, p) {
+      const created = await menu.createMenuItem({ outlet_id: ctx.outletId, category_id: p.category_id, name: p.name, base_price: p.base_price });
+      return { message: `Done — added "${p.name}" at ${money(ctx.currency, p.base_price)} in ${p.category_name}. Set its food type, GST rate, variants and station in Menu → Items.`, entity_type: 'menu_item', entity_id: created && created.id };
+    },
+  },
+
+  {
+    name: 'create_category',
+    label: 'add a menu category',
+    // The UI route POST /menu/categories enforces MANAGE_CATEGORIES (a distinct seeded
+    // permission from MANAGE_MENU); the assistant mirrors the same requirement.
+    permission: 'MANAGE_CATEGORIES',
+    keywords: [
+      'add category', 'add a category', 'new category', 'add new category', 'create category',
+      'create a category', 'add menu category', 'new menu category', 'menu category',
+      'add a new category', 'make a category',
+    ],
+    match: /\b(?:add|create|make|new|set\s?up)\b[\s\S]{0,40}\bcategor(?:y|ies)\b/i,
+    async extract(ctx, q) {
+      const name = menuExtractName(q);
+      if (!name || name.trim().length < 2) return { error: 'What should the category be called? e.g. "add category Desserts".' };
+      return { params: { name: name.trim() } };
+    },
+    plan(ctx, p) {
+      return { summary: `Create a new menu category "${p.name}"` };
+    },
+    async execute(ctx, p) {
+      const created = await menu.createCategory({ outlet_id: ctx.outletId, name: p.name });
+      return { message: `Done — created the "${p.name}" category. You can reorder it and add items to it in Menu → Categories.`, entity_type: 'menu_category', entity_id: created && created.id };
+    },
+  },
+
+  {
+    name: 'create_combo',
+    label: 'create a combo',
+    permission: 'MANAGE_MENU',
+    keywords: [
+      'create combo', 'create a combo', 'add combo', 'add a combo', 'new combo',
+      'make a combo', 'make combo', 'combo meal', 'meal deal', 'set up a combo',
+    ],
+    match: /\b(?:add|create|make|new|set\s?up)\b[\s\S]{0,24}\bcombo\b/i,
+    async extract(ctx, q) {
+      const name = menuExtractName(q);
+      if (!name) return { error: 'What should the combo be called? e.g. "create combo \'Lunch Deal\' $12".' };
+      const price = extractPrice(q);
+      if (price == null || !(price >= 0)) return { error: `What price for the "${name}" combo? e.g. "create combo ${name} $12".` };
+      // A combo needs component items, which can't be reliably parsed from one sentence —
+      // create the shell (name + price, inactive) and tell the owner to add its items.
+      return { params: { name, combo_price: round2(price) } };
+    },
+    plan(ctx, p) {
+      return { summary: `Create the combo "${p.name}" at ${money(ctx.currency, p.combo_price)} as an inactive shell — you'll add its items (and switch it on) in Menu → Combos` };
+    },
+    async execute(ctx, p) {
+      const created = await menu.createCombo({ outlet_id: ctx.outletId, name: p.name, combo_price: p.combo_price, is_active: false });
+      return { message: `Done — created the combo "${p.name}" at ${money(ctx.currency, p.combo_price)}. It's off until you add its items and switch it on in Menu → Combos.`, entity_type: 'combo', entity_id: created && created.id };
     },
   },
 
@@ -1405,4 +1546,5 @@ module.exports = {
   extractReason,
   resolveDiscountOrder,
   computeDiscountedTotals,
+  menuResolveCategory,
 };
