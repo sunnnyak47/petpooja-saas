@@ -149,25 +149,31 @@ describe('buildActionPreview — never mutates', () => {
     expect(p.summary).toMatch(/table 5 to cleaning/);
     expect(mockTable.updateTableStatus).not.toHaveBeenCalled();
   });
-  test('create_staff: parses a hyphen/digit name ("test-1"), previews, does NOT create', async () => {
-    const p = await actions.buildActionPreview(OWNER, 'add a new staff as test-1 name');
+  test('create_staff: parses a hyphen/digit name ("test-1") + phone, previews, does NOT create', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add a new staff test-1 0412345678');
     expect(p.action).toBe('create_staff');
     expect(p.summary).toMatch(/test-1/i);       // literal name preserved (not "test")
     expect(p.summary).toMatch(/cashier/i);      // defaults to cashier when no role given
+    expect(p.summary).toMatch(/0412345678/);    // phone shown
     expect(p.token).toBeTruthy();
     expect(mockStaff.createStaffWithUser).not.toHaveBeenCalled(); // preview never mutates
   });
-  test('create_staff: separates the role from the name ("Jane as manager")', async () => {
-    const p = await actions.buildActionPreview(OWNER, 'add staff Jane as manager');
+  test('create_staff: separates the role from the name ("Jane … as manager")', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add staff Jane 0412345678 as manager');
     expect(p.action).toBe('create_staff');
     expect(p.summary).toMatch(/jane/i);
     expect(p.summary).toMatch(/manager/i);
-    expect(p.summary).not.toMatch(/jane as manager/i); // "as manager" is the role, not part of the name
+    expect(p.summary).not.toMatch(/jane 0412345678/i); // phone is not part of the name
   });
-  test('create_staff: asks for a name when none is given', async () => {
-    const p = await actions.buildActionPreview(OWNER, 'add a new staff member');
-    expect(p.clarify).toBe(true);
-    expect(p.message).toMatch(/name/i);
+  test('create_staff: asks for a name when none is given, and for a phone when the name has none', async () => {
+    const noName = await actions.buildActionPreview(OWNER, 'add a new staff member');
+    expect(noName.clarify).toBe(true);
+    expect(noName.message).toMatch(/name/i);
+    // User.phone is required + unique, so a name-only hire must ask for a phone (not fail at the DB).
+    const noPhone = await actions.buildActionPreview(OWNER, 'add a new staff as test-1');
+    expect(noPhone.clarify).toBe(true);
+    expect(noPhone.message).toMatch(/phone/i);
+    expect(mockStaff.createStaffWithUser).not.toHaveBeenCalled();
   });
   test('create_customer parses name + phone', async () => {
     const p = await actions.buildActionPreview(OWNER, 'add customer John Smith 0412345678');
@@ -211,11 +217,11 @@ describe('runAction — confirm + execute + audit + guards', () => {
     await actions.runAction(OWNER, cust.token);
     expect(mockCustomer.createCustomer).toHaveBeenCalledWith(expect.objectContaining({ phone: '0412345678', full_name: 'John Smith' }), expect.any(Object));
   });
-  test('create_staff confirm creates through the staff service and audits', async () => {
-    const p = await actions.buildActionPreview(OWNER, 'add staff John Smith as cashier');
+  test('create_staff confirm creates through the staff service (with phone) and audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add staff John Smith 0412345678 as cashier');
     const r = await actions.runAction(OWNER, p.token);
     expect(r.ok).toBe(true);
-    expect(mockStaff.createStaffWithUser).toHaveBeenCalledWith('o1', expect.objectContaining({ full_name: 'John Smith', role: 'cashier' }));
+    expect(mockStaff.createStaffWithUser).toHaveBeenCalledWith('o1', expect.objectContaining({ full_name: 'John Smith', role: 'cashier', phone: '0412345678' }));
     expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_CREATE_STAFF');
     expect(mockPrisma.auditLog.create.mock.calls[0][0].data.entity_type).toBe('staff');

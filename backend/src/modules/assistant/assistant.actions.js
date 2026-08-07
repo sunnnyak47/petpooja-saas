@@ -977,12 +977,18 @@ const ACTIONS = [
     match: /\b(?:add|create|hire|onboard|register|set\s?up)\b[\s\S]{0,20}\b(?:staff|employee|team\s*member|new\s+hire|waiter|cashier|manager|chef|cook|barista|server|rider)\b(?!\s+(?:special|item|dish|combo|menu|report|role|permission|discount|shift|schedule|section|to\s+(?:section|table|floor|area|zone)))/i,
     async extract(ctx, q) {
       const name = extractStaffName(q);
-      if (!name) return { error: 'What is the staff member’s name? e.g. "add staff John Smith as cashier".' };
+      if (!name) return { error: 'What is the staff member’s name? e.g. "add staff John Smith 0412345678 as cashier".' };
+      // User.phone is required + unique in the DB (and the Staff form requires it), so a
+      // staff member can't be created without one — ask for it rather than failing.
+      // Strip the name from the text first so a digit inside it (e.g. "test-1") can't
+      // merge into the phone number (extractPhone bridges spaces for "0412 345 678").
+      const qForPhone = String(q).replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), ' ');
+      const phone = extractPhone(qForPhone);
+      if (!phone) return { error: `What’s ${name}’s phone number? Staff are identified by it — e.g. "add staff ${name} 0412345678 as cashier".` };
       const role = extractStaffRole(q); // manager|cashier|waiter|chef|delivery|captain, or null
-      const phone = extractPhone(q);
       const em = String(q).match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
       const full_name = name.replace(/\b\w/g, (c) => c.toUpperCase());
-      return { params: { full_name, role: role || null, phone: phone || null, email: em ? em[0] : null } };
+      return { params: { full_name, role: role || null, phone, email: em ? em[0] : null } };
     },
     plan(ctx, p) {
       const extras = [];
