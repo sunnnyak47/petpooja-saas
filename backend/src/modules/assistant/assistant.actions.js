@@ -32,6 +32,7 @@ const procurement = require('../inventory/procurement.service');
 const reservations = require('../reservations/reservations.service');
 const orderSvc = require('../orders/order.service');
 const staff = require('../staff/staff.service');
+const knowledgeDocs = require('./assistant.docs');
 const pricing = require('../pricing/pricing.service');
 const discounts = require('../discounts/discount.service');
 // Shared, pure tax/pricing engine — the SAME helpers the order controller's
@@ -219,6 +220,56 @@ function extractStaffName(q) {
   while (toks.length && TAIL.test(toks[0])) toks.shift();
   const name = toks.join(' ').trim();
   return name || null;
+}
+
+// ── knowledge-base (RAG doc) helpers ─────────────────────────────────────────
+const KNOW_MAX = 8000; // cap a chat-saved note (addDoc caps harder at 20k)
+
+/** Tidy a raw title fragment → a short Title-Cased label. */
+function cleanTitle(raw) {
+  const t = String(raw || '')
+    .replace(/["'“”]/g, '')
+    .replace(/\b(save|store|remember|note|add|append|update|this|down|please|to|the|our|a|an|as|in|kb|knowledge base|knowledge)\b/ig, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t ? t.replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 80) : '';
+}
+/** Derive a title from the body's first few words when none is given. */
+function titleFromBody(body) {
+  const words = String(body || '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ');
+  return (words.replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 60)) || 'Note';
+}
+
+/** Parse a "save …" knowledge request → { title, text } | null. */
+function parseKnowledgeSave(q) {
+  const s = String(q || '').trim();
+  // "… as/titled/called <title>: <body>"
+  let m = s.match(/\b(?:as|titled|called|title)\s+(?:our\s+|the\s+|a\s+)?([^:]{2,80}?)\s*:\s*([\s\S]{4,})$/i);
+  if (m) return { title: cleanTitle(m[1]) || titleFromBody(m[2]), text: m[2].trim().slice(0, KNOW_MAX) };
+  // "<left> : <body>" — mine a title out of the left side (minus command words).
+  m = s.match(/^([\s\S]{0,120}?):\s*([\s\S]{4,})$/);
+  if (m) { const t = cleanTitle(m[1]); return { title: t || titleFromBody(m[2]), text: m[2].trim().slice(0, KNOW_MAX) }; }
+  // "remember/note (that) <body>" — no colon, derive a title from the body.
+  m = s.match(/\b(?:remember|note|save|store)\b(?:\s+(?:that|this|down))?\s*[-,]?\s*([\s\S]{6,})$/i);
+  if (m) { const body = m[1].trim(); return { title: titleFromBody(body), text: body.slice(0, KNOW_MAX) }; }
+  return null;
+}
+
+/** Parse an "add to <note>: <body>" update request → { titleHint, text } | null. */
+function parseKnowledgeUpdate(q) {
+  const s = String(q || '').trim();
+  const m = s.match(/\b(?:add to|append to|update|add a line to)\b\s+(?:our\s+|the\s+|a\s+)?([^:]{2,80}?)(?:\s+(?:note|policy|doc|document|sop))?\s*:\s*([\s\S]{2,})$/i);
+  if (!m) return null;
+  return { titleHint: cleanTitle(m[1]) || m[1].trim(), text: m[2].trim().slice(0, KNOW_MAX) };
+}
+
+/** Parse the note title out of a "delete the <title> note" request. */
+function parseKnowledgeTitle(q) {
+  const s = String(q || '').trim();
+  let m = s.match(/\b(?:delete|remove|forget|drop)\b\s+(?:the\s+|our\s+|my\s+|a\s+)?([\s\S]{2,80}?)(?:\s+(?:note|policy|doc|document|sop|from (?:the )?knowledge[\s\S]*))?\s*$/i);
+  if (!m) return null;
+  const t = cleanTitle(m[1]) || m[1].trim();
+  return t || null;
 }
 
 // ── reservation date/time + campaign helpers ────────────────────────────────
@@ -1719,6 +1770,78 @@ const ACTIONS = [
         entity_type: 'order',
         entity_id: p.order_id,
       };
+    },
+  },
+
+  {
+    name: 'save_knowledge',
+    label: 'save a note to the knowledge base',
+    roles: ['manager'], // curating the outlet's SOPs/policies is an owner/manager task
+    keywords: ['save this as', 'save to knowledge', 'add to knowledge', 'add to the knowledge base', 'save to the knowledge base', 'remember this', 'note this down', 'save a note', 'save policy', 'add a policy', 'save sop', 'add an sop', 'add knowledge', 'save knowledge', 'add a note', 'save it as'],
+    // "remember: …", "save this as our Refund Policy: …", "remember/note that …"
+    match: /\b(save|store|remember|note)\b[\s\S]{0,30}\b(knowledge|policy|sop|as our|as the|as a|to (?:the )?knowledge)\b|\b(?:remember|note)\b(?:\s+(?:that|this|down))?\s*:|\b(?:remember|note)\s+(?:that|this)\b/i,
+    async extract(ctx, q) {
+      const parsed = parseKnowledgeSave(q);
+      if (!parsed || !parsed.text || parsed.text.length < 8) {
+        return { error: 'What should I save, and under what title? e.g. "save this as our Refund Policy: customers can return items within 7 days with a receipt".' };
+      }
+      return { params: { title: parsed.title || 'Note', text: parsed.text } };
+    },
+    plan(ctx, p) {
+      return { summary: `Save a knowledge note "${p.title}" (${p.text.length} characters) — I'll answer from it, with a citation, when it fits a question.` };
+    },
+    async execute(ctx, p) {
+      const saved = await knowledgeDocs.addDoc(ctx.outletId, { title: p.title, text: p.text, userId: ctx.id });
+      return { message: `Done — saved "${saved.title}" to your knowledge base. Ask me about it any time and I'll answer from it with a citation.`, entity_type: 'assistant_doc', entity_id: saved.id };
+    },
+  },
+
+  {
+    name: 'update_knowledge',
+    label: 'add to an existing knowledge note',
+    roles: ['manager'],
+    keywords: ['add to our', 'append to', 'add to the', 'add a line to', 'update our policy', 'add to our policy', 'add to our sop'],
+    match: /\b(add to|append to|add a line to|update)\b[\s\S]{0,40}\b(policy|sop|note|knowledge|doc|document)\b[\s\S]*:/i,
+    async extract(ctx, q) {
+      const parsed = parseKnowledgeUpdate(q);
+      if (!parsed || !parsed.text) {
+        return { error: 'What should I add, and to which note? e.g. "add to our Refund Policy: gift cards are non-refundable".' };
+      }
+      const matches = await knowledgeDocs.resolveDocByTitle(ctx.outletId, parsed.titleHint);
+      if (!matches.length) return { error: `I couldn't find a knowledge note matching "${parsed.titleHint}". Save it first with "save this as ${parsed.titleHint}: …".` };
+      if (matches.length > 1) return { error: `"${parsed.titleHint}" matched ${matches.length} notes (${matches.slice(0, 4).map((m) => m.title).join(', ')}). Which one exactly?` };
+      return { params: { id: matches[0].id, title: matches[0].title, text: parsed.text } };
+    },
+    plan(ctx, p) {
+      return { summary: `Append ${p.text.length} characters to your "${p.title}" knowledge note` };
+    },
+    async execute(ctx, p) {
+      const r = await knowledgeDocs.appendDoc(ctx.outletId, p.id, p.text);
+      return { message: `Done — added that to "${r.title}" (now ${r.chars} characters).`, entity_type: 'assistant_doc', entity_id: r.id };
+    },
+  },
+
+  {
+    name: 'forget_knowledge',
+    label: 'delete a knowledge note',
+    roles: ['manager'],
+    warn: true, // destructive → stronger confirmation
+    keywords: ['delete the note', 'remove the note', 'forget the', 'delete knowledge', 'remove knowledge', 'delete the policy', 'remove the policy', 'delete the sop', 'delete knowledge note', 'remove from knowledge'],
+    match: /\b(delete|remove|forget|drop)\b[\s\S]{0,30}\b(note|policy|sop|knowledge|doc|document)\b/i,
+    async extract(ctx, q) {
+      const titleHint = parseKnowledgeTitle(q);
+      if (!titleHint) return { error: 'Which knowledge note should I delete? e.g. "delete the Refund Policy note".' };
+      const matches = await knowledgeDocs.resolveDocByTitle(ctx.outletId, titleHint);
+      if (!matches.length) return { error: `I couldn't find a knowledge note matching "${titleHint}".` };
+      if (matches.length > 1) return { error: `"${titleHint}" matched ${matches.length} notes (${matches.slice(0, 4).map((m) => m.title).join(', ')}). Which one exactly?` };
+      return { params: { id: matches[0].id, title: matches[0].title } };
+    },
+    plan(ctx, p) {
+      return { summary: `Delete the "${p.title}" note from your knowledge base — I'll no longer answer from it` };
+    },
+    async execute(ctx, p) {
+      await knowledgeDocs.deleteDoc(ctx.outletId, p.id);
+      return { message: `Done — deleted "${p.title}" from your knowledge base.`, entity_type: 'assistant_doc', entity_id: p.id };
     },
   },
 ];

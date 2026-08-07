@@ -16,6 +16,7 @@ const mockProcurement = { createPurchaseOrder: jest.fn(), listPurchaseOrders: je
 const mockReservations = { createReservation: jest.fn() };
 const mockOrder = { listOrders: jest.fn(), getOrderById: jest.fn() };
 const mockStaff = { createStaffWithUser: jest.fn(), listStaff: jest.fn(), upsertStaffProfile: jest.fn(), changeStaffRole: jest.fn(), clockIn: jest.fn(), clockOut: jest.fn(), createShift: jest.fn() };
+const mockDocs = { addDoc: jest.fn(), appendDoc: jest.fn(), resolveDocByTitle: jest.fn(), deleteDoc: jest.fn() };
 const mockPrisma = {
   auditLog: { create: jest.fn().mockResolvedValue({}) },
   customer: { count: jest.fn() },
@@ -38,6 +39,7 @@ jest.mock('../src/modules/orders/order.service', () => mockOrder);
 jest.mock('../src/modules/staff/staff.service', () => mockStaff);
 jest.mock('../src/modules/pricing/pricing.service', () => mockPricing);
 jest.mock('../src/modules/discounts/discount.service', () => mockDiscounts);
+jest.mock('../src/modules/assistant/assistant.docs', () => mockDocs);
 // The order tax/pricing engine (tax.service, pricing.service, utils/outlet, utils/money)
 // is left UNMOCKED on purpose so the discount recompute is exercised for real.
 
@@ -68,6 +70,10 @@ beforeEach(() => {
   mockCustomer.findByPhone.mockResolvedValue({ id: 'c1', full_name: 'John Smith', phone: '0412345678' });
   mockCustomer.listCustomers.mockResolvedValue({ customers: [{ id: 'c1', full_name: 'John Smith', phone: '0412345678' }], total: 1, page: 1, limit: 10 });
   mockCustomer.adjustPoints.mockResolvedValue({ current_balance: 150 });
+  mockDocs.addDoc.mockResolvedValue({ id: 'doc_1', title: 'Refund Policy', chars: 60 });
+  mockDocs.appendDoc.mockResolvedValue({ id: 'doc_1', title: 'Refund Policy', chars: 120 });
+  mockDocs.resolveDocByTitle.mockResolvedValue([{ id: 'doc_1', title: 'Refund Policy' }]);
+  mockDocs.deleteDoc.mockResolvedValue(true);
 });
 
 describe('detectAction', () => {
@@ -815,5 +821,55 @@ describe('assistant corrections (roles / phone guard / campaign detection)', () 
   test('send_campaign detects channel + audience phrasings ("text VIPs …")', () => {
     expect(actions.detectAction('text VIPs "2-for-1 Friday"').name).toBe('send_campaign');
     expect(actions.detectAction('whatsapp new customers our weekend offer').name).toBe('send_campaign');
+  });
+});
+
+// ── RAG knowledge-base write actions ─────────────────────────────────────────
+describe('knowledge base (save / update / forget) — chat-managed RAG', () => {
+  test('detection: save / update / forget route correctly', () => {
+    expect(actions.detectAction('save this as our Refund Policy: returns within 7 days').name).toBe('save_knowledge');
+    expect(actions.detectAction('remember that we are closed on Mondays').name).toBe('save_knowledge');
+    expect(actions.detectAction('add to our Refund Policy: gift cards are non-refundable').name).toBe('update_knowledge');
+    expect(actions.detectAction('delete the Refund Policy note').name).toBe('forget_knowledge');
+  });
+
+  test('save_knowledge: parses title + body, previews, confirm calls addDoc + audits', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'save this as our Refund Policy: customers can return within 7 days with a receipt');
+    expect(p.action).toBe('save_knowledge');
+    expect(p.summary).toMatch(/Refund Policy/);
+    expect(mockDocs.addDoc).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    expect(mockDocs.addDoc).toHaveBeenCalledWith('o1', expect.objectContaining({ title: 'Refund Policy', text: expect.stringMatching(/return within 7 days/) }));
+    expect(mockPrisma.auditLog.create.mock.calls[0][0].data.action).toBe('ASSISTANT_SAVE_KNOWLEDGE');
+  });
+
+  test('update_knowledge: resolves the note + appends', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'add to our Refund Policy: gift cards are non-refundable');
+    expect(p.action).toBe('update_knowledge');
+    await actions.runAction(OWNER, p.token);
+    expect(mockDocs.appendDoc).toHaveBeenCalledWith('o1', 'doc_1', expect.stringMatching(/gift cards/));
+  });
+
+  test('update_knowledge: unknown note → clarify, no write', async () => {
+    mockDocs.resolveDocByTitle.mockResolvedValue([]);
+    const p = await actions.buildActionPreview(OWNER, 'add to our Missing Policy: something');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/couldn't find/i);
+    expect(mockDocs.appendDoc).not.toHaveBeenCalled();
+  });
+
+  test('forget_knowledge: resolves + deletes (warn flagged)', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'delete the Refund Policy note');
+    expect(p.action).toBe('forget_knowledge');
+    expect(p.warn).toBe(true);
+    await actions.runAction(OWNER, p.token);
+    expect(mockDocs.deleteDoc).toHaveBeenCalledWith('o1', 'doc_1');
+  });
+
+  test('knowledge actions require owner/manager (cashier denied)', async () => {
+    const p = await actions.buildActionPreview(CASHIER([]), 'save this as our Refund Policy: returns within 7 days');
+    expect(p.denied).toBe(true);
+    expect(mockDocs.addDoc).not.toHaveBeenCalled();
   });
 });

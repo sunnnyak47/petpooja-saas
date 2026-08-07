@@ -90,26 +90,90 @@ function terms(s) {
     .map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)); // light plural stemming
 }
 
+/** Adjacent-word bigrams ("opening hours") so multi-word concepts match as phrases,
+ *  not just as independent words. Added to BOTH the doc and query term sets. */
+function bigrams(tokenArr) {
+  const out = [];
+  for (let i = 0; i < tokenArr.length - 1; i += 1) out.push(`${tokenArr[i]} ${tokenArr[i + 1]}`);
+  return out;
+}
+
+// Compact domain synonym map — expands QUERY terms only so a paraphrase ("when do
+// we close?") reaches a doc worded differently ("Opening Hours"). Keys/values are
+// already light-stemmed (terms() drops a trailing plural 's').
+const SYN = {
+  hour: ['time', 'timing', 'open', 'close', 'closing', 'opening', 'schedule'],
+  open: ['hour', 'timing', 'close'], close: ['hour', 'timing', 'open', 'shut'], timing: ['hour', 'time'],
+  refund: ['return', 'money', 'reimburse'], return: ['refund'],
+  wifi: ['internet', 'password', 'network'], internet: ['wifi'], password: ['wifi', 'login'],
+  park: ['parking'], parking: ['park'],
+  book: ['reservation', 'reserve', 'booking'], reservation: ['book', 'reserve', 'booking'],
+  allergen: ['allergy', 'allergic', 'intolerance'], allergy: ['allergen'],
+  deliver: ['delivery', 'takeaway', 'takeout'], delivery: ['deliver', 'takeaway'],
+  tip: ['gratuity', 'service charge'], vegan: ['vegetarian', 'plant'], veg: ['vegetarian'],
+  uniform: ['dress', 'apron', 'attire'], dress: ['uniform', 'attire'],
+  cancel: ['cancellation'], discount: ['offer', 'deal', 'promo'], gift: ['voucher', 'card'],
+  halal: ['certified'], policy: ['rule'], leave: ['holiday', 'time off', 'absence'],
+};
+function expandQuery(qTokens) {
+  const out = new Set(qTokens);
+  for (const t of qTokens) for (const s of (SYN[t] || [])) for (const w of terms(s)) out.add(w);
+  return [...out];
+}
+
 /** Split a doc into paragraph chunks (finer retrieval + tighter citation). */
 function chunksOf(doc) {
   const parts = String(doc.text || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
   return (parts.length ? parts : [String(doc.text || '')]).map((text, idx) => ({ id: doc.id, title: doc.title, idx, text }));
 }
 
-/** Top-N chunks for a question by IDF-weighted term overlap. */
+/** Top-N chunks for a question by IDF-weighted overlap of unigrams + bigrams, with
+ *  the query expanded by a domain synonym map so paraphrases still retrieve. */
 async function searchDocs(outletId, question, n = 3) {
   const list = await _read(outletId);
   if (!list.length) return [];
   const chunks = list.flatMap(chunksOf);
   const df = {};
-  const chunkSets = chunks.map((c) => { const set = new Set(terms(`${c.title} ${c.text}`)); for (const t of set) df[t] = (df[t] || 0) + 1; return set; });
+  const chunkSets = chunks.map((c) => {
+    const uni = terms(`${c.title} ${c.text}`);
+    const set = new Set([...uni, ...bigrams(uni)]);
+    for (const t of set) df[t] = (df[t] || 0) + 1;
+    return set;
+  });
   const N = chunks.length;
-  const q = new Set(terms(question));
+  const qUni = terms(question);
+  const q = new Set([...expandQuery(qUni), ...bigrams(qUni)]);
   return chunks
     .map((c, i) => { let s = 0; for (const t of q) if (chunkSets[i].has(t)) s += Math.log(1 + N / (df[t] || 1)); return { ...c, score: Math.round(s * 1000) / 1000 }; })
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, n);
+}
+
+/** Fuzzy-resolve a knowledge note by title → [{id,title}] (exact → prefix → substring). */
+async function resolveDocByTitle(outletId, name) {
+  const qn = String(name || '').toLowerCase().trim();
+  if (!qn) return [];
+  const list = await _read(outletId);
+  const norm = (s) => String(s || '').toLowerCase().trim();
+  let m = list.filter((d) => norm(d.title) === qn);
+  if (!m.length) m = list.filter((d) => norm(d.title).startsWith(qn));
+  if (!m.length) m = list.filter((d) => norm(d.title).includes(qn) || qn.includes(norm(d.title)));
+  return m.map((d) => ({ id: d.id, title: d.title }));
+}
+
+/** Append text to an existing note (by id or fuzzy title). Throws 404 if not found. */
+async function appendDoc(outletId, idOrTitle, text) {
+  const add = String(text || '').trim();
+  if (!add) { const e = new Error('Nothing to add'); e.statusCode = 400; throw e; }
+  const list = await _read(outletId);
+  let doc = list.find((d) => d.id === idOrTitle);
+  if (!doc) { const r = await resolveDocByTitle(outletId, idOrTitle); doc = r.length === 1 ? list.find((d) => d.id === r[0].id) : null; }
+  if (!doc) { const e = new Error('Knowledge note not found'); e.statusCode = 404; throw e; }
+  doc.text = `${doc.text || ''}\n\n${add}`.slice(0, MAX_DOC_CHARS);
+  doc.updated_at = new Date().toISOString();
+  await _write(outletId, list);
+  return { id: doc.id, title: doc.title, chars: doc.text.length };
 }
 
 /**
@@ -144,4 +208,4 @@ async function answerFromDocs(userCtx, question) {
   return { answer, source: 'docs', tool: 'knowledge_docs', citations: top.map((c) => ({ title: c.title, id: c.id })) };
 }
 
-module.exports = { addDoc, listDocs, deleteDoc, searchDocs, answerFromDocs, terms, chunksOf };
+module.exports = { addDoc, listDocs, deleteDoc, searchDocs, answerFromDocs, terms, chunksOf, appendDoc, resolveDocByTitle };

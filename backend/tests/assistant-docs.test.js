@@ -51,6 +51,13 @@ describe('retrieval + answer', () => {
     await docs.addDoc('o1', { title: 'Uniform Policy', text: 'Staff must wear a clean black apron and closed-toe shoes on every shift.' });
   });
 
+  test('paraphrase retrieval: "when do we close?" finds the hours doc via synonyms', async () => {
+    await docs.addDoc('o1', { title: 'Opening Hours', text: 'We are open from 9am to 10pm daily; the kitchen closes 30 minutes before.' });
+    const hits = await docs.searchDocs('o1', 'when do we close?', 3);
+    expect(hits[0].title).toBe('Opening Hours'); // "close" expands to hour/open/closing
+    expect(hits[0].score).toBeGreaterThan(0);
+  });
+
   test('searchDocs ranks the relevant document first', async () => {
     const hits = await docs.searchDocs('o1', 'what is our refund policy on receipts', 3);
     expect(hits[0].title).toBe('Refund Policy');
