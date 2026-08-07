@@ -22,6 +22,7 @@ const jwt = require('jsonwebtoken');
 const appConfig = require('../../config/app');
 const logger = require('../../config/logger');
 const { getDbClient } = require('../../config/database');
+const { NotFoundError, BadRequestError, ConflictError, ForbiddenError } = require('../../utils/errors');
 
 const menu = require('../menu/menu.service');
 const customer = require('../customers/customer.service');
@@ -1935,6 +1936,22 @@ async function buildBatchPreview(userCtx, question, history = []) {
   return { action: 'batch', summary: `these ${items.length} things`, warn: anyWarn, items, token };
 }
 
+/**
+ * Only surface a message from one of OUR domain errors (they are written to be shown
+ * to a user — "already exists", "not found in this outlet", etc.). Everything else
+ * (raw Prisma/DB validation, TypeErrors, unexpected failures) returns null so the
+ * caller shows a safe generic message instead of leaking an internal error string.
+ * This is what stopped "Invalid `prisma.user.create()` … phone must not be null" from
+ * ever reaching the chat.
+ */
+function safeActionError(err) {
+  if (err && (err instanceof BadRequestError || err instanceof NotFoundError
+    || err instanceof ConflictError || err instanceof ForbiddenError)) {
+    return err.message;
+  }
+  return null;
+}
+
 /** Redact secret params (PIN/password) before they're written to the audit log. */
 function redactActionParams(params) {
   if (!params || typeof params !== 'object') return params;
@@ -1975,7 +1992,7 @@ async function runAction(userCtx, token) {
     result = await action.execute(userCtx, payload.params);
   } catch (err) {
     logger.error('assistant action execute failed', { action: action.name, error: err.message });
-    return { ok: false, message: err.message && /already exists|not found|invalid/i.test(err.message) ? err.message : "That didn't go through — please try from the relevant screen." };
+    return { ok: false, message: safeActionError(err) || "That didn't go through — please check the details and try again, or use the relevant screen." };
   }
   // Audit: assistant-initiated writes are traceable alongside UI actions.
   try {
@@ -2023,7 +2040,7 @@ async function runBatch(userCtx, payload) {
       result = await action.execute(userCtx, it.params);
     } catch (err) {
       logger.error('assistant batch item execute failed', { action: action.name, error: err.message });
-      const msg = err.message && /already exists|not found|invalid/i.test(err.message) ? err.message : "didn't go through";
+      const msg = safeActionError(err) || "didn't go through";
       results.push({ summary: label, ok: false, message: msg });
       continue;
     }

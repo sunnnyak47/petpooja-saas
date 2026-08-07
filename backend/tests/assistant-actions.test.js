@@ -41,6 +41,7 @@ jest.mock('../src/modules/discounts/discount.service', () => mockDiscounts);
 // is left UNMOCKED on purpose so the discount recompute is exercised for real.
 
 const actions = require('../src/modules/assistant/assistant.actions');
+const { ConflictError } = require('../src/utils/errors');
 
 const OWNER = { id: 'u1', role: 'owner', outletId: 'o1', permissions: [], currency: 'AUD', headOfficeId: 'h1' };
 const CASHIER = (perms) => ({ id: 'u2', role: 'cashier', outletId: 'o1', permissions: perms, currency: 'AUD' });
@@ -254,7 +255,9 @@ describe('runAction — confirm + execute + audit + guards', () => {
     expect(mockMenu.updateMenuItem).not.toHaveBeenCalled();
   });
   test('service error surfaces gracefully (e.g. duplicate customer)', async () => {
-    mockCustomer.createCustomer.mockRejectedValue(new Error('Customer with this phone already exists'));
+    // The real service throws a domain ConflictError on a dup (customer.service.js);
+    // domain errors carry safe, user-facing messages and ARE surfaced.
+    mockCustomer.createCustomer.mockRejectedValue(new ConflictError('Customer with this phone already exists'));
     const p = await actions.buildActionPreview(OWNER, 'add customer Jane 0400000000');
     const r = await actions.runAction(OWNER, p.token);
     expect(r.ok).toBe(false);
@@ -760,5 +763,24 @@ describe('promo pack (create_pricing_rule / create_discount / adjust_loyalty_poi
   test('permissions: pricing/discount need MANAGE_MENU, loyalty needs MANAGE_CUSTOMERS', async () => {
     expect((await actions.buildActionPreview(CASHIER([]), '20% off drinks 4-6pm weekdays')).denied).toBe(true);
     expect((await actions.buildActionPreview(CASHIER([]), 'give 0412345678 50 points')).denied).toBe(true);
+  });
+});
+
+// ── systemic: the write engine never leaks raw internal errors ───────────────
+describe('runAction — safe error surfacing (never leak raw DB/internal errors)', () => {
+  test('a raw Prisma-style error ("Invalid ...") is hidden behind a safe generic message', async () => {
+    mockStaff.createStaffWithUser.mockRejectedValue(new Error('Invalid `prisma.user.create()` invocation: Argument `phone` must not be null.'));
+    const p = await actions.buildActionPreview(OWNER, 'add staff John Smith 0412345678 as cashier');
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(false);
+    expect(r.message).not.toMatch(/prisma|invocation|must not be null|invalid `/i); // no leak
+    expect(r.message).toMatch(/didn't go through|try again/i);
+  });
+  test('a domain ConflictError (e.g. duplicate phone) IS surfaced cleanly', async () => {
+    mockStaff.createStaffWithUser.mockRejectedValue(new ConflictError('A staff member with this phone already exists'));
+    const p = await actions.buildActionPreview(OWNER, 'add staff John Smith 0412345678 as cashier');
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/already exists/i);
   });
 });

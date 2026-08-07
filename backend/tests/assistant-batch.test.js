@@ -35,6 +35,7 @@ jest.mock('../src/modules/reservations/reservations.service', () => mockReservat
 jest.mock('../src/modules/orders/order.service', () => mockOrder);
 
 const actions = require('../src/modules/assistant/assistant.actions');
+const { NotFoundError } = require('../src/utils/errors');
 
 const OWNER = { id: 'u1', role: 'owner', outletId: 'o1', permissions: [], currency: 'AUD', headOfficeId: 'h1' };
 const CASHIER = (perms) => ({ id: 'u2', role: 'cashier', outletId: 'o1', permissions: perms, currency: 'AUD' });
@@ -164,7 +165,7 @@ describe('runAction (batch) — executes ALL sub-actions, audits each, reports p
 
   test('partial failure — one sub-action throws → its ✗, the others ✓ (batch never aborts)', async () => {
     // The table update fails; the two menu updates must still go through.
-    mockTable.updateTableStatus.mockRejectedValue(new Error('table 5 not found'));
+    mockTable.updateTableStatus.mockRejectedValue(new NotFoundError('table 5 not found'));
     const p = await actions.buildBatchPreview(OWNER, '86 the paneer tikka; set paneer tikka price to 12; mark table 5 clean');
     const r = await actions.runAction(OWNER, p.token);
 
