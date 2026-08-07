@@ -7,7 +7,9 @@
  */
 
 const mockMenu = { listMenuItems: jest.fn(), updateMenuItem: jest.fn(), listCategories: jest.fn(), createMenuItem: jest.fn(), createCategory: jest.fn(), createCombo: jest.fn() };
-const mockCustomer = { createCustomer: jest.fn(), createCampaign: jest.fn() };
+const mockCustomer = { createCustomer: jest.fn(), createCampaign: jest.fn(), findByPhone: jest.fn(), listCustomers: jest.fn(), adjustPoints: jest.fn() };
+const mockPricing = { createRule: jest.fn() };
+const mockDiscounts = { createDiscount: jest.fn() };
 const mockTable = { listTables: jest.fn(), updateTableStatus: jest.fn() };
 const mockInventory = { getLowStock: jest.fn(), listInventoryItems: jest.fn(), recordWastage: jest.fn(), adjustStock: jest.fn(), getStock: jest.fn(), createInventoryItem: jest.fn() };
 const mockProcurement = { createPurchaseOrder: jest.fn(), listPurchaseOrders: jest.fn(), receivePurchaseOrder: jest.fn() };
@@ -33,6 +35,8 @@ jest.mock('../src/modules/inventory/procurement.service', () => mockProcurement)
 jest.mock('../src/modules/reservations/reservations.service', () => mockReservations);
 jest.mock('../src/modules/orders/order.service', () => mockOrder);
 jest.mock('../src/modules/staff/staff.service', () => mockStaff);
+jest.mock('../src/modules/pricing/pricing.service', () => mockPricing);
+jest.mock('../src/modules/discounts/discount.service', () => mockDiscounts);
 // The order tax/pricing engine (tax.service, pricing.service, utils/outlet, utils/money)
 // is left UNMOCKED on purpose so the discount recompute is exercised for real.
 
@@ -57,6 +61,11 @@ beforeEach(() => {
   mockStaff.clockIn.mockResolvedValue({ id: 'att1' });
   mockStaff.clockOut.mockResolvedValue({ id: 'att1', hours_worked: 8 });
   mockStaff.createShift.mockResolvedValue({ id: 'sh1' });
+  mockPricing.createRule.mockResolvedValue({ id: 'pr1' });
+  mockDiscounts.createDiscount.mockResolvedValue({ id: 'd1' });
+  mockCustomer.findByPhone.mockResolvedValue({ id: 'c1', full_name: 'John Smith', phone: '0412345678' });
+  mockCustomer.listCustomers.mockResolvedValue({ customers: [{ id: 'c1', full_name: 'John Smith', phone: '0412345678' }], total: 1, page: 1, limit: 10 });
+  mockCustomer.adjustPoints.mockResolvedValue({ current_balance: 150 });
 });
 
 describe('detectAction', () => {
@@ -664,5 +673,86 @@ describe('staff pack (update_staff / clock_in / clock_out / create_shift)', () =
   test('cashier lacking the permission is denied (staff + attendance)', async () => {
     expect((await actions.buildActionPreview(CASHIER([]), "set Sam's PIN to 4321")).denied).toBe(true);
     expect((await actions.buildActionPreview(CASHIER([]), 'clock in Priya')).denied).toBe(true);
+  });
+});
+
+// ── Pack D: promotions & pricing ─────────────────────────────────────────────
+describe('promo pack (create_pricing_rule / create_discount / adjust_loyalty_points)', () => {
+  beforeEach(() => {
+    mockMenu.listCategories.mockResolvedValue({ categories: [{ id: 'cat-drinks', name: 'Drinks' }] });
+  });
+
+  test('detection routes each; one-off order discount stays apply_discount; read is null', () => {
+    expect(actions.detectAction('20% off drinks 4-6pm on weekdays').name).toBe('create_pricing_rule');
+    expect(actions.detectAction('happy hour 15% off all 5-7pm').name).toBe('create_pricing_rule');
+    expect(actions.detectAction('make code WELCOME10 for 10% off').name).toBe('create_discount');
+    expect(actions.detectAction('give customer 0412345678 50 points').name).toBe('adjust_loyalty_points');
+    expect(actions.detectAction('apply 10% off order 42').name).toBe('apply_discount');
+    expect(actions.detectAction('how many loyalty points does John have')).toBeNull();
+  });
+
+  test('time-window / day parsing', () => {
+    expect(actions.promoParseTimeWindow('20% off drinks 4-6pm')).toEqual({ time_start: '16:00', time_end: '18:00' });
+    expect(actions.promoParseTimeWindow('from 5pm to 7pm')).toEqual({ time_start: '17:00', time_end: '19:00' });
+    expect(actions.promoParseDays('on weekdays').days).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
+    expect(actions.promoParseDays('weekends only').days).toEqual(['sat', 'sun']);
+  });
+
+  test('create_pricing_rule: parses amount/target/window/days; confirm creates via (outletId, data)', async () => {
+    const p = await actions.buildActionPreview(OWNER, '20% off drinks 4-6pm on weekdays');
+    expect(p.action).toBe('create_pricing_rule');
+    expect(p.summary).toMatch(/20% off the "Drinks" category/);
+    expect(p.summary).toMatch(/16:00–18:00/);
+    expect(p.summary).toMatch(/weekdays \(Mon–Fri\)/);
+    expect(mockPricing.createRule).not.toHaveBeenCalled();
+    const r = await actions.runAction(OWNER, p.token);
+    expect(r.ok).toBe(true);
+    const [outletId, data] = mockPricing.createRule.mock.calls[0];
+    expect(outletId).toBe('o1');
+    expect(data).toMatchObject({ action_type: 'discount', action_unit: 'percent', action_value: 20, time_start: '16:00', time_end: '18:00', days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'], item_target: 'category', target_ids: ['cat-drinks'] });
+  });
+
+  test('create_pricing_rule: unknown category → all items + disclosed; no amount → clarify', async () => {
+    mockMenu.listCategories.mockResolvedValue({ categories: [] });
+    const p = await actions.buildActionPreview(OWNER, '10% off nachos 5-7pm');
+    expect(p.summary).toMatch(/all items/);
+    expect(p.summary).toMatch(/couldn't find a "nachos" category/);
+    expect((await actions.buildActionPreview(OWNER, 'happy hour on drinks 5-7pm')).message).toMatch(/how much/i);
+  });
+
+  test('create_discount: code + percentage via (data, outletId); flat; >100% clarifies', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'make code WELCOME10 for 10% off');
+    expect(p.summary).toMatch(/code WELCOME10.*10% off/);
+    await actions.runAction(OWNER, p.token);
+    const [data, outletId] = mockDiscounts.createDiscount.mock.calls[0];
+    expect(outletId).toBe('o1');
+    expect(data).toMatchObject({ code: 'WELCOME10', type: 'percentage', value: 10 });
+    const flat = await actions.buildActionPreview(OWNER, 'create discount HAPPY 50 off');
+    await actions.runAction(OWNER, flat.token);
+    expect(mockDiscounts.createDiscount.mock.calls[1][0]).toMatchObject({ code: 'HAPPY', type: 'flat', value: 50 });
+    expect((await actions.buildActionPreview(OWNER, 'create code BIG for 150% off')).message).toMatch(/100%/);
+  });
+
+  test('adjust_loyalty_points: by phone (+), by name (-); confirm calls adjustPoints with caller', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'give customer 0412345678 50 points');
+    expect(p.summary).toMatch(/Add 50 loyalty points to John Smith \(0412345678\)/);
+    await actions.runAction(OWNER, p.token);
+    expect(mockCustomer.adjustPoints).toHaveBeenCalledWith('c1', 'o1', 50, expect.any(String), expect.objectContaining({ role: 'owner', head_office_id: 'h1' }));
+    const neg = await actions.buildActionPreview(OWNER, 'take 20 points off John');
+    expect(neg.summary).toMatch(/Remove 20 loyalty points from John Smith/);
+    await actions.runAction(OWNER, neg.token);
+    expect(mockCustomer.adjustPoints).toHaveBeenCalledWith('c1', 'o1', -20, expect.any(String), expect.any(Object));
+  });
+
+  test('adjust_loyalty_points: ambiguous name → asks for phone; unknown phone → not found', async () => {
+    mockCustomer.listCustomers.mockResolvedValue({ customers: [{ id: 'a', full_name: 'John A', phone: '1' }, { id: 'b', full_name: 'John B', phone: '2' }], total: 2 });
+    expect((await actions.buildActionPreview(OWNER, 'add 30 points to John')).message).toMatch(/matched 2 customers/);
+    mockCustomer.findByPhone.mockResolvedValue(null);
+    expect((await actions.buildActionPreview(OWNER, 'give 0400000000 10 points')).message).toMatch(/couldn't find/i);
+  });
+
+  test('permissions: pricing/discount need MANAGE_MENU, loyalty needs MANAGE_CUSTOMERS', async () => {
+    expect((await actions.buildActionPreview(CASHIER([]), '20% off drinks 4-6pm weekdays')).denied).toBe(true);
+    expect((await actions.buildActionPreview(CASHIER([]), 'give 0412345678 50 points')).denied).toBe(true);
   });
 });

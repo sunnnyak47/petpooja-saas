@@ -31,6 +31,8 @@ const procurement = require('../inventory/procurement.service');
 const reservations = require('../reservations/reservations.service');
 const orderSvc = require('../orders/order.service');
 const staff = require('../staff/staff.service');
+const pricing = require('../pricing/pricing.service');
+const discounts = require('../discounts/discount.service');
 // Shared, pure tax/pricing engine — the SAME helpers the order controller's
 // apply-discount path uses. We reuse them (not reimplement the math) so an
 // assistant-applied discount recomputes GST / round-off / grand-total
@@ -687,6 +689,163 @@ function stfShiftName(q) {
   return name || null;
 }
 
+// ── promotions & pricing helpers ─────────────────────────────────────────────
+const PROMO_DAY_MATCHERS = [
+  ['sun', /\bsun(?:day)?s?\b/],
+  ['mon', /\bmon(?:day)?s?\b/],
+  ['tue', /\btue(?:s|sday)?s?\b/],
+  ['wed', /\bwed(?:nesday)?s?\b/],
+  ['thu', /\bthu(?:r|rs|rsday)?s?\b/],
+  ['fri', /\bfri(?:day)?s?\b/],
+  ['sat', /\bsat(?:urday)?s?\b/],
+];
+const PROMO_DAY_ORDER = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const PROMO_DAY_LABEL = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
+
+/** Parse a day-of-week set → array of 'mon'..'sun' (Joi vocab). weekdays→Mon-Fri, weekends→Sat/Sun. */
+function promoParseDays(q) {
+  const s = String(q || '').toLowerCase();
+  const hasWeekdays = /\bweek\s?days?\b/.test(s);
+  const hasWeekends = /\bweek\s?ends?\b/.test(s);
+  if (hasWeekdays && !hasWeekends) return { days: ['mon', 'tue', 'wed', 'thu', 'fri'], label: 'weekdays (Mon–Fri)' };
+  if (hasWeekends && !hasWeekdays) return { days: ['sat', 'sun'], label: 'weekends (Sat & Sun)' };
+  const found = new Set();
+  for (const [code, re] of PROMO_DAY_MATCHERS) if (re.test(s)) found.add(code);
+  const days = PROMO_DAY_ORDER.filter((d) => found.has(d));
+  if (!days.length) return { days: [], label: 'every day' };
+  return { days, label: days.map((d) => PROMO_DAY_LABEL[d]).join(', ') };
+}
+
+/** Parse a start–end time window → { time_start:'HH:MM', time_end:'HH:MM' } (24h) or null. */
+function promoParseTimeWindow(q) {
+  const s = String(q || '').toLowerCase();
+  const re = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to|till|until|thru|through|and)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/;
+  const m = s.match(re);
+  if (!m) return null;
+  let h1 = parseInt(m[1], 10); const min1 = m[2] || '00'; let ap1 = m[3];
+  let h2 = parseInt(m[4], 10); const min2 = m[5] || '00'; let ap2 = m[6];
+  if (!ap1 && ap2) ap1 = ap2;
+  if (!ap2 && ap1) ap2 = ap1;
+  const to24 = (h, ap) => { if (!ap) return h; let hh = h % 12; if (ap === 'pm') hh += 12; return hh; };
+  h1 = to24(h1, ap1); h2 = to24(h2, ap2);
+  const fmt = (h, mm) => `${String(h).padStart(2, '0')}:${mm}`;
+  const start = fmt(h1, min1); const end = fmt(h2, min2);
+  const ok = (t) => /^[0-2][0-9]:[0-5][0-9]$/.test(t) && Number(t.slice(0, 2)) <= 23;
+  if (!ok(start) || !ok(end)) return null;
+  return { time_start: start, time_end: end };
+}
+
+/** Pull the noun the promo is "off/on" (a candidate category name), or null. */
+function promoIsolateCategory(q) {
+  const s = String(q || '').toLowerCase();
+  const m = s.match(/\b(?:off|on)\s+((?:[a-z]+\s*){1,3})/);
+  if (!m) return null;
+  const STOP = new Set(['all', 'everything', 'the', 'a', 'an', 'menu', 'items', 'item', 'between', 'from',
+    'during', 'for', 'every', 'everyday', 'daily', 'weekday', 'weekdays', 'weekend', 'weekends',
+    'happy', 'hour', 'am', 'pm', 'on', 'off', 'to', 'and', 'today', 'tonight', 'week', 'entire', 'whole']);
+  const DAYSET = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'mon', 'tue', 'tues', 'wed', 'thu', 'thur', 'thurs', 'fri', 'sat', 'sun']);
+  const toks = m[1].trim().split(/\s+/).filter((w) => w && !STOP.has(w) && !DAYSET.has(w) && !/\d/.test(w));
+  const name = toks.join(' ').trim();
+  return name || null;
+}
+
+/** Resolve a category name → { id, name } (single hit only) or null. */
+async function promoResolveCategory(outletId, name) {
+  const q = String(name || '').toLowerCase().trim();
+  if (!q) return null;
+  let list = [];
+  try {
+    const r = await menu.listCategories(outletId, { search: name });
+    list = (r && r.categories) || [];
+  } catch (_) { list = []; }
+  const norm = (x) => String(x || '').toLowerCase().trim();
+  let m = list.filter((c) => norm(c.name) === q);
+  if (!m.length) m = list.filter((c) => norm(c.name).startsWith(q));
+  if (!m.length) m = list.filter((c) => norm(c.name).includes(q));
+  return m.length === 1 ? m[0] : null;
+}
+
+/** Resolve a pricing rule's item target → { item_target, target_ids?, target_tag?, label, note? }. */
+async function promoResolveTarget(ctx, q) {
+  const s = String(q || '').toLowerCase();
+  if (/\bbest[\s-]?sellers?\b|\btop[\s-]?sellers?\b|\bpopular items?\b/.test(s)) return { item_target: 'bestsellers', label: 'bestsellers' };
+  if (/\bslow[\s-]?movers?\b|\bslow[\s-]?moving\b/.test(s)) return { item_target: 'slow_movers', label: 'slow movers' };
+  const tagM = s.match(/\b(?:tag(?:ged)?|with tag|label(?:led|ed)?)\s+["']?([a-z0-9_]+)["']?/);
+  if (tagM) return { item_target: 'tag', target_tag: tagM[1], label: `items tagged "${tagM[1]}"` };
+  if (/\ball items?\b|\beverything\b|\bwhole menu\b|\bentire menu\b|\bthe menu\b/.test(s)) return { item_target: 'all', label: 'all items' };
+  const catName = promoIsolateCategory(q);
+  if (catName) {
+    const cat = await promoResolveCategory(ctx.outletId, catName);
+    if (cat) return { item_target: 'category', target_ids: [cat.id], label: `the "${cat.name}" category` };
+    return { item_target: 'all', label: 'all items', note: `couldn't find a "${catName}" category, so this applies to ALL items` };
+  }
+  return { item_target: 'all', label: 'all items' };
+}
+
+/** Extract a coupon/discount code (uppercased) from NL, or null. */
+function promoExtractCode(q) {
+  const s = String(q || '');
+  let m = s.match(/\b(?:code|coupon|voucher|promo\s*code)\s+["']?([A-Za-z0-9][A-Za-z0-9_-]{1,19})["']?/i);
+  if (m) return m[1].toUpperCase();
+  m = s.match(/\b(?:discount|promo|promotion|offer)\s+["']?([A-Za-z][A-Za-z0-9_-]{1,19})["']?/i);
+  if (m && !/^(code|for|of|the|a|an|off|flat|on|all|to|is|and|percent|rule|named?|called|coupon)$/i.test(m[1])) return m[1].toUpperCase();
+  m = s.match(/\b([A-Z][A-Z0-9]{3,19})\b/);
+  if (m && !/^(SMS|VIP|POS|QR|EMAIL|WHATSAPP|AUD|INR|OFF|ALL|BOGO)$/.test(m[1])) return m[1];
+  return null;
+}
+
+/** Signed loyalty-points delta from NL, or null. */
+function promoExtractPoints(q) {
+  const s = String(q || '').toLowerCase();
+  const neg = /\b(deduct|deducted|remove|removed|take|taken|subtract|minus|reduce|reduced|revoke|revoked|dock|docked|claw\s?back)\b/.test(s);
+  let m = s.match(/(-?\d{1,7})\s*(?:loyalty\s*)?(?:points?|pts?)\b/);
+  if (!m) m = s.match(/\b(?:loyalty\s*)?(?:points?|pts?)\s*(?:of|:)?\s*(-?\d{1,7})\b/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (!Number.isFinite(n) || n === 0) return null;
+  if (n < 0) return n;
+  return neg ? -n : n;
+}
+
+/** Isolate a customer name (no phone) from a points command → name or null. */
+function promoIsolateCustomerName(q) {
+  const n = isolateName(q, ['give', 'given', 'add', 'added', 'adjust', 'points', 'point', 'pts', 'loyalty',
+    'customer', 'take', 'remove', 'deduct', 'subtract', 'credit', 'award', 'grant', 'reward', 'bonus',
+    'revoke', 'minus', 'plus', 'to', 'from', 'member', 'their', 'her', 'his', 'account']);
+  return n || null;
+}
+
+/** Human label for a resolved customer. */
+function promoCustomerLabel(c) {
+  if (!c) return 'the customer';
+  return c.full_name ? `${c.full_name} (${c.phone})` : c.phone;
+}
+
+/** Resolve the customer a loyalty adjustment targets → { customer } | { error }. Never guesses. */
+async function promoResolveCustomer(ctx, q) {
+  const caller = { role: ctx.role, head_office_id: ctx.headOfficeId || null };
+  const phone = extractPhone(q);
+  if (phone) {
+    const c = await customer.findByPhone(phone, caller);
+    if (!c) return { error: `I couldn't find a customer with phone ${phone}.` };
+    return { customer: c };
+  }
+  const name = promoIsolateCustomerName(q);
+  if (!name) return { error: 'Which customer? Give me their phone number or name (e.g. "give 0412345678 50 points").' };
+  let list = [];
+  try {
+    const r = await customer.listCustomers(ctx.outletId, { search: name, limit: 10 }, caller);
+    list = (r && r.customers) || [];
+  } catch (_) { list = []; }
+  if (!list.length) return { error: `I couldn't find a customer matching "${name}".` };
+  const norm = (x) => String(x || '').toLowerCase().trim();
+  let m = list.filter((c) => norm(c.full_name) === norm(name));
+  if (!m.length) m = list;
+  if (m.length > 1) return { error: `"${name}" matched ${m.length} customers. Tell me their phone number.` };
+  return { customer: m[0] };
+}
+
 // ── ACTION REGISTRY ──────────────────────────────────────────────────────────
 // extract(ctx, q) → { params } | { error } (clarification/not-found)
 // plan(ctx, params) → { summary }
@@ -1249,6 +1408,133 @@ const ACTIONS = [
   },
 
   {
+    name: 'create_pricing_rule',
+    label: 'create a pricing / happy-hour rule',
+    permission: 'MANAGE_MENU',
+    keywords: [
+      'happy hour', 'happy-hour', 'pricing rule', 'create a pricing rule', 'time based discount',
+      'time-based discount', 'auto discount', 'auto-discount', 'discount rule', 'surcharge rule',
+      'off during', 'off between', 'off from', 'off drinks', 'off all', 'off on weekdays',
+      'off on weekends', 'surge pricing', 'dynamic price', 'schedule a discount',
+    ],
+    // The trailing time/day token distinguishes a scheduled RULE from a one-off
+    // apply_discount ("10% off order 42").
+    match: /\b(?:happy[\s-]?hour|pricing rule|time[\s-]?based (?:price|discount|rule)|surge pricing)\b|(?:\d+\s*%|\bflat\b|\$\s*\d)[\s\S]{0,30}\b(?:off|discount|surcharge)\b[\s\S]{0,40}\b(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)|weekdays?|weekends?|between|from|during|every)\b/i,
+    async extract(ctx, q) {
+      const disc = extractDiscount(q);
+      if (!disc || !(disc.discount_value > 0)) return { error: 'How much should the rule change prices by? e.g. "happy hour 15% off drinks 5-7pm" or "$5 off all 4-6pm".' };
+      const action_unit = disc.discount_type === 'percentage' ? 'percent' : 'flat';
+      if (action_unit === 'percent' && disc.discount_value > 100) return { error: "A percentage rule can't be more than 100%." };
+      const action_type = /\bsurcharge|surge|extra charge|premium\b/i.test(q) ? 'surcharge' : 'discount';
+      const win = promoParseTimeWindow(q);
+      const { days, label: days_label } = promoParseDays(q);
+      const target = await promoResolveTarget(ctx, q);
+      const trigger_type = win ? 'time_of_day' : (days.length ? 'day_of_week' : 'manual');
+      const amtLabel = action_unit === 'percent' ? `${disc.discount_value}%` : money(ctx.currency, disc.discount_value);
+      const verbShort = action_type === 'surcharge' ? 'surcharge' : 'off';
+      const name = `${amtLabel} ${verbShort} ${target.label}`.replace(/["']/g, '').slice(0, 100);
+      const defaults = [];
+      if (!win) defaults.push('all day — no time window detected');
+      if (!days.length) defaults.push('every day — no days detected');
+      if (target.note) defaults.push(target.note);
+      return {
+        params: {
+          name, description: String(q || '').trim().slice(0, 255), trigger_type, action_type, action_unit,
+          action_value: disc.discount_value, time_start: win ? win.time_start : null, time_end: win ? win.time_end : null,
+          days_of_week: days, item_target: target.item_target, target_ids: target.target_ids || [], target_tag: target.target_tag || null,
+          target_label: target.label, days_label, window_label: win ? `${win.time_start}–${win.time_end}` : 'all day',
+          amount_label: amtLabel, verb_label: verbShort, defaults,
+        },
+      };
+    },
+    plan(ctx, p) {
+      let s = `Create a pricing rule: ${p.amount_label} ${p.verb_label} ${p.target_label}, ${p.window_label}, ${p.days_label}`;
+      if (p.defaults && p.defaults.length) s += ` — assuming: ${p.defaults.join('; ')}`;
+      return { summary: s };
+    },
+    async execute(ctx, p) {
+      const rule = await pricing.createRule(ctx.outletId, {
+        name: p.name, description: p.description, trigger_type: p.trigger_type, action_type: p.action_type,
+        action_value: p.action_value, action_unit: p.action_unit, time_start: p.time_start || null, time_end: p.time_end || null,
+        days_of_week: p.days_of_week || [], item_target: p.item_target || 'all', target_ids: p.target_ids || [], target_tag: p.target_tag || null,
+        is_active: true, priority: 10,
+      });
+      return { message: `Done — created pricing rule "${p.name}" (${p.amount_label} ${p.verb_label} ${p.target_label}, ${p.window_label}, ${p.days_label}). It's active now; manage it in Menu → Dynamic Pricing.`, entity_type: 'pricing_rule', entity_id: rule && rule.id };
+    },
+  },
+
+  {
+    name: 'create_discount',
+    label: 'create a discount / coupon code',
+    // The discount route is role-gated (owner/manager/super_admin); MANAGE_MENU is the
+    // closest RBAC key the manager role holds.
+    permission: 'MANAGE_MENU',
+    keywords: [
+      'create discount', 'create a discount', 'make a discount', 'new discount', 'add a discount code',
+      'discount code', 'coupon code', 'promo code', 'create coupon', 'make coupon', 'create a coupon',
+      'create a promo', 'make a promo', 'new coupon', 'make code', 'create code', 'set up a discount',
+      'create a discount code', 'voucher code',
+    ],
+    match: /\b(?:make|create|add|new|set\s?up|setup)\b[\s\S]{0,20}\b(?:discount|coupon|promo(?:tion)?|voucher|code)\b|\b(?:discount|coupon|promo|voucher)\s*code\b/i,
+    async extract(ctx, q) {
+      const disc = extractDiscount(q);
+      if (!disc || !(disc.discount_value > 0)) return { error: 'How much is the discount? e.g. "create code WELCOME10 for 10% off" or "make discount HAPPY 50 off".' };
+      const type = disc.discount_type === 'percentage' ? 'percentage' : 'flat';
+      if (type === 'percentage' && disc.discount_value > 100) return { error: "A percentage discount can't be more than 100%." };
+      const code = promoExtractCode(q);
+      const valueLabel = type === 'percentage' ? `${disc.discount_value}%` : money(ctx.currency, disc.discount_value);
+      const name = (code ? `${code} — ${valueLabel} off` : `${valueLabel} off`).slice(0, 100);
+      return { params: { code: code || null, type, value: disc.discount_value, name, value_label: valueLabel } };
+    },
+    plan(ctx, p) {
+      const codePart = p.code ? `code ${p.code}` : 'an auto-applied discount (no code)';
+      return { summary: `Create ${codePart} for ${p.value_label} off` };
+    },
+    async execute(ctx, p) {
+      // NOTE the (data, outletId) argument order of discounts.createDiscount.
+      const created = await discounts.createDiscount({ name: p.name, code: p.code || null, type: p.type, value: p.value }, ctx.outletId);
+      const codePart = p.code ? `code ${p.code}` : 'discount';
+      return { message: `Done — created ${codePart} for ${p.value_label} off. Review it in Promotions → Discounts.`, entity_type: 'discount', entity_id: created && created.id };
+    },
+  },
+
+  {
+    name: 'adjust_loyalty_points',
+    label: "adjust a customer's loyalty points",
+    permission: 'MANAGE_CUSTOMERS',
+    keywords: [
+      'give points', 'add points', 'award points', 'credit points', 'grant points', 'adjust points',
+      'deduct points', 'remove points', 'take points', 'bonus points', 'reward points', 'add loyalty',
+      'give loyalty', 'loyalty bonus', 'add loyalty points', 'give loyalty points',
+    ],
+    match: /\b(?:give|gave|add|added|award|credit|grant|adjust|deduct|remove|take|subtract|revoke|bump)\b[\s\S]{0,40}\b(?:loyalty\s*)?(?:points?|pts?)\b|\b(?:loyalty\s*)?(?:points?|pts?)\b[\s\S]{0,20}\b(?:to|for|from)\b/i,
+    async extract(ctx, q) {
+      const points = promoExtractPoints(q);
+      if (points == null || points === 0) return { error: 'How many points? e.g. "give 0412345678 50 points" or "take 20 points off John".' };
+      const res = await promoResolveCustomer(ctx, q);
+      if (res.error) return { error: res.error };
+      const cust = res.customer;
+      const reason = extractReason(q);
+      return { params: { customer_id: cust.id, customer_label: promoCustomerLabel(cust), points, reason: reason || null } };
+    },
+    plan(ctx, p) {
+      const n = Math.abs(p.points);
+      const verb = p.points >= 0 ? 'Add' : 'Remove';
+      const dir = p.points >= 0 ? 'to' : 'from';
+      return { summary: `${verb} ${n} loyalty point${n === 1 ? '' : 's'} ${dir} ${p.customer_label}${p.reason ? ` — reason: "${p.reason}"` : ''}` };
+    },
+    async execute(ctx, p) {
+      const caller = { role: ctx.role, head_office_id: ctx.headOfficeId || null };
+      const loyalty = await customer.adjustPoints(p.customer_id, ctx.outletId, p.points, p.reason || 'Assistant adjustment', caller);
+      const n = Math.abs(p.points);
+      const verb = p.points >= 0 ? 'Added' : 'Removed';
+      const dir = p.points >= 0 ? 'to' : 'from';
+      const bal = loyalty && typeof loyalty.current_balance === 'number' ? ` New balance: ${loyalty.current_balance} points.` : '';
+      return { message: `Done — ${verb.toLowerCase()} ${n} point${n === 1 ? '' : 's'} ${dir} ${p.customer_label}.${bal}`, entity_type: 'customer', entity_id: p.customer_id };
+    },
+  },
+
+  {
     name: 'create_reservation',
     label: 'create a reservation',
     permission: 'MANAGE_POS',
@@ -1797,4 +2083,10 @@ module.exports = {
   stfClockName,
   stfParseTimeRange,
   stfShiftName,
+  promoParseDays,
+  promoParseTimeWindow,
+  promoResolveTarget,
+  promoExtractCode,
+  promoExtractPoints,
+  promoResolveCustomer,
 };
