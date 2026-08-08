@@ -423,6 +423,29 @@ async function answer(userCtx, question, history = []) {
     }
   }
 
+  // Multi-turn continuation: a short follow-up ("0412345678", "yes") that answers
+  // the clarification a PRIOR write turn asked for ("what's their phone?"). Re-runs
+  // that action with the combined text so a supplied value completes it, and a bare
+  // affirmation re-asks the same question instead of falling through to a generic reply.
+  if (userCtx.outletId && Array.isArray(hist) && hist.length) {
+    await resolveOutletContext(userCtx);
+    const resumed = await actions.resumeActionPreview(userCtx, question, hist);
+    if (resumed) {
+      if (resumed.denied) return { answer: resumed.message, source: 'denied', tool: null, suggestions: SUGGESTIONS };
+      if (resumed.clarify) return { answer: resumed.message, source: 'clarify', tool: null, suggestions: SUGGESTIONS };
+      if (resumed.action) {
+        return {
+          answer: `${resumed.summary}. Shall I go ahead?`,
+          source: 'action_preview',
+          tool: null,
+          action: { name: resumed.action, token: resumed.token, summary: resumed.summary, warn: !!resumed.warn },
+          requires_confirmation: true,
+          suggestions: SUGGESTIONS,
+        };
+      }
+    }
+  }
+
   // Multi-tool reasoning: "why did profit drop", "this month vs last month" — fan
   // out across several read tools and synthesize ONE grounded answer. Returns null
   // (→ single-tool path below) unless it's a genuine multi-part/causal question.

@@ -202,7 +202,10 @@ function extractStaffRole(q) {
 function extractStaffName(q) {
   const raw = String(q || '').trim();
   const CAP = "([A-Za-z][\\w.'-]*(?:\\s+[A-Za-z0-9][\\w.'-]*){0,3})";
-  let m = raw.match(new RegExp(`\\b(?:named|called)\\s+${CAP}`, 'i'));
+  // "named/called X" and also "name of/is X" / "with name X" (the "of" must not
+  // end up in the name — "with name of test-1" → "test-1", not "of test-1").
+  let m = raw.match(new RegExp(`\\b(?:named|called)\\s+${CAP}`, 'i'))
+    || raw.match(new RegExp(`\\bname\\s+(?:of\\s+|is\\s+|:\\s*)?${CAP}`, 'i'));
   if (!m) {
     const asM = raw.match(new RegExp(`\\bas\\s+(?:an?\\s+)?${CAP}`, 'i'));
     if (asM && !STAFF_ROLE_WORDS.has(asM[1].toLowerCase().split(/\s+/)[0])) m = asM;
@@ -2036,6 +2039,53 @@ async function buildActionPreview(userCtx, question, history = []) {
   return { action: action.name, summary: preview.summary, token, warn: !!action.warn };
 }
 
+// A bare affirmation ("yes", "go ahead") — answers a prior clarify but carries no new info.
+const AFFIRM_RE = /^(y|yes|yep|yeah|yup|ok|okay|sure|please|go ahead|do it|confirm(?:ed)?|correct|right|proceed|sounds good|that'?s right)\b/i;
+/** A short follow-up that supplies a missing VALUE (phone, name, amount) — not a new question. */
+function looksLikeFollowupValue(q) {
+  const s = String(q || '').trim();
+  if (!s) return false;
+  if (/\b(how|what|who|when|where|why|which|show|list|report|download|export)\b/i.test(s)) return false;
+  return s.split(/\s+/).length <= 6;
+}
+
+/**
+ * Multi-turn continuation of a write action. When THIS turn isn't itself a write
+ * intent, but the previous USER turn started a write action that CLARIFIED (asked
+ * for missing info) and this turn is a short answer/affirmation, re-run that
+ * action's preview on the combined text so the follow-up completes it (a supplied
+ * value → preview; a bare "yes" → the same clarify again, never a generic reply).
+ * Returns a preview ({action|clarify|denied|…}) or null.
+ * @param {{id,role,outletId,permissions,currency?,headOfficeId?}} userCtx
+ * @param {string} question
+ * @param {{role:string,text:string}[]} history  normalized chat history
+ * @returns {Promise<object|null>}
+ */
+async function resumeActionPreview(userCtx, question, history = []) {
+  if (!userCtx || !userCtx.outletId) return null;
+  if (detectAction(question) || inferPronounAction(question)) return null; // this turn stands alone
+  if (!AFFIRM_RE.test(String(question || '').trim()) && !looksLikeFollowupValue(question)) return null;
+  const hist = Array.isArray(history) ? history : [];
+  let prevText = null;
+  for (let i = hist.length - 1; i >= 0; i -= 1) {
+    const h = hist[i];
+    if (h && h.role === 'user' && typeof h.text === 'string' && detectAction(h.text)) { prevText = h.text; break; }
+  }
+  if (!prevText) return null;
+  // Only resume an INCOMPLETE action (its extract clarified); a finished one needs no resume.
+  const priorAction = detectAction(prevText);
+  let priorEx = null;
+  try { priorEx = await priorAction.extract(userCtx, prevText); } catch (_) { priorEx = null; }
+  if (priorEx && priorEx.params) return null;
+  // Strip a leading affirmation so a bare "yes" re-asks the SAME clarify (rather than
+  // polluting the extraction), while "yes 0412345678" still contributes the value.
+  const stripped = String(question || '')
+    .replace(/^\s*(?:yes|yeah|yep|yup|ok|okay|sure|please|go ahead|do it|confirm(?:ed)?|correct|right|proceed|sounds good)\b[\s,:.-]*/i, '')
+    .trim();
+  const combined = (stripped ? `${prevText} ${stripped}` : prevText).slice(0, 500);
+  return buildActionPreview(userCtx, combined, hist);
+}
+
 /**
  * Build a COMBINED preview for a compound message that holds 2+ write actions.
  * REUSES each action's own flow — permission check (userHasPermission) + extract
@@ -2229,6 +2279,7 @@ module.exports = {
   inferPronounAction,
   buildActionPreview,
   buildBatchPreview,
+  resumeActionPreview,
   runAction,
   userHasPermission,
   signActionToken,

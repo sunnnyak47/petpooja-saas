@@ -873,3 +873,40 @@ describe('knowledge base (save / update / forget) — chat-managed RAG', () => {
     expect(mockDocs.addDoc).not.toHaveBeenCalled();
   });
 });
+
+// ── multi-turn continuation + "name of X" extraction ─────────────────────────
+describe('multi-turn write continuation (resumeActionPreview)', () => {
+  test('"create staff with name of test-1" parses the name as test-1 (not "of test-1")', async () => {
+    const p = await actions.buildActionPreview(OWNER, 'create a new staff with name of test-1');
+    expect(p.clarify).toBe(true);
+    expect(p.message).toMatch(/test-1.s phone number/i); // "What's test-1's phone number?"
+    expect(p.message).not.toMatch(/of test-1/i);
+  });
+
+  const hist = () => ([
+    { role: 'user', text: 'create a new staff with name of test-1' },
+    { role: 'assistant', text: "What's test-1's phone number?" },
+  ]);
+
+  test('a bare "yes" re-asks the SAME clarify (does not pollute the name)', async () => {
+    const r = await actions.resumeActionPreview(OWNER, 'yes', hist());
+    expect(r.clarify).toBe(true);
+    expect(r.message).toMatch(/test-1.s phone number/i);
+    expect(r.message).not.toMatch(/test-1 yes/i);
+  });
+
+  test('supplying the phone completes the action → a real preview', async () => {
+    const r = await actions.resumeActionPreview(OWNER, '0412345678', hist());
+    expect(r.action).toBe('create_staff');
+    expect(r.summary).toMatch(/0412345678/);
+    expect(actions.verifyActionToken(r.token).params).toMatchObject({ full_name: 'Test-1', phone: '0412345678' });
+  });
+
+  test('a NEW question after a write turn does NOT resume (falls through)', async () => {
+    expect(await actions.resumeActionPreview(OWNER, 'how much did we sell today', hist())).toBeNull();
+  });
+
+  test('no resume when there is no prior incomplete write turn', async () => {
+    expect(await actions.resumeActionPreview(OWNER, '0412345678', [{ role: 'user', text: 'how much did we sell' }])).toBeNull();
+  });
+});
