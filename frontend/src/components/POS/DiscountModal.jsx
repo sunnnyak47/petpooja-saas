@@ -83,11 +83,14 @@ function PinInput({ pin, onChange, disabled }) {
       </label>
       <input
         type="password"
+        inputMode="numeric"
         maxLength={6}
+        autoComplete="off"
+        name="discount-manager-pin"
         value={pin}
         onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
         disabled={disabled}
-        placeholder="Enter 4–6 digit PIN"
+        placeholder="••••"
         className="w-full px-4 py-2.5 rounded-xl text-sm font-mono tracking-widest outline-none transition-all"
         style={{
           background: 'var(--bg-input, var(--bg-hover))',
@@ -832,6 +835,8 @@ function ReasonInput({ reason, onChange }) {
       </label>
       <input
         type="text"
+        autoComplete="off"
+        name="discount-reason"
         value={reason}
         onChange={e => onChange(e.target.value)}
         placeholder="e.g. Customer loyalty, Manager override…"
