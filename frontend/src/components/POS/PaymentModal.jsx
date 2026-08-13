@@ -576,15 +576,32 @@ export default function PaymentModal({
 /* ── Cash change calculator ── */
 function CashChangeCalculator({ amount }) {
   const [tendered, setTendered] = useState('');
-  const { format, symbol, locale, isAU } = useCurrency();
+  const { format, symbol, isAU } = useCurrency();
   // Quick-tender note denominations per region. AU real notes: 5/10/20/50/100.
   // IN: 10/20/50/100/200/500/2000.
   const QUICK = isAU ? [5, 10, 20, 50, 100] : [10, 20, 50, 100, 200, 500, 2000];
-  const change = tendered && Number(tendered) >= amount ? Number(tendered) - amount : null;
+
+  // AU has no 1c or 2c coins — physical cash transactions round to the nearest 5c.
+  // The invoice amount (amount) stays exact; only the cash collected / change
+  // calculated uses the rounded figure so tills reconcile without phantom discrepancies.
+  const cashAmount = isAU ? Math.round(amount * 20) / 20 : amount;
+  const isRounded = isAU && cashAmount.toFixed(2) !== amount.toFixed(2);
+
+  const tenderedNum = Number(tendered);
+  const change = tendered && tenderedNum >= cashAmount
+    ? Math.round((tenderedNum - cashAmount) * 100) / 100
+    : null;
 
   return (
     <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-hover)' }}>
-      <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Cash Tendered (optional)</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>Cash Tendered (optional)</p>
+        {isRounded && (
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Cash total {format(cashAmount)} (5c rounded)
+          </span>
+        )}
+      </div>
       <input
         type="number"
         className="input text-xl font-bold text-center py-3"
@@ -592,20 +609,21 @@ function CashChangeCalculator({ amount }) {
         value={tendered}
         onChange={(e) => setTendered(e.target.value)}
       />
-      {/* Quick amounts */}
+      {/* Quick amounts — based on cashAmount so denominations clear the rounded total */}
       <div className="flex flex-wrap gap-1.5">
         {QUICK.map(v => (
           <button
             key={v}
-            onClick={() => setTendered(String(v >= amount ? v : Math.ceil(amount / v) * v))}
+            onClick={() => setTendered(String(v >= cashAmount ? v : Math.ceil(cashAmount / v) * v))}
             className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all"
             style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
             {symbol}{v}
           </button>
         ))}
+        {/* Exact: tender precisely the (5c-rounded) amount due — change is always A$0.00 */}
         <button
-          onClick={() => setTendered(String(Math.ceil(amount / 10) * 10))}
+          onClick={() => setTendered(String(cashAmount))}
           className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all"
           style={{ background: 'color-mix(in srgb, var(--success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--success) 25%, transparent)', color: 'var(--success)' }}
         >
@@ -618,9 +636,9 @@ function CashChangeCalculator({ amount }) {
           <span className="text-2xl font-black" style={{ color: 'var(--success)' }}>{format(change)}</span>
         </div>
       )}
-      {tendered && Number(tendered) < amount && (
+      {tendered && tenderedNum < cashAmount && (
         <p className="text-xs text-center" style={{ color: 'var(--danger)' }}>
-          Short by {format(amount - Number(tendered))}
+          Short by {format(Math.round((cashAmount - tenderedNum) * 100) / 100)}
         </p>
       )}
     </div>
