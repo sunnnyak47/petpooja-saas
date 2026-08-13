@@ -2426,7 +2426,7 @@ export default function POSPage() {
         onClose={() => setShowDiscount(false)}
         orderId={tempOrderId}
         outletId={outletId}
-        cartSubtotal={cartTotals.subtotal}
+        cartSubtotal={isAU ? cartTotals.total : cartTotals.subtotal}
         currentDiscount={discount}
         onApplyDiscount={(d) =>
           d

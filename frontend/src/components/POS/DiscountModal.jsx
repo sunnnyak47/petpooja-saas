@@ -46,7 +46,7 @@ function PreviewBox({ subtotal, discountAmount, format }) {
       style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}
     >
       <div className="flex justify-between mb-1" style={{ color: 'var(--text-secondary)' }}>
-        <span>Subtotal</span>
+        <span>Amount</span>
         <span>{format(subtotal)}</span>
       </div>
       <div className="flex justify-between mb-2" style={{ color: 'var(--danger)' }}>
