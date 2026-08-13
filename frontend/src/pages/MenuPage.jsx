@@ -14,7 +14,8 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import {
   Leaf, Drumstick, Egg, Plus, Edit, Trash2, Search, FolderPlus,
   Loader, ToggleLeft, ToggleRight, CheckSquare, Square, Percent,
-  ArrowUpRight, ArrowDownRight, Tag, Camera, Sparkles, AlertTriangle
+  ArrowUpRight, ArrowDownRight, Tag, Camera, Sparkles, AlertTriangle,
+  ChevronDown, ChevronUp, X,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import AIMenuSyncModal from '../components/Menu/AIMenuSyncModal';
@@ -167,6 +168,12 @@ export default function MenuPage() {
     enabled: !!outletId,
   });
 
+  // Addon panel local state
+  const [showNewGroupForm, setShowNewGroupForm] = useState(false);
+  const [newGroupForm, setNewGroupForm] = useState({ name: '', is_required: false, max_selection: 5 });
+  const [expandedAddonGroups, setExpandedAddonGroups] = useState(new Set());
+  const [newAddonInput, setNewAddonInput] = useState({ groupId: null, name: '', price: '' });
+
   // Mutations
   const resetCatForm = () => setCatForm({ name: '', description: '', display_order: 1, station: 'KITCHEN' });
 
@@ -286,6 +293,17 @@ export default function MenuPage() {
       toast.error(e.message || 'Failed to delete item');
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: itemsKey }),
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: (d) => api.post('/menu/addon-groups', d).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Addon group created!');
+      setShowNewGroupForm(false);
+      setNewGroupForm({ name: '', is_required: false, max_selection: 5 });
+    },
+    onError: (e) => toast.error(e.response?.data?.message || e.message || 'Failed to create group'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['addonGroups', outletId] }),
   });
 
   const toggleStatusMutation = useMutation({
@@ -893,22 +911,149 @@ export default function MenuPage() {
                   <div className="flex justify-between items-center mb-4">
                      <div>
                         <h4 className="font-black text-sm text-white tracking-widest uppercase">Add-on Groups</h4>
-                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">Link toppings, sides, or custom instructions</p>
+                        <p className="text-[10px] text-surface-500 font-bold uppercase mt-1">Priced modifiers — extras, toppings, sides</p>
                      </div>
+                     <button type="button" onClick={() => setShowNewGroupForm(p => !p)} className="btn-surface py-1.5 px-3 text-xs border-brand-500/20 text-brand-400">
+                        <Plus className="w-3.5 h-3.5 mr-1"/> New Group
+                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                     {(addonGroups || []).map(group => {
-                        const isLinked = itemForm.addons.some(a => a.addon_group_id === group.id);
-                        return (
-                           <button key={group.id} type="button" onClick={() => {
-                              const next = isLinked 
-                                ? itemForm.addons.filter(a => a.addon_group_id !== group.id)
-                                : [...itemForm.addons, { addon_group_id: group.id, name: group.name, price: 0 }];
-                              setItemForm({ ...itemForm, addons: next });
-                           }} className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${isLinked ? 'bg-brand-500/10 border-brand-500 text-brand-400' : 'bg-surface-900/50 border-surface-800 text-surface-400 hover:border-surface-600'}`}>
-                              {isLinked ? <CheckSquare className="w-4 h-4"/> : <Square className="w-4 h-4"/>}
-                              <span className="text-sm font-bold truncate">{group.name}</span>
+
+                  {/* Inline create-group form */}
+                  {showNewGroupForm && (
+                     <div className="mb-4 p-3 bg-surface-900/50 rounded-xl border border-brand-500/30 space-y-3 animate-slide-in">
+                        <input
+                           autoFocus
+                           type="text"
+                           className="input w-full text-sm"
+                           placeholder="Group name, e.g. Extras, Protein Options"
+                           value={newGroupForm.name}
+                           onChange={e => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
+                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newGroupForm.name.trim() && !createGroupMutation.isPending) createGroupMutation.mutate({ outlet_id: outletId, name: newGroupForm.name.trim(), is_required: newGroupForm.is_required, max_selection: newGroupForm.max_selection }); } }}
+                        />
+                        <div className="flex gap-4 items-center">
+                           <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-surface-300">
+                              <button type="button" onClick={() => setNewGroupForm({ ...newGroupForm, is_required: !newGroupForm.is_required })}>
+                                 {newGroupForm.is_required ? <ToggleRight className="w-6 h-6 text-success-500"/> : <ToggleLeft className="w-6 h-6 text-surface-500"/>}
+                              </button>
+                              Required
+                           </label>
+                           <label className="flex items-center gap-2 text-sm text-surface-300">
+                              Max
+                              <input type="number" min="1" max="20" className="input w-14 text-sm py-1 text-center" value={newGroupForm.max_selection} onChange={e => setNewGroupForm({ ...newGroupForm, max_selection: Number(e.target.value) })} />
+                              choices
+                           </label>
+                        </div>
+                        <div className="flex gap-2">
+                           <button type="button" disabled={!newGroupForm.name.trim() || createGroupMutation.isPending}
+                              onClick={() => createGroupMutation.mutate({ outlet_id: outletId, name: newGroupForm.name.trim(), is_required: newGroupForm.is_required, max_selection: newGroupForm.max_selection })}
+                              className="btn-primary flex-1 py-2 text-xs">
+                              {createGroupMutation.isPending ? 'Creating…' : 'Create Group'}
                            </button>
+                           <button type="button" onClick={() => setShowNewGroupForm(false)} className="btn-surface py-2 px-3 text-xs">Cancel</button>
+                        </div>
+                     </div>
+                  )}
+
+                  {/* Empty state — no groups exist yet */}
+                  {!(addonGroups?.length) && !showNewGroupForm && (
+                     <div className="text-center py-6">
+                        <p className="text-sm text-surface-400 mb-1">No addon groups yet</p>
+                        <p className="text-[11px] text-surface-500">Create a group (e.g. "Extras") then add priced options like "Extra Cheese +{symbol}2.00".</p>
+                     </div>
+                  )}
+
+                  {/* Group list */}
+                  <div className="space-y-2">
+                     {(addonGroups || []).map(group => {
+                        const groupOptions = itemForm.addons.filter(a => a.addon_group_id === group.id);
+                        const isExpanded = expandedAddonGroups.has(group.id);
+                        const toggleExpand = () => setExpandedAddonGroups(prev => {
+                           const next = new Set(prev);
+                           if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
+                           return next;
+                        });
+                        return (
+                           <div key={group.id} className="bg-surface-900/50 rounded-xl border border-surface-800 overflow-hidden">
+                              {/* Group header */}
+                              <button type="button" onClick={toggleExpand} className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-surface-800/40 transition-colors">
+                                 <div className="flex items-center gap-2">
+                                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-surface-500"/> : <ChevronDown className="w-3.5 h-3.5 text-surface-500"/>}
+                                    <span className="text-sm font-bold text-white">{group.name}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${group.is_required ? 'bg-orange-500/20 text-orange-400' : 'bg-surface-700 text-surface-400'}`}>
+                                       {group.is_required ? 'Required' : 'Optional'}
+                                    </span>
+                                    {group.max_selection && <span className="text-[10px] text-surface-500">max {group.max_selection}</span>}
+                                 </div>
+                                 <span className="text-xs text-surface-500">{groupOptions.length} option{groupOptions.length !== 1 ? 's' : ''}</span>
+                              </button>
+
+                              {/* Expanded: option rows + add-option form */}
+                              {isExpanded && (
+                                 <div className="px-3 pb-3 pt-1 border-t border-surface-800 space-y-1.5">
+                                    {groupOptions.length === 0 && newAddonInput.groupId !== group.id && (
+                                       <p className="text-[11px] text-surface-500 py-1 text-center">No options — add the first one below.</p>
+                                    )}
+                                    {/* Existing option rows */}
+                                    {groupOptions.map((opt, idx) => (
+                                       <div key={idx} className="flex items-center gap-2 py-1.5 pl-2 pr-1 bg-surface-950 rounded-lg border border-surface-800 animate-slide-in">
+                                          <span className="flex-1 text-sm text-surface-200">{opt.name}</span>
+                                          <span className="text-sm font-mono font-bold text-brand-400">{symbol}{Number(opt.price || 0).toFixed(2)}</span>
+                                          <button type="button" className="p-0.5 text-surface-600 hover:text-red-400 transition-colors rounded"
+                                             onClick={() => {
+                                                const optsForGroup = itemForm.addons.filter(a => a.addon_group_id === group.id);
+                                                const toRemove = optsForGroup[idx];
+                                                setItemForm({ ...itemForm, addons: itemForm.addons.filter(a => a !== toRemove) });
+                                             }}>
+                                             <X className="w-3.5 h-3.5"/>
+                                          </button>
+                                       </div>
+                                    ))}
+                                    {/* Add option inline form */}
+                                    {newAddonInput.groupId === group.id ? (
+                                       <div className="flex gap-2 items-center mt-2 animate-slide-in">
+                                          <input
+                                             autoFocus
+                                             className="input flex-1 text-sm py-1.5 bg-surface-950"
+                                             placeholder="e.g. Extra Cheese"
+                                             value={newAddonInput.name}
+                                             onChange={e => setNewAddonInput({ ...newAddonInput, name: e.target.value })}
+                                             onKeyDown={e => {
+                                                if (e.key === 'Enter') { e.preventDefault(); if (!newAddonInput.name.trim()) return; setItemForm({ ...itemForm, addons: [...itemForm.addons, { addon_group_id: group.id, name: newAddonInput.name.trim(), price: Number(newAddonInput.price) || 0 }] }); setNewAddonInput({ groupId: group.id, name: '', price: '' }); }
+                                                if (e.key === 'Escape') setNewAddonInput({ groupId: null, name: '', price: '' });
+                                             }}
+                                          />
+                                          <div className="flex items-center gap-1 bg-surface-950 px-2 py-1.5 rounded-lg border border-surface-800">
+                                             <span className="text-surface-500 text-xs font-bold">{symbol}</span>
+                                             <input type="number" min="0" step="0.50" placeholder="0.00"
+                                                className="bg-transparent border-none outline-none w-16 text-sm font-bold text-brand-400"
+                                                value={newAddonInput.price}
+                                                onChange={e => setNewAddonInput({ ...newAddonInput, price: e.target.value })}
+                                             />
+                                          </div>
+                                          <button type="button" className="btn-primary py-1.5 px-3 text-xs"
+                                             disabled={!newAddonInput.name.trim()}
+                                             onClick={() => {
+                                                if (!newAddonInput.name.trim()) return;
+                                                setItemForm({ ...itemForm, addons: [...itemForm.addons, { addon_group_id: group.id, name: newAddonInput.name.trim(), price: Number(newAddonInput.price) || 0 }] });
+                                                setNewAddonInput({ groupId: group.id, name: '', price: '' });
+                                             }}>
+                                             Add
+                                          </button>
+                                          <button type="button" className="text-surface-500 hover:text-surface-300 transition-colors"
+                                             onClick={() => setNewAddonInput({ groupId: null, name: '', price: '' })}>
+                                             <X className="w-4 h-4"/>
+                                          </button>
+                                       </div>
+                                    ) : (
+                                       <button type="button"
+                                          className="w-full text-xs text-brand-400 hover:text-brand-300 py-1.5 flex items-center gap-1 justify-center mt-1 hover:bg-brand-500/5 rounded-lg transition-colors"
+                                          onClick={() => setNewAddonInput({ groupId: group.id, name: '', price: '' })}>
+                                          <Plus className="w-3 h-3"/> Add option
+                                       </button>
+                                    )}
+                                 </div>
+                              )}
+                           </div>
                         );
                      })}
                   </div>

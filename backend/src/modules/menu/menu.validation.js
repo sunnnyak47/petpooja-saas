@@ -81,7 +81,7 @@ const updateMenuItemSchema = Joi.object({
   base_price: Joi.number().precision(2).min(0),
   food_type: Joi.string().valid('veg', 'non_veg', 'egg'),
   cuisine: Joi.string().trim().max(50).allow('', null),
-  kitchen_station: Joi.string().valid('KITCHEN', 'BAR', 'COLD', 'DESSERT', 'GRILL'),
+  kitchen_station: Joi.string().valid(...KITCHEN_STATIONS),
   gst_rate: Joi.number().valid(0, 5, 10, 12, 18, 28),
   is_active: Joi.boolean(),
   is_available: Joi.boolean(),
