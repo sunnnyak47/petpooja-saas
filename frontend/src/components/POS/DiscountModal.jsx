@@ -38,15 +38,19 @@ function calcDiscountAmount(tab, value, subtotal) {
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
 
-function PreviewBox({ subtotal, discountAmount, format }) {
+function PreviewBox({ subtotal, discountAmount, format, isAU }) {
   const newTotal = Math.max(subtotal - discountAmount, 0);
+  // AU prices are GST-inclusive — make that explicit so staff see they are
+  // discounting the GST-inclusive total, not a hidden ex-GST figure.
+  const totalLabel    = isAU ? 'Total (inc. GST)' : 'Subtotal';
+  const newTotalLabel = isAU ? 'New Total (inc. GST)' : 'New Total';
   return (
     <div
       className="rounded-xl p-4 mt-4 text-sm font-mono"
       style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}
     >
       <div className="flex justify-between mb-1" style={{ color: 'var(--text-secondary)' }}>
-        <span>Amount</span>
+        <span>{totalLabel}</span>
         <span>{format(subtotal)}</span>
       </div>
       <div className="flex justify-between mb-2" style={{ color: 'var(--danger)' }}>
@@ -60,7 +64,7 @@ function PreviewBox({ subtotal, discountAmount, format }) {
           color: 'var(--text-primary)',
         }}
       >
-        <span>New Total</span>
+        <span>{newTotalLabel}</span>
         <span>{format(newTotal)}</span>
       </div>
     </div>
@@ -475,6 +479,7 @@ export default function DiscountModal({
               subtotal={cartSubtotal}
               discountAmount={previewDiscountAmount}
               format={format}
+              isAU={isAU}
             />
           )}
 
@@ -562,6 +567,7 @@ export default function DiscountModal({
               subtotal={cartSubtotal}
               discountAmount={previewDiscountAmount}
               format={format}
+              isAU={isAU}
             />
           )}
 
@@ -643,6 +649,7 @@ export default function DiscountModal({
               subtotal={cartSubtotal}
               discountAmount={bogoDiscountAmount()}
               format={format}
+              isAU={isAU}
             />
           )}
 
@@ -738,6 +745,7 @@ export default function DiscountModal({
               subtotal={cartSubtotal}
               discountAmount={couponResult.discountAmount}
               format={format}
+              isAU={isAU}
             />
           )}
 
