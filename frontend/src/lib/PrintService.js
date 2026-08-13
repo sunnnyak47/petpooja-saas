@@ -138,8 +138,9 @@ function generateBillHTML(order, outlet, options = {}) {
       </tr>`;
   }).join('');
 
+  const auGst = (Math.round(grandTotal * 100 / 11) / 100);
   const taxSection = isAU
-    ? (igst > 0 ? `<tr><td colspan="2" style="opacity:.7">GST (10%) incl.</td><td style="text-align:right;opacity:.7">${currency}${igst.toFixed(2)}</td></tr>` : '')
+    ? (grandTotal > 0 ? `<tr><td colspan="2" style="opacity:.7">GST (10%) incl.</td><td style="text-align:right;opacity:.7">${currency}${auGst.toFixed(2)}</td></tr>` : '')
     : `
       ${cgst > 0 ? `<tr><td colspan="2" style="opacity:.7">CGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${cgst.toFixed(2)}</td></tr>` : ''}
       ${sgst > 0 ? `<tr><td colspan="2" style="opacity:.7">SGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${sgst.toFixed(2)}</td></tr>` : ''}
@@ -179,7 +180,7 @@ function generateBillHTML(order, outlet, options = {}) {
   <!-- Order meta -->
   <table style="width:100%;font-size:${fontSize};border-collapse:collapse;">
     <tr>
-      <td>Bill No: <b>${order?.invoice_number ?? '#—'}</b></td>
+      <td>Bill No: <b>${order?.invoice_number ?? order?.order_number ?? '#—'}</b></td>
       <td style="text-align:right;">${formatDateTime(order?.created_at ?? new Date())}</td>
     </tr>
     <tr>
@@ -366,7 +367,7 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
 
   // ---- Meta: left-aligned ----
   append(buf, ESC, 0x61, ALIGN_LEFT);          // ESC a 0 — left align
-  append(buf, ...encodeText(`Bill: ${order?.invoice_number ?? '#'}`), LF);
+  append(buf, ...encodeText(`Bill: ${order?.invoice_number ?? order?.order_number ?? '#'}`), LF);
   append(buf, ...encodeText(`Date: ${formatDateTime(order?.created_at ?? new Date())}`), LF);
   append(buf, ...encodeText(`Table: ${order?.table?.table_number ?? 'N/A'}  Covers: ${order?.covers ?? 1}`), LF);
   if (order?.staff?.full_name) {
@@ -403,8 +404,9 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
   }
 
   if (isAU) {
-    if (igst > 0) {
-      append(buf, ...encodeText(alignColumns('GST (10%) incl.', `${currency} ${igst.toFixed(2)}`, lineWidth)), LF);
+    if (grandTotal > 0) {
+      const auGst = (Math.round(grandTotal * 100 / 11) / 100);
+      append(buf, ...encodeText(alignColumns('GST (10%) incl.', `${currency} ${auGst.toFixed(2)}`, lineWidth)), LF);
     }
   } else {
     if (cgst > 0) append(buf, ...encodeText(alignColumns('CGST (2.5%)', `${currency} ${cgst.toFixed(2)}`, lineWidth)), LF);

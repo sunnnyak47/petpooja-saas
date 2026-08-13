@@ -409,6 +409,16 @@ router.put('/settings', authenticate, hasRole('super_admin', 'owner', 'manager')
     });
 
     await prisma.$transaction(upsertOps);
+
+    // Mirror compliance fields onto the Outlet model so order receipts pick them up.
+    const outletPatch = {};
+    if ('abn'           in settings) outletPatch.abn           = settings.abn           || null;
+    if ('gstin'         in settings) outletPatch.gstin         = settings.gstin         || null;
+    if ('fssai_number'  in settings) outletPatch.fssai_number  = settings.fssai_number  || null;
+    if (Object.keys(outletPatch).length) {
+      await prisma.outlet.update({ where: { id: outlet_id }, data: outletPatch });
+    }
+
     sendSuccess(res, { saved: upsertOps.length }, 'Settings saved successfully');
   } catch (error) { next(error); }
 });

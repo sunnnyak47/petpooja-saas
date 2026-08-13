@@ -48,13 +48,18 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
           </div>
 
           <div className="flex justify-between mb-1">
-            <span>Bill No: {order.invoice_number || 'PENDING'}</span>
+            <span>Bill No: {order.invoice_number || order.order_number || 'PENDING'}</span>
             <span>Date: {formatDate(order.created_at)}</span>
           </div>
-          <div className="flex justify-between mb-4">
+          <div className="flex justify-between mb-1">
             <span>Table: {order.table?.table_number ?? order.table_number ?? 'N/A'}</span>
-            <span>Staff: {order.staff?.full_name || 'POS'}</span>
+            <span>Covers: {order.covers ?? 1}</span>
           </div>
+          {order.staff?.full_name && (
+            <div className="mb-4 text-[11px] opacity-70">
+              Cashier: {order.staff.full_name}
+            </div>
+          )}
 
           <div className="border-t border-dashed border-gray-300 mb-2"></div>
           <div className="grid grid-cols-12 font-bold mb-2 uppercase text-[10px]">
@@ -86,10 +91,10 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
                <span>{symbol}{Number(order.subtotal).toFixed(2)}</span>
             </div>
             {isAU ? (
-              (Number(order.igst) > 0 || Number(order.cgst) > 0 || Number(order.sgst) > 0 || Number(order.gst) > 0) && (
+              Number(order.grand_total) > 0 && (
                 <div className="flex justify-between text-[10px] opacity-70">
                   <span>GST (10%) incl.</span>
-                  <span>{symbol}{Number(order.igst || order.gst || (Number(order.cgst || 0) + Number(order.sgst || 0))).toFixed(2)}</span>
+                  <span>{symbol}{(Math.round(Number(order.grand_total) * 100 / 11) / 100).toFixed(2)}</span>
                 </div>
               )
             ) : (
