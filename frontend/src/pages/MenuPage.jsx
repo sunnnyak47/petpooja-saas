@@ -675,7 +675,13 @@ export default function MenuPage() {
                           
                           <p className="font-bold text-white text-base leading-tight mb-0.5 pr-2 truncate">{item.name}</p>
                           <div className="flex items-end justify-between mt-2">
-                             <p className="text-lg font-black text-brand-400">{format(item.base_price)}</p>
+                             {item.variants?.length >= 2 ? (() => {
+                               const prices = item.variants.map(v => Number(item.base_price) + Number(v.price_addition || 0));
+                               const lo = Math.min(...prices), hi = Math.max(...prices);
+                               return <p className="text-sm font-black text-brand-400">{lo === hi ? format(lo) : `${format(lo)} – ${format(hi)}`}</p>;
+                             })() : (
+                               <p className="text-lg font-black text-brand-400">{format(item.base_price)}</p>
+                             )}
                              {item.short_code && <span className="font-mono text-xs text-surface-500 font-bold bg-surface-900 px-1.5 py-0.5 rounded border border-surface-700">{item.short_code}</span>}
                           </div>
                        </div>

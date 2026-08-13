@@ -1859,8 +1859,7 @@ export default function POSPage() {
             <div key={i} className={`relative z-10 flex items-center gap-3 p-2 bg-surface-800/40 border-l-4 ${BORDER_COLORS[item.food_type] || 'border-l-surface-600'} rounded-lg group hover:bg-surface-800`}>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate ${isCompMode ? 'text-success-400' : 'text-white'}`}>
-                  {item.name}
-                  {item.variant_name && <span className="text-[10px] ml-1 bg-surface-700 px-1 rounded text-surface-400">{item.variant_name}</span>}
+                  {item.variant_name ? `${item.name} (${item.variant_name})` : item.name}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-0.5">
                    {item.addons?.map((a, ai) => (
