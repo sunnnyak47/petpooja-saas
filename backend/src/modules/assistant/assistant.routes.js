@@ -16,6 +16,7 @@ const { uploadLimiter } = require('../../middleware/rateLimit.middleware');
 // mismatched client outlet_id for non-owner roles and defaults them to their own
 // outlet, while owners/super_admins keep multi-outlet access. Without it a
 // non-owner could pass an arbitrary outlet_id and read/act on another tenant.
+router.get('/usage', authenticate, enforceOutletScope, c.usage);
 router.get('/capabilities', authenticate, c.capabilities);
 router.get('/alerts', authenticate, enforceOutletScope, c.getAlerts);
 router.get('/insights', authenticate, enforceOutletScope, c.getInsights);

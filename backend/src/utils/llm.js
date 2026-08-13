@@ -8,11 +8,17 @@
 
 const https = require('https');
 const logger = require('./../config/logger');
+const tokenMeter = require('./tokenMeter');
 
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+
+// callGroq/callGemini resolve { data, usage, model } — data is the parsed JSON the
+// caller wants; usage is the provider's token count (recorded, then discarded).
 function callGroq(messages) {
   const apiKey = process.env.GROQ_API_KEY;
   const body = JSON.stringify({
-    model: 'llama-3.3-70b-versatile',
+    model: GROQ_MODEL,
     messages,
     temperature: 0.2,
     max_tokens: 700,
@@ -35,7 +41,7 @@ function callGroq(messages) {
         try {
           const parsed = JSON.parse(data);
           if (parsed.error) return reject(new Error(parsed.error.message));
-          resolve(JSON.parse(parsed.choices?.[0]?.message?.content));
+          resolve({ data: JSON.parse(parsed.choices?.[0]?.message?.content), usage: parsed.usage, model: parsed.model || GROQ_MODEL });
         } catch (e) { reject(e); }
       });
     });
@@ -50,28 +56,37 @@ async function callGemini(system, user) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash-lite',
+    model: GEMINI_MODEL,
     systemInstruction: system,
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
   });
   const res = await model.generateContent(user);
-  return JSON.parse(res.response.text());
+  return { data: JSON.parse(res.response.text()), usage: res.response.usageMetadata, model: GEMINI_MODEL };
 }
 
 /**
- * Ask the configured LLM and get back the parsed JSON object it returns.
+ * Ask the configured LLM and get back the parsed JSON object it returns. The token
+ * usage the provider reports is recorded to tokenMeter (attributed to the current
+ * request's outlet/user via AsyncLocalStorage) and never affects the return value.
  * @param {string} system - system instruction
  * @param {string} user - user content
+ * @param {{feature?:string}} [meta] - optional feature label for the usage breakdown
  * @returns {Promise<object>}
  */
-async function callLLM(system, user) {
+async function callLLM(system, user, meta = {}) {
+  let out;
+  let provider;
   if (process.env.GROQ_API_KEY) {
-    return callGroq([{ role: 'system', content: system }, { role: 'user', content: user }]);
+    provider = 'groq';
+    out = await callGroq([{ role: 'system', content: system }, { role: 'user', content: user }]);
+  } else if (process.env.GEMINI_API_KEY) {
+    provider = 'gemini';
+    out = await callGemini(system, user);
+  } else {
+    throw new Error('No LLM provider configured');
   }
-  if (process.env.GEMINI_API_KEY) {
-    return callGemini(system, user);
-  }
-  throw new Error('No LLM provider configured');
+  try { tokenMeter.record(out.usage, { model: out.model, provider, feature: meta.feature }); } catch (_) { /* metering never breaks a call */ }
+  return out.data;
 }
 
 /** True when at least one provider key is present. */

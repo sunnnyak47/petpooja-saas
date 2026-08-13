@@ -14,6 +14,7 @@ const { TOOLS, SUGGESTIONS } = require('./assistant.tools');
 const { sendSuccess, sendError } = require('../../utils/response');
 const { getDbClient } = require('../../config/database');
 const logger = require('../../config/logger');
+const tokenMeter = require('../../utils/tokenMeter');
 
 /**
  * POST /api/assistant/ask — answer a read-only question about the user's data.
@@ -34,9 +35,26 @@ async function ask(req, res, next) {
     // Optional conversation history for multi-turn follow-ups; the service
     // sanitizes + bounds it, so a malformed value can never break the request.
     const history = Array.isArray(req.body.history) ? req.body.history : [];
-    const result = await assistant.ask(userCtx, question, history);
+    // Attribute every LLM call made while answering to this outlet/user (via
+    // AsyncLocalStorage) so the token meter can report usage without threading
+    // metadata through the whole service.
+    const result = await tokenMeter.withContext(
+      { outletId, userId: req.user.id, feature: 'assistant' },
+      () => assistant.ask(userCtx, question, history),
+    );
     sendSuccess(res, result, 'Answer generated');
   } catch (error) { next(error); }
+}
+
+/**
+ * GET /api/assistant/usage — token usage for this outlet (today / month / total,
+ * per-feature + per-model breakdown, with a rough cost estimate).
+ */
+async function usage(req, res, next) {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id || null;
+    return sendSuccess(res, tokenMeter.snapshot(outletId), 'Token usage');
+  } catch (error) { return next(error); }
 }
 
 /**
@@ -244,4 +262,4 @@ async function removeDoc(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { ask, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule, getDocs, addDoc, ingestDoc, removeDoc };
+module.exports = { ask, usage, capabilities, downloadReport, act, getAlerts, getInsights, getShortcuts, getSchedules, addSchedule, removeSchedule, getDocs, addDoc, ingestDoc, removeDoc };
