@@ -145,7 +145,14 @@ function getGSTRate(food_type, country_code) {
 function calculateItemTax(item, outletConfig) {
   const country = (outletConfig.country_code || '').toUpperCase();
   const qty = Number(item.quantity) || 1;
-  const gstRate = Number(item.gst_rate) || 0;
+  // Australia levies a FLAT 10% GST. The outlet's configured rate is authoritative,
+  // so a stale per-item gst_rate — e.g. one of the legacy items still stored at
+  // India's 5% — must NEVER drive an AU bill. Coercing here, at the single engine
+  // every tax path funnels through (POS cart, order create, recompute, receipts),
+  // fixes ALL existing items at once with no data migration.
+  const gstRate = country === 'AU'
+    ? (Number(outletConfig.default_gst_rate) || 10)
+    : (Number(item.gst_rate) || 0);
   const isInclusive = Boolean(item.is_inclusive);
 
   // Determine cess rate (India only)
@@ -166,12 +173,16 @@ function calculateItemTax(item, outletConfig) {
   let cessAmountPaise;
 
   if (isInclusive) {
-    // Price already includes GST (and cess for IN)
-    // taxable = total / (1 + combined_rate/100)
+    // Price already includes GST (and cess for IN). Compute the tax components
+    // DIRECTLY from the tax-inclusive total, then take `taxable` as the remainder —
+    // so the parts always reconcile to the original price with a SINGLE rounding.
+    // (The old approach rounded `taxable` first, then computed GST off that rounded
+    // value — double-rounding that pushed $5.99's GST to 0.55 instead of 0.54.)
     const combinedRate = gstRate + cessRate;
-    taxableAmountPaise = Math.round((lineTotalPaise * 10000) / (10000 + combinedRate * 100));
-    gstAmountPaise = Math.round((taxableAmountPaise * gstRate * 100) / 10000);
-    cessAmountPaise = Math.round((taxableAmountPaise * cessRate * 100) / 10000);
+    const denom = 100 + combinedRate;
+    gstAmountPaise = denom > 0 ? Math.round((lineTotalPaise * gstRate) / denom) : 0;
+    cessAmountPaise = denom > 0 ? Math.round((lineTotalPaise * cessRate) / denom) : 0;
+    taxableAmountPaise = lineTotalPaise - gstAmountPaise - cessAmountPaise;
   } else {
     taxableAmountPaise = lineTotalPaise;
     gstAmountPaise = Math.round((taxableAmountPaise * gstRate * 100) / 10000);

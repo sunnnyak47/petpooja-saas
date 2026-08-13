@@ -392,8 +392,11 @@ export default function POSPage() {
         const itemBase = Number(item.base_price) + (item.variant_price || 0);
         const addonsTotal = (item.addons || []).reduce((s, a) => s + (Number(a.price) * a.quantity), 0);
         const lineAmt = (itemBase + addonsTotal) * item.quantity;
-        // Nullish (not ||) so an explicit 0% / GST-free item is honored, not coerced to the 10% default
-        const rate = item.gst_rate ?? item.tax_rate ?? defaultGstRate;
+        // Australia is a FLAT 10% GST and the backend tax engine hard-coerces AU to
+        // this rate — so the cart preview MUST use it too, ignoring any stale per-item
+        // gst_rate (e.g. a legacy item still stored at India's 5%). Using the stored
+        // rate here made the cart under-report GST on every pre-existing item.
+        const rate = defaultGstRate;
         // tax = lineAmt - lineAmt / (1 + rate/100)
         return sum + (lineAmt - lineAmt / (1 + rate / 100));
       }, 0);

@@ -185,7 +185,9 @@ function TaxRowsAU({ data, format, subtotal, discount, symbol }) {
   const totalTax   = data?.total_tax    ?? 0;
   const taxable    = data?.taxable_amount ?? subtotal;
   const grandTotal = data?.grand_total    ?? subtotal;
-  const gstRate    = data?.gst_rate       ?? 10;
+  // Australia is a flat 10% GST — never show a stale per-item/legacy rate (e.g. 5%)
+  // on the AU bill; the amount above already reflects the backend's 10% coercion.
+  const gstRate    = 10;
 
   return (
     <>
