@@ -284,6 +284,7 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         {/* The Home page acts as an intelligent traffic officer */}
         <Route index element={<HomeRedirect />} />
+        <Route path="dashboard" element={<Navigate to="/" replace />} />
         <Route path="onboarding" element={<OnboardingPage />} />
 
         {/* Owner Dashboard Items (Hidden for Super Admin via Sidebar) */}

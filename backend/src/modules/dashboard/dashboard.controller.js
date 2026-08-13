@@ -188,9 +188,9 @@ async function getLive(req, res, next) {
         where: { outlet_id: outletId, status: 'occupied', is_deleted: false },
       }),
 
-      // 5. Total tables
+      // 5. Total active tables (exclude inactive/disabled ones so the ratio is meaningful)
       prisma.table.count({
-        where: { outlet_id: outletId, is_deleted: false },
+        where: { outlet_id: outletId, is_deleted: false, status: { not: 'inactive' } },
       }),
 
       // 6. KOT status breakdown for kitchen stats

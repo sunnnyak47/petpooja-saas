@@ -1743,7 +1743,7 @@ export default function POSPage() {
                    {orderType === 'takeaway' ? 'Takeaway' : 'Delivery'}
                  </span>
                )}
-               <span className="badge-neutral">{cart.length} item</span>
+               <span className="badge-neutral">{(() => { const u = cart.reduce((s, c) => s + (c.quantity || 1), 0); return `${u} item${u !== 1 ? 's' : ''}`; })()}</span>
              </div>
              <div className="flex items-center gap-1">
                {selectedTable && (
@@ -2355,6 +2355,7 @@ export default function POSPage() {
           }
 
           dispatch(clearCart());
+          dispatch(setSelectedTable(null));
           setTempOrderId(null);
           setIsBilled(false);
           setBilledOrder(null);
@@ -2369,7 +2370,7 @@ export default function POSPage() {
         }}
       />
 
-      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => setShowSplitBill(false)} orderTotal={payableAmount} orderId={tempOrderId}
+      {showSplitBill && <SplitBillModal isOpen={showSplitBill} onClose={() => { setShowSplitBill(false); setShowPayment(true); }} orderTotal={payableAmount} orderId={tempOrderId}
         ensureOrder={async () => {
           // Create/commit the order ONLY when the split is actually processed.
           if (tempOrderId) return tempOrderId;

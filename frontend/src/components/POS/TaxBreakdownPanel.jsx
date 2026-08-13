@@ -54,7 +54,7 @@ export default function TaxBreakdownPanel({
       const { data } = await api.get('/orders/tax-preview', {
         params: {
           outlet_id:    outletId,
-          items:        encodeURIComponent(JSON.stringify(debouncedItems)),
+          items:        JSON.stringify(debouncedItems),
           country_code: isAU ? 'AU' : 'IN',
         },
       });

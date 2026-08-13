@@ -481,7 +481,7 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 font-mono text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--accent)' }}>{formatOrderNo(order.order_number)}</td>
                   <td className="px-4 py-3 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{order.order_type?.replace('_', ' ')}</td>
                   <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order.table?.table_number || '—'}</td>
-                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order._count?.order_items || 0}</td>
+                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-secondary)' }}>{order._count?.order_items || 0} line{(order._count?.order_items || 0) !== 1 ? 's' : ''}</td>
                   <td className="px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{format(order.grand_total || 0)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {(() => {
