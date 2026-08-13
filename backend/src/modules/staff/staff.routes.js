@@ -115,7 +115,7 @@ router.post('/verify-pin', authenticate, validate(verifyPinSchema), async (req, 
     // tenant filter, so without this a foreign tenant could probe/brute-force PINs.
     await staffService.assertOutletInTenant(outletId, req.user);
     const staff = await staffService.verifyManagerPIN(outletId, req.body.pin);
-    if (!staff) return res.status(401).json({ success: false, message: 'Invalid PIN' });
+    if (!staff) return res.status(422).json({ success: false, message: 'Invalid PIN' });
     sendSuccess(res, staff, 'PIN verified');
   } catch (error) { next(error); }
 });

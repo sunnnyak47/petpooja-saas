@@ -339,6 +339,33 @@ export default function DiscountModal({
   }
 
   function handleApply() {
+    if (activeTab === 'percent' || activeTab === 'flat') {
+      if (!numValue || numValue <= 0) {
+        toast.error(activeTab === 'percent' ? 'Enter a percentage (1–100)' : 'Enter a discount amount');
+        return;
+      }
+      if (activeTab === 'percent' && numValue > 100) {
+        toast.error('Discount cannot exceed 100%');
+        return;
+      }
+      if (!reason.trim()) {
+        toast.error('A reason is required — it feeds the discount audit trail');
+        return;
+      }
+      if (!pinVerified) {
+        toast.error('Manager PIN must be verified before applying a discount');
+        return;
+      }
+    }
+    if (activeTab === 'bogo' && bogoDiscountAmount() <= 0) {
+      toast.error('No eligible items for BOGO — add at least two items');
+      return;
+    }
+    if (activeTab === 'coupon' && !couponResult) {
+      toast.error('Validate a coupon code first');
+      return;
+    }
+
     const payload = buildPayload();
     if (!payload) {
       toast.error('Nothing to apply');
@@ -492,12 +519,13 @@ export default function DiscountModal({
               <PinInput pin={pin} onChange={setPin} disabled={verifyPinMutation.isPending} />
               <button
                 onClick={handleVerifyPin}
-                disabled={pin.length < 4 || verifyPinMutation.isPending}
+                disabled={verifyPinMutation.isPending}
                 className="w-full mt-2 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
                   background: pin.length >= 4 ? 'var(--accent)' : 'var(--bg-hover)',
                   color: pin.length >= 4 ? '#fff' : 'var(--text-secondary)',
                   opacity: verifyPinMutation.isPending ? 0.7 : 1,
+                  cursor: verifyPinMutation.isPending ? 'not-allowed' : 'pointer',
                 }}
               >
                 <Lock className="w-4 h-4" />
@@ -580,12 +608,13 @@ export default function DiscountModal({
               <PinInput pin={pin} onChange={setPin} disabled={verifyPinMutation.isPending} />
               <button
                 onClick={handleVerifyPin}
-                disabled={pin.length < 4 || verifyPinMutation.isPending}
+                disabled={verifyPinMutation.isPending}
                 className="w-full mt-2 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                 style={{
                   background: pin.length >= 4 ? 'var(--accent)' : 'var(--bg-hover)',
                   color: pin.length >= 4 ? '#fff' : 'var(--text-secondary)',
                   opacity: verifyPinMutation.isPending ? 0.7 : 1,
+                  cursor: verifyPinMutation.isPending ? 'not-allowed' : 'pointer',
                 }}
               >
                 <Lock className="w-4 h-4" />
@@ -782,13 +811,13 @@ export default function DiscountModal({
 
         <button
           onClick={handleApply}
-          disabled={!canApply || isBusy}
+          disabled={isBusy}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
           style={{
             background: canApply ? 'var(--accent)' : 'var(--bg-hover)',
             color: canApply ? '#fff' : 'var(--text-secondary)',
             opacity: isBusy ? 0.7 : 1,
-            cursor: canApply && !isBusy ? 'pointer' : 'not-allowed',
+            cursor: isBusy ? 'not-allowed' : 'pointer',
           }}
         >
           <Check className="w-4 h-4" />
