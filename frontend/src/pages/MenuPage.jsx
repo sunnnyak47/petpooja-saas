@@ -140,7 +140,7 @@ export default function MenuPage() {
   const [isAISyncOpen, setIsAISyncOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  const [catForm, setCatForm] = useState({ name: '', description: '', display_order: 1 });
+  const [catForm, setCatForm] = useState({ name: '', description: '', display_order: 1, station: 'KITCHEN' });
   const [catDeleteTarget, setCatDeleteTarget] = useState(null);
   const canManageCats = user?.role === 'owner' || user?.role === 'manager';
   const [itemForm, setItemForm] = useState({ ...EMPTY_ITEM });
@@ -168,7 +168,7 @@ export default function MenuPage() {
   });
 
   // Mutations
-  const resetCatForm = () => setCatForm({ name: '', description: '', display_order: 1 });
+  const resetCatForm = () => setCatForm({ name: '', description: '', display_order: 1, station: 'KITCHEN' });
 
   // Query keys the two useQuery calls above already use — reused verbatim for
   // optimistic setQueryData / invalidateQueries so writes appear INSTANTLY.
@@ -525,7 +525,7 @@ export default function MenuPage() {
                         {canManageCats && (
                           <>
                             <button
-                              onClick={(e) => { e.stopPropagation(); setCatForm({ id: cat.id, name: cat.name, description: cat.description || '', display_order: cat.display_order || 1 }); setIsAddCatOpen(true); }}
+                              onClick={(e) => { e.stopPropagation(); setCatForm({ id: cat.id, name: cat.name, description: cat.description || '', display_order: cat.display_order || 1, station: cat.station || 'KITCHEN' }); setIsAddCatOpen(true); }}
                               title="Rename category"
                               className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-surface-700 text-surface-300 transition-opacity">
                               <Edit className="w-3.5 h-3.5" />
@@ -712,7 +712,10 @@ export default function MenuPage() {
                   <div className="grid grid-cols-2 gap-4">
                      <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">Category *</label>
-                        <select required className="input w-full" value={itemForm.category_id} onChange={e=>setItemForm({...itemForm, category_id: e.target.value})}>
+                        <select required className="input w-full" value={itemForm.category_id} onChange={e => {
+                              const cat = (categories||[]).find(c => c.id === e.target.value);
+                              setItemForm({ ...itemForm, category_id: e.target.value, kitchen_station: itemForm.kitchen_station !== 'KITCHEN' ? itemForm.kitchen_station : (cat?.station || 'KITCHEN') });
+                           }}>
                            <option value="" disabled>Select...</option>
                            {(categories||[]).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
@@ -795,6 +798,15 @@ export default function MenuPage() {
                             <option value={18}>18%</option><option value={0}>Exempt (0%)</option>
                           </>
                         )}
+                     </select>
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-surface-400 mb-1">KDS Station</label>
+                     <select className="input w-full" value={itemForm.kitchen_station} onChange={e=>setItemForm({...itemForm, kitchen_station: e.target.value})}>
+                        <option value="KITCHEN">Kitchen</option>
+                        <option value="BAR">Bar</option>
+                        <option value="DESSERT">Dessert</option>
+                        <option value="PACKING">Packing</option>
                      </select>
                   </div>
                   <div className="border-2 border-dashed border-surface-600 hover:border-brand-500 transition-colors rounded-xl text-center cursor-pointer relative overflow-hidden group" style={{ minHeight: '160px' }}>
@@ -965,11 +977,21 @@ export default function MenuPage() {
       <Modal isOpen={isAddCatOpen} onClose={() => { setIsAddCatOpen(false); resetCatForm(); }} title={catForm.id ? 'Rename Category' : 'New Category'} size="sm">
          <form onSubmit={e=>{
              e.preventDefault();
-             if (catForm.id) updateCatMutation.mutate({ id: catForm.id, name: catForm.name, description: catForm.description, display_order: catForm.display_order });
+             if (catForm.id) updateCatMutation.mutate({ id: catForm.id, name: catForm.name, description: catForm.description, display_order: catForm.display_order, station: catForm.station });
              else addCatMutation.mutate({ ...catForm, outlet_id: outletId });
            }} className="space-y-4 pt-2">
             <div><label className="block text-xs font-bold text-surface-400 mb-1">Category Name</label><input required type="text" className="input w-full" placeholder="e.g. Main Course" value={catForm.name} onChange={e=>setCatForm({...catForm, name: e.target.value})} /></div>
             <div><label className="block text-xs font-bold text-surface-400 mb-1">Display Order</label><input type="number" min="1" className="input w-full" value={catForm.display_order} onChange={e=>setCatForm({...catForm, display_order: Number(e.target.value)})} /></div>
+            <div>
+              <label className="block text-xs font-bold text-surface-400 mb-1">Default KDS Station</label>
+              <select className="input w-full" value={catForm.station} onChange={e=>setCatForm({...catForm, station: e.target.value})}>
+                <option value="KITCHEN">Kitchen (default)</option>
+                <option value="BAR">Bar</option>
+                <option value="DESSERT">Dessert</option>
+                <option value="PACKING">Packing</option>
+              </select>
+              <p className="text-[10px] text-surface-500 mt-1">New items in this category inherit this station unless overridden.</p>
+            </div>
             <button type="submit" disabled={addCatMutation.isPending || updateCatMutation.isPending} className="btn-primary w-full py-3 mt-2">{catForm.id ? 'Save changes' : 'Save Category'}</button>
          </form>
       </Modal>

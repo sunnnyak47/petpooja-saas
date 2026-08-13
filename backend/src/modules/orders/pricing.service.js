@@ -115,7 +115,7 @@ function buildOrderItems(items, menuItemMap, taxConfig) {
       gst_rate: taxConfig.country_code === 'AU'
         ? (taxConfig.default_gst_rate || 10)
         : (Number(menuItem.gst_rate) || taxConfig.default_gst_rate || 0),
-      kitchen_station: menuItem.kitchen_station,
+      kitchen_station: menuItem.kitchen_station || menuItem.category?.station || 'KITCHEN',
       notes: item.notes || null,
       addons: orderAddons,
     });

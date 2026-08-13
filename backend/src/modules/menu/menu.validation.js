@@ -5,6 +5,8 @@
 
 const Joi = require('joi');
 
+const KITCHEN_STATIONS = ['KITCHEN', 'BAR', 'COLD', 'DESSERT', 'GRILL', 'PACKING'];
+
 const createCategorySchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
   name: Joi.string().trim().min(2).max(100).required(),
@@ -12,6 +14,7 @@ const createCategorySchema = Joi.object({
   display_order: Joi.number().integer().min(0).default(0),
   is_active: Joi.boolean().default(true),
   parent_id: Joi.string().uuid().allow(null),
+  station: Joi.string().valid(...KITCHEN_STATIONS).default('KITCHEN'),
 });
 
 const updateCategorySchema = Joi.object({
@@ -20,6 +23,7 @@ const updateCategorySchema = Joi.object({
   display_order: Joi.number().integer().min(0),
   is_active: Joi.boolean(),
   parent_id: Joi.string().uuid().allow(null),
+  station: Joi.string().valid(...KITCHEN_STATIONS),
 }).min(1);
 
 const createMenuItemSchema = Joi.object({
@@ -31,7 +35,7 @@ const createMenuItemSchema = Joi.object({
   base_price: Joi.number().precision(2).min(0).required(),
   food_type: Joi.string().valid('veg', 'non_veg', 'egg').default('veg'),
   cuisine: Joi.string().trim().max(50).allow('', null),
-  kitchen_station: Joi.string().valid('KITCHEN', 'BAR', 'COLD', 'DESSERT', 'GRILL').default('KITCHEN'),
+  kitchen_station: Joi.string().valid(...KITCHEN_STATIONS).default('KITCHEN'),
   gst_rate: Joi.number().valid(0, 5, 10, 12, 18, 28).default(5),
   hsn_code: Joi.string().default('9963'),
   is_active: Joi.boolean().default(true),

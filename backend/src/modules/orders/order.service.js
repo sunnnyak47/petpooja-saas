@@ -301,7 +301,7 @@ async function createOrder(data, staffId) {
     const menuItemIds = data.items.map((i) => i.menu_item_id);
     const menuItems = await prisma.menuItem.findMany({
       where: { id: { in: menuItemIds }, outlet_id: data.outlet_id, is_deleted: false },
-      include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
+      include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } }, category: { select: { station: true } } },
     });
     const menuItemMap = new Map(menuItems.map((mi) => [mi.id, mi]));
 
@@ -689,7 +689,7 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
     const menuItemIds = items.map((i) => i.menu_item_id);
     const menuItems = await prisma.menuItem.findMany({
       where: { id: { in: menuItemIds }, outlet_id: order.outlet_id, is_deleted: false },
-      include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } } },
+      include: { variants: { where: { is_deleted: false } }, addons: { where: { is_deleted: false } }, category: { select: { station: true } } },
     });
     const menuItemMap = new Map(menuItems.map((mi) => [mi.id, mi]));
 
@@ -744,7 +744,7 @@ async function addItemsToOrder(orderId, items, staffId, outletId = null) {
             item_total: itemTotal, gst_rate: preTxTaxConfig.country_code === 'AU'
               ? (preTxTaxConfig.default_gst_rate || 10)
               : (Number(menuItem.gst_rate) || preTxTaxConfig.default_gst_rate || 0),
-            kitchen_station: menuItem.kitchen_station, notes: item.notes || null,
+            kitchen_station: menuItem.kitchen_station || menuItem.category?.station || 'KITCHEN', notes: item.notes || null,
           },
         });
 
