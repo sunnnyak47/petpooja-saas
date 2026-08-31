@@ -111,6 +111,12 @@ export default function ReservationsPage() {
       toast.error('Please enter a valid phone number');
       return;
     }
+    // The HTML min attribute is bypassed by typing — enforce the same rule in JS.
+    // Allow editing an existing reservation to any date (staff correction flow).
+    if (!editId && form.reservation_date && form.reservation_date < today) {
+      toast.error('Reservation date cannot be in the past — check the year and month/day order');
+      return;
+    }
     const { table_id, ...rest } = form;
     const payload = { ...rest, party_size: Number(form.party_size) };
     // Attach the chosen/suggested table so what the owner sees is what gets booked.
@@ -529,7 +535,14 @@ export default function ReservationsPage() {
                             </button>
                           )}
                           {r.status?.toUpperCase() === 'CONFIRMED' && (
-                            <button onClick={() => statusMutation.mutate({ id: r.id, status: 'seated' })}
+                            <button onClick={() => {
+                              const rDate = r.reservation_date?.split('T')[0];
+                              if (rDate && rDate > today) {
+                                toast.error(`Cannot seat a future booking (date: ${rDate}). Wait until the booking day or update the date first.`);
+                                return;
+                              }
+                              statusMutation.mutate({ id: r.id, status: 'seated' });
+                            }}
                               className="text-xs px-2 py-1 rounded-lg"
                               style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
                               Seat

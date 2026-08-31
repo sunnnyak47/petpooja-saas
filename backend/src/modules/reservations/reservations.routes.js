@@ -188,6 +188,21 @@ router.patch('/:id', hasPermission('MANAGE_POS'), validate(updateReservationSche
     if (!['super_admin', 'owner'].includes(req.user.role) && existing.outlet_id !== req.user.outlet_id)
       return sendError(res, 403, 'Access denied: cannot access data from another outlet');
 
+    // Seat-action guards: only run when transitioning to 'seated'.
+    if (data.status === 'seated') {
+      // Future-date guard: "seated" means the party is physically here right now.
+      // A booking dated tomorrow cannot be seated today.
+      if (existing.reservation_date) {
+        const todayUtc = new Date();
+        todayUtc.setUTCHours(0, 0, 0, 0);
+        const bookingDay = new Date(existing.reservation_date);
+        bookingDay.setUTCHours(0, 0, 0, 0);
+        if (bookingDay > todayUtc) {
+          const dateLabel = existing.reservation_date.toISOString().split('T')[0];
+          return sendError(res, 422, `Cannot seat a future reservation (booked for ${dateLabel}). Wait until the booking day or update the date first.`);
+        }
+      }
+    }
     // Double-booking guard: when seating a party, reject if another reservation on
     // the same table is already 'seated' (someone is physically at the table now).
     if (data.status === 'seated' && existing.table_id) {

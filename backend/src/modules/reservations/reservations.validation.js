@@ -6,12 +6,25 @@
 const Joi = require('joi');
 const { phoneOptional, phoneRequired } = require('../../utils/validators');
 
+// Reusable past-date validator: compares at start-of-UTC-day so "today" is always
+// allowed regardless of what time of day the request arrives.
+function notInPast(value, helpers) {
+  const todayUtc = new Date();
+  todayUtc.setUTCHours(0, 0, 0, 0);
+  const dayUtc = new Date(value);
+  dayUtc.setUTCHours(0, 0, 0, 0);
+  if (dayUtc < todayUtc) return helpers.error('date.past');
+  return value;
+}
+
 /** POST /api/reservations */
 const createReservationSchema = Joi.object({
   customer_name: Joi.string().required().max(150),
   customer_phone: phoneOptional,
   party_size: Joi.number().integer().min(1).max(50).required(),
-  reservation_date: Joi.date().required(),
+  reservation_date: Joi.date().required().custom(notInPast).messages({
+    'date.past': '"reservation_date" cannot be in the past — check the year and month/day order',
+  }),
   reservation_time: Joi.string().pattern(/^[0-2][0-9]:[0-5][0-9]$/),
   special_requests: Joi.string().max(500).allow('', null),
   outlet_id: Joi.string().uuid().required(),
@@ -39,7 +52,9 @@ const publicReservationSchema = Joi.object({
   customer_name: Joi.string().trim().required().max(150),
   customer_phone: phoneRequired,
   party_size: Joi.number().integer().min(1).max(50).required(),
-  reservation_date: Joi.date().required(),
+  reservation_date: Joi.date().required().custom(notInPast).messages({
+    'date.past': '"reservation_date" cannot be in the past — check the year and month/day order',
+  }),
   reservation_time: Joi.string().pattern(/^[0-2][0-9]:[0-5][0-9]$/).required(),
   special_requests: Joi.string().max(500).allow('', null),
   table_id: Joi.string().uuid().allow(null, ''),
