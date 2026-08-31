@@ -64,14 +64,23 @@ function rankTablesByFit(tables, partySize) {
 
 /**
  * Suggest the best-fit tables for a party size at an outlet.
+ * When date + time are supplied, tables already booked within ±90 min of that
+ * slot are excluded from the candidates before ranking.
  * @param {string} outletId
  * @param {number} partySize
  * @param {number} [limit=3]
+ * @param {string|Date|null} [date]
+ * @param {string|null} [time]  "HH:MM"
  * @returns {Promise<Array>}
  */
-async function suggestTables(outletId, partySize, limit = 3) {
+async function suggestTables(outletId, partySize, limit = 3, date = null, time = null) {
   const tables = await getOutletTables(outletId);
-  return rankTablesByFit(tables, partySize).slice(0, Math.max(1, limit));
+  let pool = tables;
+  if (date && time) {
+    const bookedIds = await getBookedTableIds(outletId, date, time);
+    if (bookedIds.size) pool = tables.filter(t => !bookedIds.has(t.id));
+  }
+  return rankTablesByFit(pool, partySize).slice(0, Math.max(1, limit));
 }
 
 /**
@@ -117,6 +126,43 @@ function parseTime(reservationTime) {
 }
 
 /**
+ * Return the set of table IDs already booked for a given date+time slot.
+ * Any reservation that overlaps within a ±90-minute window and has a non-terminal
+ * status (confirmed / pending / seated) counts as a conflict.
+ * @param {string} outletId
+ * @param {string|Date} reservationDate
+ * @param {string} reservationTime  "HH:MM"
+ * @param {string|null} excludeId   reservation id to exclude (for edit flows)
+ * @returns {Promise<Set<string>>}
+ */
+async function getBookedTableIds(outletId, reservationDate, reservationTime, excludeId = null) {
+  const db = getDbClient();
+  const BUFFER_MS = 90 * 60 * 1000;
+  const timeMs = parseTime(reservationTime).getTime();
+  const windowStart = new Date(timeMs - BUFFER_MS);
+  const windowEnd = new Date(timeMs + BUFFER_MS);
+
+  const dayStart = new Date(reservationDate);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+  const conflicts = await db.tableReservation.findMany({
+    where: {
+      outlet_id: outletId,
+      is_deleted: false,
+      status: { in: ['confirmed', 'pending', 'seated'] },
+      reservation_date: { gte: dayStart, lt: dayEnd },
+      reservation_time: { gte: windowStart, lte: windowEnd },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { table_id: true },
+  });
+
+  return new Set(conflicts.map(r => r.table_id).filter(Boolean));
+}
+
+/**
  * Create a reservation from the PUBLIC self-service flow. Tenant-safe: the
  * outlet is validated to exist and be active, and any client-supplied table_id
  * must belong to that outlet. When no table is supplied we auto-assign the
@@ -142,7 +188,9 @@ async function createPublicReservation(input) {
     throw err;
   }
 
-  // Resolve the table: honour a valid client choice, else auto-suggest, else any.
+  // Resolve the table: honour a valid client choice, else auto-suggest.
+  // Any chosen/suggested table is cross-checked against existing reservations
+  // for the same slot before the booking is created.
   let tid = null;
   if (table_id) {
     const chosen = await db.table.findFirst({
@@ -150,21 +198,29 @@ async function createPublicReservation(input) {
       select: { id: true },
     });
     tid = chosen?.id || null;
+    if (tid && reservation_date && reservation_time) {
+      const booked = await getBookedTableIds(outlet_id, reservation_date, reservation_time);
+      if (booked.has(tid)) {
+        const err = new Error('This table is already reserved for the requested time slot. Please choose a different table or time.');
+        err.status = 409;
+        throw err;
+      }
+    }
   }
   if (!tid) {
-    const suggested = await suggestTables(outlet_id, party_size, 1);
+    const suggested = await suggestTables(outlet_id, party_size, 1, reservation_date, reservation_time);
     tid = suggested[0]?.id || null;
   }
   if (!tid) {
-    const anyTable = await db.table.findFirst({
-      where: { outlet_id, is_deleted: false },
-      select: { id: true },
-    });
-    tid = anyTable?.id || null;
-  }
-  if (!tid) {
-    const err = new Error('This restaurant has no tables set up for reservations yet');
-    err.status = 400;
+    // Distinguish "no tables exist" from "all tables booked for this slot"
+    const anyTable = await db.table.findFirst({ where: { outlet_id, is_deleted: false }, select: { id: true } });
+    if (!anyTable) {
+      const err = new Error('This restaurant has no tables set up for reservations yet');
+      err.status = 400;
+      throw err;
+    }
+    const err = new Error('No tables are available for the requested time slot. Please choose a different time.');
+    err.status = 409;
     throw err;
   }
 
@@ -213,8 +269,18 @@ async function createReservation(outletId, input) {
   if (table_id) {
     const chosen = await db.table.findFirst({ where: { id: table_id, outlet_id: outletId, is_deleted: false }, select: { id: true } });
     tid = chosen?.id || null;
+    if (tid && reservation_date && reservation_time) {
+      const booked = await getBookedTableIds(outletId, reservation_date, reservation_time);
+      if (booked.has(tid)) {
+        const err = new Error('This table is already reserved for the requested time slot');
+        err.status = 409; throw err;
+      }
+    }
   }
-  if (!tid) { const [s] = await suggestTables(outletId, party_size, 1); tid = s?.id || null; }
+  if (!tid) {
+    const [s] = await suggestTables(outletId, party_size, 1, reservation_date, reservation_time);
+    tid = s?.id || null;
+  }
   const created = await db.tableReservation.create({
     data: {
       outlet_id: outletId,
@@ -240,6 +306,7 @@ async function createReservation(outletId, input) {
 
 module.exports = {
   getOutletTables,
+  getBookedTableIds,
   createReservation,
   rankTablesByFit,
   suggestTables,

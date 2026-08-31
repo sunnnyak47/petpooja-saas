@@ -119,17 +119,24 @@ router.post('/', hasPermission('MANAGE_POS'), validate(createReservationSchema),
         select: { id: true },
       });
       tid = chosen?.id || null;
+      // Conflict check: reject if the explicitly requested table already has a
+      // reservation within ±90 min of the requested slot.
+      if (tid && reservation_date && reservation_time) {
+        const booked = await reservationService.getBookedTableIds(outlet_id, reservation_date, reservation_time);
+        if (booked.has(tid))
+          return sendError(res, 409, 'This table is already reserved for the requested time slot. Please choose a different table or time.');
+      }
     }
-    // Pick a table if not specified — auto-suggest the best-fit available table
-    // for the party size, falling back to any table for the outlet.
+    // Pick a table if not specified — auto-suggest the best-fit free table for the
+    // slot, excluding any already booked within ±90 min.
     if (!tid) {
-      const [suggested] = await reservationService.suggestTables(outlet_id, party_size, 1);
+      const [suggested] = await reservationService.suggestTables(outlet_id, party_size, 1, reservation_date, reservation_time);
       if (suggested) {
         tid = suggested.id;
       } else {
         const anyTable = await getDbClient().table.findFirst({ where: { outlet_id, is_deleted: false } });
         if (!anyTable) return sendError(res, 400, 'No tables found for this outlet');
-        tid = anyTable.id;
+        return sendError(res, 409, 'No tables are available for the requested time slot. Please choose a different time.');
       }
     }
 
@@ -175,11 +182,28 @@ router.patch('/:id', hasPermission('MANAGE_POS'), validate(updateReservationSche
     // owners/super_admins may cross their own outlets; staff are locked to theirs.
     const existing = await getDbClient().tableReservation.findFirst({
       where: { id: req.params.id, is_deleted: false },
-      select: { id: true, outlet_id: true },
+      select: { id: true, outlet_id: true, table_id: true, reservation_date: true, reservation_time: true },
     });
     if (!existing) return sendError(res, 404, 'Reservation not found');
     if (!['super_admin', 'owner'].includes(req.user.role) && existing.outlet_id !== req.user.outlet_id)
       return sendError(res, 403, 'Access denied: cannot access data from another outlet');
+
+    // Double-booking guard: when seating a party, reject if another reservation on
+    // the same table is already 'seated' (someone is physically at the table now).
+    if (data.status === 'seated' && existing.table_id) {
+      const alreadySeated = await getDbClient().tableReservation.findFirst({
+        where: {
+          id: { not: existing.id },
+          table_id: existing.table_id,
+          status: 'seated',
+          is_deleted: false,
+        },
+        select: { id: true },
+      });
+      if (alreadySeated)
+        return sendError(res, 409, 'Another party is currently seated at this table. Please complete or move that reservation first.');
+    }
+
     const updated = await getDbClient().tableReservation.update({ where: { id: req.params.id }, data });
     sendSuccess(res, updated, 'Reservation updated');
   } catch (err) { next(err); }
