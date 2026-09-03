@@ -365,6 +365,7 @@ app.use('/api/rostering', rosteringRoutes);
 app.use('/api/xero',      xeroRoutes);
 const auIntegrationsRoutes = require('./modules/integrations/au-integrations.routes');
 app.use('/api/integrations/au', auIntegrationsRoutes);
+app.use('/api/integrations/tyro', require('./modules/integrations/tyro.routes'));
 const whatsappRoutes = require('./modules/integrations/whatsapp.routes');
 app.use('/api/whatsapp', whatsappRoutes);
 const reservationRoutes = require('./modules/reservations/reservations.routes');
