@@ -1,0 +1,45 @@
+---
+// The "turn" — a static CSS echo of the 3D hero, shown to EVERY user (incl.
+// mobile / reduced-motion). The five modules docked into one platform.
+import Icon from '../Icon.astro';
+import { HERO_MODULES } from '../../data/site';
+
+const iconFor: Record<string, string> = {
+  pos: 'pos', kds: 'kds', inventory: 'box', delivery: 'bag', accounting: 'ledger',
+};
+---
+<section class="relative overflow-hidden bg-surface-dark text-white">
+  <div class="absolute inset-0 pointer-events-none" aria-hidden="true"
+       style="background: radial-gradient(48rem 32rem at 50% -10%, rgba(37,99,235,.35), transparent 60%);"></div>
+  <div class="container-x py-16 lg:py-24 relative">
+    <div class="text-center max-w-2xl mx-auto" data-reveal>
+      <span class="text-xs font-bold uppercase tracking-widest text-brand-400">One platform</span>
+      <h2 class="h2 mt-2 text-white">Five tools your team juggles — now one login.</h2>
+      <p class="lead mt-3 text-slate-300">Each of these is a separate app, tablet or spreadsheet in most restaurants. In MSRM they're one system that shares the same live data.</p>
+    </div>
+
+    <!-- Module row: five color-coded cards that "dock" into a unified bar -->
+    <div class="mt-12 perspective" data-reveal>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 max-w-4xl mx-auto tilt-3d" data-tilt="7">
+        {HERO_MODULES.map((m, i) => (
+          <div
+            class="rounded-xl2 border p-4 text-center bg-white/5 backdrop-blur"
+            style={`border-color:${m.color}55; box-shadow: 0 10px 30px -14px ${m.color}88; --i:${i}`}
+          >
+            <div class="grid h-11 w-11 mx-auto place-items-center rounded-xl"
+                 style={`background:${m.color}22; color:${m.color}; border:1px solid ${m.color}55`}>
+              <Icon name={iconFor[m.key] || 'spark'} class="w-6 h-6" />
+            </div>
+            <div class="mt-3 font-semibold text-sm text-white">{m.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <!-- Unified bar -->
+      <div class="mt-6 max-w-4xl mx-auto rounded-xl2 border border-brand-400/40 bg-gradient-to-r from-brand-600/30 to-brand-500/10 px-6 py-4 flex items-center justify-center gap-3 text-center">
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-brand-500 text-white font-black">M</span>
+        <span class="font-semibold text-white">One platform · one price · one live source of truth</span>
+      </div>
+    </div>
+  </div>
+</section>

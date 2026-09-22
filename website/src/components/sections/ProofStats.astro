@@ -1,0 +1,30 @@
+---
+// Proof — headline stats + illustrative outcome metrics from CASE_STUDIES.
+import { CASE_STUDIES } from '../../data/site';
+const stats = [
+  { v: '12+', l: 'Integrated modules' },
+  { v: '<1s', l: 'POS load time' },
+  { v: '99.9%', l: 'Uptime' },
+  { v: '🇦🇺', l: 'Made for Australia' },
+];
+// Flatten a couple of standout metrics across case studies for a proof strip.
+const proof = CASE_STUDIES.flatMap((c) => c.metrics).slice(0, 4);
+---
+<section class="container-x py-8">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4" data-reveal>
+    {stats.map((s, i) => (
+      <div class="card text-center reveal" style={`--i:${i}`}>
+        <div class="text-3xl font-extrabold text-gradient-brand">{s.v}</div>
+        <div class="text-sm text-ink-mute mt-1">{s.l}</div>
+      </div>
+    ))}
+  </div>
+  <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4" data-reveal>
+    {proof.map((m, i) => (
+      <div class="rounded-xl2 border border-line bg-surface-alt text-center py-5 reveal" style={`--i:${i}`}>
+        <div class="text-2xl font-extrabold text-ink">{m.v}</div>
+        <div class="text-xs text-ink-mute mt-1">{m.l}</div>
+      </div>
+    ))}
+  </div>
+</section>

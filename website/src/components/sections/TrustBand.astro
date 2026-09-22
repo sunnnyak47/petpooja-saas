@@ -1,0 +1,10 @@
+---
+// Trust band — segment chips. Static, reveals on scroll.
+const segments = ['QSR', 'Fine Dine', 'Cloud Kitchen', 'Café', 'Chains'];
+---
+<section class="border-y border-line bg-surface-alt" data-reveal>
+  <div class="container-x py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm">
+    <span class="font-semibold text-ink-soft">Trusted by restaurants across Australia</span>
+    {segments.map((s) => <span class="chip">{s}</span>)}
+  </div>
+</section>

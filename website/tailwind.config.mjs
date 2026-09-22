@@ -21,8 +21,17 @@ export default {
       boxShadow: {
         card: '0 1px 2px rgba(11,18,32,.04), 0 8px 24px -12px rgba(11,18,32,.12)',
         lift: '0 10px 40px -12px rgba(11,18,32,.22)',
+        glow: '0 0 0 1px rgba(37,99,235,.15), 0 18px 50px -18px rgba(37,99,235,.35)',
       },
       borderRadius: { xl2: '1.25rem' },
+      keyframes: {
+        'reveal-up': { '0%': { opacity: '0', transform: 'translateY(16px)' }, '100%': { opacity: '1', transform: 'none' } },
+        float: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
+      },
+      animation: {
+        'reveal-up': 'reveal-up .6s cubic-bezier(.22,1,.36,1) both',
+        float: 'float 6s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

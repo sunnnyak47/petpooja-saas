@@ -1,0 +1,41 @@
+---
+// Switch from Square / Lightspeed — driven by COMPARISONS (site.ts).
+import Icon from '../Icon.astro';
+import { COMPARISONS } from '../../data/site';
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <span class="eyebrow">Switching is the scary part</span>
+    <h2 class="h2 mt-2">Coming from Square or Lightspeed?</h2>
+    <p class="lead mt-3">We migrate your menu, tables and staff, keep your delivery apps live through cutover, and move you over with zero downtime.</p>
+  </div>
+
+  <div class="mt-10 grid lg:grid-cols-2 gap-6" data-reveal>
+    {COMPARISONS.map((c) => (
+      <div class="card reveal flex flex-col">
+        <div class="flex items-baseline justify-between gap-3">
+          <h3 class="font-bold text-lg">vs {c.them}</h3>
+          <a href={`/compare/${c.slug}`} class="text-sm font-semibold text-brand-700 hover:underline shrink-0">Full comparison →</a>
+        </div>
+        <p class="text-sm text-ink-mute mt-1">{c.tagline}</p>
+        <div class="mt-4 divide-y divide-line border-y border-line">
+          {c.rows.slice(0, 5).map((r) => (
+            <div class="grid grid-cols-[1fr_1fr] gap-3 py-2.5 text-sm">
+              <div class="text-ink-mute flex items-start gap-1.5">
+                <span class="text-red-400 mt-0.5">✕</span><span>{r[1]}</span>
+              </div>
+              <div class="text-ink-soft flex items-start gap-1.5 font-medium">
+                <Icon name="check" class="w-4 h-4 text-brand-600 shrink-0 mt-0.5" /><span>{r[2]}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <div class="mt-6 flex flex-wrap justify-center gap-3" data-reveal>
+    <a href="/migration" class="btn-outline">How migration works</a>
+    <a href="/demo" class="btn-primary">Talk to our team</a>
+  </div>
+</section>

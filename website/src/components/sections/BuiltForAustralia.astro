@@ -1,0 +1,45 @@
+---
+// Built for Australia — tax/payments/delivery + AU value props.
+import Icon from '../Icon.astro';
+import { REGIONS } from '../../data/site';
+
+const au = REGIONS.au;
+const cards = [
+  ['ledger', 'Tax & compliance', `${au.tax}, plus Single Touch Payroll — ATO-ready out of the box.`],
+  ['pos', 'Payments, your way', `${au.pay} — not locked to one processor.`],
+  ['bag', 'Delivery apps built in', `${au.aggregators.join(', ')} in one screen — plus commission-free QR ordering.`],
+];
+const props = [
+  ['Commission clarity', 'Net-after-commission per channel + payout reconciliation. Know which app actually pays.'],
+  ['BAS & Xero, sorted', 'GST, BAS and Xero sync built in — your books keep themselves.'],
+  ['Surcharge ready', 'Weekend and public-holiday surcharge, applied automatically and shown on the receipt.'],
+  ['Never stops selling', 'Offline-first POS keeps trading when the internet drops, then syncs.'],
+];
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <span class="eyebrow">Local by design 🇦🇺</span>
+    <h2 class="h2 mt-2">Built for Australian restaurants.</h2>
+    <p class="lead mt-3">The right taxes, payments and delivery apps for the Australian market — no plugins, no workarounds.</p>
+  </div>
+
+  <div class="mt-10 grid gap-5 md:grid-cols-3" data-reveal>
+    {cards.map(([ic, t, d], i) => (
+      <div class="card reveal" style={`--i:${i}`}>
+        <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+        <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+        <p class="mt-2 text-ink-soft">{d}</p>
+      </div>
+    ))}
+  </div>
+
+  <div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" data-reveal>
+    {props.map(([t, d]) => (
+      <div class="card">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div>
+        <h3 class="mt-3 font-semibold">{t}</h3>
+        <p class="mt-1 text-sm text-ink-soft">{d}</p>
+      </div>
+    ))}
+  </div>
+</section>

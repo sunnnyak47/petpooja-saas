@@ -1,0 +1,22 @@
+---
+// Testimonials — quote cards from CASE_STUDIES (marked illustrative).
+import { CASE_STUDIES } from '../../data/site';
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto mb-8" data-reveal>
+    <span class="eyebrow">What owners say</span>
+    <h2 class="h2 mt-2">Built for real Australian venues.</h2>
+  </div>
+  <div class="grid gap-5 md:grid-cols-3" data-reveal>
+    {CASE_STUDIES.map((c, i) => (
+      <figure class="card flex flex-col reveal" style={`--i:${i}`}>
+        <div class="text-4xl leading-none text-brand-300 font-serif" aria-hidden="true">“</div>
+        <blockquote class="-mt-2 text-[15px] text-ink-soft leading-relaxed flex-1">{c.quote}</blockquote>
+        <figcaption class="mt-4 pt-4 border-t border-line text-sm">
+          <span class="font-semibold">{c.name}</span><span class="text-ink-mute"> · {c.type}</span>
+        </figcaption>
+      </figure>
+    ))}
+  </div>
+  <p class="text-center text-xs text-ink-mute mt-4">Representative examples — named, verified customer stories will replace these as venues go live.</p>
+</section>

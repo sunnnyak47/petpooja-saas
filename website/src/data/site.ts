@@ -164,3 +164,41 @@ export const COMPARISONS = [
     ],
   },
 ];
+
+// ── Homepage hero — the 5 modules that "assemble into one platform" ──────────
+// Drives BOTH the Three.js hero (exploded → docked) and the static CSS
+// ModulesTurn echo. `offset` = exploded position (three.js world units, x,y,z);
+// `shot` = the AU screenshot mapped onto the module face; `color` = edge glow.
+export const HERO_MODULES = [
+  { key: 'pos',        label: 'POS',        color: '#2563eb', shot: 'pos',         offset: [-2.7,  1.5,  0.8] },
+  { key: 'kds',        label: 'Kitchen',    color: '#f59e0b', shot: 'kds',         offset: [ 2.7,  1.3, -0.6] },
+  { key: 'inventory',  label: 'Inventory',  color: '#16a34a', shot: 'inventory',   offset: [-2.9, -1.5, -0.4] },
+  { key: 'delivery',   label: 'Delivery',   color: '#7c3aed', shot: 'aggregators', offset: [ 2.9, -1.4,  0.7] },
+  { key: 'accounting', label: 'Accounting', color: '#0891b2', shot: 'accounting',  offset: [ 0.0,  2.4, -1.3] },
+] as const;
+
+// ── Pain points (problem → answer) — lifted & expanded from why-msrm ─────────
+export const PAINS = [
+  { title: 'Add-on creep', icon: 'spark',
+    before: 'You pay for the POS — then again for delivery, accounting, loyalty and payroll. The bill balloons every quarter.',
+    after:  'One platform, one per-outlet price. POS, delivery, stock, accounting and payroll included — no add-on surprises.' },
+  { title: 'Aggregator tablet chaos', icon: 'bag',
+    before: 'A separate tablet per delivery app, each re-keyed into the till. Missed orders, wrong items, angry reviews.',
+    after:  'Uber Eats, DoorDash & Menulog land on one screen beside your dine-in orders — nothing re-typed.' },
+  { title: 'No real margin view', icon: 'chart',
+    before: 'You see gross delivery sales, never the net after 20–30% commission — so you can’t tell what actually pays.',
+    after:  'Every channel side by side: gross, commission and the net that actually hits your account.' },
+];
+
+// ── Offline-first spotlight (the differentiator) ─────────────────────────────
+export const OFFLINE = {
+  eyebrow: 'Never stops selling',
+  title: 'The Wi-Fi drops at 7pm Friday. Your POS doesn’t.',
+  body: 'MSRM is offline-first. Keep taking orders, printing KOTs and settling bills with no internet — everything syncs automatically the moment you’re back online.',
+  points: [
+    'Orders & KOTs keep flowing',
+    'Card + cash still settle',
+    'Auto-syncs on reconnect',
+    'No lost sales, no manual re-entry',
+  ],
+};

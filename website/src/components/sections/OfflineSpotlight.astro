@@ -1,0 +1,44 @@
+---
+// Offline-first spotlight — the differentiator vs Square/Lightspeed.
+import Icon from '../Icon.astro';
+import { OFFLINE } from '../../data/site';
+---
+<section class="container-x py-8">
+  <div class="rounded-xl2 border border-line bg-surface-alt overflow-hidden grid lg:grid-cols-[1.1fr_1fr] items-center" data-reveal>
+    <div class="p-8 lg:p-12">
+      <span class="eyebrow">{OFFLINE.eyebrow}</span>
+      <h2 class="h2 mt-2">{OFFLINE.title}</h2>
+      <p class="lead mt-3">{OFFLINE.body}</p>
+      <ul class="mt-6 grid sm:grid-cols-2 gap-3">
+        {OFFLINE.points.map((pt) => (
+          <li class="flex items-center gap-2.5 text-[15px]">
+            <span class="grid h-6 w-6 place-items-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100 shrink-0">
+              <Icon name="check" class="w-4 h-4" />
+            </span>
+            <span class="text-ink-soft">{pt}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <!-- Connectivity visual: a "signal drops → still selling" strip -->
+    <div class="relative h-full min-h-[240px] bg-surface-dark text-white p-8 lg:p-12 flex flex-col justify-center gap-4"
+         style="background: radial-gradient(30rem 20rem at 80% 20%, rgba(37,99,235,.35), transparent 60%), #0f172a;">
+      <div class="flex items-center gap-3">
+        <span class="grid h-10 w-10 place-items-center rounded-xl bg-red-500/20 text-red-300 ring-1 ring-red-400/30 text-lg">⚠</span>
+        <div>
+          <div class="text-sm font-semibold">Internet dropped</div>
+          <div class="text-xs text-slate-400">7:04pm · Friday service</div>
+        </div>
+      </div>
+      <div class="h-px bg-white/10"></div>
+      <div class="space-y-2.5">
+        {['Order #482 sent to kitchen', 'Table 12 — split bill settled', 'Card A$64.50 approved', 'Queued → syncing on reconnect'].map((t, i) => (
+          <div class="flex items-center gap-2.5 text-sm">
+            <span class="grid h-5 w-5 place-items-center rounded-full bg-emerald-500/20 text-emerald-300 text-xs">✓</span>
+            <span class={i === 3 ? 'text-brand-300 font-medium' : 'text-slate-200'}>{t}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

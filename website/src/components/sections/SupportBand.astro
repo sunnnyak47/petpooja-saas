@@ -1,0 +1,30 @@
+---
+// Support / onboarding band — "we set you up and stay on".
+const tiles = [
+  ['Live in a day', 'Most single venues'],
+  ['Zero downtime', 'Parallel run + cutover'],
+  ['We migrate you', 'Menu, tables & staff'],
+  ['Real people', 'Onboarding that stays on'],
+];
+---
+<section class="container-x pb-4">
+  <div class="rounded-xl2 border border-line bg-surface-alt p-8 lg:p-10 grid lg:grid-cols-[1.1fr_1fr] gap-8 items-center" data-reveal>
+    <div>
+      <span class="eyebrow">Australian support</span>
+      <h2 class="h2 mt-2">We set you up — and stay on.</h2>
+      <p class="lead mt-3">Switching systems is the scary part. We migrate your menu, tables and staff, keep your delivery apps running, and are on hand through your first shifts — not an offshore ticket queue.</p>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <a href="/migration" class="btn-outline">How migration works</a>
+        <a href="/demo" class="btn-primary">Talk to our team</a>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      {tiles.map(([v, l]) => (
+        <div class="card text-center py-5">
+          <div class="text-lg font-extrabold text-brand-700">{v}</div>
+          <div class="text-xs text-ink-mute mt-1">{l}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

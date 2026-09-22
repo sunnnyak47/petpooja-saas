@@ -1,0 +1,156 @@
+---
+import Icon from './Icon.astro';
+import { HERO_MODULES } from '../data/site';
+
+// Only the fields the client scene needs — passed as JSON on the canvas
+// (data-* attr, NOT define:vars, which is incompatible with module scripts).
+const modulesJson = JSON.stringify(
+  HERO_MODULES.map((m) => ({ key: m.key, label: m.label, color: m.color, offset: m.offset })),
+);
+---
+<section class="hero-root relative overflow-hidden hero-aura" data-hero-root>
+  <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
+
+  <div class="hero-stage flex items-center">
+    <div class="container-x w-full">
+      <div class="grid lg:grid-cols-[1.02fr_1fr] gap-10 lg:gap-12 items-center py-10">
+        <!-- Copy (static, SSR — this is the LCP text, never the canvas) -->
+        <div class="hero-copy">
+          <span class="eyebrow">Restaurant management platform</span>
+          <h1 class="h1 mt-3">
+            Stop juggling five apps.<br class="hidden sm:block" />
+            Run it all on <span class="text-gradient-brand">one platform</span>.
+          </h1>
+          <p class="lead mt-5 max-w-xl">
+            POS, kitchen display, inventory, online orders and accounting — unified, real-time,
+            and built for Australia. Watch them come together as you scroll.
+          </p>
+          <div class="mt-7 flex flex-wrap gap-3">
+            <a href="/demo" class="btn-primary btn-lg">Book a Demo</a>
+            <a href="/pricing" class="btn-outline btn-lg">See Pricing</a>
+          </div>
+          <ul class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-mute">
+            <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600" /> No credit card to start</li>
+            <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600" /> Live in a day</li>
+            <li class="inline-flex items-center gap-1.5"><Icon name="check" class="w-4 h-4 text-brand-600" /> Works fully offline</li>
+          </ul>
+          <p class="mt-5 text-sm text-ink-mute">
+            Switching from <strong>Square</strong> or <strong>Lightspeed</strong>?
+            <a href="/migration" class="font-medium text-brand-700 hover:underline">We move you over →</a>
+          </p>
+        </div>
+
+        <!-- Visual stage: static poster (fallback + LCP-safe) with a WebGL canvas
+             layered over it. Canvas stays opacity:0 until three actually paints. -->
+        <div class="hero-visual relative rounded-xl2 overflow-hidden" style="aspect-ratio: 16 / 11;">
+          <img
+            src="/screenshots/au/dashboard.webp"
+            alt="MSRM — POS, kitchen, inventory, delivery and accounting unified in one dashboard"
+            width="1440" height="990"
+            fetchpriority="high" decoding="async"
+            class="poster-layer absolute inset-0 w-full h-full object-cover rounded-xl2 border border-line shadow-lift"
+            data-hero-poster
+          />
+          <canvas
+            class="canvas-layer"
+            aria-hidden="true"
+            data-modules={modulesJson}
+          ></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // ── Bootstrap: eligibility gate → lazy three → scroll-driven assembly ──
+  const root = document.querySelector<HTMLElement>('[data-hero-root]');
+  const canvas = root?.querySelector<HTMLCanvasElement>('canvas.canvas-layer');
+  const poster = root?.querySelector<HTMLElement>('[data-hero-poster]');
+
+  function hasWebGL(): boolean {
+    try {
+      const c = document.createElement('canvas');
+      return !!(c.getContext('webgl2') || c.getContext('webgl'));
+    } catch { return false; }
+  }
+  const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+  const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  const conn = (navigator as any).connection;
+  const eligible =
+    !!root && !!canvas &&
+    matchMedia('(prefers-reduced-motion: no-preference)').matches &&
+    matchMedia('(hover: hover) and (pointer: fine)').matches &&
+    window.innerWidth >= 1024 &&
+    (navigator.hardwareConcurrency ?? 4) >= 4 &&
+    !(conn && conn.saveData) &&
+    hasWebGL();
+
+  if (eligible && root && canvas) {
+    // Synchronous: extend the scroll track BEFORE first paint → no layout shift.
+    root.classList.add('hero--3d');
+
+    const modules = JSON.parse(canvas.getAttribute('data-modules') || '[]');
+    let handle: { setProgress: (t: number) => void; dispose: () => void } | null = null;
+    let started = false;
+
+    async function startLoad() {
+      if (started) return;
+      started = true;
+      loadIO.disconnect();
+      try {
+        const mod = await import('../scripts/heroScene');
+        handle = mod.init(canvas!, { modules });
+
+        // init() renders one frame synchronously, so the framebuffer already has
+        // content — reveal on a macrotask (fires even in a non-compositing tab,
+        // unlike rAF) to crossfade poster → canvas.
+        setTimeout(() => {
+          canvas!.classList.add('is-live');
+          poster?.classList.add('is-hidden');
+        }, 30);
+
+        let ticking = false;
+        const update = () => {
+          const dist = root!.offsetHeight - window.innerHeight;
+          const p = dist > 0 ? clamp(-root!.getBoundingClientRect().top / dist, 0, 1) : 0;
+          handle?.setProgress(easeInOutCubic(p));
+          ticking = false;
+        };
+        const onScroll = () => { if (!ticking) { requestAnimationFrame(update); ticking = true; } };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll, { passive: true });
+        update();
+
+        // Runtime GPU-loss fallback → fade the poster back in.
+        canvas!.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          canvas!.classList.remove('is-live');
+          poster?.classList.remove('is-hidden');
+        });
+
+        // Free GPU memory on navigate-away (static MPA = full reloads).
+        window.addEventListener('pagehide', () => handle?.dispose(), { once: true });
+      } catch {
+        // Any failure → stay on the static poster.
+        canvas!.classList.remove('is-live');
+        poster?.classList.remove('is-hidden');
+      }
+    }
+
+    // Primary trigger: load when the hero is near/in view (rootMargin pre-fetch).
+    const loadIO = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) startLoad();
+    }, { rootMargin: '200px' });
+    loadIO.observe(root);
+
+    // Fallback: the hero is above the fold, so guarantee the load even if IO is
+    // slow or blocked — deferred to idle so it never competes with the LCP paint.
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(startLoad, { timeout: 2000 });
+    } else {
+      setTimeout(startLoad, 1200);
+    }
+  }
+</script>

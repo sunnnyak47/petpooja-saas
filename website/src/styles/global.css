@@ -45,4 +45,33 @@ body { @apply bg-surface text-ink font-sans antialiased; }
     -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
             mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
   }
+
+  /* ── Scroll-reveal (wired by ScrollFX.astro's IntersectionObserver) ── */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.22,1,.36,1); }
+  .reveal.is-visible { opacity: 1; transform: none; }
+  /* Stagger children: set --i on each child (inline) for a cascade. */
+  .reveal-stagger.is-visible > * { animation: reveal-up .6s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i, 0) * 90ms); }
+
+  /* ── 3D primitives for CSS-tilt cards / module diagram ── */
+  .perspective { perspective: 1000px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+  .tilt-3d { transition: transform .25s ease; will-change: transform; transform-style: preserve-3d; }
+
+  /* ── Pinned 3D hero (pure CSS sticky; tall track added by JS only) ── */
+  .hero-stage { position: sticky; top: 0; height: 100vh; }
+  .hero--3d   { min-height: 220vh; }              /* JS-added on eligible desktops only */
+  .canvas-layer { position: absolute; inset: 0; opacity: 0; transition: opacity .45s ease; }
+  .canvas-layer.is-live { opacity: 1; }
+  .poster-layer { transition: opacity .45s ease; }
+  .poster-layer.is-hidden { opacity: 0; }
+}
+
+/* Respect reduced-motion: no reveals, no smooth-scroll, no tilt transitions.
+   (Fixes the previously-unconditional `scroll-behavior: smooth`.) */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .reveal-stagger.is-visible > * { animation: none !important; }
+  .tilt-3d, .hero-stage, .canvas-layer, .poster-layer { transition: none !important; }
 }
