@@ -21,6 +21,7 @@ import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 import { SyncProvider } from '../src/context/SyncContext';
 import { queryClient, asyncStoragePersister } from '../src/lib/queryClient';
 import LockScreen from '../src/components/LockScreen';
+import SplashFallback from '../src/components/SplashFallback';
 import { initSentry, setUser as setSentryUser } from '../src/lib/sentry';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
@@ -28,7 +29,7 @@ initSentry();
 
 function RootContent() {
   const { isLocked, user } = useAuth();
-  const { isDark, colors, applyBrandColor } = useTheme();
+  const { isDark, colors, applyBrandColor, loaded: themeLoaded } = useTheme();
 
   useEffect(() => {
     setSentryUser(user);
@@ -38,6 +39,11 @@ function RootContent() {
   useEffect(() => {
     applyBrandColor(user?.primary_color);
   }, [user, applyBrandColor]);
+
+  // Hold the seamless blue splash until the persisted theme preference has been
+  // read back. Painting before this resolves makes a dark-theme user see a
+  // light→dark flash on every cold start.
+  if (!themeLoaded) return <SplashFallback />;
 
   return (
     <AppModeProvider>
@@ -64,7 +70,7 @@ function RootContent() {
 
 export default function RootLayout() {
   // Load web-parity fonts (Inter + JetBrains Mono) before rendering.
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -74,7 +80,11 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
   });
 
-  if (!fontsLoaded) return null; // native splash stays up until fonts are ready
+  // Render a seamless clone of the native splash (same blue, same icon) instead
+  // of `null` — `null` briefly paints the transparent root as white between the
+  // native splash and the app. Proceed on fontError too, so a font-CDN hiccup
+  // degrades to system fonts rather than hanging on the splash forever.
+  if (!fontsLoaded && !fontError) return <SplashFallback />;
 
   return (
     <GestureHandlerRootView style={styles.root}>
