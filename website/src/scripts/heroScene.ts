@@ -174,10 +174,13 @@ export function init(canvas: HTMLCanvasElement, opts: HeroSceneOpts): HeroSceneH
         lerp(m.explodedRot.y, 0, e),
         lerp(m.explodedRot.z, m.dockedRotZ, e),
       );
-      m.edgeMat.opacity = lerp(0.4, 0.95, e);
-      m.bodyMat.emissiveIntensity = lerp(0.0, 0.35, e);
-      // Labels fade in over the back half of the assembly.
-      m.labelMat.opacity = Math.max(0, (e - 0.35) / 0.65);
+      // Colored edges + a little emissive are visible even at rest so the five
+      // cards read as distinct apps before the user scrolls; both ramp up as
+      // they assemble.
+      m.edgeMat.opacity = lerp(0.7, 0.98, e);
+      m.bodyMat.emissiveIntensity = lerp(0.14, 0.42, e);
+      // Labels fade in through the middle of the assembly.
+      m.labelMat.opacity = Math.max(0, Math.min(1, (e - 0.2) / 0.55));
     }
     camera.position.lerpVectors(camFar, camNear, e);
     camera.lookAt(0, 0, -0.6);

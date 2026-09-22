@@ -8,7 +8,10 @@ const modulesJson = JSON.stringify(
   HERO_MODULES.map((m) => ({ key: m.key, label: m.label, color: m.color, offset: m.offset })),
 );
 ---
-<section class="hero-root relative overflow-hidden hero-aura" data-hero-root>
+<!-- No `overflow-hidden` here: an overflow-clipped ancestor disables the
+     `position: sticky` pin on .hero-stage below. The dotgrid/aura are inset-0
+     so they don't overflow horizontally anyway. -->
+<section class="hero-root relative hero-aura" data-hero-root>
   <div class="absolute inset-0 bg-dotgrid pointer-events-none" aria-hidden="true"></div>
 
   <div class="hero-stage flex items-center">
