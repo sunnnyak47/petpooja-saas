@@ -334,6 +334,7 @@ model Outlet {
   head_office            HeadOffice?            @relation(fields: [head_office_id], references: [id])
   payment_methods_config PaymentMethod[]
   payments               Payment[]
+  terminal_transactions  TerminalTransaction[]
   pricing_rules          PricingRule[]
   purchase_orders        PurchaseOrder[]
   reports_cache          ReportsCache[]
@@ -676,6 +677,7 @@ model User {
   orders_voided          Order[]              @relation("voided_orders")
   eod_closures           EODReport[]          @relation("eod_closer")
   payments_processed     Payment[]
+  terminal_transactions_initiated TerminalTransaction[] @relation("terminal_tx_initiator")
   roster_assignments     RosterAssignment[]   @relation("roster_assignments")
   rosters_created        Roster[]             @relation("roster_creator")
   salary_records         SalaryRecord[]
@@ -1034,6 +1036,7 @@ model Order {
   table               Table?               @relation(fields: [table_id], references: [id])
   voided_user         User?                @relation("voided_orders", fields: [voided_by], references: [id])
   payments            Payment[]
+  terminal_transactions TerminalTransaction[]
 
   @@index([outlet_id, status])
   @@index([outlet_id, created_at(sort: Desc)])
@@ -1782,6 +1785,7 @@ model Payment {
   updated_at       DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
   is_deleted       Boolean        @default(false)
   splits           PaymentSplit[]
+  terminal_transactions TerminalTransaction[]
   order            Order          @relation(fields: [order_id], references: [id])
   outlet           Outlet         @relation(fields: [outlet_id], references: [id])
   processed_user   User?          @relation(fields: [processed_by], references: [id])
@@ -1789,6 +1793,69 @@ model Payment {
   @@index([outlet_id, created_at(sort: Desc)])
   @@index([order_id])
   @@map("payments")
+}
+
+/// Audit log for EFTPOS terminal interactions (Tyro today; other providers later).
+///
+/// Distinct from `Payment` on purpose: Payment records money actually received;
+/// TerminalTransaction records EVERY terminal exchange — pending states, retries,
+/// approvals that got REVERSED, declines, timeouts. Cert + reconciliation with
+/// Tyro's daily settlement report need this granularity.
+///
+/// Idempotency: `our_ref` (a UUID we generate before hitting the terminal) doubles
+/// as the iClient `transactionId`. A retry with the same our_ref returns the same
+/// row, so a double-tap on the "Charge card" button never fires two purchases.
+model TerminalTransaction {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  outlet_id           String    @db.Uuid
+  order_id            String?   @db.Uuid
+  payment_id          String?   @db.Uuid
+  provider            String    @default("tyro") @db.VarChar(20)
+
+  our_ref             String    @db.VarChar(64)
+
+  mid                 String?   @db.VarChar(32)
+  tid                 String?   @db.VarChar(16)
+
+  type                String    @db.VarChar(20) // purchase | refund | cashout | preauth
+  amount_cents        Int
+  cashout_cents       Int       @default(0)
+  base_amount_cents   Int?
+  tip_cents           Int       @default(0)
+  surcharge_cents     Int       @default(0)
+
+  // pending | in_progress | approved | declined | cancelled | reversed | system_error | unknown
+  status              String    @default("pending") @db.VarChar(20)
+
+  tyro_reference      String?   @db.VarChar(100)
+  authorisation_code  String?   @db.VarChar(20)
+  card_type           String?   @db.VarChar(20)
+  elided_pan          String?   @db.VarChar(30)
+  rrn                 String?   @db.VarChar(40)
+
+  raw_response        Json?
+  merchant_receipt    String?
+  customer_receipt    String?
+  signature_required  Boolean   @default(false)
+
+  error_code          String?   @db.VarChar(40)
+  error_message       String?
+
+  initiated_by        String?   @db.Uuid
+  initiated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at        DateTime? @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  outlet          Outlet   @relation(fields: [outlet_id], references: [id])
+  order           Order?   @relation(fields: [order_id], references: [id])
+  payment         Payment? @relation(fields: [payment_id], references: [id])
+  initiated_user  User?    @relation("terminal_tx_initiator", fields: [initiated_by], references: [id])
+
+  @@unique([outlet_id, our_ref])
+  @@index([outlet_id, initiated_at(sort: Desc)])
+  @@index([order_id])
+  @@index([tyro_reference])
+  @@map("terminal_transactions")
 }
 
 model PaymentSplit {

@@ -26,6 +26,18 @@ const TYRO_HOSTS = {
   production: 'https://iclient.tyro.com',
 };
 
+// Headful iClient script (Tyro-hosted UI in iframe/modal). Loaded fresh from
+// Tyro's CDN — bundling or self-hosting this violates PCI, per Tyro's own docs
+// on the sibling Tyro Pay product. Same rule applies here for safety.
+const ICLIENT_SCRIPTS = {
+  sandbox: 'https://iclientsimulator.test.tyro.com/iclient-with-ui-v1.js',
+  production: 'https://iclient.tyro.com/iclient-with-ui-v1.js',
+};
+
+function iClientScriptUrl(environment) {
+  return ICLIENT_SCRIPTS[environment] || ICLIENT_SCRIPTS.sandbox;
+}
+
 const CONFIG_KEYS = [
   'mid',               // Tyro Merchant ID (a.k.a. MID)
   'tid',               // Terminal ID (8 digits)
@@ -36,6 +48,7 @@ const CONFIG_KEYS = [
   'pos_product_vendor',
   'pos_product_version',
   'environment',       // 'sandbox' | 'production'
+  'mock_mode',         // 'true' | 'false' — dev flag: skip real Tyro, simulate approvals locally
 ];
 
 /** Read every integration_tyro_* setting for an outlet back as a flat object. */
@@ -213,18 +226,173 @@ async function pairTerminal(outletId) {
   return { success: true, paired: true, tid: cfg.tid, mid: cfg.mid, environment: cfg.environment };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Terminal transaction lifecycle (used by /tyro/transactions routes)
+//
+// The iClient runs in the POS browser and drives the terminal directly. The
+// backend does NOT talk to Tyro during a purchase — it only records what the
+// terminal returned so we have an authoritative audit trail for reconciliation
+// with Tyro's daily settlement report.
+//
+// Flow:
+//   1. POS calls startTransaction() BEFORE opening the iClient iframe.
+//      → row created with status='pending', our_ref is the iClient transactionId
+//   2. POS drives iClient in-browser; user taps card at terminal.
+//   3. iClient transactionCompleteCallback fires with the result.
+//   4. POS calls finaliseTransaction() with the full response.
+//      → row updated with tyro_reference / receipts / status.
+//
+// Idempotency: startTransaction is idempotent by (outlet_id, our_ref). A retry
+// with the same our_ref returns the existing pending row.
+// ────────────────────────────────────────────────────────────────────────────
+
+const TERMINAL_STATUSES = new Set([
+  'pending', 'in_progress',
+  'approved', 'declined', 'cancelled', 'reversed', 'system_error', 'unknown',
+]);
+
+/** Map iClient's `result` string to our normalised status enum. */
+function mapTyroResult(result) {
+  const r = String(result || '').toUpperCase();
+  if (r === 'APPROVED')           return 'approved';
+  if (r === 'CANCELLED')          return 'cancelled';
+  if (r === 'REVERSED')           return 'reversed';
+  if (r === 'DECLINED')           return 'declined';
+  if (r === 'SYSTEM ERROR')       return 'system_error';
+  if (r === 'NOT STARTED')        return 'cancelled';
+  return 'unknown';
+}
+
+/** Create (or return the existing) pending TerminalTransaction row. */
+async function startTransaction(outletId, {
+  order_id = null,
+  our_ref,
+  type = 'purchase',
+  amount_cents,
+  cashout_cents = 0,
+  initiated_by = null,
+}) {
+  if (!our_ref) {
+    const e = new Error('our_ref (idempotency key) is required');
+    e.status = 400; throw e;
+  }
+  if (!Number.isInteger(amount_cents) || amount_cents < 0) {
+    const e = new Error('amount_cents must be a non-negative integer');
+    e.status = 400; throw e;
+  }
+  const prisma = getDbClient();
+  const cfg = await loadConfig(outletId);
+
+  // Idempotent: same (outlet, our_ref) returns the existing row unchanged.
+  const existing = await prisma.terminalTransaction.findUnique({
+    where: { outlet_id_our_ref: { outlet_id: outletId, our_ref } },
+  });
+  if (existing) return existing;
+
+  return prisma.terminalTransaction.create({
+    data: {
+      outlet_id: outletId,
+      order_id,
+      provider: 'tyro',
+      our_ref,
+      mid: cfg.mid || null,
+      tid: cfg.tid || null,
+      type,
+      amount_cents,
+      cashout_cents,
+      status: 'pending',
+      initiated_by,
+    },
+  });
+}
+
 /**
- * Stub for a purchase. Wired but does NOT call Tyro — leaving this live before
- * certification would push unbilled transactions at the merchant's real terminal.
- * Enable the body block after certification.
+ * Finalise a transaction with the iClient completion payload. The `raw`
+ * argument is the entire response object as it came from the terminal — we
+ * persist the whole thing plus extract the fields we care about for reporting.
  */
+async function finaliseTransaction(id, raw = {}) {
+  const prisma = getDbClient();
+  const row = await prisma.terminalTransaction.findUnique({ where: { id } });
+  if (!row) {
+    const e = new Error('Terminal transaction not found');
+    e.status = 404; throw e;
+  }
+  const status = mapTyroResult(raw.result);
+  if (!TERMINAL_STATUSES.has(status)) {
+    const e = new Error(`Unknown terminal status "${status}"`);
+    e.status = 422; throw e;
+  }
+
+  // iClient amounts arrive as strings in cents; coerce defensively.
+  const toInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  };
+
+  return prisma.terminalTransaction.update({
+    where: { id },
+    data: {
+      status,
+      tyro_reference: raw.transactionReference || raw.transactionReferenceNumber || null,
+      authorisation_code: raw.authorisationCode || null,
+      card_type: raw.cardType || null,
+      elided_pan: raw.elidedPan || raw.maskedCard || null,
+      rrn: raw.rrn || null,
+      base_amount_cents: toInt(raw.baseAmount) ?? row.amount_cents,
+      tip_cents: toInt(raw.tipAmount) ?? 0,
+      surcharge_cents: toInt(raw.surchargeAmount) ?? 0,
+      merchant_receipt: raw.merchantReceipt || null,
+      customer_receipt: raw.customerReceipt || null,
+      signature_required: !!raw.signatureRequired,
+      error_code: raw.errorCode || null,
+      error_message: raw.errorMessage || (status !== 'approved' ? raw.result : null),
+      raw_response: raw,
+      completed_at: new Date(),
+    },
+  });
+}
+
+/** Return a MOCK transactionCompleteCallback payload — dev/mock-mode only. */
+function mockCompletionPayload({ our_ref, amount_cents, decline = false }) {
+  const base = amount_cents;
+  const tip = 0;
+  const surcharge = 0;
+  if (decline) {
+    return {
+      result: 'DECLINED',
+      transactionId: our_ref,
+      baseAmount: String(base),
+      tipAmount: String(tip),
+      surchargeAmount: String(surcharge),
+      errorMessage: 'Do not honour (mock)',
+    };
+  }
+  return {
+    result: 'APPROVED',
+    transactionId: our_ref,
+    transactionReference: `MOCK-${Date.now()}`,
+    authorisationCode: '123456',
+    cardType: 'VISA',
+    elidedPan: '**** **** **** 4242',
+    rrn: String(Date.now()),
+    baseAmount: String(base),
+    tipAmount: String(tip),
+    surchargeAmount: String(surcharge),
+    merchantReceipt: 'MOCK MERCHANT RECEIPT — Not a real transaction',
+    customerReceipt: 'MOCK CUSTOMER RECEIPT — Not a real transaction',
+    signatureRequired: false,
+  };
+}
+
 async function initiatePurchase(_outletId, _payload) {
-  const e = new Error('Tyro purchase flow is not enabled until the merchant completes Tyro certification. Contact Tyro to certify this POS integration.');
+  const e = new Error('Purchases run in-browser via iClient — the backend only records the result. Use POST /tyro/transactions to start, PATCH to finalise.');
   e.status = 501;
   throw e;
 }
 async function initiateRefund(_outletId, _payload) {
-  const e = new Error('Tyro refund flow is not enabled until the merchant completes Tyro certification.');
+  const e = new Error('Refunds run in-browser via iClient — the backend only records the result. Use POST /tyro/transactions to start, PATCH to finalise.');
   e.status = 501;
   throw e;
 }
@@ -232,12 +400,18 @@ async function initiateRefund(_outletId, _payload) {
 module.exports = {
   CONFIG_KEYS,
   TYRO_HOSTS,
+  ICLIENT_SCRIPTS,
+  iClientScriptUrl,
   loadConfig,
   saveSetting,
   validateConfig,
   probeHost,
   testConnection,
   pairTerminal,
+  startTransaction,
+  finaliseTransaction,
+  mapTyroResult,
+  mockCompletionPayload,
   initiatePurchase,
   initiateRefund,
 };

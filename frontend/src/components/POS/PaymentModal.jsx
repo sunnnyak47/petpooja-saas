@@ -14,6 +14,7 @@ import { useSelector } from 'react-redux';
 import api from '../../lib/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useRegion } from '../../hooks/useRegion';
+import TyroIClient from './TyroIClient';
 
 /* Load the Square Web Payments SDK once (sandbox or production build). */
 function loadSquareWebSdk(environment) {
@@ -98,6 +99,12 @@ export default function PaymentModal({
   const sqCardRef = useRef(null);
   const squareReady = isAU && !!squareCfg?.connected && !!squareCfg?.application_id && !!squareCfg?.location_id;
 
+  // ── Tyro EFTPOS (card-present terminal, AU). Preferred over Square when paired
+  //    because it's a real terminal transaction, not a card-not-present entry. ──
+  const [tyroCfg, setTyroCfg]         = useState(null); // { mid, tid, paired, environment, ... }
+  const [showTyroTerminal, setShowTyroTerminal] = useState(false);
+  const tyroReady = isAU && !!tyroCfg?.mid && !!tyroCfg?.tid && !!tyroCfg?.paired;
+
   // Load settings from localStorage (set in SettingsPage)
   useEffect(() => {
     try {
@@ -131,6 +138,22 @@ export default function PaymentModal({
       .catch(() => { if (!cancelled) setSquareCfg(null); });
     return () => { cancelled = true; };
   }, [isOpen, isAU, outletId]);
+
+  // Fetch Tyro config on modal open (AU only). Fails silently if not configured;
+  // the Card button just falls back to Square / manual mark-paid in that case.
+  useEffect(() => {
+    if (!isOpen || !isAU) return;
+    let cancelled = false;
+    api.get('/integrations/tyro/config', { params: { outlet_id: outletId } })
+      .then(res => res.data?.data || res.data)
+      .then(cfg => { if (!cancelled) setTyroCfg(cfg); })
+      .catch(() => { if (!cancelled) setTyroCfg(null); });
+    return () => { cancelled = true; };
+  }, [isOpen, isAU, outletId]);
+
+  // Reset the Tyro overlay whenever the modal opens/closes so a stale panel
+  // never leaks across two consecutive transactions.
+  useEffect(() => { if (!isOpen) setShowTyroTerminal(false); }, [isOpen]);
 
   // Mount/teardown the Square secure card field when the Card method is active.
   useEffect(() => {
@@ -294,6 +317,10 @@ export default function PaymentModal({
     if (method === 'due' && !customer) return toast.error('Attach a customer to record due payment');
     if (method === 'part' && (!partAmount || Number(partAmount) <= 0)) return toast.error('Enter partial amount');
     if (method === 'card' && razorpayEnabled && !isAU) return handleRazorpay();
+    // AU: Tyro EFTPOS wins over Square when both are configured — a paired terminal
+    // is a card-present transaction, cheaper interchange, and covers tipping/refunds
+    // at the terminal itself.
+    if (method === 'card' && tyroReady)   return setShowTyroTerminal(true);
     // AU + Square connected → charge the real card via the Web Payments SDK.
     if (method === 'card' && squareReady) return handleSquareCard();
 
@@ -558,6 +585,8 @@ export default function PaymentModal({
         >
           {processing
             ? <><Loader className="w-5 h-5 animate-spin" /> Processing...</>
+            : method === 'card' && tyroReady
+            ? <>Charge Tyro terminal {format(effectiveAmount)} <ChevronRight className="w-4 h-4" /></>
             : method === 'card' && squareReady
             ? <>Pay {format(effectiveAmount)} <ChevronRight className="w-4 h-4" /></>
             : method === 'card' && razorpayEnabled && razorpayKey && !isAU
@@ -569,6 +598,35 @@ export default function PaymentModal({
         </button>
 
       </div>
+
+      {/* Tyro EFTPOS overlay — appears IN the modal, above the card panel.
+          Backdrop click is deliberately disabled: the user must complete or
+          explicitly cancel via TyroIClient's own controls, so we can't leave
+          orphaned pending TerminalTransaction rows or hit "cancel" while the
+          terminal is mid-purchase. */}
+      {showTyroTerminal && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <TyroIClient
+            outletId={outletId}
+            orderId={orderId}
+            amountCents={Math.round(effectiveAmount * 100)}
+            onSuccess={async ({ tyro_reference, tip_cents }) => {
+              const paidAmount = effectiveAmount + ((tip_cents || 0) / 100);
+              try {
+                await onSuccess('card', paidAmount, tyro_reference);
+                toast.success('Card payment approved ✓');
+                setShowTyroTerminal(false);
+                onClose();
+              } catch (e) {
+                toast.error(e?.message || 'Failed to record payment');
+                setShowTyroTerminal(false);
+              }
+            }}
+            onCancel={() => setShowTyroTerminal(false)}
+            onError={() => { /* TyroIClient shows its own error UI; leave overlay open for retry */ }}
+          />
+        </div>
+      )}
     </Modal>
   );
 }

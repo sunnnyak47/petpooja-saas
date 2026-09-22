@@ -138,4 +138,129 @@ router.post('/refund', hasPermission('MANAGE_INTEGRATIONS'), enforceOutletScope,
   }
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// Terminal transaction lifecycle (called by the POS around the iClient run).
+// POS-USE permission (not MANAGE_INTEGRATIONS): every till-user needs to start
+// a card transaction, not just admins.
+// ────────────────────────────────────────────────────────────────────────────
+
+const startTxSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  order_id: Joi.string().uuid().allow(null),
+  our_ref: Joi.string().trim().min(8).max(64).required(),
+  type: Joi.string().valid('purchase', 'refund', 'cashout', 'preauth').default('purchase'),
+  amount_cents: Joi.number().integer().min(0).required(),
+  cashout_cents: Joi.number().integer().min(0).default(0),
+});
+
+const finaliseTxSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  raw: Joi.object().required(),   // the entire iClient transactionCompleteCallback payload
+  payment_id: Joi.string().uuid().allow(null), // filled once we've created the Payment row
+});
+
+/** POST /api/integrations/tyro/transactions — create pending TerminalTransaction. */
+router.post('/transactions', hasPermission('MANAGE_POS'), validate(startTxSchema), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const row = await tyroService.startTransaction(outletId, {
+      order_id: req.body.order_id,
+      our_ref: req.body.our_ref,
+      type: req.body.type,
+      amount_cents: req.body.amount_cents,
+      cashout_cents: req.body.cashout_cents,
+      initiated_by: req.user?.id || null,
+    });
+    // Return the iClient script URL + init params so the frontend has one call
+    // to spin up. Keeps browser code minimal.
+    const cfg = await tyroService.loadConfig(outletId);
+    sendSuccess(res, {
+      transaction: row,
+      iclient: {
+        script_url: tyroService.iClientScriptUrl(cfg.environment || 'sandbox'),
+        api_key: cfg.api_key || '',
+        mid: cfg.mid,
+        tid: cfg.tid,
+        pos_product_vendor: cfg.pos_product_vendor,
+        pos_product_name: cfg.pos_product_name,
+        pos_product_version: cfg.pos_product_version,
+        mock_mode: cfg.mock_mode === 'true',
+        environment: cfg.environment || 'sandbox',
+      },
+    }, 'Transaction started');
+  } catch (err) {
+    if (err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
+/** PATCH /api/integrations/tyro/transactions/:id — finalise with iClient result. */
+router.patch('/transactions/:id', hasPermission('MANAGE_POS'), validate(finaliseTxSchema), enforceOutletScope, async (req, res, next) => {
+  try {
+    const row = await tyroService.finaliseTransaction(req.params.id, req.body.raw);
+    // Optional linking to a Payment record — set by the POS once it records the
+    // customer money side of the transaction. We just persist the FK here.
+    if (req.body.payment_id) {
+      const { getDbClient } = require('../../config/database');
+      await getDbClient().terminalTransaction.update({
+        where: { id: row.id },
+        data: { payment_id: req.body.payment_id },
+      });
+    }
+    sendSuccess(res, row, `Transaction ${row.status}`);
+  } catch (err) {
+    if (err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
+/** GET /api/integrations/tyro/transactions/:id */
+router.get('/transactions/:id', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { getDbClient } = require('../../config/database');
+    const row = await getDbClient().terminalTransaction.findUnique({ where: { id: req.params.id } });
+    if (!row) return sendError(res, 404, 'Not found');
+    // Tenant guard: never leak another outlet's txn
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    if (row.outlet_id !== outletId && !['super_admin', 'owner'].includes(req.user.role))
+      return sendError(res, 403, 'Access denied');
+    sendSuccess(res, row);
+  } catch (err) { next(err); }
+});
+
+/** GET /api/integrations/tyro/transactions?order_id= — reconcile per-order. */
+router.get('/transactions', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { getDbClient } = require('../../config/database');
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const where = { outlet_id: outletId };
+    if (req.query.order_id) where.order_id = req.query.order_id;
+    const rows = await getDbClient().terminalTransaction.findMany({
+      where,
+      orderBy: { initiated_at: 'desc' },
+      take: Math.min(200, parseInt(req.query.limit, 10) || 50),
+    });
+    sendSuccess(res, rows);
+  } catch (err) { next(err); }
+});
+
+/** POST /api/integrations/tyro/transactions/:id/mock-complete — dev only, gated by mock_mode. */
+router.post('/transactions/:id/mock-complete', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const { getDbClient } = require('../../config/database');
+    const row = await getDbClient().terminalTransaction.findUnique({ where: { id: req.params.id } });
+    if (!row) return sendError(res, 404, 'Not found');
+    const cfg = await tyroService.loadConfig(row.outlet_id);
+    if (cfg.mock_mode !== 'true')
+      return sendError(res, 403, 'Mock complete only available when integration mock_mode=true');
+    const raw = tyroService.mockCompletionPayload({
+      our_ref: row.our_ref,
+      amount_cents: row.amount_cents,
+      decline: req.body?.decline === true,
+    });
+    const finalRow = await tyroService.finaliseTransaction(row.id, raw);
+    sendSuccess(res, finalRow, `Mock transaction ${finalRow.status}`);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
