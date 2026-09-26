@@ -63,6 +63,30 @@ function append(buf, ...bytes) {
   for (const b of bytes.flat(Infinity)) buf.push(b);
 }
 
+/**
+ * Build the printed label for a tax component from the order's ACTUAL tax data —
+ * never a hardcoded slab. Prefers an explicit rate field on the order; otherwise
+ * backs the effective rate out of the component amount vs. the taxable base.
+ * Returns e.g. "CGST (2.5%)", "IGST (18%)", or the bare name when no rate can
+ * be derived (multi-slab orders with no base still print the honest amount).
+ *
+ * @param {string} name         — "CGST" | "SGST" | "IGST"
+ * @param {number} explicitRate — rate field from the order, if the API sent one
+ * @param {number} amount       — the tax component amount
+ * @param {number} taxBase      — order's taxable base (taxable_amount, else subtotal)
+ */
+function taxLabel(name, explicitRate, amount, taxBase) {
+  const r = Number(explicitRate);
+  let rate = Number.isFinite(r) && r > 0 ? r : null;
+  if (rate == null) {
+    const amt = Number(amount || 0);
+    const base = Number(taxBase || 0);
+    if (base > 0 && amt > 0) rate = (amt / base) * 100;
+  }
+  if (rate == null) return name;
+  return `${name} (${Number(rate.toFixed(2))}%)`;
+}
+
 // ---------------------------------------------------------------------------
 // HTML generators
 // ---------------------------------------------------------------------------
@@ -138,12 +162,20 @@ function generateBillHTML(order, outlet, options = {}) {
       </tr>`;
   }).join('');
 
-  const auGst = (Math.round(grandTotal * 100 / 11) / 100);
+  // Taxable base for deriving effective component rates on IN receipts.
+  const taxBase = Number(order?.taxable_amount ?? subtotal);
+  // AU stores its flat 10% GST in the igst field (see backend tax.service) — on an
+  // AU receipt that amount is ALWAYS labelled "GST (10%)", never "IGST". Prefer the
+  // stored amount; fall back to backing 1/11th out of the inclusive total.
+  const auGst = igst > 0 ? igst : (Math.round(grandTotal * 100 / 11) / 100);
+  const taxRow = (label, amount) =>
+    `<tr><td colspan="2" style="opacity:.7">${label}</td><td style="text-align:right;opacity:.7">${currency}${amount.toFixed(2)}</td></tr>`;
   const taxSection = isAU
-    ? (grandTotal > 0 ? `<tr><td colspan="2" style="opacity:.7">GST (10%) incl.</td><td style="text-align:right;opacity:.7">${currency}${auGst.toFixed(2)}</td></tr>` : '')
+    ? (grandTotal > 0 ? taxRow('GST (10%) incl.', auGst) : '')
     : `
-      ${cgst > 0 ? `<tr><td colspan="2" style="opacity:.7">CGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${cgst.toFixed(2)}</td></tr>` : ''}
-      ${sgst > 0 ? `<tr><td colspan="2" style="opacity:.7">SGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${sgst.toFixed(2)}</td></tr>` : ''}
+      ${cgst > 0 ? taxRow(taxLabel('CGST', order?.cgst_rate ?? order?.cgst_percent, cgst, taxBase), cgst) : ''}
+      ${sgst > 0 ? taxRow(taxLabel('SGST', order?.sgst_rate ?? order?.sgst_percent, sgst, taxBase), sgst) : ''}
+      ${igst > 0 ? taxRow(taxLabel('IGST', order?.igst_rate ?? order?.igst_percent, igst, taxBase), igst) : ''}
     `;
 
   const taxId = isAU
@@ -405,12 +437,16 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
 
   if (isAU) {
     if (grandTotal > 0) {
-      const auGst = (Math.round(grandTotal * 100 / 11) / 100);
+      // AU keeps its flat 10% GST in the igst field — label it "GST (10%)", never "IGST".
+      const auGst = igst > 0 ? igst : (Math.round(grandTotal * 100 / 11) / 100);
       append(buf, ...encodeText(alignColumns('GST (10%) incl.', `${currency} ${auGst.toFixed(2)}`, lineWidth)), LF);
     }
   } else {
-    if (cgst > 0) append(buf, ...encodeText(alignColumns('CGST (2.5%)', `${currency} ${cgst.toFixed(2)}`, lineWidth)), LF);
-    if (sgst > 0) append(buf, ...encodeText(alignColumns('SGST (2.5%)', `${currency} ${sgst.toFixed(2)}`, lineWidth)), LF);
+    // Derive each component's printed rate from the order's real tax data.
+    const taxBase = Number(order?.taxable_amount ?? subtotal);
+    if (cgst > 0) append(buf, ...encodeText(alignColumns(taxLabel('CGST', order?.cgst_rate ?? order?.cgst_percent, cgst, taxBase), `${currency} ${cgst.toFixed(2)}`, lineWidth)), LF);
+    if (sgst > 0) append(buf, ...encodeText(alignColumns(taxLabel('SGST', order?.sgst_rate ?? order?.sgst_percent, sgst, taxBase), `${currency} ${sgst.toFixed(2)}`, lineWidth)), LF);
+    if (igst > 0) append(buf, ...encodeText(alignColumns(taxLabel('IGST', order?.igst_rate ?? order?.igst_percent, igst, taxBase), `${currency} ${igst.toFixed(2)}`, lineWidth)), LF);
   }
 
   append(buf, ...encodeText(dividerStr), LF);
