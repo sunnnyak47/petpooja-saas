@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { 
-  Globe, CreditCard, Save, RefreshCw, CheckCircle2, AlertCircle, Palette
+import {
+  Globe, CreditCard, Save, RefreshCw, CheckCircle2, AlertCircle, Palette, ShieldCheck
 } from 'lucide-react';
 import ThemeSelector from '../themes/ThemeSelector';
 
+// Backend endpoints (superadmin.routes.js):
+//   GET /api/superadmin/platform-settings  → { success, data: settings }
+//   PUT /api/superadmin/platform-settings  ← settings object (Joi: savePlatformSettingsSchema)
+// Settings shape: maintenance_mode, registration_open (bool); platform_name,
+// support_email (string); default_trial_days, min_password_length,
+// session_timeout_hours (int); plan_pricing, max_outlets_per_plan (objects
+// keyed by plan code → number).
 const fetchConfig = async () => {
-    return await api.get('/config');
+    return await api.get('/platform-settings');
 };
 
 const updateConfig = async (settings) => {
-    return await api.put('/config', settings);
+    // updated_at is server-managed; everything else round-trips as-is.
+    const { updated_at, ...payload } = settings;
+    return await api.put('/platform-settings', payload);
 };
+
+const PLAN_ORDER = ['TRIAL', 'STARTER', 'PRO', 'ENTERPRISE'];
 
 export default function SystemConfig() {
     const queryClient = useQueryClient();
@@ -31,6 +42,7 @@ export default function SystemConfig() {
     const [localSettings, setLocalSettings] = useState({});
 
     useEffect(() => {
+        // api interceptor unwraps axios → envelope; envelope.data is the settings object.
         if (response?.data) setLocalSettings(response.data);
     }, [response]);
 
@@ -38,61 +50,80 @@ export default function SystemConfig() {
         mutation.mutate(localSettings);
     };
 
+    const setField = (key, value) => setLocalSettings(prev => ({ ...prev, [key]: value }));
+    const setPlanField = (mapKey, plan, value) => setLocalSettings(prev => ({
+        ...prev,
+        [mapKey]: { ...(prev[mapKey] || {}), [plan]: value },
+    }));
+
     if (isLoading) return <div className="p-8 text-slate-500 font-black animate-pulse">LOADING CORE CONFIG...</div>;
 
+    const numberInputCls = "w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-[10px] font-bold text-white focus:outline-none";
+
     const sections = [
-        { 
-            id: 'branding', 
-            title: 'Platform Branding', 
+        {
+            id: 'branding',
+            title: 'Platform Branding',
             icon: Globe,
             fields: [
-                { key: 'platform_name', label: 'Platform Name', type: 'text', placeholder: 'Petpooja ERP' },
-                { key: 'support_whatsapp', label: 'Support WhatsApp', type: 'text', placeholder: '+91 9999999999' },
-                { key: 'support_email', label: 'Support Email', type: 'email', placeholder: 'support@petpooja.com' },
-                { key: 'restaurant_app_url', label: 'Restaurant App URL', type: 'text', placeholder: 'petpooja-saas.vercel.app' }
+                { key: 'platform_name', label: 'Platform Name', type: 'text', placeholder: 'MS-RM System' },
+                { key: 'support_email', label: 'Support Email', type: 'email', placeholder: 'support@madsundigital.com' }
             ]
         },
-        { 
-            id: 'plans', 
-            title: 'Subscription Plans', 
+        {
+            id: 'access',
+            title: 'Access Controls',
+            icon: AlertCircle,
+            fields: [
+                { key: 'registration_open', label: 'Registration Open', type: 'toggle' },
+                { key: 'maintenance_mode', label: 'Maintenance Mode', type: 'toggle' },
+                { key: 'allow_impersonation', label: 'Allow Impersonation', type: 'toggle' },
+                { key: 'onboarding_required', label: 'Onboarding Required', type: 'toggle' }
+            ]
+        },
+        {
+            id: 'plans',
+            title: 'Subscription Plans',
             icon: CreditCard,
             isSpecial: true,
             render: () => {
-                const plans = localSettings.plan_settings ? JSON.parse(localSettings.plan_settings) : [
-                    { plan: 'trial', name: 'Free Trial', price: 0, duration_days: 14 },
-                    { plan: 'monthly', name: 'Monthly', price: 999, duration_days: 30 },
-                    { plan: 'annual', name: 'Annual', price: 9999, duration_days: 365 },
-                    { plan: '2year', name: '2 Year', price: 17999, duration_days: 730 }
-                ];
+                const pricing = localSettings.plan_pricing || {};
+                const maxOutlets = localSettings.max_outlets_per_plan || {};
+                const plans = PLAN_ORDER.filter(p => p in pricing || p in maxOutlets);
+                const planList = plans.length ? plans : PLAN_ORDER;
                 return (
                     <div className="space-y-4">
-                        {plans.map((plan, idx) => (
-                            <div key={plan.plan} className="grid grid-cols-2 gap-3 p-4 bg-slate-950 rounded-2xl border border-slate-800">
-                                <div className="col-span-2 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{plan.name}</div>
+                        <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                            <label className="text-[8px] font-black text-slate-600 uppercase mb-1 block">Default Trial Days</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={localSettings.default_trial_days ?? ''}
+                                onChange={(e) => setField('default_trial_days', Number(e.target.value))}
+                                className={numberInputCls}
+                            />
+                        </div>
+                        {planList.map((plan) => (
+                            <div key={plan} className="grid grid-cols-2 gap-3 p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                                <div className="col-span-2 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">{plan}</div>
                                 <div>
                                     <label className="text-[8px] font-black text-slate-600 uppercase mb-1 block">Price (₹)</label>
-                                    <input 
+                                    <input
                                         type="number"
-                                        value={plan.price}
-                                        onChange={(e) => {
-                                            const newPlans = [...plans];
-                                            newPlans[idx].price = Number(e.target.value);
-                                            setLocalSettings({...localSettings, plan_settings: JSON.stringify(newPlans)});
-                                        }}
-                                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-[10px] font-bold text-white focus:outline-none"
+                                        min="0"
+                                        value={pricing[plan] ?? 0}
+                                        onChange={(e) => setPlanField('plan_pricing', plan, Number(e.target.value))}
+                                        className={numberInputCls}
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[8px] font-black text-slate-600 uppercase mb-1 block">Days</label>
-                                    <input 
+                                    <label className="text-[8px] font-black text-slate-600 uppercase mb-1 block">Max Outlets</label>
+                                    <input
                                         type="number"
-                                        value={plan.duration_days}
-                                        onChange={(e) => {
-                                            const newPlans = [...plans];
-                                            newPlans[idx].duration_days = Number(e.target.value);
-                                            setLocalSettings({...localSettings, plan_settings: JSON.stringify(newPlans)});
-                                        }}
-                                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-[10px] font-bold text-white focus:outline-none"
+                                        min="0"
+                                        value={maxOutlets[plan] ?? 0}
+                                        onChange={(e) => setPlanField('max_outlets_per_plan', plan, Number(e.target.value))}
+                                        className={numberInputCls}
                                     />
                                 </div>
                             </div>
@@ -101,22 +132,13 @@ export default function SystemConfig() {
                 );
             }
         },
-        { 
-            id: 'payment', 
-            title: 'Payment Gateway', 
-            icon: CreditCard,
+        {
+            id: 'security',
+            title: 'Security & Sessions',
+            icon: ShieldCheck,
             fields: [
-                { key: 'razorpay_key_id', label: 'Razorpay Key ID', type: 'text', placeholder: 'rzp_live_...' },
-                { key: 'razorpay_active', label: 'Razorpay Active', type: 'toggle' }
-            ]
-        },
-        { 
-            id: 'notifications', 
-            title: 'Notifications', 
-            icon: AlertCircle,
-            fields: [
-                { key: 'expiry_alert_days', label: 'Expiry Alert Days', type: 'number', placeholder: '30' },
-                { key: 'whatsapp_alerts', label: 'WhatsApp Alerts', type: 'toggle' }
+                { key: 'min_password_length', label: 'Min Password Length', type: 'number', placeholder: '8' },
+                { key: 'session_timeout_hours', label: 'Session Timeout (Hours)', type: 'number', placeholder: '24' }
             ]
         },
         {
@@ -159,7 +181,7 @@ export default function SystemConfig() {
                                 <h3 className="text-sm font-black text-white uppercase tracking-[0.2em] italic">{section.title}</h3>
                             </div>
                         </div>
-                        
+
                         <div className="flex-grow">
                             {section.isSpecial ? section.render() : (
                                 <div className="space-y-6">
@@ -167,17 +189,20 @@ export default function SystemConfig() {
                                         <div key={field.key}>
                                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">{field.label}</label>
                                             {field.type === 'toggle' ? (
-                                                <button 
-                                                    onClick={() => setLocalSettings({...localSettings, [field.key]: localSettings[field.key] === 'true' ? 'false' : 'true'})}
-                                                    className={`w-14 h-7 rounded-full p-1 transition-all ${localSettings[field.key] === 'true' ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                                                <button
+                                                    onClick={() => setField(field.key, !localSettings[field.key])}
+                                                    className={`w-14 h-7 rounded-full p-1 transition-all ${localSettings[field.key] ? 'bg-indigo-600' : 'bg-slate-800'}`}
                                                 >
-                                                    <div className={`w-5 h-5 bg-white rounded-full transition-all ${localSettings[field.key] === 'true' ? 'translate-x-7' : 'translate-x-0'}`} />
+                                                    <div className={`w-5 h-5 bg-white rounded-full transition-all ${localSettings[field.key] ? 'translate-x-7' : 'translate-x-0'}`} />
                                                 </button>
                                             ) : (
-                                                <input 
+                                                <input
                                                     type={field.type}
-                                                    value={localSettings[field.key] || ''}
-                                                    onChange={(e) => setLocalSettings({...localSettings, [field.key]: e.target.value})}
+                                                    value={localSettings[field.key] ?? ''}
+                                                    onChange={(e) => setField(
+                                                        field.key,
+                                                        field.type === 'number' ? Number(e.target.value) : e.target.value
+                                                    )}
                                                     placeholder={field.placeholder}
                                                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all placeholder:text-slate-800"
                                                 />
@@ -188,7 +213,7 @@ export default function SystemConfig() {
                             )}
                         </div>
 
-                        <button 
+                        <button
                             onClick={handleSave}
                             disabled={mutation.isPending}
                             className="mt-8 flex items-center justify-center gap-3 w-full py-4 bg-slate-800 hover:bg-indigo-600 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest transition-all disabled:opacity-50"

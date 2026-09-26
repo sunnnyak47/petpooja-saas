@@ -26,6 +26,13 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
   const fmtRate = (r) => (r == null ? '' : ` (${Number(r.toFixed(2))}%)`);
   const cgstRate = rateFor(order.cgst_rate ?? order.cgst_percent, order.cgst);
   const sgstRate = rateFor(order.sgst_rate ?? order.sgst_percent, order.sgst);
+  const igstRate = rateFor(order.igst_rate ?? order.igst_percent, order.igst);
+  // AU stores its flat 10% GST in the igst field (backend tax.service) — on AU
+  // receipts that amount prints as "GST (10%)", never "IGST". Prefer the stored
+  // amount over backing 1/11th out of the inclusive total.
+  const auGstAmount = Number(order.igst) > 0
+    ? Number(order.igst)
+    : Math.round(Number(order.grand_total) * 100 / 11) / 100;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Bill Preview" size="md">
@@ -94,7 +101,7 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
               Number(order.grand_total) > 0 && (
                 <div className="flex justify-between text-[10px] opacity-70">
                   <span>GST (10%) incl.</span>
-                  <span>{symbol}{(Math.round(Number(order.grand_total) * 100 / 11) / 100).toFixed(2)}</span>
+                  <span>{symbol}{auGstAmount.toFixed(2)}</span>
                 </div>
               )
             ) : (
@@ -109,6 +116,13 @@ export default function BillPreviewModal({ isOpen, onClose, order, onPrint }) {
                   <div className="flex justify-between text-[10px] opacity-70">
                     <span>SGST{fmtRate(sgstRate)}</span>
                     <span>{symbol}{Number(order.sgst).toFixed(2)}</span>
+                  </div>
+                )}
+                {/* Inter-state IN order: GST lands entirely in igst — print it. */}
+                {Number(order.igst) > 0 && (
+                  <div className="flex justify-between text-[10px] opacity-70">
+                    <span>IGST{fmtRate(igstRate)}</span>
+                    <span>{symbol}{Number(order.igst).toFixed(2)}</span>
                   </div>
                 )}
               </>

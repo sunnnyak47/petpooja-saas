@@ -270,7 +270,9 @@ export default function App() {
       <Route path="/welcome" element={<WelcomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/superadmin-login" element={<SuperAdminLoginPage />} />
-      {/* TODO: Signup route is a placeholder — LoginPage does not use isSignup prop yet */}
+      {/* /signup renders LoginPage in get-started mode: the backend has no self-serve
+          owner registration, so it submits a lead via the public POST /api/leads
+          demo-request flow (see handleSignupSubmit in LoginPage). */}
       <Route path="/signup" element={<LoginPage isSignup={true} />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
