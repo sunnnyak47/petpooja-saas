@@ -1,11 +1,190 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { SITE } from '../data/site';
+
+// TODO(owner): set the real date when the reviewed terms go live, fill the
+// governing-law placeholder in section 13 (General), and remove the review banner
+// below once an Australian solicitor has signed these off.
+const lastUpdated = '26 September 2026';
 ---
-<Layout title="Terms of Service">
+<Layout
+  title="Terms of Service"
+  description="The terms that govern use of the MSRM website and restaurant management platform."
+>
   <section class="container-x py-16 max-w-3xl">
-    <h1 class="h2">Terms of Service</h1>
-    <p class="text-ink-soft mt-3">Last updated: {new Date().toLocaleDateString()}</p>
-    <p class="mt-4 text-ink-soft">This is a placeholder Terms of Service for the MSRM marketing site. Replace with your reviewed legal copy before launch — covering acceptable use, subscription terms, billing, liability, and governing law (Australian entity, governed by the laws of your state/territory).</p>
-    <p class="mt-6 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
+    <p class="eyebrow">Legal</p>
+    <h1 class="h2 mt-2">Terms of Service</h1>
+    <p class="text-ink-mute mt-3 text-sm">Last updated: {lastUpdated}</p>
+
+    <!-- TEMPLATE BANNER — remove after legal review -->
+    <div class="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <strong>Template — review by an Australian solicitor before launch.</strong>
+      These terms are a professionally structured template, not legal advice. Have them
+      reviewed and adapted to your circumstances before relying on them.
+    </div>
+
+    <div class="mt-8 space-y-8 text-ink-soft leading-relaxed">
+      <div>
+        <h2 class="text-xl font-semibold text-ink">1. Agreement to these terms</h2>
+        <p class="mt-2">
+          These Terms of Service ("Terms") govern your use of the {SITE.name} website and
+          the {SITE.name} restaurant management platform, apps and related services
+          (together, the "Service"), provided by {SITE.name} ("we", "us", "our"). By
+          accessing the website or creating an account, you agree to these Terms. If you
+          use the Service on behalf of a business, you represent that you are authorised
+          to bind that business, and "you" refers to it.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">2. The Service</h2>
+        <p class="mt-2">
+          The Service is a subscription software platform for hospitality businesses —
+          including point of sale, kitchen display, inventory, online ordering,
+          integrations and reporting. We may improve, add or change features over time;
+          we will not materially reduce the core functionality of your paid plan during a
+          paid period without notice.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">3. Accounts</h2>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li>You must provide accurate account and business information and keep it current;</li>
+          <li>You are responsible for safeguarding login credentials and for all activity under your account, including staff users you create;</li>
+          <li>You must notify us promptly of any unauthorised use of your account.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">4. Licence and intellectual property</h2>
+        <p class="mt-2">
+          We grant you a limited, non-exclusive, non-transferable licence to use the
+          Service for your internal business purposes during your subscription. We (and
+          our licensors) retain all intellectual property rights in the Service, its
+          software, design and content. You retain all rights in the data you and your
+          staff enter into the Service ("Your Data"); you grant us a licence to host and
+          process Your Data solely to provide and improve the Service.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">5. Acceptable use</h2>
+        <p class="mt-2">You must not, and must not permit anyone to:</p>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li>Use the Service in breach of any law, or to store or transmit unlawful, infringing or harmful material;</li>
+          <li>Interfere with or disrupt the Service, probe or test its security, or attempt to gain unauthorised access to it or its data;</li>
+          <li>Reverse engineer, copy, resell, sublicense or make the Service available to third parties except as we expressly permit;</li>
+          <li>Use the Service to send spam or misleading communications;</li>
+          <li>Exceed reasonable usage or circumvent plan limits.</li>
+        </ul>
+        <p class="mt-2">We may suspend access where we reasonably believe this section has been breached, giving notice where practicable.</p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">6. Fees and billing</h2>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li>Subscription fees are charged per outlet, in Australian dollars, at the rates published on our <a href="/pricing" class="text-brand-700 underline">pricing page</a> or agreed in writing. Prices are inclusive or exclusive of GST as stated at checkout;</li>
+          <li>Fees are billed in advance for each billing period and, except as required by law (including the Australian Consumer Law) or expressly stated, are non-refundable;</li>
+          <li>We may change fees with at least 30 days' notice; changes apply from your next billing period;</li>
+          <li>If payment fails, we may retry, and may suspend the Service after reasonable notice until payment is made;</li>
+          <li>Any free trial converts to a paid subscription only if you choose a plan; we will not silently start charging you.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">7. Your Data and privacy</h2>
+        <p class="mt-2">
+          Our collection and handling of personal information is described in our
+          <a href="/privacy" class="text-brand-700 underline">Privacy Policy</a>. You are
+          responsible for having a lawful basis (and any required notices or consents) for
+          the customer and staff data you enter into the Service. You can export Your Data
+          during your subscription and for 30 days after termination, after which we may
+          delete it.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">8. Third-party services</h2>
+        <p class="mt-2">
+          The Service integrates with third-party products — such as delivery
+          marketplaces, payment terminals and processors, and accounting software. Those
+          services are governed by their own terms, and we are not responsible for their
+          acts, omissions, fees or availability. An integration failing because of a
+          third-party change is not a breach of these Terms, though we will use reasonable
+          efforts to restore it.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">9. Availability and support</h2>
+        <p class="mt-2">
+          We aim for high availability but do not guarantee the Service will be
+          uninterrupted or error-free. Planned maintenance will be scheduled outside peak
+          trading hours where practicable. Offline features are designed to keep core POS
+          functions running during connectivity loss, but depend on your local hardware
+          and configuration.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">10. Consumer guarantees and disclaimers</h2>
+        <p class="mt-2">
+          Nothing in these Terms excludes, restricts or modifies any consumer guarantee,
+          right or remedy under the Australian Consumer Law or other law that cannot
+          lawfully be excluded. Subject to that, the Service is provided "as is" and we
+          exclude all other conditions, warranties and guarantees, whether express or
+          implied. Where our liability for breach of a non-excludable guarantee can be
+          limited, it is limited (at our option) to resupplying the Service or paying the
+          cost of resupply.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">11. Limitation of liability</h2>
+        <p class="mt-2">
+          To the maximum extent permitted by law: (a) neither party is liable for
+          indirect or consequential loss, loss of profits, revenue, goodwill or data; and
+          (b) our total aggregate liability arising out of or in connection with the
+          Service is limited to the fees you paid us in the 12 months before the event
+          giving rise to the claim. These limits do not apply to liability that cannot be
+          limited by law, or to your obligation to pay fees.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">12. Termination</h2>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li>You may cancel at any time from your account or by written notice; cancellation takes effect at the end of the current billing period. There is no lock-in contract;</li>
+          <li>Either party may terminate immediately for a material breach that is not remedied within 14 days of written notice, or if the other party becomes insolvent;</li>
+          <li>On termination, your right to use the Service ends; sections that by their nature should survive (including fees owed, IP, liability limits and governing law) survive.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">13. General</h2>
+        <p class="mt-2">
+          These Terms are governed by the laws of
+          <strong>[State/Territory — e.g. Victoria], Australia</strong>, and the parties
+          submit to the non-exclusive jurisdiction of its courts.
+          <!-- TODO(owner): set the governing state/territory before launch. -->
+          We may update these Terms from time to time; material changes will be notified
+          to account holders by email at least 30 days before taking effect, and continued
+          use after that date constitutes acceptance. If any provision is unenforceable,
+          the rest remain in force. You may not assign these Terms without our consent; we
+          may assign them as part of a corporate restructure or sale of the business.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">14. Contact</h2>
+        <p class="mt-2">
+          Questions about these Terms:
+          <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a>
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-10 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
   </section>
 </Layout>
