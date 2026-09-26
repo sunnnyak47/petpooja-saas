@@ -200,16 +200,18 @@ router.post('/razorpay/refund', authenticate, hasPermission('MANAGE_PAYMENTS'), 
 
 /* ============================
    PUSH TOKEN REGISTRY
-   Stored in-memory (Map) — no DB change required.
-   A server restart clears tokens; devices re-register on next app launch.
+   Persisted in the push_tokens table (PushToken model) so tokens survive
+   server restarts. The in-memory Map remains ONLY as a same-process fallback
+   cache for when the DB is briefly unreachable (push.service falls back to it
+   — pushes are fire-and-forget and must never fail hard).
    ============================ */
 
-// userId → { token, platform, outlet_id, registered_at }
+// Fallback cache: userId → { token, platform, outlet_id, registered_at }
 const pushTokenRegistry = new Map();
 
 /**
  * POST /api/integrations/push-token
- * Body: { token, platform }
+ * Body: { token, platform, outlet_id? }
  * Requires: authenticated staff / owner
  */
 router.post('/push-token', authenticate, async (req, res, next) => {
@@ -220,29 +222,65 @@ router.post('/push-token', authenticate, async (req, res, next) => {
     }
     // Prefer the outlet the app is actively watching (owners' JWT outlet_id is
     // often null and they switch outlets) so outlet-scoped pushes reach them.
-    pushTokenRegistry.set(req.user.id, {
-      token,
+    const entry = {
+      token: String(token).trim(),
       platform: platform || 'unknown',
       outlet_id: outlet_id || req.user.outlet_id || null,
       registered_at: new Date().toISOString(),
-    });
-    logger.info('Push token registered', { userId: req.user.id, platform });
-    sendSuccess(res, { registered: true }, 'Push token registered');
+    };
+
+    // Persist (token is unique — a device re-registering under a new user or
+    // outlet simply moves its row). DB failure demotes to cache-only: the
+    // device re-registers on next app launch anyway.
+    let persisted = true;
+    try {
+      const prisma = require('../../config/database').getDbClient();
+      await prisma.pushToken.upsert({
+        where: { token: entry.token },
+        update: { user_id: req.user.id, outlet_id: entry.outlet_id, platform: entry.platform },
+        create: { token: entry.token, user_id: req.user.id, outlet_id: entry.outlet_id, platform: entry.platform },
+      });
+    } catch (dbErr) {
+      persisted = false;
+      logger.error('Push token DB persist failed — cached in-memory only', {
+        userId: req.user.id, error: dbErr.message,
+      });
+    }
+
+    pushTokenRegistry.set(req.user.id, entry);
+    logger.info('Push token registered', { userId: req.user.id, platform, persisted });
+    sendSuccess(res, { registered: true, persisted }, 'Push token registered');
   } catch (error) { next(error); }
 });
 
 /**
  * GET /api/integrations/push-token/:userId (internal / owner-only)
- * Returns the push token for a staff member.
+ * Returns the most recently refreshed push token for a staff member.
  */
-router.get('/push-token/:userId', authenticate, hasPermission('VIEW_STAFF'), (req, res) => {
-  const entry = pushTokenRegistry.get(req.params.userId);
-  if (!entry) return res.status(404).json({ success: false, message: 'Token not found' });
-  sendSuccess(res, entry);
+router.get('/push-token/:userId', authenticate, hasPermission('VIEW_STAFF'), async (req, res, next) => {
+  try {
+    let entry = null;
+    try {
+      const prisma = require('../../config/database').getDbClient();
+      const row = await prisma.pushToken.findFirst({
+        where: { user_id: req.params.userId },
+        orderBy: { updated_at: 'desc' },
+      });
+      if (row) {
+        entry = { token: row.token, platform: row.platform, outlet_id: row.outlet_id, registered_at: row.updated_at };
+      }
+    } catch (dbErr) {
+      logger.warn('Push token DB lookup failed — falling back to cache', { error: dbErr.message });
+    }
+    if (!entry) entry = pushTokenRegistry.get(req.params.userId) || null;
+    if (!entry) return res.status(404).json({ success: false, message: 'Token not found' });
+    sendSuccess(res, entry);
+  } catch (error) { next(error); }
 });
 
 /**
- * Expose registry getter for use in other services (e.g. send push to a user).
+ * Expose the fallback cache for push.service (DB is the source of truth;
+ * this Map only bridges a DB outage within the same process).
  * Usage: const registry = require('./integration.routes').getPushTokenRegistry();
  */
 router.getPushTokenRegistry = () => pushTokenRegistry;

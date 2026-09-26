@@ -5,7 +5,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "build": "npx prisma generate && npx prisma db push --accept-data-loss && node prisma/seed.js",
+    "build": "npx prisma generate && npx prisma migrate deploy && node prisma/seed.js",
     "dev": "nodemon src/app.js",
     "test": "jest --coverage --forceExit --detectOpenHandles",
     "test:watch": "jest --watch",
@@ -18,9 +18,7 @@
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:validate": "npx prisma validate",
     "prisma:seed": "node prisma/seed.js",
-    "lint": "eslint src/",
-    "db:schema": "psql $DATABASE_URL -f src/database/schema.sql",
-    "db:seed": "psql $DATABASE_URL -f src/database/seed.sql"
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.685.0",
