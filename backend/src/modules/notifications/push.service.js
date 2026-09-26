@@ -39,8 +39,10 @@ function chunk(arr, size) {
 }
 
 /**
- * Lazily resolve the in-memory push-token registry (userId → { token,
- * outlet_id, … }). Lazy `require` avoids a circular import with the routes
+ * Lazily resolve the in-memory push-token fallback CACHE (userId → { token,
+ * outlet_id, … }). The DB (push_tokens table) is the source of truth; the
+ * cache only bridges a DB outage / a row whose persist failed, within the
+ * same process. Lazy `require` avoids a circular import with the routes
  * module and lets tests inject their own registry.
  * @returns {Map<string, object>|null}
  */
@@ -48,6 +50,36 @@ function getRegistry() {
   try {
     return require('../integrations/integration.routes').getPushTokenRegistry();
   } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Lazily resolve the Prisma client. Never throws — pushes are fire-and-forget.
+ * @returns {object|null}
+ */
+function getDb() {
+  try {
+    return require('../../config/database').getDbClient();
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Query the persistent registry for tokens. Returns null (not []) when the
+ * lookup FAILS, so callers can tell "DB said none" from "DB unreachable".
+ * @param {object} where Prisma where clause on PushToken
+ * @returns {Promise<string[]|null>}
+ */
+async function dbTokens(where) {
+  const db = getDb();
+  if (!db || !db.pushToken) return null;
+  try {
+    const rows = await db.pushToken.findMany({ where, select: { token: true } });
+    return rows.map((r) => r.token).filter(isValidExpoToken).map((t) => t.trim());
+  } catch (err) {
+    logger.warn('[push] DB token lookup failed — falling back to in-memory cache', { error: err.message });
     return null;
   }
 }
@@ -105,19 +137,26 @@ async function sendExpoPush(messages) {
 }
 
 /**
- * Push to specific users (by id) — resolves each user's registered token.
+ * Push to specific users (by id) — resolves each user's registered device
+ * tokens from the persistent registry (push_tokens table), falling back to
+ * the in-memory cache when the DB is unreachable.
  * @param {string[]} userIds
  * @param {{title:string, body:string, data?:object}} payload
  * @returns {Promise<{sent:number, tickets:object[]}>}
  */
 async function sendToUsers(userIds, payload) {
-  const reg = getRegistry();
-  if (!reg || !Array.isArray(userIds) || userIds.length === 0) return { sent: 0, tickets: [] };
+  if (!Array.isArray(userIds) || userIds.length === 0) return { sent: 0, tickets: [] };
 
-  const tokens = [];
-  for (const uid of userIds) {
-    const entry = reg.get(uid);
-    if (entry && isValidExpoToken(entry.token)) tokens.push(entry.token.trim());
+  let tokens = await dbTokens({ user_id: { in: userIds } });
+  if (tokens === null) {
+    // DB unreachable → same-process cache.
+    const reg = getRegistry();
+    if (!reg) return { sent: 0, tickets: [] };
+    tokens = [];
+    for (const uid of userIds) {
+      const entry = reg.get(uid);
+      if (entry && isValidExpoToken(entry.token)) tokens.push(entry.token.trim());
+    }
   }
   return sendExpoPush(buildMessages([...new Set(tokens)], payload));
 }
@@ -132,15 +171,23 @@ async function sendToUsers(userIds, payload) {
  * @returns {Promise<{sent:number, tickets:object[]}>}
  */
 async function sendToOutlet(outletId, payload, opts = {}) {
-  const reg = getRegistry();
-  if (!reg || !outletId) return { sent: 0, tickets: [] };
+  if (!outletId) return { sent: 0, tickets: [] };
 
   const { excludeUserId } = opts;
-  const tokens = [];
-  for (const [uid, entry] of reg.entries()) {
-    if (excludeUserId && uid === excludeUserId) continue;
-    if (entry && entry.outlet_id === outletId && isValidExpoToken(entry.token)) {
-      tokens.push(entry.token.trim());
+  let tokens = await dbTokens({
+    outlet_id: outletId,
+    ...(excludeUserId ? { user_id: { not: excludeUserId } } : {}),
+  });
+  if (tokens === null) {
+    // DB unreachable → same-process cache.
+    const reg = getRegistry();
+    if (!reg) return { sent: 0, tickets: [] };
+    tokens = [];
+    for (const [uid, entry] of reg.entries()) {
+      if (excludeUserId && uid === excludeUserId) continue;
+      if (entry && entry.outlet_id === outletId && isValidExpoToken(entry.token)) {
+        tokens.push(entry.token.trim());
+      }
     }
   }
   return sendExpoPush(buildMessages([...new Set(tokens)], payload));
