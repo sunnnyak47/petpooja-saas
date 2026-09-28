@@ -87,12 +87,10 @@ function resolveOutletId(socket, requestedOutletId) {
 function initializeSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
+      // Same exact-origin allowlist as the HTTP API (config/cors.js). The old
+      // check accepted ANY *.vercel.app origin with credentials — a hole.
       origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        const isVercel = origin.includes('.vercel.app');
-        const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-        const isWhitelisted = appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*');
-        callback(null, isVercel || isLocalhost || isWhitelisted);
+        callback(null, require('../config/cors').isOriginAllowed(origin));
       },
       methods: ['GET', 'POST'],
       credentials: true,

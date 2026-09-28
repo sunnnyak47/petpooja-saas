@@ -24,6 +24,12 @@ const consoleFormat = winston.format.combine(
   })
 );
 
+/*
+ * Console transport is ALWAYS active. In production it emits structured JSON
+ * to stdout — the only durable sink on Render, whose disk is ephemeral and
+ * wiped on every deploy/restart; Render captures stdout/stderr as the service
+ * logs. In development it stays human-readable and colorized.
+ */
 const transports = [
   new winston.transports.Console({
     format: process.env.NODE_ENV === 'production' ? logFormat : consoleFormat,
@@ -31,7 +37,17 @@ const transports = [
   }),
 ];
 
-if (process.env.NODE_ENV === 'production') {
+/*
+ * File transports are a local-dev convenience (grep-able history across
+ * restarts). They are OFF in production by default — writing to Render's
+ * ephemeral disk buys nothing and burns disk/IO. Set LOG_TO_FILE=true to
+ * force them on in production (e.g. self-hosted with a persistent volume).
+ */
+const wantsFileLogs =
+  (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test')
+  || process.env.LOG_TO_FILE === 'true';
+
+if (wantsFileLogs) {
   try {
     const DailyRotateFile = require('winston-daily-rotate-file');
 
