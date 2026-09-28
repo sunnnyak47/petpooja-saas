@@ -4,8 +4,26 @@ const {
 } = require('../database/localDB')
 const { app, BrowserWindow } = require('electron')
 
-// We will use the production backend URL for Sync, ideally configurable via setting or env
-const API_URL = 'https://petpooja-saas.onrender.com/api'
+// Sync target — the cloud backend base URL (already includes the '/api' suffix).
+// Overridable for staging / self-hosted / dev builds WITHOUT a rebuild, in order:
+//   1. PETPOOJA_API_URL env var  (or the API_URL alias) — highest priority
+//   2. a persisted 'api_url' setting (SettingsDB, written by the app)
+//   3. the production default
+// Resolved lazily and memoized on first use so SettingsDB (and thus the SQLite
+// connection / electron `app`) is never touched at module-require time, before
+// the app is ready. A trailing slash is trimmed so `${getApiUrl()}${row.url}` and
+// `${getApiUrl()}/path` never produce a double slash.
+const DEFAULT_API_URL = 'https://petpooja-saas.onrender.com/api'
+let _apiUrl = null
+function getApiUrl() {
+  if (_apiUrl) return _apiUrl
+  let url = process.env.PETPOOJA_API_URL || process.env.API_URL || null
+  if (!url) {
+    try { url = SettingsDB.get('api_url') } catch (_) { /* db not ready — fall back to default */ }
+  }
+  _apiUrl = String(url || DEFAULT_API_URL).trim().replace(/\/+$/, '')
+  return _apiUrl
+}
 
 // Exponential backoff schedule for failed sync cycles (ms): 30s → 60s → 120s, capped at 300s
 const RETRY_BASE_MS = 30 * 1000
@@ -79,11 +97,11 @@ class SyncEngine {
       try {
         const [catRes, itemsRes] = await Promise.all([
           fetch(
-            `${API_URL}/menu/categories?outlet_id=${outletId}`,
+            `${getApiUrl()}/menu/categories?outlet_id=${outletId}`,
             { headers: this.getHeaders() }
           ),
           fetch(
-            `${API_URL}/menu/items?outlet_id=${outletId}&limit=5000`,
+            `${getApiUrl()}/menu/items?outlet_id=${outletId}&limit=5000`,
             { headers: this.getHeaders() }
           ),
         ])
@@ -108,7 +126,7 @@ class SyncEngine {
       // Download tables
       try {
         const tablesRes = await fetch(
-          `${API_URL}/orders/tables?outlet_id=${outletId}`,
+          `${getApiUrl()}/orders/tables?outlet_id=${outletId}`,
           { headers: this.getHeaders() }
         )
         if (tablesRes.ok) {
@@ -122,7 +140,7 @@ class SyncEngine {
       // OutletDB.save handles head_office fallbacks internally.
       try {
         const outletRes = await fetch(
-          `${API_URL}/auth/me`,
+          `${getApiUrl()}/auth/me`,
           { headers: this.getHeaders() }
         )
         if (outletRes.ok) {
@@ -139,7 +157,7 @@ class SyncEngine {
       // Download customers cache (for offline lookup/attach at the POS)
       try {
         const custRes = await fetch(
-          `${API_URL}/customers?outlet_id=${outletId}&limit=500`,
+          `${getApiUrl()}/customers?outlet_id=${outletId}&limit=500`,
           { headers: this.getHeaders() }
         )
         if (custRes.ok) {
@@ -152,7 +170,7 @@ class SyncEngine {
       // Download staff (for offline PIN verify)
       try {
         const staffRes = await fetch(
-          `${API_URL}/staff?outlet_id=${outletId}&limit=100`,
+          `${getApiUrl()}/staff?outlet_id=${outletId}&limit=100`,
           { headers: this.getHeaders() }
         )
         if (staffRes.ok) {
@@ -167,7 +185,7 @@ class SyncEngine {
       // a local unsynced write. Fixes "amount 0 offline" + "history differs".
       try {
         const ordersRes = await fetch(
-          `${API_URL}/orders?outlet_id=${outletId}&limit=200`,
+          `${getApiUrl()}/orders?outlet_id=${outletId}&limit=200`,
           { headers: this.getHeaders() }
         )
         if (ordersRes.ok) {
@@ -181,7 +199,7 @@ class SyncEngine {
       // (new/edited ones queue via the api_outbox and replay on reconnect).
       try {
         const resvRes = await fetch(
-          `${API_URL}/reservations?outlet_id=${outletId}`,
+          `${getApiUrl()}/reservations?outlet_id=${outletId}`,
           { headers: this.getHeaders() }
         )
         if (resvRes.ok) {
@@ -244,7 +262,7 @@ class SyncEngine {
 
     for (const row of rows) {
       try {
-        const res = await fetch(`${API_URL}${row.url}`, {
+        const res = await fetch(`${getApiUrl()}${row.url}`, {
           method: row.method || 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -407,7 +425,7 @@ class SyncEngine {
 
       const byId = new Map(unsyncedOrders.map(o => [o.id, o]))
 
-      const res = await fetch(`${API_URL}/orders/sync`, {
+      const res = await fetch(`${getApiUrl()}/orders/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -537,7 +555,7 @@ class SyncEngine {
 
     for (const order of orders) {
       try {
-        const res = await fetch(`${API_URL}/orders/sync`, {
+        const res = await fetch(`${getApiUrl()}/orders/sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -596,7 +614,7 @@ class SyncEngine {
 
     for (const customer of rows) {
       try {
-        const res = await fetch(`${API_URL}/customers`, {
+        const res = await fetch(`${getApiUrl()}/customers`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -687,7 +705,7 @@ class SyncEngine {
     if (res.status === 409) {
       try {
         // Fetch the authoritative cloud copy
-        const cloudRes = await fetch(`${API_URL}/orders/${order.id}`, {
+        const cloudRes = await fetch(`${getApiUrl()}/orders/${order.id}`, {
           headers: this.getHeaders()
         })
 
@@ -729,7 +747,7 @@ class SyncEngine {
         // Cloud order is still active — re-upload as a single-order batch.
         // The endpoint is idempotent on the client id ('exists' on replay).
         const payload = this.toSyncPayload(order)
-        const mergeRes = await fetch(`${API_URL}/orders/sync`, {
+        const mergeRes = await fetch(`${getApiUrl()}/orders/sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
