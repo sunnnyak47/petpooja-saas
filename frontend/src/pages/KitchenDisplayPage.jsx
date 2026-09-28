@@ -584,7 +584,16 @@ export default function KitchenDisplayPage() {
     staleTime: isOnline ? 5000 : Infinity,
   });
 
-  /* ── socket ── */
+  /* ── socket ──
+     Resilience contract (a dropped kitchen socket must self-heal):
+       • explicit reconnection backoff with jitter so a fleet of KDS screens
+         doesn't stampede the server in lockstep after an outage;
+       • EVERY (re)connection is a brand-new server socket with NO room
+         membership and may have missed events while we were down — so on each
+         connect we ALWAYS (a) re-emit join_outlet to rejoin the outlet room and
+         (b) refetch the pending-KOT list to recover anything missed;
+       • the manager reconnection lifecycle drives the "reconnecting…" indicator;
+       • all socket + manager listeners are removed on unmount. */
   const [socketOk, setSocketOk] = useState(true);
   useEffect(() => {
     if (!outletId || !isOnline) { setSocketOk(false); return; }
@@ -596,20 +605,27 @@ export default function KitchenDisplayPage() {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,   // ±50% jitter — de-sync reconnect storms across screens
+      timeout: 20000,
     });
+
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['kds-kots'] });
-    socket.on('connect',    () => { setSocketOk(true); socket.emit('join_outlet', outletId); });
-    socket.on('disconnect', ()  => { setSocketOk(false); refresh(); });
-    socket.io.on('reconnect', () => { setSocketOk(true); refresh(); });
-    const hb = setInterval(() => socket.connected && socket.emit('ping_keepalive'), 20000);
-    socket.on('new_kot', () => {
+
+    // Runs on the first connect AND on every reconnect (socket.io re-emits
+    // 'connect' after a successful reconnection): rejoin the room, then resync.
+    const onConnect = () => {
+      setSocketOk(true);
+      socket.emit('join_outlet', outletId);
+      refresh();
+    };
+    const onDisconnect  = () => setSocketOk(false);
+    const onConnectErr  = () => setSocketOk(false);
+
+    const onNewKot = () => {
       refresh();
       if (soundRef.current) { try { new Audio('/notification.mp3').play().catch(() => {}); } catch {} }
-    });
-    socket.on('kot_item_ready',  refresh);
-    socket.on('kot_item_served', refresh);  // partial hand-offs sync across screens (not just on final-item kot_complete)
-    socket.on('kot_complete',    refresh);
-    socket.on('order_cancelled', (data) => {
+    };
+    const onOrderCancelled = (data) => {
       refresh();
       toast((t) => (
         <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'#7f1d1d', borderRadius:10, border:'1px solid #ef4444', color:'#fca5a5', fontWeight:600 }}>
@@ -622,8 +638,44 @@ export default function KitchenDisplayPage() {
         </div>
       ), { duration: 10000, position: 'top-center', style: { padding: 0, background: 'transparent', boxShadow: 'none' } });
       if (soundRef.current) { try { new Audio('/cancel_alert.mp3').play().catch(() => {}); } catch {} }
-    });
-    return () => { clearInterval(hb); socket.disconnect(); };
+    };
+
+    // Manager-level reconnection lifecycle → drive the "reconnecting…" banner.
+    // The room rejoin + resync itself is handled by onConnect (which re-fires on
+    // reconnect); these only reflect connection state in the UI.
+    const onReconnectAttempt = () => setSocketOk(false);
+    const onReconnect        = () => setSocketOk(true);
+    const onReconnectError   = () => setSocketOk(false);
+
+    socket.on('connect',        onConnect);
+    socket.on('disconnect',     onDisconnect);
+    socket.on('connect_error',  onConnectErr);
+    socket.on('new_kot',        onNewKot);
+    socket.on('kot_item_ready', refresh);
+    socket.on('kot_item_served', refresh);  // partial hand-offs sync across screens (not just on final-item kot_complete)
+    socket.on('kot_complete',   refresh);
+    socket.on('order_cancelled', onOrderCancelled);
+    socket.io.on('reconnect_attempt', onReconnectAttempt);
+    socket.io.on('reconnect',         onReconnect);
+    socket.io.on('reconnect_error',   onReconnectError);
+
+    const hb = setInterval(() => socket.connected && socket.emit('ping_keepalive'), 20000);
+
+    return () => {
+      clearInterval(hb);
+      socket.off('connect',        onConnect);
+      socket.off('disconnect',     onDisconnect);
+      socket.off('connect_error',  onConnectErr);
+      socket.off('new_kot',        onNewKot);
+      socket.off('kot_item_ready', refresh);
+      socket.off('kot_item_served', refresh);
+      socket.off('kot_complete',   refresh);
+      socket.off('order_cancelled', onOrderCancelled);
+      socket.io.off('reconnect_attempt', onReconnectAttempt);
+      socket.io.off('reconnect',         onReconnect);
+      socket.io.off('reconnect_error',   onReconnectError);
+      socket.disconnect();
+    };
   }, [outletId, queryClient, isOnline]);
 
   /* ── mutations ── */
