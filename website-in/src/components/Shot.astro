@@ -1,0 +1,9 @@
+---
+// Product screenshot. India site uses the base app screenshots directly
+// (public/screenshots/<name>) — these are the ₹/INR product screens.
+const { name, alt = '', eager = false, frame = true } = Astro.props;
+const src = `/screenshots/${name}`;
+const imgCls = `w-full ${frame ? 'rounded-xl border border-line' : ''}`;
+const loading = eager ? 'eager' : 'lazy';
+---
+<img src={src} alt={alt} width="1440" height="900" loading={loading} class={imgCls} />

@@ -1,0 +1,72 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../data/site';
+const points = ['20-minute live walkthrough', 'Migration from your current POS', 'Pricing for your outlets', 'Your Zomato & Swiggy kept running'];
+const LEADS_ENDPOINT = SITE.leadsEndpoint;
+---
+<Layout title="Book a Demo" description="Book a 20-minute MSRM demo. We tailor it to your restaurant and handle migration from your current POS with zero downtime.">
+  <section class="container-x py-16 grid lg:grid-cols-2 gap-12 items-start">
+    <div>
+      <span class="eyebrow">Book a demo</span>
+      <h1 class="h1 text-4xl sm:text-5xl mt-3">See MSRM run your restaurant.</h1>
+      <p class="lead mt-4 max-w-md">Tell us a bit about your restaurant and we'll tailor the demo — and show exactly how we migrate you over with zero downtime.</p>
+      <ul class="mt-6 space-y-3">
+        {points.map((p) => <li class="flex gap-3 text-ink-soft"><Icon name="check" class="w-5 h-5 text-brand-600" />{p}</li>)}
+      </ul>
+      <p class="mt-8 text-sm text-ink-mute">Prefer email? <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a></p>
+    </div>
+
+    <form class="card" id="demo-form" onsubmit="return false">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <label class="block"><span class="text-sm font-medium">Your name *</span>
+          <input required name="name" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Full name" /></label>
+        <label class="block"><span class="text-sm font-medium">Restaurant *</span>
+          <input required name="restaurant" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Restaurant name" /></label>
+        <label class="block"><span class="text-sm font-medium">Email *</span>
+          <input required type="email" name="email" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="you@restaurant.com" /></label>
+        <label class="block"><span class="text-sm font-medium">Phone</span>
+          <input name="phone" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="+91 98XXX XXXXX" /></label>
+        <label class="block"><span class="text-sm font-medium">Outlets</span>
+          <select name="outlets" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none"><option>1</option><option>2–5</option><option>6–20</option><option>20+</option></select></label>
+        <label class="block"><span class="text-sm font-medium">City</span>
+          <input name="city" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="City" /></label>
+      </div>
+      <label class="block mt-4"><span class="text-sm font-medium">Current POS (if any)</span>
+        <input name="current" class="mt-1 w-full rounded-lg border border-line px-3 py-2.5 focus:border-brand-400 outline-none" placeholder="Your current system, or none…" /></label>
+      <button class="btn-primary w-full mt-5" id="demo-submit">Request my demo</button>
+      <p class="mt-3 text-xs text-ink-mute text-center">By submitting you agree to our <a href="/privacy" class="underline">Privacy Policy</a>.</p>
+      <p id="demo-done" class="hidden mt-3 text-sm text-center text-brand-700 font-medium">Thanks! We'll be in touch within one business day.</p>
+      <p id="demo-error" class="hidden mt-3 text-sm text-center font-medium" style="color:#ef4444">Something went wrong — please email us instead.</p>
+    </form>
+  </section>
+
+  <script define:vars={{ LEADS_ENDPOINT }}>
+    document.getElementById('demo-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      if (!f.checkValidity()) { f.reportValidity(); return; }
+      const btn = document.getElementById('demo-submit');
+      const fd = new FormData(f);
+      const payload = {
+        name: fd.get('name'), restaurant: fd.get('restaurant'), email: fd.get('email'),
+        phone: fd.get('phone'), region: 'India', city: fd.get('city'), outlets: fd.get('outlets'),
+        current_system: fd.get('current'), source: 'website-in-demo',
+      };
+      btn.setAttribute('disabled', 'true'); btn.textContent = 'Sending…';
+      document.getElementById('demo-error')?.classList.add('hidden');
+      try {
+        const res = await fetch(LEADS_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('bad status ' + res.status);
+        document.getElementById('demo-done')?.classList.remove('hidden');
+        f.querySelectorAll('input,select').forEach((el) => el.setAttribute('disabled', 'true'));
+        btn.textContent = 'Requested ✓';
+      } catch (err) {
+        document.getElementById('demo-error')?.classList.remove('hidden');
+        btn.removeAttribute('disabled'); btn.textContent = 'Request my demo';
+      }
+    });
+  </script>
+</Layout>

@@ -1,0 +1,44 @@
+---
+// Built for India — tax/payments/delivery + India value props.
+import Icon from '../Icon.astro';
+import { REGION } from '../../data/site';
+
+const cards = [
+  ['ledger', 'GST & compliance', `${REGION.tax} — GST-correct invoices and return-ready summaries out of the box.`],
+  ['pos', 'Payments, your way', `${REGION.pay} — UPI, cards and cash on the same screen as the order.`],
+  ['bag', 'Delivery apps built in', `${REGION.aggregators.join(' & ')} in one screen — plus commission-free QR ordering.`],
+];
+const props = [
+  ['Commission clarity', 'Net-after-commission per channel + payout reconciliation. Know which app actually pays.'],
+  ['GST & Tally, sorted', 'GST invoicing, GSTR-1 & GSTR-3B summaries and Tally sync built in — your books keep themselves.'],
+  ['UPI-first billing', 'Accept UPI, cards and cash, split and multi-tender — all reconciled at day-end.'],
+  ['Never stops billing', 'Offline-first POS keeps trading when the internet drops, then syncs.'],
+];
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <span class="eyebrow">Local by design 🇮🇳</span>
+    <h2 class="h2 mt-2">Built for Indian restaurants.</h2>
+    <p class="lead mt-3">The right taxes, payments and delivery apps for the Indian market — no plugins, no workarounds.</p>
+  </div>
+
+  <div class="mt-10 grid gap-5 md:grid-cols-3" data-reveal>
+    {cards.map(([ic, t, d], i) => (
+      <div class="card reveal" style={`--i:${i}`}>
+        <div class="feature-tile"><Icon name={ic} class="w-6 h-6" /></div>
+        <h3 class="mt-4 font-semibold text-lg">{t}</h3>
+        <p class="mt-2 text-ink-soft">{d}</p>
+      </div>
+    ))}
+  </div>
+
+  <div class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" data-reveal>
+    {props.map(([t, d]) => (
+      <div class="card">
+        <div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div>
+        <h3 class="mt-3 font-semibold">{t}</h3>
+        <p class="mt-1 text-sm text-ink-soft">{d}</p>
+      </div>
+    ))}
+  </div>
+</section>
