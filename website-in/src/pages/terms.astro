@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../data/site';
+---
+<Layout title="Terms of Service" description="MSRM terms of service template — India. Review by an Indian lawyer before launch.">
+  <section class="container-x py-16 max-w-3xl">
+    <!-- Prominent template banner -->
+    <div class="rounded-xl2 border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+      <strong>Template — not legal advice.</strong> This is a starting-point Terms of Service for an Indian
+      entity. It must be reviewed and finalised by a qualified Indian lawyer before launch — including the
+      governing entity, GST treatment, billing terms and dispute-resolution clauses.
+    </div>
+
+    <h1 class="h2 mt-8">Terms of Service</h1>
+    <p class="text-ink-soft mt-3">Last updated: {new Date().toLocaleDateString('en-IN')}</p>
+
+    <div class="mt-6 space-y-4 text-ink-soft leading-relaxed">
+      <p>These Terms govern your use of the {SITE.name} website and platform. By using the service you agree to them.</p>
+
+      <h2 class="font-semibold text-ink pt-2">1. The service</h2>
+      <p>{SITE.name} provides restaurant-management software (POS billing, kitchen display, inventory, online orders, GST &amp; accounting and related modules) on a subscription basis.</p>
+
+      <h2 class="font-semibold text-ink pt-2">2. Subscription &amp; billing</h2>
+      <p>Fees are charged per outlet, per month, and are exclusive of GST unless stated otherwise. Plans can be changed or cancelled per your agreement; taxes are applied as required under Indian law.</p>
+
+      <h2 class="font-semibold text-ink pt-2">3. Acceptable use</h2>
+      <p>You agree not to misuse the service, attempt to breach its security, or use it unlawfully. You are responsible for the accuracy of the data you enter, including tax and invoice data.</p>
+
+      <h2 class="font-semibold text-ink pt-2">4. Data</h2>
+      <p>Your operational data remains yours. Our handling of personal data is described in the <a class="text-brand-700 underline" href="/privacy">Privacy Policy</a>.</p>
+
+      <h2 class="font-semibold text-ink pt-2">5. Availability &amp; liability</h2>
+      <p>We aim for high availability but do not guarantee uninterrupted service. To the extent permitted by law, our liability is limited as set out in your subscription agreement.</p>
+
+      <h2 class="font-semibold text-ink pt-2">6. Governing law</h2>
+      <p>These Terms are governed by the laws of India, with jurisdiction to be specified by the governing entity before launch.</p>
+
+      <h2 class="font-semibold text-ink pt-2">7. Contact</h2>
+      <p>Questions about these Terms: <a class="text-brand-700 underline" href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
+    </div>
+
+    <p class="mt-8 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
+  </section>
+</Layout>

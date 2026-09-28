@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+
+html { scroll-behavior: smooth; }
+body { @apply bg-surface text-ink font-sans antialiased; }
+
+@layer components {
+  .container-x { @apply max-w-container mx-auto px-5 sm:px-6 lg:px-8; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-400/50; }
+  .btn-primary { @apply btn bg-brand-600 text-white px-5 py-3 shadow-card hover:bg-brand-700 hover:shadow-lift hover:-translate-y-0.5; }
+  .btn-ghost { @apply btn px-4 py-2.5 text-ink-soft hover:text-ink hover:bg-surface-alt; }
+  .btn-outline { @apply btn px-5 py-3 border border-line text-ink hover:border-brand-400 hover:text-brand-700 hover:bg-surface-alt; }
+  .btn-lg { @apply px-6 py-3.5 text-[15px]; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-widest text-brand-600; }
+  .h1 { @apply text-4xl sm:text-5xl lg:text-[3.4rem] font-extrabold leading-[1.05] tracking-tight; }
+  .h2 { @apply text-3xl sm:text-4xl font-bold tracking-tight; }
+  .lead { @apply text-lg text-ink-soft leading-relaxed; }
+  .card { @apply rounded-xl2 border border-line bg-white p-6 shadow-card; }
+  .card-link { @apply card transition-all duration-200 hover:-translate-y-1 hover:shadow-lift hover:border-brand-200; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-alt px-3 py-1 text-xs font-medium text-ink-soft; }
+  .feature-tile { @apply grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100; }
+  /* Browser-style frame for product screenshots — a subtle window chrome. */
+  .browser-frame { @apply rounded-xl2 border border-line bg-white shadow-lift overflow-hidden; }
+  .browser-bar { @apply flex items-center gap-1.5 border-b border-line bg-surface-alt px-4 py-3; }
+  .browser-dot { @apply h-2.5 w-2.5 rounded-full; }
+}
+
+@layer utilities {
+  /* Brand gradient text (headline accents, stat numbers). */
+  .text-gradient-brand { @apply bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent; }
+  /* Soft brand aura behind the hero — layered radial glows, no image. */
+  .hero-aura {
+    background:
+      radial-gradient(60rem 40rem at 78% -8%, rgba(37, 99, 235, 0.10), transparent 60%),
+      radial-gradient(42rem 30rem at 0% 0%, rgba(96, 165, 250, 0.10), transparent 55%),
+      linear-gradient(180deg, #f8fafc 0%, #ffffff 42%);
+  }
+  /* Faint dotted grid overlay (masked to fade out). */
+  .bg-dotgrid {
+    background-image: radial-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+            mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  }
+
+  /* ── Scroll-reveal (wired by ScrollFX.astro's IntersectionObserver) ── */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.22,1,.36,1); }
+  .reveal.is-visible { opacity: 1; transform: none; }
+  /* Stagger children: set --i on each child (inline) for a cascade. */
+  .reveal-stagger.is-visible > * { animation: reveal-up .6s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i, 0) * 90ms); }
+
+  /* ── 3D primitives for CSS-tilt cards / module diagram ── */
+  .perspective { perspective: 1000px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+  .tilt-3d { transition: transform .25s ease; will-change: transform; transform-style: preserve-3d; }
+
+  /* ── Pinned 3D hero (pure CSS sticky; tall track added by JS only) ── */
+  .hero-stage { position: sticky; top: 0; height: 100vh; }
+  .hero--3d   { min-height: 220vh; }              /* JS-added on eligible desktops only */
+  /* width/height:100% is REQUIRED — <canvas> is a replaced element, so inset:0
+     alone doesn't stretch it (it falls back to its intrinsic attribute size and
+     overflows the container). display:block kills the inline baseline gap. */
+  .canvas-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .45s ease; }
+  .canvas-layer.is-live { opacity: 1; }
+  .poster-layer { transition: opacity .45s ease; }
+  .poster-layer.is-hidden { opacity: 0; }
+}
+
+/* Respect reduced-motion: no reveals, no smooth-scroll, no tilt transitions. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .reveal-stagger.is-visible > * { animation: none !important; }
+  .tilt-3d, .hero-stage, .canvas-layer, .poster-layer { transition: none !important; }
+}
