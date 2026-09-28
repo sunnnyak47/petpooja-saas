@@ -9,6 +9,15 @@ const logger = require('./logger');
 /** @type {object} */
 let redisClient = null;
 
+/**
+ * The underlying (unwrapped) ioredis instance, or null when running on the
+ * no-op mock. Consumers that need raw command access (e.g. the shared
+ * rate-limit store) use this via getRawRedisClient() and MUST handle errors
+ * themselves — the wrapper's fallback semantics do not apply to it.
+ * @type {import('ioredis').Redis|null}
+ */
+let rawClient = null;
+
 /** @type {boolean} */
 let useMock = false;
 
@@ -116,8 +125,21 @@ function getRedisClient() {
     useMock = false; // re-enable if connection recovers
   });
 
+  rawClient = realClient;
   redisClient = wrapWithFallback(realClient);
   return redisClient;
+}
+
+/**
+ * Returns the underlying ioredis instance, or null when Redis is not
+ * configured (mock mode). Unlike getRedisClient(), errors are NOT swallowed:
+ * callers (e.g. the shared rate-limit store) must degrade gracefully on their
+ * own. Check `client.status === 'ready'` before relying on it.
+ * @returns {import('ioredis').Redis|null}
+ */
+function getRawRedisClient() {
+  if (!redisClient) getRedisClient();
+  return rawClient;
 }
 
 /**
@@ -131,7 +153,8 @@ async function disconnectRedis() {
     } catch (_) {}
   }
   redisClient = null;
+  rawClient = null;
   useMock = false;
 }
 
-module.exports = { getRedisClient, disconnectRedis };
+module.exports = { getRedisClient, getRawRedisClient, disconnectRedis };
