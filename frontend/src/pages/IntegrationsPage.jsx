@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { useRegion } from '../hooks/useRegion';
 import {
   Puzzle, ToggleLeft, ToggleRight, Settings, CheckCircle2,
-  AlertTriangle, ArrowRight, Loader2, Link2
+  AlertTriangle, ArrowRight, Loader2, Link2, Scale
 } from 'lucide-react';
 
 const INTEGRATIONS_IN = [
@@ -418,6 +418,154 @@ function TyroPanel({ outletId }) {
             </>
           )}
         </div>
+      )}
+
+      <TyroSettlement outletId={outletId} />
+    </div>
+  );
+}
+
+/** Local YYYY-MM-DD (not UTC) so "today" is the operator's calendar day. */
+function localDayKey(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Daily Tyro settlement reconciliation: approved terminal transactions vs the
+ * POS payment rows for one outlet-local day, so staff can compare against the
+ * settlement report the Tyro terminal prints.
+ */
+function TyroSettlement({ outletId }) {
+  const [date, setDate] = useState(localDayKey());
+  const money = (cents) => `$${(Math.abs(cents ?? 0) / 100).toFixed(2)}`;
+
+  const { data: report, isFetching, error } = useQuery({
+    queryKey: ['tyro-settlement', outletId, date],
+    queryFn: () => api.get('/integrations/tyro/settlement', {
+      params: { outlet_id: outletId, date },
+    }).then(r => r.data?.data || r.data),
+    enabled: !!outletId && !!date,
+    retry: false,
+  });
+
+  const varianceOk = report && report.variance_cents === 0 && (report.mismatches?.length || 0) === 0;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-surface-800 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Scale className="w-4 h-4 text-brand-400" />
+          <span className="text-sm font-bold text-white">Daily settlement</span>
+          {isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin text-surface-500" />}
+        </div>
+        <input
+          type="date"
+          value={date}
+          max={localDayKey()}
+          onChange={(e) => setDate(e.target.value)}
+          className="input text-sm py-1.5 px-2 w-auto"
+        />
+      </div>
+      <p className="text-[11px] text-surface-500">
+        Compare these totals against the settlement report printed by your Tyro terminal for the same day.
+      </p>
+
+      {error && (
+        <div className="p-3 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-300">
+          {error?.response?.data?.message || error.message || 'Could not load settlement'}
+        </div>
+      )}
+
+      {report && (
+        <>
+          {/* Totals strip */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-surface-800 bg-surface-900 p-2.5">
+              <div className="text-[10px] text-surface-500 uppercase font-bold">Terminal net</div>
+              <div className="text-base font-black text-white font-mono">{money(report.terminal.net_cents)}</div>
+              <div className="text-[10px] text-surface-500 font-mono">
+                {money(report.terminal.purchases_cents)} − {money(report.terminal.refunds_cents)} rfnd
+              </div>
+            </div>
+            <div className="rounded-lg border border-surface-800 bg-surface-900 p-2.5">
+              <div className="text-[10px] text-surface-500 uppercase font-bold">POS recorded</div>
+              <div className="text-base font-black text-white font-mono">{money(report.pos.net_cents)}</div>
+              <div className="text-[10px] text-surface-500 font-mono">
+                {money(report.pos.charged_cents)} − {money(report.pos.refunded_cents)} rfnd
+              </div>
+            </div>
+            <div className={`rounded-lg border p-2.5 ${varianceOk
+              ? 'border-emerald-500/30 bg-emerald-500/10'
+              : 'border-yellow-500/30 bg-yellow-500/10'}`}>
+              <div className={`text-[10px] uppercase font-bold ${varianceOk ? 'text-emerald-400' : 'text-yellow-400'}`}>Variance</div>
+              <div className={`text-base font-black font-mono ${varianceOk ? 'text-emerald-300' : 'text-yellow-300'}`}>
+                {report.variance_cents === 0 ? '$0.00' : `${report.variance_cents > 0 ? '+' : '−'}${money(report.variance_cents)}`}
+              </div>
+              <div className="text-[10px] text-surface-500 font-mono">
+                tips {money(report.terminal.tips_cents)} · surch {money(report.terminal.surcharges_cents)}
+              </div>
+            </div>
+          </div>
+
+          {/* Per-transaction rows */}
+          {report.transactions.length === 0 ? (
+            <p className="text-xs text-surface-500 text-center py-2">No approved terminal transactions on {date}.</p>
+          ) : (
+            <div className="rounded-lg border border-surface-800 overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-left text-surface-500 border-b border-surface-800 bg-surface-900">
+                    <th className="px-2 py-1.5 font-bold">Time</th>
+                    <th className="px-2 py-1.5 font-bold">Type</th>
+                    <th className="px-2 py-1.5 font-bold">Card</th>
+                    <th className="px-2 py-1.5 font-bold text-right">Amount</th>
+                    <th className="px-2 py-1.5 font-bold text-right">Tip</th>
+                    <th className="px-2 py-1.5 font-bold text-right">Surch</th>
+                    <th className="px-2 py-1.5 font-bold text-center">POS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.transactions.map((t) => (
+                    <tr key={t.id} className="border-b border-surface-800/50 text-surface-300">
+                      <td className="px-2 py-1.5 font-mono">
+                        {t.completed_at ? new Date(t.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                      <td className={`px-2 py-1.5 font-bold ${t.type === 'refund' ? 'text-red-400' : 'text-surface-300'}`}>
+                        {t.type}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono">{t.card_type || '—'} {t.elided_pan ? `·${String(t.elided_pan).slice(-4)}` : ''}</td>
+                      <td className={`px-2 py-1.5 text-right font-mono font-bold ${t.total_cents < 0 ? 'text-red-400' : 'text-white'}`}>
+                        {t.total_cents < 0 ? `−${money(t.total_cents)}` : money(t.total_cents)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono">{t.tip_cents ? money(t.tip_cents) : '—'}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{t.surcharge_cents ? money(t.surcharge_cents) : '—'}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        {t.matched
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
+                          : <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 inline" />}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Mismatches */}
+          {report.mismatches?.length > 0 && (
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-yellow-300">
+                <AlertTriangle className="w-3.5 h-3.5" /> {report.mismatches.length} mismatch{report.mismatches.length !== 1 ? 'es' : ''}
+              </div>
+              <ul className="list-disc pl-4 text-[11px] text-yellow-200/90 space-y-0.5">
+                {report.mismatches.map((m, i) => <li key={i}>{m.detail}</li>)}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
