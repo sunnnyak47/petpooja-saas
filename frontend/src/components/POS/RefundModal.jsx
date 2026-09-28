@@ -1,13 +1,19 @@
 /**
  * RefundModal — Process full or partial refunds on paid POS orders.
  * Supports: Full Refund · Partial Refund · Original Method · Cash Override · Loyalty Credit
+ * · Refund to card via Tyro EFTPOS terminal (AU, when the original payment ran
+ *   through a paired Tyro terminal — detected via the order's approved
+ *   TerminalTransaction). The terminal refund runs FIRST (money moves at the
+ *   terminal), then the backend refund is recorded with the terminal txn linked.
  */
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useSelector } from 'react-redux';
 import api from '../../lib/api';
 import Modal from '../Modal';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../hooks/useCurrency';
+import TyroIClient from './TyroIClient';
 import { RotateCcw, CreditCard, Banknote, Star, AlertTriangle, Check } from 'lucide-react';
 
 const REFUND_REASONS = [
@@ -75,6 +81,7 @@ function StepConnector({ active }) {
 
 export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
   const { format } = useCurrency();
+  const outletId = useSelector((s) => s.auth?.user?.outlet_id);
 
   /* wizard state */
   const [step, setStep] = useState(1);
@@ -84,11 +91,16 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
   const [customAmount, setCustomAmount] = useState('');
 
   /* step-2 */
-  const [refundMethod, setRefundMethod] = useState('original');  // 'original' | 'cash' | 'loyalty'
+  const [refundMethod, setRefundMethod] = useState('original');  // 'original' | 'tyro_terminal' | 'cash' | 'loyalty'
 
   /* step-3 */
   const [reason, setReason]   = useState('');
   const [notes,  setNotes]    = useState('');
+  const [managerPin, setManagerPin] = useState('');
+
+  /* Tyro terminal refund overlay */
+  const [showTyroTerminal, setShowTyroTerminal] = useState(false);
+  const [pinChecking, setPinChecking] = useState(false);
 
   /* derived */
   const maxAmount    = order?.grand_total ?? 0;
@@ -101,17 +113,37 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
     ? methodLabel(primaryPayment.method)
     : 'Original Method';
 
+  /* Was this order paid through the Tyro terminal? An approved 'purchase'
+     TerminalTransaction on the order is the authoritative signal — it only
+     exists when the outlet was Tyro-paired and the card ran at the terminal.
+     Fails silently (no option shown) when Tyro isn't set up. */
+  const { data: tyroTxns } = useQuery({
+    queryKey: ['tyro-order-txns', order?.id],
+    queryFn: () => api.get('/integrations/tyro/transactions', {
+      params: { outlet_id: outletId, order_id: order.id },
+    }).then((r) => r.data?.data || r.data),
+    enabled: isOpen && !!order?.id && !!outletId,
+    retry: false,
+  });
+  const tyroPurchase = Array.isArray(tyroTxns)
+    ? tyroTxns.find((t) => t.type === 'purchase' && t.status === 'approved')
+    : null;
+
   /* ── mutation ─────────────────────────────────────────────────────────── */
 
   const { mutate: processRefund, isPending } = useMutation({
-    mutationFn: () => {
+    // `terminalTransactionId` is set only for the Tyro path — the approved
+    // 'refund' TerminalTransaction the terminal just completed, which the
+    // backend links to the refund Payment row it creates.
+    mutationFn: ({ terminalTransactionId } = {}) => {
       const combinedReason = notes.trim()
         ? `${reason} — ${notes.trim()}`
         : reason;
       return api.post(`/orders/${order.id}/refund`, {
-        amount:  refundAmount,
-        method:  refundMethod,
-        reason:  combinedReason,
+        refund_amount: refundAmount,
+        manager_pin:   managerPin,
+        reason:        combinedReason,
+        terminal_transaction_id: terminalTransactionId || undefined,
       });
     },
     onSuccess: () => {
@@ -122,7 +154,9 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
     onError: (err) => {
       const status = err?.response?.status;
       if (status === 400) {
-        toast.error('Refund amount exceeds original payment amount');
+        toast.error(err?.response?.data?.message ?? 'Refund amount exceeds original payment amount');
+      } else if (status === 403) {
+        toast.error('Invalid manager PIN');
       } else if (status === 409) {
         toast.error('This order has already been refunded');
       } else {
@@ -140,6 +174,8 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
     setRefundMethod('original');
     setReason('');
     setNotes('');
+    setManagerPin('');
+    setShowTyroTerminal(false);
     onClose();
   }
 
@@ -154,7 +190,23 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
   }
 
   function canSubmit() {
-    return !!reason && refundAmount > 0;
+    return !!reason && refundAmount > 0 && /^\d{4,6}$/.test(managerPin);
+  }
+
+  /* Submit: Tyro path verifies the manager PIN FIRST (so the terminal never
+     refunds money the backend then refuses to record over a bad PIN), then
+     runs the terminal refund; the backend refund is recorded on approval. */
+  async function handleSubmit() {
+    if (refundMethod !== 'tyro_terminal') return processRefund({});
+    setPinChecking(true);
+    try {
+      await api.post('/staff/verify-pin', { outlet_id: outletId, pin: managerPin });
+      setShowTyroTerminal(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message ?? 'Invalid manager PIN');
+    } finally {
+      setPinChecking(false);
+    }
   }
 
   /* ── render ───────────────────────────────────────────────────────────── */
@@ -389,6 +441,21 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
               />
             )}
 
+            {/* Option: Tyro EFTPOS terminal — only when the original payment ran
+                through the terminal (approved purchase TerminalTransaction). */}
+            {tyroPurchase && (
+              <MethodOption
+                id="tyro_terminal"
+                selected={refundMethod === 'tyro_terminal'}
+                onSelect={() => setRefundMethod('tyro_terminal')}
+                Icon={CreditCard}
+                label="Refund to card via terminal"
+                description="Push the refund back to the customer's card on the Tyro EFTPOS terminal"
+                iconColor="#7c3aed"
+                iconBg="color-mix(in srgb, #7c3aed 15%, transparent)"
+              />
+            )}
+
             {/* Option: cash */}
             <MethodOption
               id="cash"
@@ -461,6 +528,8 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
                 <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
                   {refundMethod === 'original'
                     ? `${originalMethodLabel} (original)`
+                    : refundMethod === 'tyro_terminal'
+                    ? 'Card via Tyro terminal'
                     : refundMethod === 'cash'
                     ? 'Cash'
                     : 'Loyalty Credit'}
@@ -488,6 +557,28 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Manager PIN — the backend authorises every refund against a
+                manager PIN scoped to this outlet. */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                Manager PIN <span style={{ color: 'var(--danger)' }}>*</span>
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={managerPin}
+                onChange={(e) => setManagerPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="4–6 digit manager PIN"
+                className="rounded-xl px-4 py-3 text-sm outline-none text-center tracking-[0.5em]"
+                style={{
+                  background: 'var(--bg-hover)',
+                  border:     `1px solid ${/^\d{4,6}$/.test(managerPin) ? 'var(--accent)' : 'var(--border)'}`,
+                  color:      'var(--text-primary)',
+                }}
+              />
             </div>
 
             {/* Notes */}
@@ -532,23 +623,47 @@ export default function RefundModal({ isOpen, onClose, order, onSuccess }) {
                 ← Back
               </button>
               <button
-                onClick={() => processRefund()}
-                disabled={!canSubmit() || isPending}
+                onClick={handleSubmit}
+                disabled={!canSubmit() || isPending || pinChecking}
                 className="flex-[2] py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity"
                 style={{
                   background: 'var(--danger)',
                   color:      '#fff',
-                  opacity:    canSubmit() && !isPending ? 1 : 0.5,
-                  cursor:     canSubmit() && !isPending ? 'pointer' : 'not-allowed',
+                  opacity:    canSubmit() && !isPending && !pinChecking ? 1 : 0.5,
+                  cursor:     canSubmit() && !isPending && !pinChecking ? 'pointer' : 'not-allowed',
                 }}
               >
-                <RotateCcw size={15} className={isPending ? 'animate-spin' : ''} />
-                {isPending ? 'Processing…' : `Refund ${format(refundAmount)}`}
+                <RotateCcw size={15} className={isPending || pinChecking ? 'animate-spin' : ''} />
+                {isPending || pinChecking
+                  ? 'Processing…'
+                  : refundMethod === 'tyro_terminal'
+                  ? `Refund ${format(refundAmount)} to card`
+                  : `Refund ${format(refundAmount)}`}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Tyro EFTPOS refund overlay — money moves at the terminal FIRST; only an
+          approved terminal refund reaches the backend refund endpoint (with the
+          TerminalTransaction linked). Mock mode simulates the approval. */}
+      {showTyroTerminal && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <TyroIClient
+            outletId={outletId}
+            orderId={order.id}
+            amountCents={Math.round(refundAmount * 100)}
+            mode="refund"
+            onSuccess={({ transaction_id }) => {
+              setShowTyroTerminal(false);
+              processRefund({ terminalTransactionId: transaction_id });
+            }}
+            onCancel={() => setShowTyroTerminal(false)}
+            onError={() => { /* TyroIClient shows its own error UI; operator closes it, wizard stays put */ }}
+          />
+        </div>
+      )}
     </Modal>
   );
 }

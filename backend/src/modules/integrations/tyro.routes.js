@@ -244,6 +244,24 @@ router.get('/transactions', hasPermission('MANAGE_POS'), enforceOutletScope, asy
   } catch (err) { next(err); }
 });
 
+/**
+ * GET /api/integrations/tyro/settlement?date=YYYY-MM-DD — daily reconciliation.
+ * Approved terminal transactions vs the POS Payment rows for the same
+ * outlet-local day, so staff can compare against Tyro's terminal settlement
+ * report. MANAGE_POS (not MANAGE_INTEGRATIONS): shift supervisors run this at
+ * close of day, not just admins.
+ */
+router.get('/settlement', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const report = await tyroService.settlementReport(outletId, req.query.date);
+    sendSuccess(res, report, 'Tyro settlement report');
+  } catch (err) {
+    if (err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
 /** POST /api/integrations/tyro/transactions/:id/mock-complete — dev only, gated by mock_mode. */
 router.post('/transactions/:id/mock-complete', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
   try {

@@ -2336,7 +2336,12 @@ export default function POSPage() {
                 await api.post(`/orders/${orderId}/payment`, {
                   method: METHOD_MAP[method] || method,
                   amount: paidAmount,
-                  razorpay_payment_id: razorpayId || undefined,
+                  // Gateway/terminal reference (Razorpay payment id, Tyro
+                  // transactionReference, …). The schema's field is
+                  // transaction_id — it lands on Payment.transaction_id so
+                  // settlement reconciliation can pair the payment with its
+                  // terminal transaction.
+                  transaction_id: razorpayId || undefined,
                 });
               } catch (err) {
                 // Backend briefly unreachable → record the payment in local SQLite
