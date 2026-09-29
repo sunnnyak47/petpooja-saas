@@ -1,0 +1,45 @@
+---
+// Why switch — category comparison preview (NO named brands). Compares MSRM to
+// generic POS categories only, then links to migration + the full Why MSRM table.
+import Icon from '../Icon.astro';
+import { CATEGORY_COMPARE } from '../../data/site';
+const { cols, rows, cell } = CATEGORY_COMPARE;
+const preview = rows.slice(0, 6);
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <span class="eyebrow">Switching is the scary part</span>
+    <h2 class="h2 mt-2">Coming from another POS?</h2>
+    <p class="lead mt-3">We migrate your menu, tables and staff, keep your delivery apps live through cutover, and move you over with zero downtime — compared by capability, not marketing.</p>
+  </div>
+
+  <div class="mt-10 max-w-4xl mx-auto overflow-x-auto rounded-xl2 border border-line" data-reveal>
+    <table class="w-full text-sm bg-white min-w-[640px]">
+      <thead>
+        <tr class="border-b border-line">
+          <th class="text-left p-4 font-semibold w-[46%]">Capability</th>
+          {cols.map((c, i) => (
+            <th class="p-4 text-center font-bold" style={i === 0 ? 'color:#2563eb' : 'color:#64748b'}>{c}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {preview.map((r) => (
+          <tr class="border-b border-line last:border-0">
+            <td class="p-4 text-ink-soft">{r[0]}</td>
+            {r.slice(1).map((v) => { const c = cell[v]; return (
+              <td class="p-4 text-center" style={`color:${c.c};font-weight:${c.w}`}>{c.t}</td>
+            ); })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-center text-xs text-ink-mute mt-3">Compared by capability category, not specific brands. Some systems offer some of these as paid add-ons or third-party integrations.</p>
+
+  <div class="mt-6 flex flex-wrap justify-center gap-3" data-reveal>
+    <a href="/why-msrm" class="btn-outline">See the full comparison</a>
+    <a href="/migration" class="btn-outline">How migration works</a>
+    <a href="/demo" class="btn-primary">Talk to our team</a>
+  </div>
+</section>

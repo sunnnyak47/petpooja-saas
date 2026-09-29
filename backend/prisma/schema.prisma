@@ -686,9 +686,33 @@ model User {
   staff_permissions      StaffPermission[]
   staff_profiles         StaffProfile[]
   user_roles             UserRole[]
+  push_tokens            PushToken[]
   head_office            HeadOffice?          @relation("head_office_users", fields: [head_office_id], references: [id])
 
   @@map("users")
+}
+
+// ── Expo push-notification device tokens ─────────────────────────────────────
+// One row per device token, registered by the mobile app (integrations →
+// POST /push-token) and read by notifications/push.service to resolve
+// recipients. `outlet_id` is the outlet the device is ACTIVELY WATCHING (the
+// app re-registers on outlet switch; owners hop between outlets), so it is a
+// loose pointer, not an FK — a stale/deleted outlet id must never block a
+// token registration. Tokens survive server restarts (the old in-memory Map
+// did not); the Map now only serves as a same-process fallback cache.
+model PushToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token      String   @unique @db.VarChar(255)
+  user_id    String   @db.Uuid
+  outlet_id  String?  @db.Uuid
+  platform   String   @default("unknown") @db.VarChar(20)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([outlet_id])
+  @@map("push_tokens")
 }
 
 model UserRole {

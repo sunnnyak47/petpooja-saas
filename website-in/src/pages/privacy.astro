@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../data/site';
+---
+<Layout title="Privacy Policy" description="MSRM privacy policy template — India (DPDP Act 2023 aware). Review by an Indian lawyer before launch.">
+  <section class="container-x py-16 max-w-3xl">
+    <!-- Prominent template banner -->
+    <div class="rounded-xl2 border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+      <strong>Template — not legal advice.</strong> This is a starting-point Privacy Policy drafted with the
+      Digital Personal Data Protection (DPDP) Act, 2023 in mind. It must be reviewed and finalised by a
+      qualified Indian lawyer before launch.
+    </div>
+
+    <h1 class="h2 mt-8">Privacy Policy</h1>
+    <p class="text-ink-soft mt-3">Last updated: {new Date().toLocaleDateString('en-IN')}</p>
+
+    <div class="mt-6 space-y-4 text-ink-soft leading-relaxed">
+      <p>{SITE.name} (“we”, “us”) operates {SITE.domain} and the {SITE.name} restaurant-management platform. This policy explains what personal data we collect and how we handle it, consistent with the Digital Personal Data Protection Act, 2023 (“DPDP Act”).</p>
+
+      <h2 class="font-semibold text-ink pt-2">1. Data we collect</h2>
+      <p>From the demo/contact form: your name, restaurant name, email, phone, city, number of outlets and current system. From the website: standard analytics data (if enabled). As a customer of the platform: the operational data you enter to run your restaurant.</p>
+
+      <h2 class="font-semibold text-ink pt-2">2. Purpose &amp; lawful basis</h2>
+      <p>We process contact-form data to respond to your enquiry and arrange a demo (with your consent). We process platform data to provide the service under our agreement with you. We do not sell your personal data.</p>
+
+      <h2 class="font-semibold text-ink pt-2">3. Sharing &amp; processors</h2>
+      <p>We use third-party processors (for example, hosting, analytics, CRM and payment gateways) who process data on our instructions. Payment card data is handled by PCI-DSS-compliant providers and does not reside on our servers.</p>
+
+      <h2 class="font-semibold text-ink pt-2">4. Retention</h2>
+      <p>We keep personal data only as long as necessary for the purposes above or as required by law, after which it is deleted or anonymised.</p>
+
+      <h2 class="font-semibold text-ink pt-2">5. Your rights under the DPDP Act</h2>
+      <p>Subject to the DPDP Act, you may request access to, correction of, or erasure of your personal data, withdraw consent, and nominate another person to exercise your rights. To do so, contact our Grievance Officer (details below).</p>
+
+      <h2 class="font-semibold text-ink pt-2">6. Cookies &amp; analytics</h2>
+      <p>We use only essential cookies by default; analytics are enabled per-environment and, where required, subject to your consent.</p>
+
+      <h2 class="font-semibold text-ink pt-2">7. Grievance Officer</h2>
+      <p>For privacy requests or complaints, email <a class="text-brand-700 underline" href={`mailto:${SITE.email}`}>{SITE.email}</a>. The name and contact details of the designated Grievance Officer will be published here before launch.</p>
+    </div>
+
+    <p class="mt-8 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
+  </section>
+</Layout>

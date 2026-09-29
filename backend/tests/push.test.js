@@ -1,18 +1,39 @@
 /**
  * @fileoverview Unit tests for the Expo push sender (push.service).
- * Mocks global.fetch + the token mockRegistry — no network. Verifies token
- * validation, chunking to Expo's 100/req cap, message shape, outlet/user
- * targeting, and that failures never throw (fire-and-forget contract).
+ * Mocks global.fetch, the persistent pushToken table (config/database) and the
+ * in-memory fallback cache (integration.routes) — no network, no DB. Verifies
+ * token validation, chunking to Expo's 100/req cap, message shape, outlet/user
+ * targeting via the DB, the DB-down cache fallback, and that failures never
+ * throw (fire-and-forget contract).
  * @module tests/push.test
  */
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
 
-// Injectable in-memory mockRegistry standing in for integration.routes' Map.
+// In-memory token store. By default the mocked DB (pushToken.findMany) serves
+// rows from it, so it stands in for the push_tokens table; the same Map also
+// backs integration.routes' fallback cache for the DB-down tests.
 const mockRegistry = new Map();
 jest.mock('../src/modules/integrations/integration.routes', () => ({
   getPushTokenRegistry: () => mockRegistry,
 }));
+
+// Mocked persistent registry (push_tokens table).
+const mockFindMany = jest.fn();
+jest.mock('../src/config/database', () => ({
+  getDbClient: () => ({ pushToken: { findMany: (...a) => mockFindMany(...a) } }),
+}));
+
+/** Default DB behavior: serve mockRegistry entries, honouring the where clause. */
+function dbServesRegistry() {
+  mockFindMany.mockImplementation(async ({ where = {} }) => {
+    let rows = [...mockRegistry.entries()].map(([uid, e]) => ({ user_id: uid, outlet_id: e.outlet_id, token: e.token }));
+    if (where.user_id && Array.isArray(where.user_id.in)) rows = rows.filter((r) => where.user_id.in.includes(r.user_id));
+    if (where.user_id && where.user_id.not) rows = rows.filter((r) => r.user_id !== where.user_id.not);
+    if (typeof where.outlet_id === 'string') rows = rows.filter((r) => r.outlet_id === where.outlet_id);
+    return rows.map((r) => ({ token: r.token }));
+  });
+}
 
 const push = require('../src/modules/notifications/push.service');
 
@@ -28,6 +49,8 @@ function mockFetchOnce(handler) {
 
 beforeEach(() => {
   mockRegistry.clear();
+  mockFindMany.mockReset();
+  dbServesRegistry();
   global.fetch = undefined;
 });
 
@@ -125,5 +148,40 @@ describe('sendToUsers', () => {
     expect(await push.sendToUsers([], { title: 't', body: 'b' })).toEqual({ sent: 0, tickets: [] });
     expect(await push.sendToUsers(null, { title: 't', body: 'b' })).toEqual({ sent: 0, tickets: [] });
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('DB returning no rows is authoritative — cache is NOT consulted', async () => {
+    mockFindMany.mockResolvedValue([]); // persistent registry says: no devices
+    mockRegistry.set('u1', { token: TOK('stale'), outlet_id: 'O1' }); // stale cache entry
+    global.fetch = jest.fn();
+    const res = await push.sendToUsers(['u1'], { title: 't', body: 'b' });
+    expect(res.sent).toBe(0);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('DB-down fallback to the in-memory cache', () => {
+  test('sendToUsers falls back to cached tokens when the DB lookup throws', async () => {
+    mockFindMany.mockRejectedValue(new Error('db down'));
+    mockRegistry.set('u1', { token: TOK('1'), outlet_id: 'O1' });
+    let sentTo = [];
+    mockFetchOnce((url, body) => { sentTo = body.map((m) => m.to); });
+
+    const res = await push.sendToUsers(['u1'], { title: 't', body: 'b' });
+    expect(res.sent).toBe(1);
+    expect(sentTo).toEqual([TOK('1')]);
+  });
+
+  test('sendToOutlet falls back and still honours outlet scoping + excludeUserId', async () => {
+    mockFindMany.mockRejectedValue(new Error('db down'));
+    mockRegistry.set('u1', { token: TOK('1'), outlet_id: 'O1' });
+    mockRegistry.set('u2', { token: TOK('2'), outlet_id: 'O1' });
+    mockRegistry.set('u3', { token: TOK('3'), outlet_id: 'O2' });
+    let sentTo = [];
+    mockFetchOnce((url, body) => { sentTo = body.map((m) => m.to); });
+
+    const res = await push.sendToOutlet('O1', { title: 't', body: 'b' }, { excludeUserId: 'u2' });
+    expect(res.sent).toBe(1);
+    expect(sentTo).toEqual([TOK('1')]);
   });
 });

@@ -173,6 +173,15 @@ SUPABASE_STORAGE_BUCKET=uploads       # the public bucket name
 RAZORPAY_KEY_ID=...
 RAZORPAY_KEY_SECRET=...
 MSG91_AUTH_KEY=...
+# CORS: exact-origin allowlist. Four first-party hosts are built in
+# (petpooja-saas/petpooja-admin .vercel.app + getmsrm.com.au/www). Add extra
+# EXACT origins comma-separated here — no wildcards, no *.vercel.app patterns.
+CORS_ORIGINS=
+# Optional Sentry error monitoring — unset = disabled (SDK not loaded).
+SENTRY_DSN=
+# Production logs go to stdout (Render captures them). LOG_TO_FILE=true forces
+# the dev-only daily-rotate file logs on in production (needs persistent disk).
+LOG_TO_FILE=false
 RESTAURANT_APP_URL=https://petpooja-saas.vercel.app
 SUPERADMIN_URL=https://petpooja-admin.vercel.app
 QR_MENU_BASE_URL=https://petpooja-saas.vercel.app

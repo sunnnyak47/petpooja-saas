@@ -115,6 +115,10 @@ const refundOrderSchema = Joi.object({
   manager_pin: Joi.string().required(),
   reason: Joi.string().min(3).max(500).required(),
   refund_amount: Joi.number().precision(2).min(0).required(),
+  // Set when the refund was pushed back to the card via an EFTPOS terminal
+  // (Tyro): the id of the approved 'refund' TerminalTransaction, so the refund
+  // Payment row gets linked to its terminal audit record.
+  terminal_transaction_id: Joi.string().uuid().allow(null),
 });
 
 const cancelOrderSchema = Joi.object({

@@ -1657,13 +1657,41 @@ async function refundOrder(orderId, data, userId) {
   // DB hiccup between the two writes cannot leave an orphan refund row on a still-'paid'
   // order (which would allow a second refund and corrupt settlement reports).
   const refund = await prisma.$transaction(async (tx) => {
+    // Terminal (Tyro) card refund: the money already moved at the EFTPOS
+    // terminal — link the approved refund TerminalTransaction to the refund
+    // Payment row we create, and carry the terminal's reference as the refund
+    // transaction id so settlement reconciliation can pair the two. Scoped to
+    // this order's outlet so a foreign terminal txn id can't be attached.
+    let terminalTxn = null;
+    if (data.terminal_transaction_id) {
+      terminalTxn = await tx.terminalTransaction.findFirst({
+        where: {
+          id: data.terminal_transaction_id,
+          outlet_id: order.outlet_id,
+          type: 'refund',
+          status: 'approved',
+        },
+        select: { id: true, tyro_reference: true, our_ref: true },
+      });
+      if (!terminalTxn) throw new BadRequestError('Terminal refund transaction not found or not approved');
+    }
+
     const created = await tx.payment.create({
       data: {
         order_id: orderId, outlet_id: order.outlet_id,
         method: payment.method, amount: -refundAmount,
-        status: 'refunded', transaction_id: `RFND-${Date.now()}`,
+        status: 'refunded',
+        transaction_id: terminalTxn
+          ? (terminalTxn.tyro_reference || terminalTxn.our_ref)
+          : `RFND-${Date.now()}`,
       },
     });
+    if (terminalTxn) {
+      await tx.terminalTransaction.update({
+        where: { id: terminalTxn.id },
+        data: { payment_id: created.id },
+      });
+    }
     await tx.order.update({ where: { id: orderId }, data: { status: 'refunded' } });
     return created;
   });

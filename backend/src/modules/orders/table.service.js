@@ -444,13 +444,21 @@ async function deleteTableArea(areaId) {
 
 /**
  * Generates the QR ordering URL for a table.
+ *
+ * Points at the main frontend's hash-routed diner page (/#/order) — the
+ * maintained, currency-aware CustomerOrderPage — matching exactly how
+ * frontend/src/pages/QRCodesPage.jsx builds its links. The old standalone
+ * customer-ui app (petpooja-menu.vercel.app) is stale, undeployed, and
+ * hardcodes ₹, so it must never be the QR target. FRONTEND_URL overrides
+ * the base (same env var the OAuth redirects already use).
  */
 async function getTableQR(tableId) {
   const prisma = getDbClient();
   const table = await prisma.table.findUnique({ where: { id: tableId } });
   if (!table) throw new NotFoundError('Table not found');
-  const baseUrl = process.env.CUSTOMER_UI_URL || 'https://petpooja-menu.vercel.app';
-  return `${baseUrl}/?outlet=${table.outlet_id}&table=${table.id}`;
+  const baseUrl = (process.env.FRONTEND_URL || 'https://petpooja-saas.vercel.app')
+    .trim().replace(/\/+$/, '');
+  return `${baseUrl}/#/order?outlet=${table.outlet_id}&table=${table.id}`;
 }
 
 /**

@@ -1,0 +1,51 @@
+---
+// ScrollFX — one shared IntersectionObserver that reveals [data-reveal] elements
+// on scroll, plus an optional pointer-tilt for [data-tilt] cards. Dependency-free
+// (~1KB), included once per page that needs it. Respects reduced-motion.
+---
+<script>
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── Reveal on scroll ──
+  const revealEls = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+  if (reduce || !('IntersectionObserver' in window)) {
+    revealEls.forEach((el) => el.classList.add('is-visible'));
+  } else {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-visible');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+    revealEls.forEach((el) => io.observe(el));
+
+    // Safety net: content must never stay invisible if IO is slow/blocked (e.g.
+    // a backgrounded tab that never composites). After a grace period, reveal
+    // anything already within the viewport.
+    setTimeout(() => {
+      revealEls.forEach((el) => {
+        if (el.classList.contains('is-visible')) return;
+        const r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0) el.classList.add('is-visible');
+      });
+    }, 2500);
+  }
+
+  // ── Pointer tilt (hover-capable, non-touch, motion-OK only) ──
+  const canTilt = !reduce && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (canTilt) {
+    const tilts = Array.from(document.querySelectorAll<HTMLElement>('[data-tilt]'));
+    tilts.forEach((el) => {
+      const max = Number(el.getAttribute('data-tilt')) || 6; // degrees
+      el.addEventListener('pointermove', (ev) => {
+        const r = el.getBoundingClientRect();
+        const px = (ev.clientX - r.left) / r.width - 0.5;
+        const py = (ev.clientY - r.top) / r.height - 0.5;
+        el.style.transform = `perspective(900px) rotateY(${px * max}deg) rotateX(${-py * max}deg)`;
+      });
+      el.addEventListener('pointerleave', () => { el.style.transform = ''; });
+    });
+  }
+</script>

@@ -63,6 +63,15 @@ const squareTerminalSchema = Joi.object({
   idempotency_key: Joi.string().max(45).allow('', null),
 });
 
+/** POST /au/square/refund — refund a Square payment (full or partial) */
+const squareRefundSchema = Joi.object({
+  outlet_id: Joi.string().uuid().required(),
+  payment_id: Joi.string().uuid().required(), // OUR Payment row UUID (not the Square id)
+  amount: Joi.number().positive().allow(null), // omit/null → full refundable balance
+  reason: Joi.string().max(192).allow('', null),
+  idempotency_key: Joi.string().max(45).allow('', null), // Square requires one; generated server-side if omitted
+});
+
 /** POST /au/myob/connect */
 const myobConnectSchema = Joi.object({
   outlet_id: Joi.string().uuid().required(),
@@ -114,6 +123,7 @@ module.exports = {
   squareConnectSchema,
   squarePaymentSchema,
   squareTerminalSchema,
+  squareRefundSchema,
   myobConnectSchema,
   myobExportSchema,
   googleReviewsConnectSchema,

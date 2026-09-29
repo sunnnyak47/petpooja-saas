@@ -15,9 +15,11 @@
     "prebuild:win": "npm run sync-frontend",
     "prebuild:all": "npm run sync-frontend",
     "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:all": "electron-builder --win --mac",
+    "build:mac": "electron-builder --mac --x64 --arm64 && npm run verify:release",
+    "build:all": "npm run build:win && npm run build:mac",
     "pack": "electron-builder --dir",
+    "verify:release": "node scripts/verify-release.js",
+    "release:check": "node scripts/verify-release.js --manifest",
     "generate-icons": "node scripts/generate-icons.js"
   },
   "build": {

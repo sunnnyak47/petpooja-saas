@@ -386,6 +386,219 @@ function mockCompletionPayload({ our_ref, amount_cents, decline = false }) {
   };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Settlement reconciliation
+//
+// Tyro settles the terminal once a day and hands the merchant a settlement
+// report (per-terminal totals). This compares OUR two sources of truth for the
+// same day so staff can spot drift before banking:
+//   • TerminalTransaction rows (what the terminal approved), and
+//   • Payment rows (what the POS recorded as money received).
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Payment.method values a Tyro terminal payment may have been recorded under. */
+const CARD_METHODS = ['card', 'card_pine_labs', 'eftpos'];
+
+/** Cents matching tolerance between a terminal txn and its POS payment row. */
+const MATCH_TOLERANCE_CENTS = 2;
+
+const toCents = (v) => Math.round(Number(v || 0) * 100);
+
+/**
+ * Pure settlement math — no DB. Takes the day's approved terminal transactions
+ * and the day's Tyro-attributable Payment rows and returns totals, per-txn rows
+ * and a mismatch list. Exported separately so it is unit-testable.
+ *
+ * @param {Array<object>} txns     approved TerminalTransaction rows (purchase/refund/cashout)
+ * @param {Array<object>} payments Payment rows (Decimal `amount`; negative = refund row)
+ */
+function computeSettlement(txns, payments) {
+  const totals = {
+    terminal: {
+      count: 0,
+      purchases_cents: 0,   // approved purchases, incl. tip + surcharge
+      refunds_cents: 0,     // approved refunds (positive number)
+      tips_cents: 0,
+      surcharges_cents: 0,
+      cashout_cents: 0,
+      net_cents: 0,         // purchases − refunds
+    },
+    pos: {
+      count: payments.length,
+      charged_cents: 0,     // positive Payment rows
+      refunded_cents: 0,    // |negative / refunded Payment rows|
+      net_cents: 0,
+    },
+  };
+
+  const matchedPaymentIds = new Set();
+  const rows = [];
+  const mismatches = [];
+
+  // POS-side totals first (independent of matching).
+  for (const p of payments) {
+    const cents = toCents(p.amount);
+    if (cents >= 0 && p.status !== 'refunded') totals.pos.charged_cents += cents;
+    else totals.pos.refunded_cents += Math.abs(cents);
+  }
+  totals.pos.net_cents = totals.pos.charged_cents - totals.pos.refunded_cents;
+
+  for (const t of txns) {
+    const base = t.base_amount_cents ?? t.amount_cents ?? 0;
+    const tip = t.tip_cents || 0;
+    const surcharge = t.surcharge_cents || 0;
+    const cashout = t.cashout_cents || 0;
+    const totalCents = base + tip + surcharge;   // what Tyro settles for this txn
+    const expectedPosCents = base + tip;         // what the POS records (no surcharge)
+    const isRefund = t.type === 'refund';
+
+    totals.terminal.count += 1;
+    totals.terminal.tips_cents += tip;
+    totals.terminal.surcharges_cents += surcharge;
+    totals.terminal.cashout_cents += cashout;
+    if (isRefund) totals.terminal.refunds_cents += totalCents;
+    else totals.terminal.purchases_cents += totalCents;
+
+    // Find the POS payment for this terminal txn: prefer the explicit FK link,
+    // else an unclaimed same-order payment with the right sign and amount.
+    let payment = t.payment_id ? payments.find((p) => p.id === t.payment_id) : null;
+    if (!payment && t.order_id) {
+      payment = payments.find((p) => {
+        if (matchedPaymentIds.has(p.id) || p.order_id !== t.order_id) return false;
+        const cents = toCents(p.amount);
+        const refundRow = cents < 0 || p.status === 'refunded';
+        if (refundRow !== isRefund) return false;
+        const abs = Math.abs(cents);
+        return Math.abs(abs - expectedPosCents) <= MATCH_TOLERANCE_CENTS
+            || Math.abs(abs - totalCents) <= MATCH_TOLERANCE_CENTS;
+      });
+    }
+    if (payment) matchedPaymentIds.add(payment.id);
+
+    const paymentCents = payment ? Math.abs(toCents(payment.amount)) : null;
+    const amountAgrees = payment
+      && (Math.abs(paymentCents - expectedPosCents) <= MATCH_TOLERANCE_CENTS
+          || Math.abs(paymentCents - totalCents) <= MATCH_TOLERANCE_CENTS);
+
+    rows.push({
+      id: t.id,
+      completed_at: t.completed_at,
+      type: t.type,
+      status: t.status,
+      our_ref: t.our_ref,
+      tyro_reference: t.tyro_reference,
+      card_type: t.card_type,
+      elided_pan: t.elided_pan,
+      order_id: t.order_id,
+      base_amount_cents: base,
+      tip_cents: tip,
+      surcharge_cents: surcharge,
+      cashout_cents: cashout,
+      total_cents: isRefund ? -totalCents : totalCents,
+      payment_id: payment?.id || null,
+      payment_amount_cents: payment ? toCents(payment.amount) : null,
+      matched: !!payment && amountAgrees,
+    });
+
+    if (!payment) {
+      mismatches.push({
+        kind: 'missing_payment',
+        terminal_transaction_id: t.id,
+        order_id: t.order_id,
+        detail: `Terminal ${t.type} of ${(totalCents / 100).toFixed(2)} (${t.tyro_reference || t.our_ref}) has no matching POS payment row`,
+      });
+    } else if (!amountAgrees) {
+      mismatches.push({
+        kind: 'amount_mismatch',
+        terminal_transaction_id: t.id,
+        payment_id: payment.id,
+        order_id: t.order_id,
+        detail: `Terminal settled ${(totalCents / 100).toFixed(2)} but POS recorded ${(paymentCents / 100).toFixed(2)}`,
+      });
+    }
+  }
+
+  totals.terminal.net_cents = totals.terminal.purchases_cents - totals.terminal.refunds_cents;
+
+  // POS payments that claim to be terminal money but have no approved terminal txn.
+  for (const p of payments) {
+    if (matchedPaymentIds.has(p.id)) continue;
+    mismatches.push({
+      kind: 'missing_terminal_txn',
+      payment_id: p.id,
+      order_id: p.order_id,
+      detail: `POS ${toCents(p.amount) < 0 || p.status === 'refunded' ? 'refund' : 'payment'} of ${Math.abs(Number(p.amount)).toFixed(2)} (${p.method}) has no approved terminal transaction`,
+    });
+  }
+
+  return {
+    ...totals,
+    variance_cents: totals.terminal.net_cents - totals.pos.net_cents,
+    transactions: rows,
+    mismatches,
+  };
+}
+
+/**
+ * Daily settlement report for one outlet: approved Tyro terminal transactions
+ * vs the Payment rows recorded for Tyro card payments, bucketed on the outlet's
+ * own calendar day (same TZ handling as the EOD report).
+ *
+ * @param {string} outletId
+ * @param {string} date  YYYY-MM-DD (outlet-local calendar day)
+ */
+async function settlementReport(outletId, date) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || isNaN(new Date(date).getTime())) {
+    const e = new Error('date is required as YYYY-MM-DD');
+    e.status = 400; throw e;
+  }
+  const prisma = getDbClient();
+  const { getDateRange, safeTz } = require('../reports/report-helpers');
+
+  let tz;
+  try {
+    const outlet = await prisma.outlet.findUnique({ where: { id: outletId }, select: { timezone: true } });
+    tz = safeTz(outlet?.timezone);
+  } catch (_) { tz = safeTz(); }
+  const { start, end } = getDateRange(date, date, tz);
+  const range = { gte: start, lt: end };
+
+  const txns = await prisma.terminalTransaction.findMany({
+    where: {
+      outlet_id: outletId,
+      provider: 'tyro',
+      status: 'approved',
+      type: { in: ['purchase', 'refund', 'cashout'] },
+      completed_at: range,
+    },
+    orderBy: { completed_at: 'asc' },
+  });
+
+  // Payments attributable to the Tyro terminal that day: card-method rows either
+  // explicitly linked to a Tyro terminal transaction, or on an order that has one.
+  const payments = await prisma.payment.findMany({
+    where: {
+      outlet_id: outletId,
+      is_deleted: false,
+      created_at: range,
+      method: { in: CARD_METHODS },
+      status: { notIn: ['failed', 'pending'] },
+      OR: [
+        { terminal_transactions: { some: { provider: 'tyro' } } },
+        { order: { terminal_transactions: { some: { provider: 'tyro' } } } },
+      ],
+    },
+    select: { id: true, order_id: true, amount: true, method: true, status: true, transaction_id: true, created_at: true },
+    orderBy: { created_at: 'asc' },
+  });
+
+  return {
+    date,
+    timezone: tz,
+    ...computeSettlement(txns, payments),
+  };
+}
+
 async function initiatePurchase(_outletId, _payload) {
   const e = new Error('Purchases run in-browser via iClient — the backend only records the result. Use POST /tyro/transactions to start, PATCH to finalise.');
   e.status = 501;
@@ -412,6 +625,8 @@ module.exports = {
   finaliseTransaction,
   mapTyroResult,
   mockCompletionPayload,
+  computeSettlement,
+  settlementReport,
   initiatePurchase,
   initiateRefund,
 };

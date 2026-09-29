@@ -1,0 +1,107 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import CTA from '../components/CTA.astro';
+import Shot from '../components/Shot.astro';
+import { CATEGORY_COMPARE } from '../data/site';
+
+// Capability comparison — categories, not named brands (avoids trademark +
+// misleading-claim risk with named Indian POS incumbents).
+const { cols, rows, cell } = CATEGORY_COMPARE;
+
+const pains = [
+  ['Add-on creep', 'You pay for the POS — then again for delivery, inventory, GST filing and loyalty. The bill balloons.'],
+  ['Zomato & Swiggy tablet chaos', 'A separate tablet per delivery app, re-keyed into the till. Mistakes and missed orders.'],
+  ['No real margin view', 'You see gross delivery sales, never the net after 18–28% commission. So you can’t tell what actually pays.'],
+];
+
+const whyIndia = [
+  ['Commission clarity', 'Net-after-commission per channel + payout reconciliation. Know which app actually pays.'],
+  ['GST & Tally, sorted', 'GST invoicing, GSTR-1 & GSTR-3B summaries and Tally sync — your books keep themselves.'],
+  ['UPI-first billing', 'Accept UPI, cards and cash, split and multi-tender — all reconciled at day-end.'],
+  ['Never stops billing', 'Offline-first POS keeps trading when the internet drops, then syncs.'],
+];
+---
+<Layout title="Why MSRM vs other POS (India)" description="Why Indian restaurants choose MSRM over a typical cloud POS or a legacy desktop system — one platform, Zomato & Swiggy built in, real margin clarity, GST & Tally.">
+  <!-- Hero -->
+  <section class="container-x pt-16 pb-8 text-center max-w-3xl mx-auto">
+    <span class="eyebrow">Why MSRM · India 🇮🇳</span>
+    <h1 class="h1 text-4xl sm:text-5xl mt-3">The all-in-one POS Indian restaurants switch to.</h1>
+    <p class="lead mt-4">POS billing, kitchen, delivery apps, stock and your GST — one platform, one price. Not a POS plus a stack of paid add-ons.</p>
+    <div class="mt-6 flex justify-center gap-3"><a href="/demo" class="btn-primary">Book a Demo</a><a href="/how-it-works" class="btn-outline">How it works</a></div>
+  </section>
+
+  <!-- Pain -->
+  <section class="container-x py-12">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">The hidden cost of a typical POS</span><h2 class="h2 mt-2">Three things that quietly cost you.</h2></div>
+    <div class="mt-8 grid gap-5 md:grid-cols-3">
+      {pains.map(([t, d]) => (<div class="card"><h3 class="font-semibold text-lg">{t}</h3><p class="mt-2 text-ink-soft">{d}</p></div>))}
+    </div>
+  </section>
+
+  <!-- Comparison table -->
+  <section class="container-x py-8">
+    <div class="text-center max-w-2xl mx-auto"><span class="eyebrow">Honest comparison</span><h2 class="h2 mt-2">MSRM vs the rest.</h2></div>
+    <div class="mt-8 overflow-x-auto rounded-xl2 border border-line">
+      <table class="w-full text-sm bg-white min-w-[640px]">
+        <thead>
+          <tr class="border-b border-line">
+            <th class="text-left p-4 font-semibold w-[44%]">Capability</th>
+            {cols.map((c, i) => (
+              <th class="p-4 text-center font-bold" style={i === 0 ? 'color:#2563eb' : 'color:#64748b'}>{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr class="border-b border-line last:border-0">
+              <td class="p-4 text-ink-soft">{r[0]}</td>
+              {r.slice(1).map((v) => { const c = cell[v]; return (
+                <td class="p-4 text-center" style={`color:${c.c};font-weight:${c.w}`}>{c.t}</td>
+              ); })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-ink-mute mt-3">Compared by capability category, not specific brands. Some systems offer some of these as paid add-ons or third-party integrations.</p>
+  </section>
+
+  <!-- Product showcase -->
+  <section class="container-x py-14 grid lg:grid-cols-2 gap-8 items-center">
+    <div>
+      <span class="eyebrow">See it live</span>
+      <h2 class="h2 mt-2">The POS your team will actually like.</h2>
+      <p class="lead mt-3">Touch-first menu, one-tap modifiers, split bills, UPI and full offline mode — so you never stop billing.</p>
+      <a href="/features/pos" class="mt-4 inline-flex items-center gap-1 font-semibold text-brand-700">Explore the POS <Icon name="arrow" class="w-4 h-4" /></a>
+    </div>
+    <div class="card p-2 shadow-lift"><Shot name="pos.webp" alt="MSRM POS billing screen" /></div>
+  </section>
+  <section class="container-x pb-4 grid lg:grid-cols-2 gap-8 items-center">
+    <div class="card p-2 shadow-lift lg:order-1 order-2"><Shot name="channel-analytics.webp" alt="Per-channel analytics" /></div>
+    <div class="order-1 lg:order-2">
+      <span class="eyebrow">Know your numbers</span>
+      <h2 class="h2 mt-2">Every channel, one clear picture.</h2>
+      <p class="lead mt-3">Dine-in, takeaway and each aggregator — orders, gross, commission and net, side by side. Day-end in one tap.</p>
+      <a href="/features/analytics" class="mt-4 inline-flex items-center gap-1 font-semibold text-brand-700">See analytics <Icon name="arrow" class="w-4 h-4" /></a>
+    </div>
+  </section>
+
+  <!-- Why India -->
+  <section class="container-x py-12">
+    <h2 class="h2 text-2xl text-center">Built for Indian restaurants</h2>
+    <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {whyIndia.map(([t, d]) => (
+        <div class="card"><div class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600"><Icon name="check" class="w-5 h-5" /></div><h3 class="mt-3 font-semibold">{t}</h3><p class="mt-1 text-sm text-ink-soft">{d}</p></div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Migration + pricing -->
+  <section class="container-x pb-8 grid md:grid-cols-2 gap-5">
+    <a href="/migration" class="card hover:border-brand-400 transition"><h3 class="font-semibold text-lg">Switch without the risk →</h3><p class="mt-2 text-ink-soft">Move from your current POS with zero downtime. Your delivery apps stay live through the cutover.</p></a>
+    <a href="/pricing" class="card hover:border-brand-400 transition"><h3 class="font-semibold text-lg">One simple price →</h3><p class="mt-2 text-ink-soft">Per-outlet pricing with everything included — no add-on surprises.</p></a>
+  </section>
+
+  <CTA title="See why Indian restaurants switch to MSRM" />
+</Layout>
