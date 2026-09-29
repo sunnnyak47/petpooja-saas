@@ -80,12 +80,26 @@ const lastUpdated = '26 September 2026';
 
       <div>
         <h2 class="text-xl font-semibold text-ink">5. Overseas disclosure</h2>
+        {/*
+          OWNER — APP 8 disclosure. The paragraph below is written for the CURRENT
+          state (data at rest still hosted overseas). It is accurate today. Do NOT
+          claim Australian hosting until the AU data-residency cutover is complete
+          (backend/docs/AU_DATA_RESIDENCY.md). AFTER cutover, replace the paragraph
+          with this post-cutover version:
+
+          "Our application database, file storage and backups are hosted in Australia.
+          Certain processing occurs overseas — our application compute is served from
+          Singapore, and our analytics (Google) and marketing-site edge (Vercel)
+          providers operate infrastructure in other regions. Where personal information
+          is disclosed overseas, we take reasonable steps to ensure the recipient
+          handles it consistently with the APPs, as required by APP 8."
+        */}
         <p class="mt-2">
           Some of our service providers store or process data outside Australia — in
           particular, our cloud hosting and analytics providers operate infrastructure in
-          the <strong>United States</strong> (and may use other regions). Where personal
-          information is disclosed overseas, we take reasonable steps to ensure the
-          recipient handles it consistently with the APPs, as required by APP 8.
+          the <strong>United States</strong> and other regions. Where personal information
+          is disclosed overseas, we take reasonable steps to ensure the recipient handles
+          it consistently with the APPs, as required by APP 8.
         </p>
       </div>
 
