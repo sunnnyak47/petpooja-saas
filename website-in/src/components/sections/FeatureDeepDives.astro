@@ -1,0 +1,64 @@
+---
+// Feature deep-dives — the "deep info" beat. Alternating screenshot rows,
+// reveal on scroll, subtle tilt on the media. Driven by FEATURES (site.ts).
+import Icon from '../Icon.astro';
+import Shot from '../Shot.astro';
+import { FEATURES } from '../../data/site';
+
+// Screenshot + 3 capability bullets per feature (deeper than the card blurb).
+const DEEP: Record<string, { shot: string; points: string[] }> = {
+  pos:            { shot: 'pos.webp',           points: ['Split bill & multi-tender (UPI / card / cash) in two taps', 'Modifiers, combos, KOT printing, course pacing', 'Full offline mode — never stops billing'] },
+  kds:            { shot: 'kds.webp',           points: ['Station routing with bump timers', 'Cook-time SLAs flag slow tickets', 'Auto-86 the moment stock runs out'] },
+  inventory:      { shot: 'inventory.webp',     points: ['Recipe-based auto-deduction on every sale', 'Reorder alerts → one-tap purchase orders', 'Central-kitchen transfers across outlets'] },
+  'online-orders':{ shot: 'aggregators.webp',   points: ['Zomato & Swiggy in one screen', 'Your own commission-free QR ordering', 'Per-channel pricing + instant 86'] },
+  accounting:     { shot: 'gst.webp',           points: ['GST-correct invoices, right rate every time', 'GSTR-1 & GSTR-3B-ready summaries', 'Tally sync — books keep themselves'] },
+  analytics:      { shot: 'analytics.webp',     points: ['Live sales & item performance', 'Net margin per channel after commission', 'One-tap day-end close'] },
+  'multi-outlet': { shot: 'dashboard.webp',     points: ['Central menu, per-outlet pricing', 'Chain-wide roll-up reporting', 'Granular staff roles & permissions'] },
+};
+---
+<section class="container-x py-16 lg:py-24">
+  <div class="text-center max-w-2xl mx-auto" data-reveal>
+    <span class="eyebrow">Everything, built in</span>
+    <h2 class="h2 mt-2">One system, from first order to day-end.</h2>
+    <p class="lead mt-3">No patchwork of third-party apps. Every module shares the same live data — a sale updates stock, the kitchen screen, reports and your GST books at once.</p>
+  </div>
+
+  <div class="mt-14 space-y-16 lg:space-y-24">
+    {FEATURES.map((f, i) => {
+      const d = DEEP[f.slug];
+      const flip = i % 2 === 1;
+      return (
+        <div class="grid lg:grid-cols-2 gap-8 lg:gap-14 items-center" data-reveal>
+          <!-- Media -->
+          <div class={`browser-frame ${flip ? 'lg:order-2' : ''}`} data-tilt="5">
+            <div class="browser-bar">
+              <span class="browser-dot bg-red-400/70"></span>
+              <span class="browser-dot bg-amber-400/70"></span>
+              <span class="browser-dot bg-emerald-400/70"></span>
+              <span class="ml-3 hidden sm:block text-xs text-ink-mute">app.msrm.in/{f.slug}</span>
+            </div>
+            <Shot name={d?.shot || 'dashboard.webp'} alt={`MSRM ${f.name}`} frame={false} />
+          </div>
+          <!-- Copy -->
+          <div class={flip ? 'lg:order-1' : ''}>
+            <div class="feature-tile"><Icon name={f.icon} class="w-6 h-6" /></div>
+            <span class="mt-4 block text-xs font-bold uppercase tracking-wide text-ink-mute">{f.group}</span>
+            <h3 class="mt-1 text-2xl font-bold tracking-tight">{f.name}</h3>
+            <p class="mt-3 text-ink-soft leading-relaxed">{f.blurb}</p>
+            <ul class="mt-5 space-y-2.5">
+              {(d?.points || []).map((pt) => (
+                <li class="flex items-start gap-2.5 text-[15px]">
+                  <Icon name="check" class="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
+                  <span class="text-ink-soft">{pt}</span>
+                </li>
+              ))}
+            </ul>
+            <a href={`/features/${f.slug}`} class="mt-6 inline-flex items-center gap-1 font-semibold text-brand-700 hover:gap-2 transition-all">
+              Explore {f.name} <Icon name="arrow" class="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</section>

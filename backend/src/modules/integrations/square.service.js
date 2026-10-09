@@ -315,6 +315,384 @@ async function createTerminalCheckout(outletId, { amount, device_id, order_id, i
   return { checkout_id: c.id, status: c.status, amount: Number(amount), order_id: order_id || null };
 }
 
+// ── Payment reconciliation helpers ───────────────────────────────────────────
+/** Round to 2dp (money). */
+function round2(n) { return Math.round(Number(n) * 100) / 100; }
+
+/**
+ * Merge new gateway data into an existing gateway_response JSON blob without
+ * losing what previous flows stored (same pattern as razorpay.webhook.service).
+ */
+function mergeGatewayResponse(existing, incoming) {
+  const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
+  return { ...base, ...incoming };
+}
+
+/**
+ * Handles a `terminal.checkout.updated` webhook event. When the checkout reaches
+ * COMPLETED, records the money as a Payment row and settles the order through
+ * the SAME path the online-card flow uses (order.service.processPayment: payment
+ * row, conditional is_paid flip, status history, inventory deduction, table
+ * lifecycle), then attaches the raw webhook payload as gateway_response.
+ *
+ * Idempotent: a replayed webhook is a no-op — the Payment row already carries
+ * this Square payment id as transaction_id; a concurrent replay loses the
+ * conditional is_paid flip inside processPayment and rolls back.
+ *
+ * Never throws — the webhook route must always be able to answer 200.
+ *
+ * @param {object} event - Verified Square webhook event body.
+ * @returns {Promise<object>} { handled, idempotent?, reason?, payment_id?, order_id? }
+ */
+async function handleTerminalCheckoutEvent(event) {
+  try {
+    const checkout = event?.data?.object?.checkout;
+    if (!checkout) return { handled: false, reason: 'no_checkout_in_event' };
+    const status = String(checkout.status || '').toUpperCase();
+    if (status !== 'COMPLETED') {
+      // PENDING / IN_PROGRESS / CANCELED etc. — nothing to record.
+      return { handled: false, reason: `checkout_status_${status || 'unknown'}` };
+    }
+
+    // Tenant routing: the merchant that signed this event → the outlet that
+    // connected it. Never trust reference_id alone across tenants.
+    const outletId = await findOutletByMerchant(event.merchant_id);
+    if (!outletId) return { handled: false, reason: 'unknown_merchant' };
+
+    // createTerminalCheckout threads our order id through reference_id.
+    const orderId = checkout.reference_id || null;
+    if (!orderId) {
+      logger.warn('[Square] terminal checkout completed without reference_id — cannot reconcile', { checkoutId: checkout.id, outletId });
+      return { handled: false, reason: 'no_reference_id' };
+    }
+
+    // The Square payment id is the durable transaction reference (refunds key on
+    // it). Fall back to the checkout id if payment_ids hasn't populated yet.
+    const squarePaymentId = (Array.isArray(checkout.payment_ids) && checkout.payment_ids[0]) || checkout.id;
+
+    // Idempotency (replayed webhook): this Square payment was already recorded.
+    const existing = await prisma.payment.findFirst({
+      where: { order_id: orderId, transaction_id: squarePaymentId, is_deleted: false },
+      select: { id: true },
+    });
+    if (existing) {
+      return { handled: true, idempotent: true, payment_id: existing.id, order_id: orderId };
+    }
+
+    // Scope the order to the routed outlet (blocks cross-tenant reference_id injection).
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, outlet_id: outletId, is_deleted: false },
+      select: { id: true, is_paid: true },
+    });
+    if (!order) return { handled: false, reason: 'order_not_found', order_id: orderId };
+    if (order.is_paid) {
+      // Paid through another path (e.g. cashier settled manually while the
+      // terminal processed). Do NOT double-record the money — flag for reconciliation.
+      logger.warn('[Square] terminal checkout completed for an already-paid order — skipped recording', {
+        orderId, outletId, squarePaymentId, checkoutId: checkout.id,
+      });
+      return { handled: true, idempotent: true, reason: 'order_already_paid', order_id: orderId };
+    }
+
+    // checkout.amount_money is the base amount WE set at creation (tips ride in
+    // tip_money), so it reconciles against the order's amount owed.
+    const amount = round2(Number(checkout.amount_money?.amount || 0) / 100);
+    if (!(amount > 0)) return { handled: false, reason: 'invalid_amount', order_id: orderId };
+
+    // Settle exactly like the online-card path. Lazy require avoids a
+    // module-load cycle (order.service pulls in half the app).
+    const orderService = require('../orders/order.service');
+    let result;
+    try {
+      result = await orderService.processPayment(
+        orderId,
+        { method: 'card', amount, transaction_id: squarePaymentId },
+        null, // no staff — settled by the Square Terminal webhook
+        outletId,
+      );
+    } catch (err) {
+      if (/already paid/i.test(err?.message || '')) {
+        // Lost a race against a concurrent settle/replay — its transaction won; ours rolled back.
+        return { handled: true, idempotent: true, reason: 'order_already_paid', order_id: orderId };
+      }
+      logger.error('[Square] terminal checkout settle failed', { orderId, outletId, error: err.message });
+      return { handled: false, reason: err.message, order_id: orderId };
+    }
+
+    // Attach the raw webhook payload for audit/reconciliation (best-effort).
+    try {
+      await prisma.payment.update({
+        where: { id: result.payment.id },
+        data: {
+          gateway_response: mergeGatewayResponse(null, {
+            source: 'square_terminal_webhook',
+            event_type: event.type,
+            event_id: event.event_id || null,
+            merchant_id: event.merchant_id || null,
+            checkout,
+            recorded_at: new Date().toISOString(),
+          }),
+        },
+      });
+    } catch (err) {
+      logger.warn('[Square] could not attach webhook payload to payment', { paymentId: result.payment.id, error: err.message });
+    }
+
+    // Keep the connection stats in step with createPayment's behaviour (best-effort).
+    try {
+      const config = await getConfig(outletId);
+      if (config?.connected) {
+        config.last_transaction = new Date().toISOString();
+        config.total_processed = (config.total_processed || 0) + amount;
+        await saveConfig(outletId, config);
+      }
+    } catch (err) { logger.warn('[Square] stats update failed after terminal settle', { error: err.message }); }
+
+    logger.info('[Square] terminal checkout reconciled to Payment', {
+      orderId, outletId, paymentId: result.payment.id, squarePaymentId, amount,
+    });
+    return { handled: true, payment_id: result.payment.id, order_id: orderId, transaction_id: squarePaymentId, amount };
+  } catch (error) {
+    logger.error('[Square] terminal checkout webhook processing failed', { error: error.message });
+    return { handled: false, error: error.message };
+  }
+}
+
+// ── Refunds ──────────────────────────────────────────────────────────────────
+/**
+ * Applies one Square refund state to our Payment row, idempotently.
+ *
+ * Amount is applied ONCE per refund id (tracked in gateway_response.refund_ids,
+ * mirroring razorpay.webhook.service): PENDING/COMPLETED for a refund id we've
+ * already seen only refresh status markers; FAILED/REJECTED for a previously
+ * applied refund reverses the amount exactly once (gateway_response.refund_failed_ids).
+ *
+ * @param {object} payment - Our Payment row (fresh read).
+ * @param {object} refund - { id, status, amount (major units), reason }
+ * @param {string} source - Where this state came from (api | api_mock | webhook event type).
+ * @returns {Promise<object>} Result with handled/idempotent flags.
+ */
+async function recordRefundState(payment, { id, status, amount, reason }, source) {
+  const normalized = String(status || '').toUpperCase();
+  const prev = payment.gateway_response && typeof payment.gateway_response === 'object' && !Array.isArray(payment.gateway_response)
+    ? payment.gateway_response : {};
+  const seen = Array.isArray(prev.refund_ids) ? prev.refund_ids : [];
+  const failed = Array.isArray(prev.refund_failed_ids) ? prev.refund_failed_ids : [];
+  const paid = Number(payment.amount || 0);
+  const alreadyRefunded = round2(Number(payment.refund_amount || 0));
+  const amt = round2(Number(amount) || 0);
+
+  if (normalized === 'PENDING' || normalized === 'COMPLETED') {
+    if (id && seen.includes(id)) {
+      // Replay, or PENDING → COMPLETED progression: the amount was applied when
+      // this refund id was first seen — never add it twice.
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          gateway_response: mergeGatewayResponse(prev, { last_refund_event: source, last_refund_status: normalized }),
+        },
+      });
+      return { handled: true, idempotent: true, payment_id: payment.id, refund_id: id, status: normalized };
+    }
+
+    const newTotal = round2(alreadyRefunded + amt);
+    const fullyRefunded = newTotal >= paid - 0.001;
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        refund_amount: newTotal,
+        refund_id: id || payment.refund_id,
+        ...(reason ? { refund_reason: String(reason).slice(0, 1000) } : {}),
+        ...(fullyRefunded ? { status: 'refunded' } : {}),
+        gateway_response: mergeGatewayResponse(prev, {
+          refund_ids: id ? [...seen, id] : seen,
+          last_refund_event: source,
+          last_refund_status: normalized,
+          last_refund_amount: amt,
+          total_refunded: newTotal,
+          refunded_at: new Date().toISOString(),
+        }),
+      },
+    });
+    return { handled: true, payment_id: payment.id, refund_id: id, status: normalized, refund_amount: newTotal, fully_refunded: fullyRefunded };
+  }
+
+  if (normalized === 'FAILED' || normalized === 'REJECTED') {
+    if (!id || !seen.includes(id) || failed.includes(id)) {
+      // Never applied here, or already reversed — nothing to undo.
+      return { handled: true, idempotent: true, payment_id: payment.id, refund_id: id || null, status: normalized };
+    }
+    const newTotal = round2(Math.max(0, alreadyRefunded - amt));
+    const stillFully = newTotal >= paid - 0.001;
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        refund_amount: newTotal,
+        // A payment we flipped to 'refunded' whose refund then failed goes back to settled.
+        ...(payment.status === 'refunded' && !stillFully ? { status: 'success' } : {}),
+        gateway_response: mergeGatewayResponse(prev, {
+          refund_failed_ids: [...failed, id],
+          last_refund_event: source,
+          last_refund_status: normalized,
+          total_refunded: newTotal,
+        }),
+      },
+    });
+    return { handled: true, payment_id: payment.id, refund_id: id, status: normalized, refund_amount: newTotal, reversed: true };
+  }
+
+  return { handled: false, reason: `unhandled_refund_status_${normalized || 'unknown'}` };
+}
+
+/**
+ * Refunds a Square payment via Square's Refunds API (POST /v2/refunds — Square
+ * REQUIRES an idempotency_key; one is generated when the caller doesn't supply
+ * one). Supports partial refunds; the Payment row's refund fields are updated
+ * idempotently through recordRefundState so the later refund webhook can't
+ * double-apply the amount.
+ *
+ * Mock mode: with no app-level Square credentials (isConfigured() false) the
+ * refund is simulated coherently — same Payment-row bookkeeping, `mock: true`
+ * flag — mirroring how the other AU integrations behave without credentials.
+ *
+ * @param {string} outletId - Outlet UUID (tenant scope).
+ * @param {object} opts
+ * @param {string} opts.payment_id - OUR Payment row UUID (not the Square id).
+ * @param {number} [opts.amount] - Amount in major units; defaults to the full refundable balance.
+ * @param {string} [opts.reason] - Refund reason (stored + sent to Square).
+ * @param {string} [opts.idempotency_key] - Caller-supplied Square idempotency key.
+ * @returns {Promise<object>} Refund result.
+ */
+async function refundSquarePayment(outletId, { payment_id, amount, reason, idempotency_key } = {}) {
+  if (!payment_id) throw new Error('payment_id is required');
+
+  // Tenant guard: the payment must belong to THIS outlet.
+  const payment = await prisma.payment.findFirst({
+    where: { id: payment_id, outlet_id: outletId, is_deleted: false },
+  });
+  if (!payment) throw new Error('Payment not found for this outlet');
+
+  const paid = Number(payment.amount || 0);
+  if (paid <= 0) throw new Error('Cannot refund this row — it is not a positive payment');
+  if (!['success', 'completed'].includes(payment.status)) {
+    throw new Error(`Only settled payments can be refunded (payment status: ${payment.status})`);
+  }
+
+  const alreadyRefunded = round2(Number(payment.refund_amount || 0));
+  const remaining = round2(paid - alreadyRefunded);
+  if (remaining <= 0) throw new Error('Payment is already fully refunded');
+
+  const refundAmount = (amount === undefined || amount === null || amount === '') ? remaining : round2(Number(amount));
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0) throw new Error('Invalid refund amount');
+  if (refundAmount > remaining + 0.001) {
+    throw new Error(`Refund amount ${refundAmount} exceeds refundable balance ${remaining}`);
+  }
+
+  // ── Mock mode (no app credentials): simulate coherently ──
+  if (!isConfigured()) {
+    const refundId = `mock_refund_${crypto.randomUUID()}`;
+    const result = await recordRefundState(payment, { id: refundId, status: 'COMPLETED', amount: refundAmount, reason }, 'api_mock');
+    logger.info('[Square] refund simulated (mock — no app credentials)', { outletId, paymentId: payment.id, amount: refundAmount });
+    return {
+      mock: true,
+      refund_id: refundId,
+      status: 'COMPLETED',
+      amount: refundAmount,
+      currency: 'AUD',
+      payment_id: payment.id,
+      order_id: payment.order_id,
+      fully_refunded: !!result.fully_refunded,
+      message: 'Refund simulated (mock — configure SQUARE_APPLICATION_ID / SECRET / REDIRECT_URL to refund real payments)',
+    };
+  }
+
+  // ── Real mode ──
+  const e = env();
+  const config = await getConfig(outletId);
+  if (!config?.connected) throw new Error('Square is not connected for this outlet');
+  if (!payment.transaction_id) {
+    throw new Error('This payment has no Square payment id (transaction_id) — it cannot be refunded through Square');
+  }
+  const accessToken = await getValidAccessToken(outletId);
+
+  const body = {
+    idempotency_key: idempotency_key || crypto.randomUUID(), // Square requires this
+    payment_id: payment.transaction_id,
+    amount_money: { amount: Math.round(refundAmount * 100), currency: config.currency || 'AUD' },
+  };
+  if (reason) body.reason = String(reason).slice(0, 192);
+
+  const res = await fetch(`${e.apiBase}/v2/refunds`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'Square-Version': SQUARE_VERSION },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.errors?.[0]?.detail || `Square refund failed (${res.status})`;
+    logger.error('[Square] refund failed', { status: res.status, body: JSON.stringify(data).slice(0, 500) });
+    throw new Error(msg);
+  }
+
+  const refund = data.refund || {};
+  const result = await recordRefundState(
+    payment,
+    { id: refund.id, status: refund.status || 'PENDING', amount: refundAmount, reason },
+    'api',
+  );
+  logger.info('[Square] refund created', { outletId, paymentId: payment.id, refundId: refund.id, status: refund.status, amount: refundAmount });
+  return {
+    mock: false,
+    refund_id: refund.id || null,
+    status: refund.status || 'PENDING',
+    amount: refundAmount,
+    currency: config.currency || 'AUD',
+    payment_id: payment.id,
+    order_id: payment.order_id,
+    fully_refunded: !!result.fully_refunded,
+  };
+}
+
+/**
+ * Handles `refund.created` / `refund.updated` webhook events — routes the
+ * refund back to our Payment row (transaction_id === refund.payment_id, scoped
+ * to the merchant's outlet) and applies the status transition idempotently via
+ * recordRefundState. Never throws.
+ *
+ * @param {object} event - Verified Square webhook event body.
+ * @returns {Promise<object>} Result object.
+ */
+async function handleRefundEvent(event) {
+  try {
+    const refund = event?.data?.object?.refund;
+    if (!refund || !refund.payment_id) return { handled: false, reason: 'malformed_refund_event' };
+
+    const outletId = await findOutletByMerchant(event.merchant_id);
+    const where = { transaction_id: refund.payment_id, is_deleted: false };
+    if (outletId) where.outlet_id = outletId;
+
+    const payment = await prisma.payment.findFirst({ where, orderBy: { created_at: 'desc' } });
+    if (!payment) {
+      logger.info('[Square] refund webhook for unknown payment', { squarePaymentId: refund.payment_id, refundId: refund.id });
+      return { handled: false, reason: 'no_payment_row' };
+    }
+
+    const amount = round2(Number(refund.amount_money?.amount || 0) / 100);
+    const result = await recordRefundState(
+      payment,
+      { id: refund.id, status: refund.status, amount, reason: refund.reason },
+      event.type || 'refund.webhook',
+    );
+    if (result.handled && !result.idempotent) {
+      logger.info('[Square] refund webhook applied', { paymentId: payment.id, refundId: refund.id, status: refund.status, amount });
+    }
+    return result;
+  } catch (error) {
+    logger.error('[Square] refund webhook processing failed', { error: error.message });
+    return { handled: false, error: error.message };
+  }
+}
+
 // ── Shared API context (used by the analytics pull service) ──────────────────
 /**
  * Returns an authenticated Square REST context for an outlet — a valid access
@@ -426,6 +804,9 @@ module.exports = {
   findOutletByMerchant,
   createPayment,
   createTerminalCheckout,
+  handleTerminalCheckoutEvent,
+  refundSquarePayment,
+  handleRefundEvent,
   getConnectionStatus,
   disconnect,
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, ChefHat, TrendingUp, Activity, Shield, ArrowUpRight } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ChefHat, TrendingUp, Activity, Shield, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { warmupBackend, isColdStartError } from '../lib/api';
 import { loginSuccess, setLoading } from '../store/slices/authSlice';
@@ -21,7 +21,7 @@ const TESTIMONIAL = {
   role:  'Owner · Garden State Eatery (Sydney + Mumbai)',
 };
 
-export default function LoginPage() {
+export default function LoginPage({ isSignup = false }) {
   const [login, setLogin]               = useState('');
   const [emailError, setEmailError]     = useState('');
   const [password, setPassword]         = useState('');
@@ -30,6 +30,11 @@ export default function LoginPage() {
   const [pwFocused, setPwFocused]       = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [tick, setTick]                 = useState(0);
+  // Signup (get-started) mode state
+  const [fullName, setFullName]         = useState('');
+  const [restaurant, setRestaurant]     = useState('');
+  const [phone, setPhone]               = useState('');
+  const [signupDone, setSignupDone]     = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -95,6 +100,33 @@ export default function LoginPage() {
     }
   };
 
+  // /signup mode: the backend offers no self-serve owner registration
+  // (POST /auth/register rejects anonymous owner/manager creation and cannot
+  // create an outlet/chain), so "getting started" routes into the existing
+  // demo-request flow — the public POST /api/leads endpoint the platform team
+  // turns into a provisioned account.
+  const handleSignupSubmit = async (e) => {
+    e.preventDefault();
+    const err = validateEmail(login);
+    if (err) { setEmailError(err); return; }
+    if (!fullName.trim()) return toast.error('Please enter your name.');
+    setLoadingState(true);
+    try {
+      await api.post('/leads', {
+        name: fullName.trim(),
+        email: login.trim(),
+        restaurant: restaurant.trim() || null,
+        phone: phone.trim() || null,
+        source: 'app_signup',
+      }, { timeout: 60000 });
+      setSignupDone(true);
+    } catch (error) {
+      toast.error(error.message || 'Could not submit your request. Please try again.');
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
   // pulse the live revenue +1 every tick (cheap feel-alive trick)
   const liveRevenue = 18420 + (tick * 23);
 
@@ -106,6 +138,18 @@ export default function LoginPage() {
     : emailFocused ? '0 0 0 4px rgba(37,99,235,0.1)' : '0 1px 2px rgba(15,23,42,0.04)';
   const pwBorder  = pwFocused ? '1.5px solid #2563eb' : '1.5px solid rgba(15,23,42,0.08)';
   const pwShadow  = pwFocused ? '0 0 0 4px rgba(37,99,235,0.1)' : '0 1px 2px rgba(15,23,42,0.04)';
+
+  const plainInputStyle = {
+    width: '100%', padding: '13px 14px', fontSize: 14.5,
+    borderRadius: 10, border: '1.5px solid rgba(15,23,42,0.08)',
+    background: '#fff', color: '#0f172a', outline: 'none',
+    boxShadow: '0 1px 2px rgba(15,23,42,0.04)', fontFamily: 'inherit',
+    letterSpacing: '-0.005em',
+  };
+  const fieldLabelStyle = {
+    display: 'block', fontSize: 12, fontWeight: 600, color: '#334155',
+    marginBottom: 8, letterSpacing: '0.01em',
+  };
 
   return (
     <div style={{
@@ -424,14 +468,129 @@ export default function LoginPage() {
               letterSpacing: '-0.035em', margin: 0, marginBottom: 8,
               lineHeight: 1.1,
             }}>
-              Sign in
+              {isSignup ? 'Get started' : 'Sign in'}
             </h2>
             <p style={{ fontSize: 14.5, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
-              Welcome back. Use your email to continue.
+              {isSignup
+                ? 'Tell us about your restaurant — our team sets up your account and reaches out within one business day.'
+                : 'Welcome back. Use your email to continue.'}
             </p>
           </div>
 
-          {/* Form */}
+          {/* ═════ SIGNUP MODE — request access via the demo/lead flow ═════ */}
+          {isSignup && signupDone && (
+            <div style={{
+              background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14,
+              padding: '26px 22px', textAlign: 'center',
+            }}>
+              <CheckCircle2 size={34} color="#16a34a" strokeWidth={2} style={{ marginBottom: 12 }} />
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#14532d', margin: 0, marginBottom: 8, letterSpacing: '-0.02em' }}>
+                Request received
+              </h3>
+              <p style={{ fontSize: 13, color: '#166534', margin: 0, marginBottom: 18, lineHeight: 1.6 }}>
+                Thanks{fullName ? `, ${fullName.trim().split(' ')[0]}` : ''}! Our team will set up your
+                restaurant&apos;s account and email you at <strong>{login}</strong> shortly.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                style={{
+                  padding: '11px 22px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontSize: 13.5, fontWeight: 700, color: '#fff', background: '#16a34a',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Back to sign in
+              </button>
+            </div>
+          )}
+
+          {isSignup && !signupDone && (
+            <form onSubmit={handleSignupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div>
+                <label htmlFor="signup-name" style={fieldLabelStyle}>Your name</label>
+                <input
+                  id="signup-name" type="text" style={plainInputStyle}
+                  placeholder="Priya Sharma" value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoFocus autoComplete="name" required
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-email" style={fieldLabelStyle}>Work email</label>
+                <input
+                  id="signup-email" type="email"
+                  style={{ ...plainInputStyle, border: emailBorder, boxShadow: emailShadow, background: emailError ? '#fff7f7' : '#fff' }}
+                  placeholder="you@restaurant.com" value={login}
+                  onChange={(e) => {
+                    setLogin(e.target.value);
+                    if (emailError) setEmailError(validateEmail(e.target.value));
+                  }}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => {
+                    setEmailFocused(false);
+                    if (login.trim()) setEmailError(validateEmail(login));
+                  }}
+                  autoComplete="email" required
+                />
+                {emailError && (
+                  <p style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 500 }}>{emailError}</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="signup-restaurant" style={fieldLabelStyle}>Restaurant name</label>
+                <input
+                  id="signup-restaurant" type="text" style={plainInputStyle}
+                  placeholder="Garden State Eatery" value={restaurant}
+                  onChange={(e) => setRestaurant(e.target.value)}
+                  autoComplete="organization"
+                />
+              </div>
+              <div>
+                <label htmlFor="signup-phone" style={fieldLabelStyle}>Phone <span style={{ fontWeight: 500, color: '#94a3b8' }}>(optional)</span></label>
+                <input
+                  id="signup-phone" type="tel" style={plainInputStyle}
+                  placeholder="+61 400 000 000" value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  autoComplete="tel"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="submit-btn"
+                style={{
+                  width: '100%', padding: '13px', borderRadius: 11, border: 'none',
+                  cursor: loading ? 'not-allowed' : 'pointer', marginTop: 6,
+                  fontSize: 14.5, fontWeight: 700, color: '#fff',
+                  letterSpacing: '-0.005em',
+                  background: loading
+                    ? '#94a3b8'
+                    : 'linear-gradient(90deg, #1e40af 0%, #2563eb 25%, #3b82f6 50%, #2563eb 75%, #1e40af 100%)',
+                  boxShadow: loading ? 'none' : '0 10px 30px rgba(37,99,235,0.32), inset 0 -2px 0 rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.18)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                {loading
+                  ? <><Loader2 size={16} style={{ animation: 'spin360 1s linear infinite' }} /> Sending…</>
+                  : <>Request access <ArrowUpRight size={16} strokeWidth={2.5} /></>
+                }
+              </button>
+              <p style={{ margin: 0, textAlign: 'center', fontSize: 12.5, color: '#64748b', fontWeight: 500 }}>
+                Already have an account?{' '}
+                <button
+                  type="button" className="fp-link"
+                  onClick={() => navigate('/login')}
+                  style={{ fontSize: 12.5, fontWeight: 700, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  Sign in
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ═════ LOGIN MODE ═════ */}
+          {!isSignup && (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
             {/* Email */}
@@ -554,7 +713,19 @@ export default function LoginPage() {
                 : <>Continue <ArrowUpRight size={16} strokeWidth={2.5} /></>
               }
             </button>
+
+            <p style={{ margin: 0, textAlign: 'center', fontSize: 12.5, color: '#64748b', fontWeight: 500 }}>
+              New to the platform?{' '}
+              <button
+                type="button" className="fp-link"
+                onClick={() => navigate('/signup')}
+                style={{ fontSize: 12.5, fontWeight: 700, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Get started
+              </button>
+            </p>
           </form>
+          )}
 
           {/* Divider + Security row */}
           <div style={{ marginTop: 26 }}>

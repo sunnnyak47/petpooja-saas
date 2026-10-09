@@ -1,13 +1,179 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { SITE } from '../data/site';
+
+// TODO(owner): set the real date when the reviewed policy goes live, and remove
+// the review banner below once an Australian solicitor has signed this off.
+const lastUpdated = '26 September 2026';
 ---
-<Layout title="Privacy Policy">
-  <section class="container-x py-16 max-w-3xl prose-sm">
-    <h1 class="h2">Privacy Policy</h1>
-    <p class="text-ink-soft mt-3">Last updated: {new Date().toLocaleDateString()}</p>
-    <p class="mt-4 text-ink-soft">This is a placeholder Privacy Policy for the MSRM marketing site. Replace with your reviewed legal copy before launch. It should cover: what data you collect (demo form: name, email, phone, restaurant), how it's used (sales contact), cookies/analytics, data retention, third-party processors (analytics, CRM), and how to request deletion.</p>
-    <h2 class="font-semibold mt-6">Contact</h2>
-    <p class="text-ink-soft">For privacy requests, email hello@getmsrm.com.</p>
-    <p class="mt-6 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
+<Layout
+  title="Privacy Policy"
+  description="How MSRM collects, uses, stores and protects personal information, in line with the Australian Privacy Principles."
+>
+  <section class="container-x py-16 max-w-3xl">
+    <p class="eyebrow">Legal</p>
+    <h1 class="h2 mt-2">Privacy Policy</h1>
+    <p class="text-ink-mute mt-3 text-sm">Last updated: {lastUpdated}</p>
+
+    <!-- TEMPLATE BANNER — remove after legal review -->
+    <div class="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <strong>Template — review by an Australian solicitor before launch.</strong>
+      This policy is a professionally structured template, not legal advice. Have it
+      reviewed and adapted to your circumstances before relying on it.
+    </div>
+
+    <div class="mt-8 space-y-8 text-ink-soft leading-relaxed">
+      <div>
+        <h2 class="text-xl font-semibold text-ink">1. Who we are</h2>
+        <p class="mt-2">
+          {SITE.name} ("we", "us", "our") provides a restaurant management platform —
+          point of sale, kitchen display, inventory, online ordering and accounting —
+          to hospitality businesses in Australia, together with this marketing website.
+          We are committed to handling personal information in accordance with the
+          <em>Privacy Act 1988</em> (Cth) and the Australian Privacy Principles (APPs).
+        </p>
+        <p class="mt-2">
+          This policy covers personal information we collect through this website and in
+          the course of providing the {SITE.name} platform. Data our restaurant customers
+          enter about <em>their</em> own customers and staff inside the platform is
+          processed on their behalf and is governed primarily by our agreement with them.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">2. What we collect</h2>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li><strong>Enquiry and demo details</strong> — when you request a demo or contact us: your name, email address, phone number, restaurant or business name, and anything you include in your message.</li>
+          <li><strong>Account details</strong> — if you sign up for the platform: your name, email, phone number, business details (including ABN), and billing information.</li>
+          <li><strong>Usage data</strong> — pages visited, approximate location (city level), device and browser type, and referral source, collected via analytics cookies (see section 7).</li>
+          <li><strong>Support communications</strong> — records of emails, calls and support requests.</li>
+        </ul>
+        <p class="mt-2">
+          We do not knowingly collect sensitive information (as defined in the Privacy Act)
+          through this website, and we ask that you do not submit it via our forms.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">3. How we use your information</h2>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li>To respond to your enquiry and arrange product demonstrations;</li>
+          <li>To provide, operate, support and improve the {SITE.name} platform;</li>
+          <li>To process billing and account administration;</li>
+          <li>To send service updates and, with your consent, marketing communications (every marketing email includes an unsubscribe link);</li>
+          <li>To understand how the website is used so we can improve it;</li>
+          <li>To comply with our legal obligations.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">4. Disclosure to third parties</h2>
+        <p class="mt-2">We do not sell personal information. We disclose it only to service providers who help us run the business, and only for the purposes above:</p>
+        <ul class="mt-2 list-disc pl-5 space-y-1.5">
+          <li><strong>Hosting and infrastructure</strong> — our website and platform are hosted with cloud providers (currently Vercel and Render);</li>
+          <li><strong>Analytics</strong> — Google Analytics, where enabled (see section 7);</li>
+          <li><strong>Communications and CRM tools</strong> — used to manage enquiries and support;</li>
+          <li><strong>Payment processors</strong> — for subscription billing (we do not store full card numbers ourselves);</li>
+          <li><strong>Professional advisers and authorities</strong> — where required or authorised by law.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">5. Overseas disclosure</h2>
+        {/*
+          OWNER — APP 8 disclosure. The paragraph below is written for the CURRENT
+          state (data at rest still hosted overseas). It is accurate today. Do NOT
+          claim Australian hosting until the AU data-residency cutover is complete
+          (backend/docs/AU_DATA_RESIDENCY.md). AFTER cutover, replace the paragraph
+          with this post-cutover version:
+
+          "Our application database, file storage and backups are hosted in Australia.
+          Certain processing occurs overseas — our application compute is served from
+          Singapore, and our analytics (Google) and marketing-site edge (Vercel)
+          providers operate infrastructure in other regions. Where personal information
+          is disclosed overseas, we take reasonable steps to ensure the recipient
+          handles it consistently with the APPs, as required by APP 8."
+        */}
+        <p class="mt-2">
+          Some of our service providers store or process data outside Australia — in
+          particular, our cloud hosting and analytics providers operate infrastructure in
+          the <strong>United States</strong> and other regions. Where personal information
+          is disclosed overseas, we take reasonable steps to ensure the recipient handles
+          it consistently with the APPs, as required by APP 8.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">6. Storage, security and retention</h2>
+        <p class="mt-2">
+          We take reasonable steps to protect personal information from misuse,
+          interference, loss, and unauthorised access, modification or disclosure —
+          including encryption in transit (HTTPS/TLS), access controls, and hosting with
+          reputable providers. No internet transmission is completely secure, so we cannot
+          guarantee absolute security.
+        </p>
+        <p class="mt-2">
+          We keep personal information only as long as needed for the purposes above or as
+          required by law (for example, tax and accounting records), after which we take
+          reasonable steps to destroy or de-identify it.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">7. Cookies and analytics</h2>
+        <p class="mt-2">
+          This website uses Google Analytics 4 to understand aggregate visitor behaviour.
+          Analytics runs only when enabled for the environment; no analytics cookies are
+          set otherwise. You can opt out of Google Analytics across all websites using
+          Google's <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener noreferrer" class="text-brand-700 underline">browser opt-out add-on</a>,
+          or limit cookies through your browser settings. The site remains fully usable
+          without analytics cookies.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">8. Access and correction</h2>
+        <p class="mt-2">
+          You may request access to the personal information we hold about you, and ask us
+          to correct it if it is inaccurate, out of date, incomplete or misleading. Email
+          us at <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a> —
+          we will respond within a reasonable period (usually 30 days). We may need to
+          verify your identity before giving access, and in limited cases permitted by the
+          Privacy Act we may refuse access, in which case we will tell you why.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">9. Complaints</h2>
+        <p class="mt-2">
+          If you believe we have mishandled your personal information, please contact us
+          first at <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a>
+          and we will investigate and respond within a reasonable period. If you are not
+          satisfied with our response, you may complain to the Office of the Australian
+          Information Commissioner (OAIC) at
+          <a href="https://www.oaic.gov.au" rel="noopener noreferrer" class="text-brand-700 underline">oaic.gov.au</a>
+          or by calling 1300 363 992.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">10. Changes to this policy</h2>
+        <p class="mt-2">
+          We may update this policy from time to time. The current version will always be
+          published on this page with its "Last updated" date. Material changes affecting
+          platform customers will be notified by email.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold text-ink">11. Contact</h2>
+        <p class="mt-2">
+          Privacy questions and requests:
+          <a href={`mailto:${SITE.email}`} class="text-brand-700 underline">{SITE.email}</a>
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-10 text-sm"><a href="/" class="text-brand-700 underline">← Back home</a></p>
   </section>
 </Layout>

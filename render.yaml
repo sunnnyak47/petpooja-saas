@@ -3,7 +3,10 @@ services:
     name: petpooja-saas
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss && npx prisma db seed
+    # `prisma migrate deploy` applies committed migrations only — no schema
+    # diffing, no data loss. ONE-TIME prerequisite before the first deploy with
+    # this command: baseline the existing prod DB (see backend/prisma/MIGRATION_BASELINE.md).
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npx prisma db seed
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
@@ -34,6 +37,13 @@ services:
         value: https://petpooja-ms-rm.vercel.app
       - key: CORS_WHITELIST
         value: https://petpooja-ms-rm.vercel.app,https://petpooja-saas.vercel.app
+      # Extra exact CORS origins (comma-separated) beyond the built-in
+      # first-party allowlist. No wildcards/patterns.
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional Sentry error monitoring — leave unset to disable.
+      - key: SENTRY_DSN
+        sync: false
       - key: BCRYPT_ROUNDS
         value: 12
       - key: RATE_LIMIT_GENERAL

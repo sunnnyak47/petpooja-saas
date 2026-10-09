@@ -35,10 +35,14 @@ const configSchema = Joi.object({
   }),
   merchant_name: Joi.string().trim().min(2).max(100).required(),
   api_key: Joi.string().trim().max(200).allow('', null),
-  pos_product_name: Joi.string().trim().max(100).default('PetPooja POS'),
-  pos_product_vendor: Joi.string().trim().max(100).default('PetPooja'),
+  pos_product_name: Joi.string().trim().max(100).default('MSRM POS'),
+  pos_product_vendor: Joi.string().trim().max(100).default('MSRM'),
   pos_product_version: Joi.string().trim().max(20).default('1.0.0'),
   environment: Joi.string().valid('sandbox', 'production').default('sandbox'),
+  // AU terminal-driven features. Stored as 'true'/'false' strings to match the
+  // outletSetting value shape every other tyro_* key uses. Both default off.
+  surcharge_enabled: Joi.string().valid('true', 'false').default('false'),
+  tipping_enabled: Joi.string().valid('true', 'false').default('false'),
 });
 
 /** Mask a secret for read responses so it renders "•••••1234" in the UI. */
@@ -64,6 +68,8 @@ router.get('/config', hasPermission('MANAGE_INTEGRATIONS'), enforceOutletScope, 
       pos_product_vendor: cfg.pos_product_vendor || '',
       pos_product_version: cfg.pos_product_version || '',
       environment: cfg.environment || 'sandbox',
+      surcharge_enabled: cfg.surcharge_enabled === 'true',
+      tipping_enabled: cfg.tipping_enabled === 'true',
       api_key_masked: mask(cfg.api_key),
       has_api_key: !!cfg.api_key,
       integration_key_masked: mask(cfg.integration_key),
@@ -176,17 +182,7 @@ router.post('/transactions', hasPermission('MANAGE_POS'), validate(startTxSchema
     const cfg = await tyroService.loadConfig(outletId);
     sendSuccess(res, {
       transaction: row,
-      iclient: {
-        script_url: tyroService.iClientScriptUrl(cfg.environment || 'sandbox'),
-        api_key: cfg.api_key || '',
-        mid: cfg.mid,
-        tid: cfg.tid,
-        pos_product_vendor: cfg.pos_product_vendor,
-        pos_product_name: cfg.pos_product_name,
-        pos_product_version: cfg.pos_product_version,
-        mock_mode: cfg.mock_mode === 'true',
-        environment: cfg.environment || 'sandbox',
-      },
+      iclient: tyroService.iClientInitParams(cfg),
     }, 'Transaction started');
   } catch (err) {
     if (err.status) return sendError(res, err.status, err.message);
@@ -208,6 +204,28 @@ router.patch('/transactions/:id', hasPermission('MANAGE_POS'), validate(finalise
       });
     }
     sendSuccess(res, row, `Transaction ${row.status}`);
+  } catch (err) {
+    if (err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
+/**
+ * GET /api/integrations/tyro/transactions/recover?outlet_id=
+ * Continue-Last-Transaction recovery: return the outlet's most-recent still-open
+ * (pending/in_progress) terminal transaction, if any, plus the iClient init
+ * params the POS needs to resume it. `{ transaction: null }` when nothing is
+ * open. Registered BEFORE /transactions/:id so "recover" is never parsed as an id.
+ */
+router.get('/transactions/recover', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const row = await tyroService.recoverOpenTransaction(outletId);
+    const cfg = await tyroService.loadConfig(outletId);
+    sendSuccess(res, {
+      transaction: row || null,
+      iclient: tyroService.iClientInitParams(cfg),
+    }, row ? 'Open transaction found' : 'No open transaction');
   } catch (err) {
     if (err.status) return sendError(res, err.status, err.message);
     next(err);
@@ -244,6 +262,24 @@ router.get('/transactions', hasPermission('MANAGE_POS'), enforceOutletScope, asy
   } catch (err) { next(err); }
 });
 
+/**
+ * GET /api/integrations/tyro/settlement?date=YYYY-MM-DD — daily reconciliation.
+ * Approved terminal transactions vs the POS Payment rows for the same
+ * outlet-local day, so staff can compare against Tyro's terminal settlement
+ * report. MANAGE_POS (not MANAGE_INTEGRATIONS): shift supervisors run this at
+ * close of day, not just admins.
+ */
+router.get('/settlement', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
+  try {
+    const outletId = req.query.outlet_id || req.user.outlet_id;
+    const report = await tyroService.settlementReport(outletId, req.query.date);
+    sendSuccess(res, report, 'Tyro settlement report');
+  } catch (err) {
+    if (err.status) return sendError(res, err.status, err.message);
+    next(err);
+  }
+});
+
 /** POST /api/integrations/tyro/transactions/:id/mock-complete — dev only, gated by mock_mode. */
 router.post('/transactions/:id/mock-complete', hasPermission('MANAGE_POS'), enforceOutletScope, async (req, res, next) => {
   try {
@@ -257,6 +293,10 @@ router.post('/transactions/:id/mock-complete', hasPermission('MANAGE_POS'), enfo
       our_ref: row.our_ref,
       amount_cents: row.amount_cents,
       decline: req.body?.decline === true,
+      // Mirror the outlet's AU feature toggles so the mock exercises the same
+      // tip/surcharge path a real terminal would (unless this txn opted out).
+      tipping_enabled: req.body?.tipping_enabled ?? (cfg.tipping_enabled === 'true'),
+      surcharge_enabled: req.body?.surcharge_enabled ?? (cfg.surcharge_enabled === 'true'),
     });
     const finalRow = await tyroService.finaliseTransaction(row.id, raw);
     sendSuccess(res, finalRow, `Mock transaction ${finalRow.status}`);

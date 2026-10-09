@@ -9,10 +9,24 @@
 
 jest.mock('../src/config/logger', () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }));
 
-// Token store standing in for integration.routes' in-memory Map.
+// Token store standing in for the push_tokens table (and integration.routes'
+// fallback cache). The mocked DB serves rows straight from this Map.
 const mockRegistry = new Map();
 jest.mock('../src/modules/integrations/integration.routes', () => ({
   getPushTokenRegistry: () => mockRegistry,
+}));
+jest.mock('../src/config/database', () => ({
+  getDbClient: () => ({
+    pushToken: {
+      findMany: async ({ where = {} }) => {
+        let rows = [...mockRegistry.entries()].map(([uid, e]) => ({ user_id: uid, outlet_id: e.outlet_id, token: e.token }));
+        if (where.user_id && Array.isArray(where.user_id.in)) rows = rows.filter((r) => where.user_id.in.includes(r.user_id));
+        if (where.user_id && where.user_id.not) rows = rows.filter((r) => r.user_id !== where.user_id.not);
+        if (typeof where.outlet_id === 'string') rows = rows.filter((r) => r.outlet_id === where.outlet_id);
+        return rows.map((r) => ({ token: r.token }));
+      },
+    },
+  }),
 }));
 
 // Stub the alert + digest sources so we don't load the DB / reports chain.

@@ -63,6 +63,30 @@ function append(buf, ...bytes) {
   for (const b of bytes.flat(Infinity)) buf.push(b);
 }
 
+/**
+ * Build the printed label for a tax component from the order's ACTUAL tax data —
+ * never a hardcoded slab. Prefers an explicit rate field on the order; otherwise
+ * backs the effective rate out of the component amount vs. the taxable base.
+ * Returns e.g. "CGST (2.5%)", "IGST (18%)", or the bare name when no rate can
+ * be derived (multi-slab orders with no base still print the honest amount).
+ *
+ * @param {string} name         — "CGST" | "SGST" | "IGST"
+ * @param {number} explicitRate — rate field from the order, if the API sent one
+ * @param {number} amount       — the tax component amount
+ * @param {number} taxBase      — order's taxable base (taxable_amount, else subtotal)
+ */
+function taxLabel(name, explicitRate, amount, taxBase) {
+  const r = Number(explicitRate);
+  let rate = Number.isFinite(r) && r > 0 ? r : null;
+  if (rate == null) {
+    const amt = Number(amount || 0);
+    const base = Number(taxBase || 0);
+    if (base > 0 && amt > 0) rate = (amt / base) * 100;
+  }
+  if (rate == null) return name;
+  return `${name} (${Number(rate.toFixed(2))}%)`;
+}
+
 // ---------------------------------------------------------------------------
 // HTML generators
 // ---------------------------------------------------------------------------
@@ -138,12 +162,20 @@ function generateBillHTML(order, outlet, options = {}) {
       </tr>`;
   }).join('');
 
-  const auGst = (Math.round(grandTotal * 100 / 11) / 100);
+  // Taxable base for deriving effective component rates on IN receipts.
+  const taxBase = Number(order?.taxable_amount ?? subtotal);
+  // AU stores its flat 10% GST in the igst field (see backend tax.service) — on an
+  // AU receipt that amount is ALWAYS labelled "GST (10%)", never "IGST". Prefer the
+  // stored amount; fall back to backing 1/11th out of the inclusive total.
+  const auGst = igst > 0 ? igst : (Math.round(grandTotal * 100 / 11) / 100);
+  const taxRow = (label, amount) =>
+    `<tr><td colspan="2" style="opacity:.7">${label}</td><td style="text-align:right;opacity:.7">${currency}${amount.toFixed(2)}</td></tr>`;
   const taxSection = isAU
-    ? (grandTotal > 0 ? `<tr><td colspan="2" style="opacity:.7">GST (10%) incl.</td><td style="text-align:right;opacity:.7">${currency}${auGst.toFixed(2)}</td></tr>` : '')
+    ? (grandTotal > 0 ? taxRow('GST (10%) incl.', auGst) : '')
     : `
-      ${cgst > 0 ? `<tr><td colspan="2" style="opacity:.7">CGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${cgst.toFixed(2)}</td></tr>` : ''}
-      ${sgst > 0 ? `<tr><td colspan="2" style="opacity:.7">SGST (2.5%)</td><td style="text-align:right;opacity:.7">${currency}${sgst.toFixed(2)}</td></tr>` : ''}
+      ${cgst > 0 ? taxRow(taxLabel('CGST', order?.cgst_rate ?? order?.cgst_percent, cgst, taxBase), cgst) : ''}
+      ${sgst > 0 ? taxRow(taxLabel('SGST', order?.sgst_rate ?? order?.sgst_percent, sgst, taxBase), sgst) : ''}
+      ${igst > 0 ? taxRow(taxLabel('IGST', order?.igst_rate ?? order?.igst_percent, igst, taxBase), igst) : ''}
     `;
 
   const taxId = isAU
@@ -311,6 +343,66 @@ function generateKOTHTML(order, kotItems, kitchenStation, outlet) {
 </html>`;
 }
 
+/**
+ * generateEFTPOSReceiptHTML — wrap a raw EFTPOS receipt text block (as returned
+ * by the Tyro iClient merchantReceipt / customerReceipt) in a self-contained,
+ * print-ready HTML document. The terminal has already line-formatted the text,
+ * so we render it verbatim inside a monospace <pre> and only add a thin header.
+ *
+ * @param {string} receiptText — preformatted receipt text (newline separated)
+ * @param {object} [opts] — { paperWidth: 58|80, copy: 'customer'|'merchant', merchantName }
+ * @returns {string} HTML string ready for window.open + document.write
+ */
+function generateEFTPOSReceiptHTML(receiptText, opts = {}) {
+  const { paperWidth = 58, copy = 'customer', merchantName = '' } = opts;
+  const mmWidth  = paperWidth === 80 ? '80mm' : '58mm';
+  const fontSize = paperWidth === 80 ? '13px' : '11px';
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const copyLabel = copy === 'merchant' ? 'MERCHANT COPY' : 'CUSTOMER COPY';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EFTPOS Receipt${merchantName ? ' - ' + esc(merchantName) : ''}</title>
+<style>
+  @media print {
+    body { margin: 0; }
+    @page { margin: 4mm; size: ${mmWidth} auto; }
+  }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body style="font-family:'Courier New',Courier,monospace;font-size:${fontSize};width:${mmWidth};margin:0 auto;padding:4px;color:#000;background:#fff;">
+  ${merchantName ? `<div style="text-align:center;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">${esc(merchantName)}</div>` : ''}
+  <div style="text-align:center;font-size:9px;opacity:.7;margin-bottom:4px;">${copyLabel}</div>
+  <pre style="white-space:pre-wrap;word-break:break-word;margin:0;font-family:'Courier New',Courier,monospace;font-size:${fontSize};line-height:1.35;">${esc(receiptText)}</pre>
+</body>
+</html>`;
+}
+
+/**
+ * encodeEFTPOSReceiptESCPOS — encode a raw EFTPOS receipt text block as ESC/POS
+ * bytes for a thermal printer. The terminal already formatted the lines, so we
+ * emit them verbatim, left-aligned, then feed + partial cut.
+ *
+ * @param {string} receiptText
+ * @returns {Uint8Array}
+ */
+function encodeEFTPOSReceiptESCPOS(receiptText) {
+  const buf = [];
+  append(buf, ESC, 0x40);               // ESC @ — reset to defaults
+  append(buf, ESC, 0x61, ALIGN_LEFT);   // ESC a 0 — left align
+  const lines = String(receiptText ?? '').split(/\r?\n/);
+  for (const line of lines) {
+    append(buf, ...encodeText(line), LF);
+  }
+  append(buf, LF, LF, LF);              // feed 3 lines before cut
+  append(buf, GS, 0x56, 0x42, 0x00);    // GS V — partial cut with feed
+  return new Uint8Array(buf);
+}
+
 // ---------------------------------------------------------------------------
 // ESC/POS encoder
 // ---------------------------------------------------------------------------
@@ -405,12 +497,16 @@ function encodeBillESCPOS(order, outlet, paperWidth = 58) {
 
   if (isAU) {
     if (grandTotal > 0) {
-      const auGst = (Math.round(grandTotal * 100 / 11) / 100);
+      // AU keeps its flat 10% GST in the igst field — label it "GST (10%)", never "IGST".
+      const auGst = igst > 0 ? igst : (Math.round(grandTotal * 100 / 11) / 100);
       append(buf, ...encodeText(alignColumns('GST (10%) incl.', `${currency} ${auGst.toFixed(2)}`, lineWidth)), LF);
     }
   } else {
-    if (cgst > 0) append(buf, ...encodeText(alignColumns('CGST (2.5%)', `${currency} ${cgst.toFixed(2)}`, lineWidth)), LF);
-    if (sgst > 0) append(buf, ...encodeText(alignColumns('SGST (2.5%)', `${currency} ${sgst.toFixed(2)}`, lineWidth)), LF);
+    // Derive each component's printed rate from the order's real tax data.
+    const taxBase = Number(order?.taxable_amount ?? subtotal);
+    if (cgst > 0) append(buf, ...encodeText(alignColumns(taxLabel('CGST', order?.cgst_rate ?? order?.cgst_percent, cgst, taxBase), `${currency} ${cgst.toFixed(2)}`, lineWidth)), LF);
+    if (sgst > 0) append(buf, ...encodeText(alignColumns(taxLabel('SGST', order?.sgst_rate ?? order?.sgst_percent, sgst, taxBase), `${currency} ${sgst.toFixed(2)}`, lineWidth)), LF);
+    if (igst > 0) append(buf, ...encodeText(alignColumns(taxLabel('IGST', order?.igst_rate ?? order?.igst_percent, igst, taxBase), `${currency} ${igst.toFixed(2)}`, lineWidth)), LF);
   }
 
   append(buf, ...encodeText(dividerStr), LF);
@@ -585,6 +681,36 @@ function printKOT(order, kotItems, kitchenStation, outlet) {
 }
 
 /**
+ * printEFTPOSReceipt — print a raw EFTPOS receipt text block (the Tyro iClient
+ * merchant/customer receipt). Mirrors printBill's output strategy: Electron IPC
+ * → USB ESC/POS → browser print dialog. Graceful no-op when there is nothing to
+ * print, so callers can fire it unconditionally.
+ *
+ * @param {string} receiptText — raw receipt text from the terminal / iClient
+ * @param {object} [opts] — { paperWidth, copy: 'customer'|'merchant', merchantName }
+ */
+function printEFTPOSReceipt(receiptText, opts = {}) {
+  // Graceful: no receipt string → nothing to do (e.g. terminal returned none).
+  if (!receiptText || !String(receiptText).trim()) return;
+  const html = generateEFTPOSReceiptHTML(receiptText, opts);
+
+  // Electron: delegate to IPC if available.
+  if (typeof window !== 'undefined' && window.electron?.print) {
+    window.electron.print(html);
+    return;
+  }
+
+  // Web USB ESC/POS: attempt thermal print, fall back to browser on any error.
+  detectUSBPrinter().then((device) => {
+    if (device) {
+      const bytes = encodeEFTPOSReceiptESCPOS(receiptText);
+      return printESCPOS(bytes).catch(() => _browserPrint(html));
+    }
+    _browserPrint(html);
+  }).catch(() => _browserPrint(html));
+}
+
+/**
  * _browserPrint — internal helper: open a popup, write HTML, trigger print, close.
  * @param {string} html
  */
@@ -615,6 +741,18 @@ export const PrintService = {
 
   /** Print a KOT (Kitchen Order Ticket) via browser print */
   printKOT,
+
+  /**
+   * Print a raw EFTPOS receipt text block (Tyro merchant/customer receipt).
+   * Tries ESC/POS USB then falls back to browser print; no-op if empty.
+   */
+  printEFTPOSReceipt,
+
+  /** Generate EFTPOS receipt HTML string (useful for preview/PDF) */
+  generateEFTPOSReceiptHTML,
+
+  /** Encode an EFTPOS receipt text block as ESC/POS bytes */
+  encodeEFTPOSReceiptESCPOS,
 
   /** Generate full receipt HTML string (useful for PDF or preview) */
   generateBillHTML,

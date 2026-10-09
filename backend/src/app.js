@@ -6,6 +6,12 @@
 
 require('dotenv').config();
 
+// Sentry (optional, env-gated on SENTRY_DSN) must initialize BEFORE express
+// and http are required so its automatic request instrumentation can hook
+// them. Complete no-op when SENTRY_DSN is unset.
+const { initSentry, setupSentryErrorHandler } = require('./config/sentry');
+initSentry();
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -47,19 +53,22 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+/*
+ * CORS — EXACT-origin allowlist shared with Socket.io (see config/cors.js).
+ *
+ * The previous check accepted any `https://petpooja-*.vercel.app` via regex.
+ * With `credentials: true` that was a hole: anyone can register a Vercel
+ * project named `petpooja-anything` and their deployment would pass the
+ * regex, letting a hostile page make credentialed requests to this API.
+ * Extra exact origins come from the comma-separated CORS_ORIGINS env var
+ * (CORS_WHITELIST still honoured); localhost only outside production.
+ */
+const { isOriginAllowed } = require('./config/cors');
+
 app.use(cors({
   origin: function originCheck(origin, callback) {
-    // Always allow requests with no origin (mobile apps, curl, Electron)
-    if (!origin) return callback(null, true);
-
-    // Allow only this project's Vercel URLs (production + preview deploys)
-    const isVercel = /^https:\/\/petpooja[-\w]*\.vercel\.app$/.test(origin);
-    // Allow any localhost port for dev
-    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    // Allow explicitly whitelisted origins
-    const isWhitelisted = appConfig.corsWhitelist.includes(origin) || appConfig.corsWhitelist.includes('*');
-
-    if (isVercel || isLocalhost || isWhitelisted) {
+    // No-origin requests (mobile apps, curl, Electron) are always allowed.
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked origin: ${origin}`);
@@ -405,6 +414,10 @@ try {
 /* ------------------------------------------------------------------
    404 + ERROR HANDLERS
    ------------------------------------------------------------------ */
+// Sentry's error handler (no-op without SENTRY_DSN) sits after all routes and
+// before the app's own errorHandler; it reports the error, then forwards it
+// with next(err), so the JSON error response below is unchanged.
+setupSentryErrorHandler(app);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

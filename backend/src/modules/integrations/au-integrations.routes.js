@@ -16,6 +16,7 @@ const {
   squareConnectSchema,
   squarePaymentSchema,
   squareTerminalSchema,
+  squareRefundSchema,
   myobConnectSchema,
   myobExportSchema,
   googleReviewsConnectSchema,
@@ -252,10 +253,22 @@ router.post('/square/webhook', async (req, res) => {
     const type = event.type || '';
     const merchantId = event.merchant_id || null;
 
+    // ── Payment reconciliation (BEFORE the analytics debounce) ──
+    // A completed Square Terminal checkout is recorded as a Payment row and the
+    // order settled exactly like the online-card path; refund events update the
+    // originating Payment's refund fields. Both handlers are idempotent (a
+    // replayed webhook is a no-op) and never throw.
+    if (type === 'terminal.checkout.updated') {
+      await squareService.handleTerminalCheckoutEvent(event);
+    } else if (type === 'refund.created' || type === 'refund.updated') {
+      await squareService.handleRefundEvent(event);
+    }
+
     const RELEVANT = [
       // money movement (real-time payments analytics)
       'payment.created', 'payment.updated',
       'refund.created', 'refund.updated',
+      'terminal.checkout.updated',
       'payout.paid', 'payout.sent',
       'dispute.created', 'dispute.state.updated', 'dispute.state.changed',
       // operations analytics (real-time menu/stock/customer/channel data)
@@ -311,6 +324,19 @@ router.post('/square/terminal-checkout', authenticate, enforceOutletScope, valid
     const { amount, device_id, order_id, idempotency_key } = req.body;
     const result = await squareService.createTerminalCheckout(outletId, { amount, device_id, order_id, idempotency_key });
     sendSuccess(res, result, 'Terminal checkout started');
+  } catch (e) { next(e); }
+});
+
+// Refund a Square payment (full or partial) via Square's Refunds API.
+// Tenant-guarded like the sibling money routes: enforceOutletScope pins non-owners
+// to their own outlet, and the service re-checks the Payment row belongs to it.
+// In mock mode (no app credentials) the refund is simulated coherently.
+router.post('/square/refund', authenticate, enforceOutletScope, validate(squareRefundSchema), async (req, res, next) => {
+  try {
+    const outletId = req.body.outlet_id || req.user.outlet_id;
+    const { payment_id, amount, reason, idempotency_key } = req.body;
+    const result = await squareService.refundSquarePayment(outletId, { payment_id, amount, reason, idempotency_key });
+    sendSuccess(res, result, result.mock ? 'Refund simulated (mock mode)' : 'Refund submitted to Square');
   } catch (e) { next(e); }
 });
 
