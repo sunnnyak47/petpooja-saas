@@ -291,8 +291,8 @@ export default function TyroIClient({ outletId, orderId, amountCents, mode = 'pu
         throw new Error('iClient loaded but TYRO.IClientWithUI is not on window — script blocked or wrong URL');
       }
       const iclient = new TYRO.IClientWithUI(iclientCfg.api_key || '', {
-        posProductVendor: iclientCfg.pos_product_vendor || 'PetPooja',
-        posProductName:   iclientCfg.pos_product_name   || 'PetPooja POS',
+        posProductVendor: iclientCfg.pos_product_vendor || 'MSRM',
+        posProductName:   iclientCfg.pos_product_name   || 'MSRM POS',
         posProductVersion: iclientCfg.pos_product_version || '1.0.0',
       });
       iclientRef.current = iclient;
@@ -376,8 +376,8 @@ export default function TyroIClient({ outletId, orderId, amountCents, mode = 'pu
         throw new Error('iClient loaded but TYRO.IClientWithUI is not on window — script blocked or wrong URL');
       }
       const iclient = new TYRO.IClientWithUI(cfg.api_key || '', {
-        posProductVendor: cfg.pos_product_vendor || 'PetPooja',
-        posProductName:   cfg.pos_product_name   || 'PetPooja POS',
+        posProductVendor: cfg.pos_product_vendor || 'MSRM',
+        posProductName:   cfg.pos_product_name   || 'MSRM POS',
         posProductVersion: cfg.pos_product_version || '1.0.0',
       });
       iclientRef.current = iclient;

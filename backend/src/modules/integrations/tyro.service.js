@@ -183,8 +183,8 @@ async function pairTerminal(outletId) {
     mid: String(cfg.mid).trim(),
     tid: String(cfg.tid).trim(),
     posProductInfo: {
-      posProductName: cfg.pos_product_name || 'PetPooja POS',
-      posProductVendor: cfg.pos_product_vendor || 'PetPooja',
+      posProductName: cfg.pos_product_name || 'MSRM POS',
+      posProductVendor: cfg.pos_product_vendor || 'MSRM',
       posProductVersion: cfg.pos_product_version || '1.0.0',
     },
     merchantName: cfg.merchant_name,

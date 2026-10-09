@@ -249,8 +249,8 @@ function TyroPanel({ outletId }) {
   const [form, setForm] = useState({
     mid: '', tid: '', merchant_name: '',
     api_key: '',
-    pos_product_name: 'PetPooja POS',
-    pos_product_vendor: 'PetPooja',
+    pos_product_name: 'MSRM POS',
+    pos_product_vendor: 'MSRM',
     pos_product_version: '1.0.0',
     environment: 'sandbox',
     surcharge_enabled: 'false',

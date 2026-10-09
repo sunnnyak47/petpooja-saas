@@ -35,8 +35,8 @@ const configSchema = Joi.object({
   }),
   merchant_name: Joi.string().trim().min(2).max(100).required(),
   api_key: Joi.string().trim().max(200).allow('', null),
-  pos_product_name: Joi.string().trim().max(100).default('PetPooja POS'),
-  pos_product_vendor: Joi.string().trim().max(100).default('PetPooja'),
+  pos_product_name: Joi.string().trim().max(100).default('MSRM POS'),
+  pos_product_vendor: Joi.string().trim().max(100).default('MSRM'),
   pos_product_version: Joi.string().trim().max(20).default('1.0.0'),
   environment: Joi.string().valid('sandbox', 'production').default('sandbox'),
   // AU terminal-driven features. Stored as 'true'/'false' strings to match the
