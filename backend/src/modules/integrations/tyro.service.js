@@ -49,6 +49,8 @@ const CONFIG_KEYS = [
   'pos_product_version',
   'environment',       // 'sandbox' | 'production'
   'mock_mode',         // 'true' | 'false' — dev flag: skip real Tyro, simulate approvals locally
+  'surcharge_enabled', // 'true' | 'false' — AU: let the TERMINAL apply a card surcharge
+  'tipping_enabled',   // 'true' | 'false' — AU: let the TERMINAL prompt the cardholder for a tip
 ];
 
 /** Read every integration_tyro_* setting for an outlet back as a flat object. */
@@ -251,6 +253,16 @@ const TERMINAL_STATUSES = new Set([
   'approved', 'declined', 'cancelled', 'reversed', 'system_error', 'unknown',
 ]);
 
+// A transaction is "open" (non-terminal) while the terminal may still be
+// working it — i.e. the POS has reserved a row but no completion result has been
+// recorded yet. Everything else is a settled, finalised outcome.
+const OPEN_STATUSES = new Set(['pending', 'in_progress']);
+
+/** True while a row is still awaiting a terminal result (pending/in_progress). */
+function isOpenStatus(status) {
+  return OPEN_STATUSES.has(String(status || ''));
+}
+
 /** Map iClient's `result` string to our normalised status enum. */
 function mapTyroResult(result) {
   const r = String(result || '').toUpperCase();
@@ -261,6 +273,58 @@ function mapTyroResult(result) {
   if (r === 'SYSTEM ERROR')       return 'system_error';
   if (r === 'NOT STARTED')        return 'cancelled';
   return 'unknown';
+}
+
+/**
+ * Build the iClient init params the browser needs to spin up a transaction (or
+ * recover one). Shared by the /transactions (start) and /transactions/recover
+ * routes so the surcharge/tipping flags and product identity are assembled in
+ * exactly one place. Pure transform of a loaded config object.
+ */
+function iClientInitParams(cfg = {}) {
+  return {
+    script_url: iClientScriptUrl(cfg.environment || 'sandbox'),
+    api_key: cfg.api_key || '',
+    mid: cfg.mid,
+    tid: cfg.tid,
+    pos_product_vendor: cfg.pos_product_vendor,
+    pos_product_name: cfg.pos_product_name,
+    pos_product_version: cfg.pos_product_version,
+    mock_mode: cfg.mock_mode === 'true',
+    environment: cfg.environment || 'sandbox',
+    // AU terminal-driven features — booleans so the browser can decide whether
+    // to switch the matching iClient enable flags on. The TERMINAL computes the
+    // actual tip / surcharge amounts; we only enable the prompts.
+    surcharge_enabled: cfg.surcharge_enabled === 'true',
+    tipping_enabled: cfg.tipping_enabled === 'true',
+    merchant_name: cfg.merchant_name || '',
+  };
+}
+
+/**
+ * Find an outlet's most-recent still-open (pending/in_progress) terminal
+ * transaction, if any. Used by the Continue-Last-Transaction recovery flow: if
+ * the POS reloaded/crashed mid-purchase the terminal may have completed a charge
+ * the POS never recorded, so we surface the open row and let the operator
+ * recover it (fetch the real result) rather than risk a double-charge.
+ *
+ * @param {string} outletId
+ * @returns {Promise<object|null>} the open TerminalTransaction row, or null.
+ */
+async function recoverOpenTransaction(outletId) {
+  if (!outletId) {
+    const e = new Error('outlet_id is required');
+    e.status = 400; throw e;
+  }
+  const prisma = getDbClient();
+  return prisma.terminalTransaction.findFirst({
+    where: {
+      outlet_id: outletId,
+      provider: 'tyro',
+      status: { in: Array.from(OPEN_STATUSES) },
+    },
+    orderBy: { initiated_at: 'desc' },
+  });
 }
 
 /** Create (or return the existing) pending TerminalTransaction row. */
@@ -318,6 +382,14 @@ async function finaliseTransaction(id, raw = {}) {
     const e = new Error('Terminal transaction not found');
     e.status = 404; throw e;
   }
+  // Idempotent: once a row carries a settled result, re-finalising it is a
+  // no-op that returns the recorded row unchanged. This makes it safe for the
+  // recovery flow, a network-retried PATCH, or a late terminal callback racing a
+  // mock-complete to call finalise more than once without clobbering the first
+  // authoritative result or moving completed_at.
+  if (!isOpenStatus(row.status)) {
+    return row;
+  }
   const status = mapTyroResult(raw.result);
   if (!TERMINAL_STATUSES.has(status)) {
     const e = new Error(`Unknown terminal status "${status}"`);
@@ -354,11 +426,33 @@ async function finaliseTransaction(id, raw = {}) {
   });
 }
 
-/** Return a MOCK transactionCompleteCallback payload — dev/mock-mode only. */
-function mockCompletionPayload({ our_ref, amount_cents, decline = false }) {
+/**
+ * Return a MOCK transactionCompleteCallback payload — dev/mock-mode only.
+ *
+ * When the outlet has tipping/surcharge enabled we synthesise sample amounts a
+ * real terminal would have prompted for, so the whole tip/surcharge path
+ * (finaliseTransaction → TerminalTransaction row → settlement reconciliation)
+ * can be exercised end-to-end without a real Tyro terminal. The terminal is the
+ * authority on these figures in production; here we just fabricate plausible
+ * ones (10% tip, 1.5% AU card surcharge).
+ *
+ * @param {object}  opts
+ * @param {string}  opts.our_ref
+ * @param {number}  opts.amount_cents            base amount in cents
+ * @param {boolean} [opts.decline=false]
+ * @param {boolean} [opts.tipping_enabled=false] emit a sample tip
+ * @param {boolean} [opts.surcharge_enabled=false] emit a sample surcharge
+ */
+function mockCompletionPayload({
+  our_ref,
+  amount_cents,
+  decline = false,
+  tipping_enabled = false,
+  surcharge_enabled = false,
+}) {
   const base = amount_cents;
-  const tip = 0;
-  const surcharge = 0;
+  const tip = tipping_enabled ? Math.round(amount_cents * 0.10) : 0;         // sample 10% tip
+  const surcharge = surcharge_enabled ? Math.round(amount_cents * 0.015) : 0; // sample 1.5% card surcharge
   if (decline) {
     return {
       result: 'DECLINED',
@@ -622,7 +716,10 @@ module.exports = {
   testConnection,
   pairTerminal,
   startTransaction,
+  recoverOpenTransaction,
+  iClientInitParams,
   finaliseTransaction,
+  isOpenStatus,
   mapTyroResult,
   mockCompletionPayload,
   computeSettlement,

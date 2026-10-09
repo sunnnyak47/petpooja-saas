@@ -343,6 +343,66 @@ function generateKOTHTML(order, kotItems, kitchenStation, outlet) {
 </html>`;
 }
 
+/**
+ * generateEFTPOSReceiptHTML — wrap a raw EFTPOS receipt text block (as returned
+ * by the Tyro iClient merchantReceipt / customerReceipt) in a self-contained,
+ * print-ready HTML document. The terminal has already line-formatted the text,
+ * so we render it verbatim inside a monospace <pre> and only add a thin header.
+ *
+ * @param {string} receiptText — preformatted receipt text (newline separated)
+ * @param {object} [opts] — { paperWidth: 58|80, copy: 'customer'|'merchant', merchantName }
+ * @returns {string} HTML string ready for window.open + document.write
+ */
+function generateEFTPOSReceiptHTML(receiptText, opts = {}) {
+  const { paperWidth = 58, copy = 'customer', merchantName = '' } = opts;
+  const mmWidth  = paperWidth === 80 ? '80mm' : '58mm';
+  const fontSize = paperWidth === 80 ? '13px' : '11px';
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const copyLabel = copy === 'merchant' ? 'MERCHANT COPY' : 'CUSTOMER COPY';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EFTPOS Receipt${merchantName ? ' - ' + esc(merchantName) : ''}</title>
+<style>
+  @media print {
+    body { margin: 0; }
+    @page { margin: 4mm; size: ${mmWidth} auto; }
+  }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body style="font-family:'Courier New',Courier,monospace;font-size:${fontSize};width:${mmWidth};margin:0 auto;padding:4px;color:#000;background:#fff;">
+  ${merchantName ? `<div style="text-align:center;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">${esc(merchantName)}</div>` : ''}
+  <div style="text-align:center;font-size:9px;opacity:.7;margin-bottom:4px;">${copyLabel}</div>
+  <pre style="white-space:pre-wrap;word-break:break-word;margin:0;font-family:'Courier New',Courier,monospace;font-size:${fontSize};line-height:1.35;">${esc(receiptText)}</pre>
+</body>
+</html>`;
+}
+
+/**
+ * encodeEFTPOSReceiptESCPOS — encode a raw EFTPOS receipt text block as ESC/POS
+ * bytes for a thermal printer. The terminal already formatted the lines, so we
+ * emit them verbatim, left-aligned, then feed + partial cut.
+ *
+ * @param {string} receiptText
+ * @returns {Uint8Array}
+ */
+function encodeEFTPOSReceiptESCPOS(receiptText) {
+  const buf = [];
+  append(buf, ESC, 0x40);               // ESC @ — reset to defaults
+  append(buf, ESC, 0x61, ALIGN_LEFT);   // ESC a 0 — left align
+  const lines = String(receiptText ?? '').split(/\r?\n/);
+  for (const line of lines) {
+    append(buf, ...encodeText(line), LF);
+  }
+  append(buf, LF, LF, LF);              // feed 3 lines before cut
+  append(buf, GS, 0x56, 0x42, 0x00);    // GS V — partial cut with feed
+  return new Uint8Array(buf);
+}
+
 // ---------------------------------------------------------------------------
 // ESC/POS encoder
 // ---------------------------------------------------------------------------
@@ -621,6 +681,36 @@ function printKOT(order, kotItems, kitchenStation, outlet) {
 }
 
 /**
+ * printEFTPOSReceipt — print a raw EFTPOS receipt text block (the Tyro iClient
+ * merchant/customer receipt). Mirrors printBill's output strategy: Electron IPC
+ * → USB ESC/POS → browser print dialog. Graceful no-op when there is nothing to
+ * print, so callers can fire it unconditionally.
+ *
+ * @param {string} receiptText — raw receipt text from the terminal / iClient
+ * @param {object} [opts] — { paperWidth, copy: 'customer'|'merchant', merchantName }
+ */
+function printEFTPOSReceipt(receiptText, opts = {}) {
+  // Graceful: no receipt string → nothing to do (e.g. terminal returned none).
+  if (!receiptText || !String(receiptText).trim()) return;
+  const html = generateEFTPOSReceiptHTML(receiptText, opts);
+
+  // Electron: delegate to IPC if available.
+  if (typeof window !== 'undefined' && window.electron?.print) {
+    window.electron.print(html);
+    return;
+  }
+
+  // Web USB ESC/POS: attempt thermal print, fall back to browser on any error.
+  detectUSBPrinter().then((device) => {
+    if (device) {
+      const bytes = encodeEFTPOSReceiptESCPOS(receiptText);
+      return printESCPOS(bytes).catch(() => _browserPrint(html));
+    }
+    _browserPrint(html);
+  }).catch(() => _browserPrint(html));
+}
+
+/**
  * _browserPrint — internal helper: open a popup, write HTML, trigger print, close.
  * @param {string} html
  */
@@ -651,6 +741,18 @@ export const PrintService = {
 
   /** Print a KOT (Kitchen Order Ticket) via browser print */
   printKOT,
+
+  /**
+   * Print a raw EFTPOS receipt text block (Tyro merchant/customer receipt).
+   * Tries ESC/POS USB then falls back to browser print; no-op if empty.
+   */
+  printEFTPOSReceipt,
+
+  /** Generate EFTPOS receipt HTML string (useful for preview/PDF) */
+  generateEFTPOSReceiptHTML,
+
+  /** Encode an EFTPOS receipt text block as ESC/POS bytes */
+  encodeEFTPOSReceiptESCPOS,
 
   /** Generate full receipt HTML string (useful for PDF or preview) */
   generateBillHTML,

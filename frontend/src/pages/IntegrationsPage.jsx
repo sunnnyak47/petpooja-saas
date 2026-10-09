@@ -253,6 +253,8 @@ function TyroPanel({ outletId }) {
     pos_product_vendor: 'PetPooja',
     pos_product_version: '1.0.0',
     environment: 'sandbox',
+    surcharge_enabled: 'false',
+    tipping_enabled: 'false',
   });
   const [testResult, setTestResult] = useState(null);
 
@@ -273,6 +275,10 @@ function TyroPanel({ outletId }) {
       pos_product_vendor: saved.pos_product_vendor || f.pos_product_vendor,
       pos_product_version: saved.pos_product_version || f.pos_product_version,
       environment: saved.environment || 'sandbox',
+      // toggles come back as booleans from GET /config; store as 'true'/'false'
+      // strings so the PUT /config Joi schema accepts them.
+      surcharge_enabled: saved.surcharge_enabled ? 'true' : 'false',
+      tipping_enabled: saved.tipping_enabled ? 'true' : 'false',
       // leave api_key blank — user only types it when rotating
     }));
   }, [saved]);
@@ -327,6 +333,23 @@ function TyroPanel({ outletId }) {
     </div>
   );
 
+  // 'true'/'false' string toggle — matches the outletSetting value shape the
+  // backend stores and the PUT /config Joi schema expects.
+  const toggle = (key, label, help) => (
+    <label className="flex items-start gap-3 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={form[key] === 'true'}
+        onChange={(e) => setForm({ ...form, [key]: e.target.checked ? 'true' : 'false' })}
+        className="mt-0.5 h-4 w-4 rounded border-surface-600 bg-surface-800 accent-brand-500"
+      />
+      <span className="min-w-0">
+        <span className="text-xs font-bold text-surface-300 block">{label}</span>
+        {help && <span className="text-[10px] text-surface-500">{help}</span>}
+      </span>
+    </label>
+  );
+
   return (
     <div className="mt-4 pt-4 border-t border-surface-800 space-y-3 animate-slide-down">
       <div className="grid grid-cols-2 gap-3">
@@ -361,6 +384,14 @@ function TyroPanel({ outletId }) {
           <option value="sandbox">Sandbox (test)</option>
           <option value="production">Production (live payments)</option>
         </select>
+      </div>
+
+      {/* AU terminal-driven features — the TERMINAL computes the amounts; these
+          toggles just switch the prompts on at the terminal. */}
+      <div className="rounded-lg border border-surface-800 p-3 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-surface-500">Australian terminal features</p>
+        {toggle('surcharge_enabled', 'Card surcharge', 'Let the terminal add a card-payment surcharge. The terminal calculates the amount.')}
+        {toggle('tipping_enabled', 'Tipping prompt', 'Let the terminal ask the cardholder to add a tip at payment time.')}
       </div>
 
       <div className="flex gap-2 pt-1">
